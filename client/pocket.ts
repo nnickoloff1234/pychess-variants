@@ -133,13 +133,6 @@ export function click(ctrl: RoundController | AnalysisController, e: cg.MouchEve
 
         //TODO:move below lines to drop.ts -> setDropMode
         if ( ctrl.turnColor === ctrl.mycolor) {
-            const dropDests = new Map([ [role, ctrl.dests[role2san(role) + "@"] ] ]);//TODO:ideally pocket.ts should move to chessgroundx - this (ctrl.dests) then might not be accessible - is it?
-            ctrl.chessground.set({
-                dropmode: {
-                    active: true,
-                    dropDests: dropDests
-                }
-            });
         } else {
             //premove logic already moved to setDropMode
         }
