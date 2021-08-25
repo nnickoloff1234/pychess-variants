@@ -299,7 +299,9 @@ async def shutdown(app):
     if "client" in app:
         app["client"].close()
 
-
+app = None
+asdf="asdf"
+print(asdf)
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='PyChess chess variants server')
     parser.add_argument('-v', action='store_true', help='Verbose output. Changes log level from INFO to DEBUG.')
@@ -312,3 +314,4 @@ if __name__ == "__main__":
     app = make_app()
 
     web.run_app(app, port=os.environ.get("PORT", 8080))
+    print("wait wait one more line")

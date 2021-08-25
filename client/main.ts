@@ -12,7 +12,7 @@ import { _, i18n } from './i18n';
 import { aboutView } from './about';
 import { settingsView } from './settingsView';
 import { lobbyView } from './lobby';
-import { roundView } from './round';
+import {roundView, roundViewBug} from './round';
 import { inviteView } from './invite';
 import { renderGames } from './games';
 import { editorView } from './editor';
@@ -43,6 +43,8 @@ export function view(el, model): VNode {
     model["profileid"] = el.getAttribute("data-profile");
     model["title"] = el.getAttribute("data-title");
     model["variant"] = el.getAttribute("data-variant");
+    model["bug"] = el.getAttribute("data-bug");
+    model["bug_gameid"] = el.getAttribute("data-bug_gameid");
     model["chess960"] = el.getAttribute("data-chess960");
     model["rated"] = el.getAttribute("data-rated");
     model["level"] = el.getAttribute("data-level");
@@ -77,7 +79,8 @@ export function view(el, model): VNode {
         return h('div#profile', profileView(model));
     case 'tv':
     case 'round':
-        return h('div#main-wrap', [h('main.round', roundView(model))]);
+        const sel = model["bug"]? 'main.round.bug': 'main.round';
+        return h('div#main-wrap', [h(sel,model["bug"] ? roundViewBug(model) : roundView(model))]);
     case 'embed':
         return h('div', embedView(model));
     case 'analysis':

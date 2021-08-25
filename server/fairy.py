@@ -17,10 +17,11 @@ log = logging.getLogger(__name__)
 
 
 class FairyBoard:
-    def __init__(self, variant, initial_fen="", chess960=False, count_started=0):
+    def __init__(self, variant, initial_fen="", chess960=False, count_started=0, bug=False):
         if variant == "shogun":
             sf.set_option("Protocol", "uci")
         self.variant = variant
+        self.bug = bug
         self.chess960 = chess960
         self.sfen = False
         self.show_promoted = variant in ("makruk", "makpong", "cambodian")
@@ -48,7 +49,27 @@ class FairyBoard:
             self.move_stack.append(move)
             self.ply += 1
             self.color = not self.color
-            self.fen = sf.get_fen(self.variant, self.fen, [move], self.chess960, self.sfen, self.show_promoted, self.count_started)
+            if self.bug:
+                if '@' in move:
+                    # for now we assume that dropping a piece cannot result in a capture - atomic bug will wait
+                    self.fen = sf.get_fen(self.variant, self.fen, [move], self.chess960, self.sfen, self.show_promoted, self.count_started)
+                    # return None
+                else:
+                    fen_split = re.split('[\[\]]', self.fen)
+                    fen_with_empty_pocket = fen_split[0]+'[]'+fen_split[2]
+                    pocket = fen_split[1]
+                    fen_with_captured_piece = sf.get_fen(self.variant, fen_with_empty_pocket, [move], self.chess960, self.sfen, self.show_promoted, self.count_started)
+                    fen_with_captured_piece_split = re.split('[\[\]]', fen_with_captured_piece)
+                    captured_piece = fen_with_captured_piece_split[1]
+                    captured_piece = captured_piece.lower() if captured_piece.isupper() else captured_piece.upper() # crazyhouse changes colors of captures pieces, but in bughouse we want it back to the original color
+
+                    self.fen = fen_with_captured_piece_split[0]+'['+pocket+']'+fen_with_captured_piece_split[2]
+
+                    return captured_piece
+                    # self.fen = sf.get_fen(self.variant, self.fen, [move], self.chess960, self.sfen, self.show_promoted, self.count_started)
+
+            else:
+                self.fen = sf.get_fen(self.variant, self.fen, [move], self.chess960, self.sfen, self.show_promoted, self.count_started)
         except Exception:
             self.move_stack.pop()
             self.ply -= 1
@@ -62,6 +83,17 @@ class FairyBoard:
     def legal_moves(self):
         # move legality can depend on history, e.g., passing and bikjang
         return sf.legal_moves(self.variant, self.initial_fen, self.move_stack, self.chess960)
+
+    def legal_moves_fallback(self): #TODO: temporary solution for the bug PoC
+        # move legality can depend on history, e.g., passing and bikjang, BUT drops don't depend on history. On the other hand in bug(house) pocket pieces state does not depend on this boards' move history (TODO: already getting in hacking territory):
+        all_moves = sf.legal_moves(self.variant, self.fen, [], self.chess960)
+        return all_moves
+
+    def legal_drops(self): #TODO: temporary solution for the bug PoC
+        # move legality can depend on history, e.g., passing and bikjang, BUT drops don't depend on history. On the other hand in bug(house) pocket pieces state does not depend on this boards' move history (TODO: already getting in hacking territory):
+        all_moves = sf.legal_moves(self.variant, self.fen, [], self.chess960)
+        # now filter only drops from this list - i.e. they should contain '@' sign. The moves in this list are not necessary correct, because castling and maybe other stuff that depend on history
+        return list(filter(lambda m: '@' in m, all_moves))
 
     def is_checked(self):
         return sf.gives_check(self.variant, self.fen, [], self.chess960)
@@ -220,8 +252,18 @@ class FairyBoard:
 
 
 if __name__ == '__main__':
+    print("asdf")
 
     sf.set_option("VariantPath", "variants.ini")
+    print(sf.two_boards("bughouse"))
+    print("asdf")
+    board = FairyBoard("bughouse")
+    print(board.fen)
+    board.print_pos()
+    print(board.legal_moves())
+    print([board.get_san(move) for move in board.legal_moves()])
+
+    exit(0);
 
     board = FairyBoard("shogi")
     print(board.fen)
@@ -245,6 +287,9 @@ if __name__ == '__main__':
 
     board = FairyBoard("capablanca")
     print(board.fen)
+
+    print("aaaaaaaaaaaaaaa")
+
     for move in ("e2e4", "d7d5", "e4d5", "c8i2", "d5d6", "i2j1", "d6d7", "j1e6", "d7e8c"):
         print("push move", move)
         board.push(move)
@@ -252,10 +297,13 @@ if __name__ == '__main__':
         print(board.fen)
     print(board.legal_moves())
 
+    print("aaaaaaaaaaaaaaa")
+
     FEN = "r8r/1nbqkcabn1/ppppppp1pp/10/9P/10/10/PPPPPPPPp1/1NBQKC2N1/R5RAB1[p] b - - 0 5"
     board = FairyBoard("grandhouse", initial_fen=FEN)
     print(board.fen)
     board.print_pos()
+    print("zzzzzzzzzzzzzzz")
     print(board.legal_moves())
 
     board = FairyBoard("minishogi")

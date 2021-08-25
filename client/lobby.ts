@@ -63,7 +63,7 @@ class LobbyController {
             if (this.seeks !== undefined) {
                 this.seeks.forEach(s => {
                     if (s.user === this.model["username"]) {
-                        this.createSeekMsg(s.variant, s.color, s.fen, s.base, s.inc, s.byoyomi, s.chess960, s.rated, s.alternateStart);
+                        this.createSeekMsg(s.variant, s.color, s.fen, s.base, s.inc, s.byoyomi, s.bug, s.chess960, s.rated, s.alternateStart);
                     }
                 });
             }
@@ -119,7 +119,7 @@ class LobbyController {
         this.sock.send(JSON.stringify(message));
     }
 
-    createSeekMsg(variant: string, color: string, fen: string, minutes: number, increment: number, byoyomiPeriod: number, chess960: boolean, rated: boolean, alternateStart: string) {
+    createSeekMsg(variant: string, color: string, fen: string, minutes: number, increment: number, byoyomiPeriod: number, bug: boolean, chess960: boolean, rated: boolean, alternateStart: string) {
         this.doSend({
             type: "create_seek",
             user: this.model.username,
@@ -131,6 +131,7 @@ class LobbyController {
             byoyomiPeriod: byoyomiPeriod,
             rated: rated,
             alternateStart: alternateStart,
+            bug: bug,
             chess960: chess960,
             color: color
         });
@@ -242,6 +243,10 @@ class LobbyController {
         const chess960 = (variant.chess960 && alternateStart === "") ? e.checked : false;
         localStorage.seek_chess960 = e.checked;
 
+        e = document.getElementById('bug') as HTMLInputElement;
+        const bug = /*(variant.bug && alternateStart === "") ?*/ e.checked /*: false*/;
+        localStorage.seek_bug = e.checked;
+
         // console.log("CREATE SEEK variant, color, fen, minutes, increment, hide, chess960", variant, color, fen, minutes, increment, chess960, rated);
 
         if (this.challengeAI) {
@@ -254,7 +259,7 @@ class LobbyController {
             this.createInviteFriendMsg(variant.name, seekColor, fen, minutes, increment, byoyomiPeriod, chess960, rated, alternateStart);
         } else {
             if (this.isNewSeek(variant.name, seekColor, fen, minutes, increment, byoyomiPeriod, chess960, rated))
-                this.createSeekMsg(variant.name, seekColor, fen, minutes, increment, byoyomiPeriod, chess960, rated, alternateStart);
+                this.createSeekMsg(variant.name, seekColor, fen, minutes, increment, byoyomiPeriod, bug, chess960, rated, alternateStart);
         }
         // prevent to create challenges continuously
         this.model.profileid = '';
@@ -272,6 +277,7 @@ class LobbyController {
         const vRated = localStorage.seek_rated ?? "0";
         const vLevel = Number(localStorage.seek_level ?? "1");
         const vChess960 = localStorage.seek_chess960 ?? "false";
+        const vBug = localStorage.seek_bug ?? "false";
 
         const anon = this.model.anon === 'True';
         
@@ -313,6 +319,18 @@ class LobbyController {
                                 },
                                 attrs: {
                                     checked: vChess960 === "true"
+                                },
+                            }),
+                        ]),
+                        h('div#bug-block', [
+                            h('label', { attrs: { for: "bug" } }, "Bug"),
+                            h('input#bug', {
+                                props: {
+                                    name: "bug",
+                                    type: "checkbox",
+                                },
+                                attrs: {
+                                    checked: vBug === "true"
                                 },
                             }),
                         ]),
@@ -513,13 +531,18 @@ class LobbyController {
     private seekView(seek) {
         const variant = VARIANTS[seek.variant];
         const chess960 = seek.chess960;
+        const bug = seek.bug;
 
         return this.hide(seek) ? "" : h('tr', { on: { click: () => this.onClickSeek(seek) } }, [
             h('td', [ this.colorIcon(seek.color) ]),
-            h('td', [ this.challengeIcon(seek), this.title(seek), this.user(seek) ]),
+            h('td', bug?[ h('div', [ this.challengeIcon(seek), this.title(seek), seek.user ]),
+                                    h('div', [ this.challengeIcon(seek), this.title(seek), seek.bugUserPartner ]),
+                                    h('div', [ this.challengeIcon(seek), this.title(seek), seek.bugOpp ]),
+                                    h('div', [ this.challengeIcon(seek), this.title(seek), seek.bugOppPartner ]) ]
+                :[ this.challengeIcon(seek), this.title(seek), this.user(seek) ]),
             h('td', seek.rating),
             h('td', timeControlStr(seek.base, seek.inc, seek.byoyomi)),
-            h('td.icon', { attrs: { "data-icon": variant.icon(chess960) } }, [h('variant-name', " " + variant.displayName(chess960))]),
+            h('td.icon', { attrs: { "data-icon": variant.icon(chess960) } }, [h('variant-name', " " + (bug? "BUG":"") + variant.displayName(chess960))]),
             h('td', { class: { tooltip: seek.fen } }, [
                 this.tooltip(seek, variant),
                 this.mode(seek),

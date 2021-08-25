@@ -847,6 +847,8 @@ export default class RoundController {
                 }
             }
         };
+        updatePockets(this, this.vpocket0, this.vpocket1); // TODO:temporary solution for refreshing pockets is sending board messages, but of course that is way too inefficient
+
     }
 
     goPly = (ply) => {
@@ -1277,6 +1279,10 @@ export default class RoundController {
         // console.log("<+++ onMessage():", evt.data);
         const msg = JSON.parse(evt.data);
         switch (msg.type) {
+            case "set_holding":
+                console.log("set_holding", msg);
+                this.doSend({ type: "board", gameId: this.gameId });// TODO:temporary solution for refreshing pocket is sending board message, but of course that is way to ineffective
+                break;
             case "board":
                 this.onMsgBoard(msg);
                 break;

@@ -108,6 +108,7 @@ export interface IVariant {
 
     readonly alternateStart?: { [ name: string ]: string };
 
+    readonly bug: boolean;
     readonly chess960: boolean;
 
     readonly icon: (chess960: boolean) => string;
@@ -158,6 +159,7 @@ class Variant implements IVariant {
     readonly alternateStart?: { [ name: string ]: string };
 
     readonly chess960: boolean;
+    readonly bug: boolean;
 
     private readonly _icon: string;
     private readonly _icon960: string;

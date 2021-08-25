@@ -8,7 +8,7 @@ from aiohttp import web
 import aiohttp_session
 from aiohttp_sse import sse_response
 
-from const import STARTED, MATE, VARIANTS, INVALIDMOVE, VARIANTEND, CLAIM
+from const import CREATED, STARTED, MATE, VARIANTS, INVALIDMOVE, VARIANTEND, CLAIM
 from compress import C2V, V2C, C2R
 from utils import pgn
 from settings import ADMINS
@@ -231,7 +231,7 @@ async def get_games(request):
         "base": game.base,
         "inc": game.inc,
         "byoyomi": game.byoyomi_period
-    } for game in games.values() if game.status == STARTED][-20:])
+    } for game in games.values() if game.status == CREATED or game.status == STARTED][-20:]) # TODO: added CREATED because of bug - it s temporary
 
 
 async def export(request):

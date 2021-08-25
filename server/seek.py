@@ -7,7 +7,7 @@ MAX_USER_SEEKS = 10
 class Seek:
     gen_id = 0
 
-    def __init__(self, user, variant, fen="", color="r", base=5, inc=3, byoyomi_period=0, level=6, rated=False, chess960=False, alternate_start="", target="", ws=None, game_id=None):
+    def __init__(self, user, variant, fen="", color="r", base=5, inc=3, byoyomi_period=0, level=6, rated=False, bug=False, chess960=False, alternate_start="", target="", ws=None, game_id=None):
         self.user = user
         self.variant = variant
         self.color = color
@@ -18,6 +18,16 @@ class Seek:
         self.inc = inc
         self.byoyomi_period = byoyomi_period
         self.level = 0 if user.username == "Random-Mover" else level
+
+        self.bug = bug
+        self.bugUserPartner = None
+        self.bugOpp = None
+        self.bugOppPartner = None
+
+        self.bugUserPartnerWs = None
+        self.bugOppWs = None
+        self.bugOppPartnerWs = None
+
         self.chess960 = chess960
         self.alternate_start = alternate_start
         self.target = target
@@ -33,6 +43,10 @@ class Seek:
             "bot": self.user.bot,
             "title": self.user.title,
             "variant": self.variant,
+            "bug": self.bug,
+            "bugUserPartner": "",
+            "bugOpp": "",
+            "bugOppPartner": "",
             "chess960": self.chess960,
             "alternateStart": self.alternate_start,
             "target": self.target,
@@ -69,7 +83,8 @@ async def create_seek(db, invites, seeks, user, data, ws=None):
         game_id = None
 
     seek = Seek(
-        user, data["variant"],
+        user,
+        data["variant"],
         fen=data["fen"],
         color=data["color"],
         base=data["minutes"],
@@ -77,6 +92,7 @@ async def create_seek(db, invites, seeks, user, data, ws=None):
         byoyomi_period=data["byoyomiPeriod"],
         rated=data.get("rated"),
         chess960=data.get("chess960"),
+        bug=data.get("bug"),
         alternate_start=data.get("alternateStart"),
         target=target,
         ws=ws,

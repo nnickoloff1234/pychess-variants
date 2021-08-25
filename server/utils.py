@@ -407,6 +407,76 @@ async def new_game(app, user, seek_id, game_id=None):
 
     return {"type": "new_game", "gameId": game_id, "wplayer": wplayer.username, "bplayer": bplayer.username}
 
+async def new_bug_game(app, seek_id):
+    db = app["db"]
+    games = app["games"]
+    seeks = app["seeks"]
+    seek = seeks[seek_id]
+    log.info("+++ BUG Seek %s accepted  FEN:%s 960:%s", seek_id, seek.fen, seek.chess960)
+
+    fen_valid = True
+    if seek.fen:
+        fen_valid, sanitized_fen = sanitize_fen(seek.variant, seek.fen, seek.chess960)
+        if not fen_valid:
+            message = "Failed to create game. Invalid FEN %s" % seek.fen
+            log.debug(message)
+            remove_seek(seeks, seek)
+            return {"type": "error", "message": message}, {"type": "error", "message": message}
+    else:
+        sanitized_fen = ""
+
+    if seek.color == "r":
+        wplayer1 = random.choice((seek.user, seek.bugOpp))
+        bplayer1 = seek.bugOpp if wplayer1.username == seek.user.username else seek.user
+    else:
+        wplayer1 = seek.user if seek.color == "w" else seek.bugOpp
+        bplayer1 = seek.user if seek.color == "b" else seek.bugOpp
+
+    wplayer2 = seek.bugUserPartner if bplayer1 == seek.user else seek.bugOppPartner
+    bplayer2 = seek.bugUserPartner if wplayer1 == seek.user else seek.bugOppPartner
+
+    game_id1 = await new_id(None if db is None else db.game)
+    game_id2 = await new_id(None if db is None else db.game)
+
+    # print("new_game", game_id, seek.variant, seek.fen, wplayer, bplayer, seek.base, seek.inc, seek.level, seek.rated, seek.chess960)
+    try:
+        game1 = Game(
+            app, game_id1, seek.variant, sanitized_fen, wplayer1, bplayer1,
+            base=seek.base,
+            inc=seek.inc,
+            byoyomi_period=seek.byoyomi_period,
+            level=seek.level,
+            rated=RATED if (seek.rated and (not wplayer1.anon) and (not bplayer1.anon)) else CASUAL,
+            chess960=seek.chess960,
+            bug=True,
+            create=True)
+        game2 = Game(
+            app, game_id2, seek.variant, sanitized_fen, wplayer2, bplayer2,
+            base=seek.base,
+            inc=seek.inc,
+            byoyomi_period=seek.byoyomi_period,
+            level=seek.level,
+            rated=RATED if (seek.rated and (not wplayer2.anon) and (not bplayer2.anon)) else CASUAL,
+            chess960=seek.chess960,
+            bug=True,
+            create=True)
+        game1.second_board = game2
+        game2.second_board = game1
+    except Exception:
+        log.exception("Creating new bug game %s %s failed! %s 960:%s FEN:%s %s vs %s and %s vs %s", game_id1, game_id2, seek.variant, seek.chess960, seek.fen, wplayer1, bplayer1, wplayer2, bplayer2)
+        remove_seek(seeks, seek)
+        return {"type": "error", "message": "Failed to create game"}, {"type": "error", "message": "Failed to create game"}
+
+    games[game_id1] = game1
+    games[game_id2] = game2
+
+    remove_seek(seeks, seek)
+
+    await insert_game_to_db(game1, app)
+    await insert_game_to_db(game2, app)
+
+    return {"type": "new_game", "gameId": game_id1, "wplayer": wplayer1.username, "bplayer": bplayer1.username},\
+           {"type": "new_game", "gameId": game_id2, "wplayer": wplayer2.username, "bplayer": bplayer2.username}
 
 async def insert_game_to_db(game, app):
     # unit test app may have no db

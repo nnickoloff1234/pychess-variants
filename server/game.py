@@ -4,6 +4,7 @@ import logging
 import random
 from datetime import datetime, timezone
 from time import monotonic
+import re
 
 try:
     import pyffish as sf
@@ -31,7 +32,7 @@ KEEP_TIME = 600  # keep game in app["games"] for KEEP_TIME secs
 
 
 class Game:
-    def __init__(self, app, gameId, variant, initial_fen, wplayer, bplayer, base=1, inc=0, byoyomi_period=0, level=0, rated=CASUAL, chess960=False, create=True, tournamentId=None):
+    def __init__(self, app, gameId, variant, initial_fen, wplayer, bplayer, base=1, inc=0, byoyomi_period=0, level=0, rated=CASUAL, bug=False, chess960=False, create=True, tournamentId=None):
         self.app = app
         self.db = app["db"] if "db" in app else None
         self.users = app["users"]
@@ -49,6 +50,7 @@ class Game:
         self.inc = inc
         self.level = level if level is not None else 0
         self.tournamentId = tournamentId
+        self.bug = bug
         self.chess960 = chess960
         self.create = create
 
@@ -142,6 +144,7 @@ class Game:
                 self.initial_fen = ""
 
         self.board = self.create_board(self.variant, self.initial_fen, self.chess960, count_started)
+        self.board.bug = self.bug
 
         # Janggi setup needed when player is not BOT
         if self.variant == "janggi":
@@ -188,6 +191,32 @@ class Game:
             self.bplayer.game_in_progress = self.id
         if not self.wplayer.bot:
             self.wplayer.game_in_progress = self.id
+
+        self.second_board = None
+
+    async def receive_a_piece(self, captured_piece):
+        print("receive_a_piece ", self.id, captured_piece)
+        if captured_piece:
+            msg = {"type": "set_holding", "captured": captured_piece, "game_id": self.id}
+            print("before", self.board.fen)
+
+            board_fen_split = re.split('[\[\]]', self.board.fen)
+            self.board.fen = board_fen_split[0]+'['+board_fen_split[1]+captured_piece+']'+board_fen_split[2]
+            print("after", self.board.fen)
+
+            self.set_dests_bug()
+
+            wsw1 = self.users[self.wplayer.username].game_sockets[self.id]
+            wsb1 = self.users[self.bplayer.username].game_sockets[self.id]
+
+            wsw2 = self.users[self.second_board.wplayer.username].game_sockets[self.second_board.id]
+            wsb2 = self.users[self.second_board.bplayer.username].game_sockets[self.second_board.id]
+
+            await wsw1.send_json(msg)
+            await wsb1.send_json(msg)
+
+            await wsw2.send_json(msg)
+            await wsb2.send_json(msg)
 
     @staticmethod
     def create_board(variant, initial_fen, chess960, count_started):
@@ -256,7 +285,7 @@ class Game:
             try:
                 san = self.board.get_san(move)
                 self.lastmove = move
-                self.board.push(move)
+                captured_piece = self.board.push(move)
                 self.ply_clocks.append(clocks)
                 self.set_dests()
                 self.update_status()
@@ -280,6 +309,11 @@ class Game:
                     "turnColor": "black" if self.board.color == BLACK else "white",
                     "check": self.check}
                 )
+
+                # niki
+                if self.second_board:
+                    await self.second_board.receive_a_piece(captured_piece)
+
                 self.stopwatch.restart()
 
             except Exception:
@@ -560,7 +594,7 @@ class Game:
                     self.result = "1/2-1/2"
                     # print(self.result, "counting limit reached")
 
-        else:
+        elif not self.bug: # TODO: below is_optional_game_end depends on full list of moves - that doesnt work with dropping out of nowhere pieces - fish crashes because of invalid move @something
             # end the game by 50 move rule and repetition automatically
             # for non-draw results and bot games
             is_game_end, game_result_value = self.board.is_optional_game_end()
@@ -582,7 +616,50 @@ class Game:
             if not self.wplayer.bot:
                 self.wplayer.game_in_progress = None
 
+    # TODO: temporary solution - should think whats best and if there is any good solution at all (see also fairy.legal_drops )
+    def set_dests_bug(self):
+        dests = {}
+        promotions = []
+
+        try:
+            moves = self.board.legal_moves()
+            drops = self.board.legal_drops()
+            moves = list(filter(lambda m: '@' not in m, moves)) + drops
+        except Exception:
+            print("need some ideas here how to keep using this because it is probably important at least for castling") # TODO: i wonder if stockfish supports starting fen with 1000 pieces of each kind in its pocket and the usual starting position and will still respect castling rules. that might be one idea how to always have @ moves as valid
+            moves = self.board.legal_moves_fallback()
+
+        # print("self.board.legal_moves()", moves)
+        if self.random_mover:
+            self.random_move = random.choice(moves) if moves else ""
+            # print("RM: %s" % self.random_move)
+
+        for move in moves:
+            # chessgroundx key uses ":" for tenth rank
+            if self.variant in GRANDS:
+                move = move.replace("10", ":")
+            source, dest = move[0:2], move[2:4]
+            if source in dests:
+                dests[source].append(dest)
+            else:
+                dests[source] = [dest]
+
+            if not move[-1].isdigit():
+                if not (self.variant in ("seirawan", "shouse") and (move[1] == '1' or move[1] == '8')):
+                    promotions.append(move)
+
+            if self.variant == "kyotoshogi" and move[0] == "+":
+                promotions.append(move)
+
+        self.dests = dests
+        self.promotions = promotions
+
     def set_dests(self):
+
+        if self.bug:
+            self.set_dests_bug()
+            return
+
         dests = {}
         promotions = []
         moves = self.board.legal_moves()
@@ -622,7 +699,7 @@ class Game:
 
     @property
     def pgn(self):
-        try:
+        try: # TODO: in bug that throws exception maybe
             mlist = sf.get_san_moves(self.variant, self.initial_fen, self.board.move_stack, self.chess960, sf.NOTATION_SAN)
         except Exception:
             log.exception("ERROR: Exception in game %s pgn()", self.id)

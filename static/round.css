@@ -23,6 +23,13 @@
         grid-template-rows: min-content auto min-content auto auto auto auto auto auto auto min-content auto min-content;
         grid-template-areas: 'board .' 'board mat-top' 'board clock-top' 'board expi-top' 'board user-top' 'board move-controls' 'board moves' 'board game-controls' 'board user-bot' 'board expi-bot' 'board clock-bot' 'board mat-bot' 'board .';
     }
+
+    .bug .round-app {
+        grid-template-columns: minmax(calc(70vmin * var(--board-scale)), calc(100vh * var(--board-scale) - calc(var(--site-header-height) + var(--site-header-margin)) - 3rem)) minmax(240px, 400px) minmax(calc(70vmin * var(--board-scale)), calc(100vh * var(--board-scale) - calc(var(--site-header-height) + var(--site-header-margin)) - 3rem));
+        grid-template-rows: min-content auto min-content auto auto auto auto auto auto auto min-content auto min-content;
+        grid-template-areas: 'board . b2' 'board mat-top b2' 'board clock-top b2' 'board expi-top b2' 'board user-top b2' 'board move-controls b2' 'board moves b2' 'board game-controls b2' 'board user-bot b2' 'board expi-bot b2' 'board clock-bot b2' 'board mat-bot b2' 'board . b2';
+    }
+
 }
 
 .cg-wrap svg {

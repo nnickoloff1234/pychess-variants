@@ -347,6 +347,8 @@ async def index(request):
             render["status"] = game.status
             render["date"] = game.date.isoformat()
             render["title"] = game.browser_title
+            render["bug"] = game.bug
+            render["bug_gameid"] = game.second_board.id
             if ply is not None:
                 render["ply"] = ply
             if game.tournamentId is not None:

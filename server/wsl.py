@@ -11,7 +11,7 @@ from const import STARTED
 from settings import ADMINS
 from seek import challenge, create_seek, get_seeks, Seek
 from user import User
-from utils import new_game, load_game, online_count, MyWebSocketResponse
+from utils import new_game, new_bug_game, load_game, online_count, MyWebSocketResponse
 from misc import server_growth, server_state
 from tournament import tournament_spotlights
 
@@ -33,7 +33,6 @@ async def is_playing(request, user, ws):
 
 
 async def lobby_socket_handler(request):
-
     users = request.app["users"]
     sockets = request.app["lobbysockets"]
     seeks = request.app["seeks"]
@@ -166,15 +165,39 @@ async def lobby_socket_handler(request):
 
                         seek = seeks[data["seekID"]]
                         # print("accept_seek", seek.as_json)
-                        response = await new_game(request.app, user, data["seekID"])
-                        await ws.send_json(response)
 
-                        if seek.user.bot:
-                            gameId = response["gameId"]
-                            seek.user.game_queues[gameId] = asyncio.Queue()
-                            await seek.user.event_queue.put(challenge(seek, response))
+                        if seek.bug:
+                            print("bug")
+                            if seek.bugUserPartner is None:
+                                seek.bugUserPartner = user
+                                seek.bugUserPartnerWs = ws
+                                seek.as_json["bugUserPartner"] = user.username
+                            elif seek.bugOpp is None:
+                                seek.bugOpp = user
+                                seek.bugOppWs = ws
+                                seek.as_json["bugOpp"] = user.username
+                            elif seek.bugOppPartner is None:
+                                seek.bugOppPartner = user
+                                seek.bugOppPartnerWs = ws #TODO:depending how cusotmizable the order of joining would be this might be needed - currently not needed
+                                seek.as_json["bugOppPartner"] = user.username
+                                print("start bug game")
+                                response1, response2 = await new_bug_game(request.app, data["seekID"])
+                                print(response1)
+                                print(response2)
+                                await seek.ws.send_json(response1)
+                                await seek.bugOppWs.send_json(response1)
+                                await seek.bugUserPartnerWs.send_json(response2)
+                                await seek.bugOppPartnerWs.send_json(response2)
                         else:
-                            await seek.ws.send_json(response)
+                            response = await new_game(request.app, user, data["seekID"])
+                            await ws.send_json(response)
+
+                            if seek.user.bot:
+                                gameId = response["gameId"]
+                                seek.user.game_queues[gameId] = asyncio.Queue()
+                                await seek.user.event_queue.put(challenge(seek, response))
+                            else:
+                                await seek.ws.send_json(response)
 
                         # Inform others, new_game() deleted accepted seek allready.
                         await lobby_broadcast(sockets, get_seeks(seeks))
@@ -182,18 +205,21 @@ async def lobby_socket_handler(request):
                     elif data["type"] == "lobby_user_connected":
                         if session_user is not None:
                             if data["username"] and data["username"] != session_user:
-                                log.info("+++ Existing lobby_user %s socket connected as %s.", session_user, data["username"])
+                                log.info("+++ Existing lobby_user %s socket connected as %s.", session_user,
+                                         data["username"])
                                 session_user = data["username"]
                                 if session_user in users:
                                     user = users[session_user]
                                 else:
-                                    user = User(request.app, username=data["username"], anon=data["username"].startswith("Anon-"))
+                                    user = User(request.app, username=data["username"],
+                                                anon=data["username"].startswith("Anon-"))
                                     users[user.username] = user
                             else:
                                 if session_user in users:
                                     user = users[session_user]
                                 else:
-                                    user = User(request.app, username=data["username"], anon=data["username"].startswith("Anon-"))
+                                    user = User(request.app, username=data["username"],
+                                                anon=data["username"].startswith("Anon-"))
                                     users[user.username] = user
                         else:
                             log.info("+++ Existing lobby_user %s socket reconnected.", data["username"])
@@ -201,7 +227,8 @@ async def lobby_socket_handler(request):
                             if session_user in users:
                                 user = users[session_user]
                             else:
-                                user = User(request.app, username=data["username"], anon=data["username"].startswith("Anon-"))
+                                user = User(request.app, username=data["username"],
+                                            anon=data["username"].startswith("Anon-"))
                                 users[user.username] = user
 
                         # update websocket
@@ -243,7 +270,8 @@ async def lobby_socket_handler(request):
                                 spammer = data["message"].split()[-1]
                                 if spammer in users:
                                     users[spammer].set_silence()
-                                    response = {"type": "lobbychat", "user": "", "message": "%s was timed out 10 minutes for spamming the chat." % spammer}
+                                    response = {"type": "lobbychat", "user": "",
+                                                "message": "%s was timed out 10 minutes for spamming the chat." % spammer}
                             elif message == "/growth":
                                 server_growth()
                             elif message == "/state":
