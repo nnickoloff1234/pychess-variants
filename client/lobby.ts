@@ -323,7 +323,7 @@ class LobbyController {
                             }),
                         ]),
                         h('div#bug-block', [
-                            h('label', { attrs: { for: "bug" } }, "Bug"),
+                            h('label', { attrs: { for: "bug" } }, "BugX"),
                             h('input#bug', {
                                 props: {
                                     name: "bug",

@@ -46,8 +46,8 @@ function getFen(bugGameId, cg){
 
 }
 
-function gameView(bugGameId/*game,*/ /*fen, lastMove*/) {
-    const variant = VARIANTS["crazyhouse"/*game.variant*/];
+function gameView(bugGameId, variant/*game,*/ /*fen, lastMove*/) {
+    // const variant = VARIANTS["crazyhouse"/*game.variant*/];
     return h(`minigame#bugboard.${variant.board}.${variant.piece}`,
         h('div', [
         /*h('div.row', [
@@ -117,7 +117,7 @@ export function roundViewBug(model): VNode[] {
                     },
                 }),
             ]),
-            gameView(bugGameId),
+            gameView(bugGameId, variant),
             h('div.pocket-top', [
                 h('div.' + variant.piece + '.' + model["variant"], [
                     h('div.cg-wrap.pocket', [
