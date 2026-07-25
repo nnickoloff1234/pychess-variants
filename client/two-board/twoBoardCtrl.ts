@@ -10,7 +10,7 @@ import { boardSettings } from '@/boardSettings';
 import { ChessgroundController } from '@/cgCtrl';
 import { GameControllerBughouse } from './common/gameCtrl';
 import { createMovelistButtons } from './common/movelist';
-import { TwoBoardPlayers } from './common/players';
+import { TwoBoardSeats } from './common/players';
 
 // Shared core of the two bughouse page controllers (RoundControllerBughouse and
 // AnalysisControllerBughouse): owns the two boards and the state/logic both need.
@@ -23,7 +23,7 @@ export abstract class TwoBoardController {
     model: PyChessModel;
     gameId: string;
     username: string;
-    players: TwoBoardPlayers;
+    seats: TwoBoardSeats;
     variant: Variant;
     base: number;
     inc: number;
@@ -42,8 +42,18 @@ export abstract class TwoBoardController {
 
     abstract sendMove: (b: GameControllerBughouse, move: string) => void;
     abstract goPly: (ply: number, plyVari?: number) => void;
-    abstract flipBoards: () => void;
-    abstract switchBoards: () => void;
+
+    // Default flip/switch: just re-orient/re-position the two boards. RoundControllerBughouse
+    // overrides both to additionally move its player-bar/clock DOM around, calling
+    // super.flipBoards()/super.switchBoards() rather than duplicating the board-level logic.
+    flipBoards(): void {
+        this.boardA.toggleOrientation();
+        this.boardB.toggleOrientation();
+    }
+
+    switchBoards(): void {
+        switchBoards(this);
+    }
 
     constructor(
         el1: HTMLElement,
@@ -65,7 +75,7 @@ export abstract class TwoBoardController {
         this.settings = true;
         this.steps = [];
 
-        this.players = new TwoBoardPlayers(model, this.username);
+        this.seats = new TwoBoardSeats(model, this.username);
 
         this.boardA = new GameControllerBughouse(el1, el1Pocket1, el1Pocket2, 'a', model);
         this.boardB = new GameControllerBughouse(el2, el2Pocket1, el2Pocket2, 'b', model);

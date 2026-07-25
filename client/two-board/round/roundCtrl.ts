@@ -28,7 +28,7 @@ import { sound, soundThemeSettings } from '../../sound';
 import { notify } from '../../notification';
 import { chatMessageBug, resetChat } from '@/two-board/round/chat';
 import { confirmDialog } from '@/confirmDialog';
-import { TwoBoardController, initBoardSettings, switchBoards } from '../twoBoardCtrl';
+import { TwoBoardController, initBoardSettings } from '../twoBoardCtrl';
 
 export class RoundControllerBughouse extends TwoBoardController implements ChatController {
     socket: RoundControllerBughouseSocket;
@@ -44,7 +44,6 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
 
     vdialog: VNode;
     tv: boolean;
-    animation: boolean;
     showDests: boolean;
     handicap: boolean = false;
     focus: boolean;
@@ -87,10 +86,10 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
 
         this.seatsState = new SeatsState(this);
 
-        this.spectator = this.players.isSpectator();
+        this.spectator = this.seats.isSpectator();
 
         const flagCallbackA = () => {
-            if (this.players.myColor('a') === this.boardA.turnColor) {
+            if (this.seats.myColor('a') === this.boardA.turnColor) {
                 this.boardA.chessground.stop();
                 this.boardB.chessground.stop();
                 // console.log("Flag");
@@ -98,7 +97,7 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
             }
         };
         const flagCallbackB = () => {
-            if (this.players.myColor('b') === this.boardB.turnColor) {
+            if (this.seats.myColor('b') === this.boardB.turnColor) {
                 this.boardA.chessground.stop();
                 this.boardB.chessground.stop();
                 // console.log("Flag");
@@ -134,8 +133,8 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
         //////////////
         // todo: redundant setting turnColor here. It will be overwritten a moment later in onMsgBoard which is
         //       important and more correct in case of custom fen with black to move
-        const myColorA = this.players.myColor('a');
-        const myColorB = this.players.myColor('b');
+        const myColorA = this.seats.myColor('a');
+        const myColorB = this.seats.myColor('b');
         // my partner's color on one board is the opposite of my color on the other board
         const partnerColorA = myColorB === undefined ? undefined : myColorB === 'white' ? 'black' : 'white';
         const partnerColorB = myColorA === undefined ? undefined : myColorA === 'white' ? 'black' : 'white';
@@ -168,7 +167,7 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
         // const amISimuling = this.mycolor.get('a') !== undefined && this.mycolor.get('b') !== undefined;
         // const distinctOpps = new Set([this.wplayer, this.bplayer, this.wplayerB, this.bplayerB].filter((e) => e !== this.username));
         // const isOppSimuling = distinctOpps.size === 1;
-        if (this.players.me('a') === undefined && !this.spectator) {
+        if (this.seats.me('a') === undefined && !this.spectator) {
             // I am not playing on board A at all. Switch:
             this.switchBoards();
         }
@@ -197,7 +196,7 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
         return this.socket.doSend;
     }
 
-    flipBoards = (): void => {
+    flipBoards(): void {
         let infoWrap0 = document.getElementsByClassName('info-wrap0')[0] as HTMLElement;
         let infoWrap0bug = document.getElementsByClassName('info-wrap0 bug')[0] as HTMLElement;
         let infoWrap1 = document.getElementsByClassName('info-wrap1')[0] as HTMLElement;
@@ -210,12 +209,11 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
         infoWrap0bug!.style.gridArea = infoWrap1bug!.style.gridArea || 'clockB-bot';
         infoWrap1bug!.style.gridArea = a;
 
-        this.boardA.toggleOrientation();
-        this.boardB.toggleOrientation();
-    };
+        super.flipBoards();
+    }
 
-    switchBoards = (): void => {
-        switchBoards(this);
+    switchBoards(): void {
+        super.switchBoards();
 
         let infoWrap0 = document.getElementsByClassName('info-wrap0')[0] as HTMLElement;
         let infoWrap0bug = document.getElementsByClassName('info-wrap0 bug')[0] as HTMLElement;
@@ -228,14 +226,14 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
         a = infoWrap1!.style.gridArea || 'clock-bot';
         infoWrap1!.style.gridArea = infoWrap1bug!.style.gridArea || 'clockB-bot';
         infoWrap1bug!.style.gridArea = a;
-    };
+    }
 
     sendMove = (b: GameControllerBughouse, move: string) => {
         console.log(b, move);
         this.clearDialog();
 
         //moveColor is "my color" on that board
-        const moveColor = this.players.myColor(b.boardName as BugBoardName) === 'black' ? 'black' : 'white';
+        const moveColor = this.seats.myColor(b.boardName as BugBoardName) === 'black' ? 'black' : 'white';
 
         this.seatsState.seatAt(b.boardName as BugBoardName, moveColor).clock.pause(true);
 
@@ -344,8 +342,8 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
         if (this.status >= 0) return;
 
         // todo: assumes the viewer plays board A — for a board-B player this names the wrong opponent (preserved quirk)
-        const wplayerA = this.players.byBoardAndColor('a', 'white').username;
-        const bplayerA = this.players.byBoardAndColor('a', 'black').username;
+        const wplayerA = this.seats.byBoardAndColor('a', 'white').player.username;
+        const bplayerA = this.seats.byBoardAndColor('a', 'black').player.username;
         const opp_name = this.username === wplayerA ? bplayerA : wplayerA;
         const logoUrl = `${this.home}/static/favicon/android-icon-192x192.png`;
         notify('pychess.org', { body: `${opp_name}\n${msg}`, icon: logoUrl });
@@ -433,7 +431,7 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
             // this.dests = new Map();
 
             if (this.result !== '*' && !this.spectator && !this.finishedGame) {
-                sound.gameEndSoundBughouse(msg.result, this.players.myTeam().teamNumber);
+                sound.gameEndSoundBughouse(msg.result, this.seats.myTeam().teamNumber);
             }
             selectMove(this, this.steps.length - 1); // show final position (also important to disable cg's movable)
             updateResult(this);
@@ -485,11 +483,11 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
                 if (step.chat) {
                     step.chat.forEach(c => {
                         // Check if status < 0 and filter only partners messages
-                        const myTeam = this.players.myTeam();
+                        const myTeam = this.seats.myTeam();
                         if (this.status < 0) {
                             if (
-                                c.username === myTeam.players[0].username ||
-                                c.username === myTeam.players[1].username
+                                c.username === myTeam.seats[0].player.username ||
+                                c.username === myTeam.seats[1].player.username
                             ) {
                                 chatMessageBug(idx, this, c);
                             }
@@ -637,8 +635,8 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
 
         // prevent sending premove/predrop when (auto)reconnecting websocked asks server to (re)sends the same board to us
         // console.log("trying to play premove....");
-        if (this.boardA.premove && this.boardA.turnColor == this.players.myColor('a')) this.boardA.performPremove();
-        if (this.boardB.premove && this.boardB.turnColor == this.players.myColor('b')) this.boardB.performPremove();
+        if (this.boardA.premove && this.boardA.turnColor == this.seats.myColor('a')) this.boardA.performPremove();
+        if (this.boardB.premove && this.boardB.turnColor == this.seats.myColor('b')) this.boardB.performPremove();
     };
 
     private updateSingleBoardAndClocks = (
@@ -669,7 +667,7 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
         const stepPartner = board.boardName === 'b' ? lastStepA : lastStepB;
         const msgTurnColor = step.turnColor; // whose turn it is after this move
         const msgMoveColor = msgTurnColor === 'white' ? 'black' : 'white'; // which color made the move
-        const myMove = this.players.myColor(board.boardName as BugBoardName) === msgMoveColor; // the received move was made by me
+        const myMove = this.seats.myColor(board.boardName as BugBoardName) === msgMoveColor; // the received move was made by me
 
         const move = board.boardName === 'a' ? step.move : step.moveB;
         const lastMove = uci2LastMove(move);
@@ -853,13 +851,13 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
             board.chessground.set({ movable: { color: undefined, dests: undefined } });
             board.partnerCC.chessground.set({ movable: { color: undefined, dests: undefined } });
         } else if (ply === this.steps.length - 1) {
-            if (this.players.me('a') !== undefined) {
+            if (this.seats.me('a') !== undefined) {
                 this.boardA.setDests();
-                this.boardA.chessground.set({ movable: { color: this.players.myColor('a') } });
+                this.boardA.chessground.set({ movable: { color: this.seats.myColor('a') } });
             }
-            if (this.players.me('b') !== undefined) {
+            if (this.seats.me('b') !== undefined) {
                 this.boardB.setDests();
-                this.boardB.chessground.set({ movable: { color: this.players.myColor('b') } });
+                this.boardB.chessground.set({ movable: { color: this.seats.myColor('b') } });
             }
         }
 

@@ -58,7 +58,7 @@ function createBoards(
         bugboardPocket1.elm as HTMLElement,
         model,
     );
-    window['onFSFline'] = ctrl.onFSFline;
+    window['onFSFline'] = ctrl.engine.onFSFline;
 }
 
 export function analysisView(model: PyChessModel): VNode[] {

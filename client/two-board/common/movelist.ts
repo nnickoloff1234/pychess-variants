@@ -10,34 +10,6 @@ import { displayUsername, isAnonUsername } from '@/user';
 import { AnalysisTreeNode, nodeAtPath, parentPath } from '../../analysis/analysisTree';
 import { bugMovePrefix } from '../analysis/analysisTreeTwoBoards';
 
-type TreeCtrl = AnalysisControllerBughouse & {
-    analysisTree?: { root: AnalysisTreeNode };
-    hasAnalysisTree?: () => boolean;
-    getTreeActivePath?: () => string;
-    getTreeSelectedChildPath?: () => string | undefined;
-    activateTreePath?: (path: string) => void;
-    activateTreeMainlinePly?: (ply: number) => void;
-    toggleTreeCollapsed?: (path: string) => void;
-    getTreeLineStartPath?: () => string;
-    getTreeLineEndPath?: () => string;
-    getTreeParentPath?: () => string;
-    getTreeMainChildPath?: () => string | undefined;
-    getTreeNodeAtPath?: (path: string) => AnalysisTreeNode | undefined;
-    getTreeContextMenu?: () => { path: string; x: number; y: number } | undefined;
-    openTreeContextMenu?: (path: string, clientX: number, clientY: number) => void;
-    closeTreeContextMenu?: () => void;
-    copyTreeLinePgn?: (path: string) => void;
-    pathIsTreeMainline?: (path: string) => boolean;
-    pathIsTreeForcedVariation?: (path: string) => boolean;
-    canPromoteTreeVariation?: (path: string) => boolean;
-    promoteTreeVariation?: (path: string, toMainline: boolean) => void;
-    forceTreeVariation?: (path: string, force: boolean) => void;
-    someTreeCollapsed?: (collapsed: boolean) => boolean;
-    collapseAllTree?: () => void;
-    expandAllTree?: () => void;
-    deleteTreeNode?: (path: string) => void;
-};
-
 type TreeDiscloseState = undefined | 'expanded' | 'collapsed';
 type TreeMenuIconClass =
     | 'icon-arrow-up-right'
@@ -57,9 +29,9 @@ interface ParsedTreeMove {
     };
 }
 
-function asTreeCtrl(ctrl: TwoBoardController): TreeCtrl | undefined {
-    const treeCtrl = ctrl as TreeCtrl;
-    return treeCtrl.hasAnalysisTree?.() ? treeCtrl : undefined;
+function asTreeCtrl(ctrl: TwoBoardController): AnalysisControllerBughouse | undefined {
+    const treeCtrl = ctrl as AnalysisControllerBughouse;
+    return treeCtrl.tree?.hasAnalysisTree() ? treeCtrl : undefined;
 }
 
 export function selectMove(ctrl: TwoBoardController, ply: number): void {
@@ -83,8 +55,8 @@ export function selectMove(ctrl: TwoBoardController, ply: number): void {
 
 export function selectMainlineMove(ctrl: TwoBoardController, ply: number): void {
     const treeCtrl = asTreeCtrl(ctrl);
-    if (treeCtrl?.activateTreeMainlinePly) {
-        treeCtrl.activateTreeMainlinePly(ply);
+    if (treeCtrl) {
+        treeCtrl.tree.activateTreeMainlinePly(ply);
         return;
     }
     selectMove(ctrl, ply);
@@ -136,8 +108,8 @@ export function createMovelistButtons(ctrl: TwoBoardController) {
     const selectVariationBound = (goToStart: boolean) => {
         const treeCtrl = asTreeCtrl(ctrl);
         if (treeCtrl) {
-            const target = goToStart ? treeCtrl.getTreeLineStartPath?.() : treeCtrl.getTreeLineEndPath?.();
-            if (target !== undefined) treeCtrl.activateTreePath?.(target);
+            const target = goToStart ? treeCtrl.tree.getTreeLineStartPath() : treeCtrl.tree.getTreeLineEndPath();
+            treeCtrl.tree.activateTreePath(target);
             return;
         }
         selectMove(ctrl, goToStart ? 0 : ctrl.steps.length - 1);
@@ -158,8 +130,7 @@ export function createMovelistButtons(ctrl: TwoBoardController) {
                     click: () => {
                         const treeCtrl = asTreeCtrl(ctrl);
                         if (treeCtrl) {
-                            const target = treeCtrl.getTreeParentPath?.();
-                            if (target !== undefined) treeCtrl.activateTreePath?.(target);
+                            treeCtrl.tree.activateTreePath(treeCtrl.tree.getTreeParentPath());
                         } else {
                             selectMove(ctrl, ctrl.ply - 1);
                         }
@@ -175,8 +146,8 @@ export function createMovelistButtons(ctrl: TwoBoardController) {
                     click: () => {
                         const treeCtrl = asTreeCtrl(ctrl);
                         if (treeCtrl) {
-                            const target = treeCtrl.getTreeMainChildPath?.();
-                            if (target !== undefined) treeCtrl.activateTreePath?.(target);
+                            const target = treeCtrl.tree.getTreeMainChildPath();
+                            if (target !== undefined) treeCtrl.tree.activateTreePath(target);
                         } else {
                             selectMove(ctrl, ctrl.ply + 1);
                         }
@@ -256,12 +227,12 @@ function treeDiscloseState(node: AnalysisTreeNode): TreeDiscloseState {
 }
 
 function renderTreeVariationMove(
-    ctrl: TreeCtrl,
+    ctrl: AnalysisControllerBughouse,
     node: AnalysisTreeNode,
     disclosureParentPath = '',
     disclosureState?: TreeDiscloseState,
 ): VNode {
-    const activePath = ctrl.getTreeActivePath?.();
+    const activePath = ctrl.tree.getTreeActivePath();
     const currentline = treePathContains(node.path, activePath);
     const recordedMainlinePly = ctrl.recordedMainlinePly;
     const theoretical =
@@ -274,7 +245,7 @@ function renderTreeVariationMove(
               on: {
                   click: (event: MouseEvent) => {
                       event.stopPropagation();
-                      ctrl.toggleTreeCollapsed?.(disclosureParentPath);
+                      ctrl.tree.toggleTreeCollapsed(disclosureParentPath);
                   },
               },
           })
@@ -284,8 +255,8 @@ function renderTreeVariationMove(
         'vari-move',
         {
             class: {
-                active: node.path === ctrl.getTreeActivePath?.(),
-                selected: node.path === ctrl.getTreeSelectedChildPath?.(),
+                active: node.path === ctrl.tree.getTreeActivePath(),
+                selected: node.path === ctrl.tree.getTreeSelectedChildPath(),
                 currentline,
                 recorded,
                 theoretical,
@@ -293,11 +264,11 @@ function renderTreeVariationMove(
             },
             attrs: { ply: node.ply, 'data-path': node.path },
             on: {
-                click: () => ctrl.activateTreePath?.(node.path),
+                click: () => ctrl.tree.activateTreePath(node.path),
                 contextmenu: (event: MouseEvent) => {
                     event.preventDefault();
                     event.stopPropagation();
-                    ctrl.openTreeContextMenu?.(node.path, event.clientX, event.clientY);
+                    ctrl.tree.openTreeContextMenu(node.path, event.clientX, event.clientY);
                 },
             },
         },
@@ -305,7 +276,7 @@ function renderTreeVariationMove(
     );
 }
 
-function renderTreeVariationSequence(ctrl: TreeCtrl, nodes: AnalysisTreeNode[]): VNode[] {
+function renderTreeVariationSequence(ctrl: AnalysisControllerBughouse, nodes: AnalysisTreeNode[]): VNode[] {
     const [child, ...siblings] = nodes;
     if (!child) return [];
 
@@ -313,8 +284,8 @@ function renderTreeVariationSequence(ctrl: TreeCtrl, nodes: AnalysisTreeNode[]):
     let current: AnalysisTreeNode | undefined = child;
     let branchSiblings = siblings;
     let currentParentPath = parentPath(child.path);
-    let currentParentDisclose = ctrl.analysisTree
-        ? treeDiscloseState(nodeAtPath(ctrl.analysisTree, currentParentPath) ?? ctrl.analysisTree.root)
+    let currentParentDisclose = ctrl.tree.analysisTree
+        ? treeDiscloseState(nodeAtPath(ctrl.tree.analysisTree, currentParentPath) ?? ctrl.tree.analysisTree.root)
         : undefined;
 
     while (current) {
@@ -338,7 +309,7 @@ function renderTreeVariationSequence(ctrl: TreeCtrl, nodes: AnalysisTreeNode[]):
     return moves;
 }
 
-function renderTreeVariationRows(ctrl: TreeCtrl, nodes: AnalysisTreeNode[]): VNode[] {
+function renderTreeVariationRows(ctrl: AnalysisControllerBughouse, nodes: AnalysisTreeNode[]): VNode[] {
     return nodes.map((node, idx) =>
         h(`vari#tree-vari-${idx}-${node.path.replace(/\./g, '-')}`, { class: { 'tree-variation': true } }, [
             ...renderTreeVariationSequence(ctrl, [node]),
@@ -356,16 +327,15 @@ function getDisplayedMainlineNodes(tree: { root: AnalysisTreeNode }): AnalysisTr
     return nodes;
 }
 
-function renderTreeContextMenu(ctrl: TreeCtrl): VNode | undefined {
-    const menu = ctrl.getTreeContextMenu?.();
+function renderTreeContextMenu(ctrl: AnalysisControllerBughouse): VNode | undefined {
+    const menu = ctrl.tree.getTreeContextMenu();
     if (!menu) return undefined;
 
-    const current = ctrl.getTreeNodeAtPath?.(menu.path);
+    const current = ctrl.tree.getTreeNodeAtPath(menu.path);
     if (!current) return undefined;
 
-    const onMainline =
-        (ctrl.pathIsTreeMainline?.(menu.path) ?? true) && !(ctrl.pathIsTreeForcedVariation?.(menu.path) ?? false);
-    const canPromote = ctrl.canPromoteTreeVariation?.(menu.path) ?? false;
+    const onMainline = ctrl.tree.pathIsTreeMainline(menu.path) && !ctrl.tree.pathIsTreeForcedVariation(menu.path);
+    const canPromote = ctrl.tree.canPromoteTreeVariation(menu.path);
     const actions: VNode[] = [];
     const action = (iconClass: TreeMenuIconClass, text: string, onClick: () => void) =>
         h(
@@ -390,38 +360,38 @@ function renderTreeContextMenu(ctrl: TreeCtrl): VNode | undefined {
 
     if (canPromote) {
         actions.push(
-            action('icon-arrow-up-right', _('Promote variation'), () => ctrl.promoteTreeVariation?.(menu.path, false)),
+            action('icon-arrow-up-right', _('Promote variation'), () => ctrl.tree.promoteTreeVariation(menu.path, false)),
         );
     }
 
     if (!onMainline) {
-        actions.push(action('icon-check', _('Make main line'), () => ctrl.promoteTreeVariation?.(menu.path, true)));
+        actions.push(action('icon-check', _('Make main line'), () => ctrl.tree.promoteTreeVariation(menu.path, true)));
     }
 
     if (menu.path && onMainline) {
         actions.push(
             action('icon-arrow-down-right', _('Convert to variation'), () =>
-                ctrl.forceTreeVariation?.(menu.path, true),
+                ctrl.tree.forceTreeVariation(menu.path, true),
             ),
         );
     }
 
-    if (ctrl.someTreeCollapsed?.(false)) {
-        actions.push(action('icon-download', _('Collapse all'), () => ctrl.collapseAllTree?.()));
+    if (ctrl.tree.someTreeCollapsed(false)) {
+        actions.push(action('icon-download', _('Collapse all'), () => ctrl.tree.collapseAllTree()));
     }
 
-    if (ctrl.someTreeCollapsed?.(true)) {
-        actions.push(action('icon-plus-square', _('Expand all'), () => ctrl.expandAllTree?.()));
+    if (ctrl.tree.someTreeCollapsed(true)) {
+        actions.push(action('icon-plus-square', _('Expand all'), () => ctrl.tree.expandAllTree()));
     }
 
     actions.push(
         action('icon-clipboard', onMainline ? _('Copy main line PGN') : _('Copy variation PGN'), () =>
-            ctrl.copyTreeLinePgn?.(menu.path),
+            ctrl.tree.copyTreeLinePgn(menu.path),
         ),
     );
 
     if (menu.path) {
-        actions.push(action('icon-trash-o', _('Delete from here'), () => ctrl.deleteTreeNode?.(menu.path)));
+        actions.push(action('icon-trash-o', _('Delete from here'), () => ctrl.tree.deleteTreeNode(menu.path)));
     }
 
     return h(
@@ -451,12 +421,12 @@ export function updateMovelist(ctrl: TwoBoardController, full = true, activate =
         let lastColIdx = 0;
         let didWeRenderVariSectionAfterLastMove = false;
         let didWeRenderChatSectionAfterLastMove = false;
-        const displayedMainline = treeCtrl.analysisTree ? getDisplayedMainlineNodes(treeCtrl.analysisTree) : [];
-        const rootChildren = treeCtrl.analysisTree?.root.children[0]?.forceVariation
-            ? treeCtrl.analysisTree.root.children
-            : (treeCtrl.analysisTree?.root.children.slice(1) ?? []);
+        const displayedMainline = treeCtrl.tree.analysisTree ? getDisplayedMainlineNodes(treeCtrl.tree.analysisTree) : [];
+        const rootChildren = treeCtrl.tree.analysisTree?.root.children[0]?.forceVariation
+            ? treeCtrl.tree.analysisTree.root.children
+            : (treeCtrl.tree.analysisTree?.root.children.slice(1) ?? []);
 
-        if (treeCtrl.analysisTree && !treeCtrl.analysisTree.root.collapsed) {
+        if (treeCtrl.tree.analysisTree && !treeCtrl.tree.analysisTree.root.collapsed) {
             moves.push(...renderTreeVariationRows(treeCtrl, rootChildren));
         }
 
@@ -485,7 +455,7 @@ export function updateMovelist(ctrl: TwoBoardController, full = true, activate =
             lastColIdx = colIdx;
 
             const currentline = mainlineNode
-                ? treePathContains(mainlineNode.path, treeCtrl.getTreeActivePath?.())
+                ? treePathContains(mainlineNode.path, treeCtrl.tree.getTreeActivePath())
                 : false;
             const theoretical =
                 mainlineNode?.mainlinePly === undefined ||
@@ -518,8 +488,9 @@ export function updateMovelist(ctrl: TwoBoardController, full = true, activate =
             }
 
             const branchPoint =
-                treeCtrl.analysisTree && mainlineNode
-                    ? (nodeAtPath(treeCtrl.analysisTree, parentPath(mainlineNode.path)) ?? treeCtrl.analysisTree.root)
+                treeCtrl.tree.analysisTree && mainlineNode
+                    ? (nodeAtPath(treeCtrl.tree.analysisTree, parentPath(mainlineNode.path)) ??
+                      treeCtrl.tree.analysisTree.root)
                     : undefined;
             const disclosureButton =
                 branchPoint && branchPoint.children.length > 1
@@ -528,7 +499,7 @@ export function updateMovelist(ctrl: TwoBoardController, full = true, activate =
                           on: {
                               click: (event: MouseEvent) => {
                                   event.stopPropagation();
-                                  treeCtrl.toggleTreeCollapsed?.(branchPoint.path);
+                                  treeCtrl.tree.toggleTreeCollapsed(branchPoint.path);
                               },
                           },
                       })
@@ -539,9 +510,9 @@ export function updateMovelist(ctrl: TwoBoardController, full = true, activate =
                     'move-bug',
                     {
                         class: {
-                            active: mainlineNode?.path === treeCtrl.getTreeActivePath?.(),
+                            active: mainlineNode?.path === treeCtrl.tree.getTreeActivePath(),
                             currentline,
-                            selected: mainlineNode?.path === treeCtrl.getTreeSelectedChildPath?.(),
+                            selected: mainlineNode?.path === treeCtrl.tree.getTreeSelectedChildPath(),
                             recorded,
                             theoretical,
                             branchpoint: !!mainlineNode && mainlineNode.children.length > 1,
@@ -554,7 +525,7 @@ export function updateMovelist(ctrl: TwoBoardController, full = true, activate =
                                 event.preventDefault();
                                 event.stopPropagation();
                                 if (mainlineNode)
-                                    treeCtrl.openTreeContextMenu?.(mainlineNode.path, event.clientX, event.clientY);
+                                    treeCtrl.tree.openTreeContextMenu(mainlineNode.path, event.clientX, event.clientY);
                             },
                         },
                     },
@@ -575,12 +546,9 @@ export function updateMovelist(ctrl: TwoBoardController, full = true, activate =
         }
 
         if (ctrl.status >= 0 && needResult) {
-            const teams = ctrl.players.teams;
-            // todo: consider Team.name()
-            const teamFirst =
-                displayUsername(teams[0].players[0].username) + '+' + displayUsername(teams[0].players[1].username);
-            const teamSecond =
-                displayUsername(teams[1].players[0].username) + '+' + displayUsername(teams[1].players[1].username);
+            const teams = ctrl.seats.teams;
+            const teamFirst = teams[0].name(displayUsername);
+            const teamSecond = teams[1].name(displayUsername);
             moves.push(h('div.result', ctrl.result));
             moves.push(h('div.status', result(ctrl.boardA.variant, ctrl.status, ctrl.result, teamFirst, teamSecond)));
         }
@@ -689,12 +657,9 @@ export function updateMovelist(ctrl: TwoBoardController, full = true, activate =
     }
 
     if (ctrl.status >= 0 && needResult) {
-        const teams = ctrl.players.teams;
-        // todo: consider Team.name()
-        const teamFirst =
-            displayUsername(teams[0].players[0].username) + '+' + displayUsername(teams[0].players[1].username);
-        const teamSecond =
-            displayUsername(teams[1].players[0].username) + '+' + displayUsername(teams[1].players[1].username);
+        const teams = ctrl.seats.teams;
+        const teamFirst = teams[0].name(displayUsername);
+        const teamSecond = teams[1].name(displayUsername);
         moves.push(h('div.result', ctrl.result));
         moves.push(h('div.status', result(ctrl.boardA.variant, ctrl.status, ctrl.result, teamFirst, teamSecond)));
     }
@@ -734,10 +699,9 @@ export function updateResult(ctrl: TwoBoardController) {
 
     const container = document.getElementById('movelist') as HTMLElement;
 
-    const teams = ctrl.players.teams;
-    // todo: consider Team.name()
-    const teamFirst = teams[0].players[0].username + '+' + teams[0].players[1].username;
-    const teamSecond = teams[1].players[0].username + '+' + teams[1].players[1].username;
+    const teams = ctrl.seats.teams;
+    const teamFirst = teams[0].name();
+    const teamSecond = teams[1].name();
 
     ctrl.vmovelist = patch(
         container,

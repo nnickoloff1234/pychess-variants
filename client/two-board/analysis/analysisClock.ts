@@ -1,19 +1,25 @@
 import { h, VNode } from 'snabbdom';
 
+import * as cg from 'chessgroundx/types';
+
 import { patch } from '../../document';
 import AnalysisController from './analysisCtrl';
 import { GameControllerBughouse } from '../common/gameCtrl';
+import { clockTimeAt } from '../common/players';
 import { Clocks } from '../../messages';
+import { BugBoardName } from '../../types';
 import { BLACK, WHITE } from '../../chess';
 
 export function renderClocks(ctrl: AnalysisController) {
-    const lastStep = ctrl.hasAnalysisTree?.() ? ctrl.getTreeCurrentNode?.()?.step : ctrl.steps[ctrl.ply];
+    const lastStep = ctrl.tree.hasAnalysisTree() ? ctrl.tree.getTreeCurrentNode()?.step : ctrl.steps[ctrl.ply];
     if (!lastStep) return;
+    const seatTime = (board: BugBoardName, color: cg.Color) =>
+        clockTimeAt(lastStep, ctrl.seats.byBoardAndColor(board, color));
     if (lastStep.clocks) {
-        renderClocksCC([lastStep.clocks[WHITE], lastStep.clocks[BLACK]], ctrl.boardA, '');
+        renderClocksCC([seatTime('a', 'white')!, seatTime('a', 'black')!], ctrl.boardA, '');
     }
     if (lastStep.clocksB) {
-        renderClocksCC([lastStep.clocksB[WHITE], lastStep.clocksB[BLACK]], ctrl.boardB, '.bug');
+        renderClocksCC([seatTime('b', 'white')!, seatTime('b', 'black')!], ctrl.boardB, '.bug');
     }
 }
 
