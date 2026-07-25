@@ -22,6 +22,10 @@ type VariantVisibility = 'private' | 'unlisted' | 'public';
 type MessageTone = 'neutral' | 'success' | 'error';
 type ManagementSort = 'updated' | 'played' | 'newest' | 'name';
 
+const MAX_DISPLAY_NAME_LENGTH = 50;
+const DISPLAY_NAME_PATTERN = new RegExp('^[\\p{L}\\p{Nd} _.+/()_-]+$', 'u');
+const DISPLAY_NAME_HAS_LETTER_OR_NUMBER = /[\p{L}\p{Nd}]/u;
+
 type ManagedVariant = CataloguedVariantClientDocument & {
     author?: string;
     archived?: boolean;
@@ -55,6 +59,7 @@ type State = {
     formMessageTone: MessageTone;
     draftDisplayName: string;
     draftDescription: string;
+    draftPieceNames: string;
     draftPieceFamilyOverride: string;
     draftBoardFamilyOverride: string;
     draftVisibility: VariantVisibility;
@@ -83,6 +88,7 @@ const state: State = {
     formMessageTone: 'neutral',
     draftDisplayName: '',
     draftDescription: '',
+    draftPieceNames: '',
     draftPieceFamilyOverride: '',
     draftBoardFamilyOverride: '',
     draftVisibility: 'private',
@@ -218,6 +224,7 @@ async function loadMine(model: PyChessModel, options: { clearMessage?: boolean }
 type VariantFormBody = {
     displayName: string;
     description: string;
+    pieceNames: string;
     pieceFamilyOverride: string;
     boardFamilyOverride: string;
     visibility: VariantVisibility;
@@ -258,6 +265,9 @@ function readForm(): VariantFormBody {
         description:
             (document.getElementById('catalogued-description') as HTMLTextAreaElement | null)?.value ??
             state.draftDescription,
+        pieceNames:
+            (document.getElementById('catalogued-piece-names') as HTMLTextAreaElement | null)?.value ??
+            state.draftPieceNames,
         pieceFamilyOverride: cleanPieceFamilyOverrideDraft(
             (document.getElementById('catalogued-piece-family-override') as HTMLSelectElement | null)?.value ??
                 state.draftPieceFamilyOverride,
@@ -274,9 +284,28 @@ function readForm(): VariantFormBody {
     };
 }
 
+function normalizeDisplayName(displayName: string): string {
+    const normalized = displayName.normalize('NFKC').trim().replace(/([ _-])[ _-]+/g, '$1');
+    if (!normalized) return '';
+    if (
+        !DISPLAY_NAME_PATTERN.test(normalized) ||
+        !DISPLAY_NAME_HAS_LETTER_OR_NUMBER.test(normalized) ||
+        /^[ _-]|[ _-]$/.test(normalized) ||
+        Array.from(normalized).length > MAX_DISPLAY_NAME_LENGTH
+    ) {
+        throw new Error(
+            _(
+                'Display names must be at most 50 characters, contain a letter or number, and use only letters, numbers, spaces, hyphens, underscores, periods, plus signs, slashes, and parentheses.',
+            ),
+        );
+    }
+    return normalized;
+}
+
 function clearDraft(): void {
     state.draftDisplayName = '';
     state.draftDescription = '';
+    state.draftPieceNames = '';
     state.draftPieceFamilyOverride = '';
     state.draftBoardFamilyOverride = '';
     state.draftVisibility = 'private';
@@ -285,9 +314,16 @@ function clearDraft(): void {
     state.formMessageTone = 'neutral';
 }
 
+function formatPieceNames(pieceNames: Readonly<Record<string, string>> | undefined): string {
+    return Object.entries(pieceNames ?? {})
+        .map(([piece, name]) => `${piece}:${name}`)
+        .join(', ');
+}
+
 function setDraftFromVariant(variant: ManagedVariant): void {
     state.draftDisplayName = variant.displayName ?? '';
     state.draftDescription = variant.tooltip === 'Catalogued variant' ? '' : (variant.tooltip ?? '');
+    state.draftPieceNames = formatPieceNames(variant.pieceNames);
     state.draftPieceFamilyOverride = cleanPieceFamilyOverrideDraft(variant.pieceFamilyOverride);
     state.draftBoardFamilyOverride = cleanBoardFamilyOverrideDraft(variant.boardFamilyOverride);
     state.draftVisibility = variant.visibility ?? 'private';
@@ -406,6 +442,15 @@ async function validateCurrentForm(model: PyChessModel): Promise<void> {
 
 async function saveVariant(model: PyChessModel): Promise<void> {
     const body = readForm();
+    try {
+        body.displayName = normalizeDisplayName(body.displayName);
+        state.draftDisplayName = body.displayName;
+    } catch (err) {
+        state.formMessage = err instanceof Error ? err.message : _('Invalid display name');
+        state.formMessageTone = 'error';
+        rerender(model);
+        return;
+    }
     const editingSystem = isSystemManagedVariant(state.editing);
     if (!editingSystem && !body.ini.trim()) {
         await alertDialog({ text: _('Paste one Fairy-Stockfish variant definition first.') });
@@ -447,6 +492,7 @@ async function saveVariant(model: PyChessModel): Promise<void> {
                     ? {
                           displayName: body.displayName,
                           description: body.description,
+                          pieceNames: body.pieceNames,
                           pieceFamilyOverride: body.pieceFamilyOverride,
                           boardFamilyOverride: body.boardFamilyOverride,
                           visibility: body.visibility,
@@ -842,6 +888,11 @@ function renderForm(model: PyChessModel): VNode {
                             autocomplete: 'off',
                             disabled: state.saving,
                         },
+                        attrs: {
+                            title: _(
+                                'Use letters, numbers, spaces, hyphens, underscores, periods, plus signs, slashes, and parentheses.',
+                            ),
+                        },
                         on: {
                             input: (event: Event) => {
                                 state.draftDisplayName = (event.target as HTMLInputElement).value;
@@ -850,6 +901,12 @@ function renderForm(model: PyChessModel): VNode {
                             },
                         },
                     }),
+                    h(
+                        'span.catalogued-help',
+                        _(
+                            'Up to 50 characters. Repeated spaces, hyphens, and underscores are collapsed.',
+                        ),
+                    ),
                 ]),
                 h('label.catalogued-field.catalogued-field-half.catalogued-description-field', [
                     h('span', _('Short description')),
@@ -872,6 +929,34 @@ function renderForm(model: PyChessModel): VNode {
                             },
                         },
                     }),
+                ]),
+                h('label.catalogued-field.catalogued-field-full', [
+                    h('span', _('Piece names (optional)')),
+                    h('textarea#catalogued-piece-names', {
+                        props: {
+                            value: state.draftPieceNames,
+                            placeholder: 'p:Soldier, z:Zebra, c:Camel',
+                            autocomplete: 'off',
+                            disabled: state.saving,
+                            rows: 2,
+                        },
+                        attrs: {
+                            maxlength: '2048',
+                        },
+                        on: {
+                            input: (event: Event) => {
+                                state.draftPieceNames = (event.target as HTMLTextAreaElement).value;
+                                state.formMessage = '';
+                                state.formMessageTone = 'neutral';
+                            },
+                        },
+                    }),
+                    h(
+                        'span.catalogued-help',
+                        _(
+                            'Comma-separated letter:name pairs used by generated rules, for example p:Soldier, z:Zebra. Built-in names can be overridden; missing names use automatic fallbacks.',
+                        ),
+                    ),
                 ]),
                 model.admin
                     ? h('label.catalogued-field.catalogued-field-half', [

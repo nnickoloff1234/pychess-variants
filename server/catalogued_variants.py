@@ -6,6 +6,7 @@ import json
 import logging
 import re
 import sys
+import unicodedata
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -63,7 +64,18 @@ MAX_CATALOGUED_BOARD_SVG_BYTES = 128 * 1024
 
 MAX_CATALOGUED_INI_BYTES = 64 * 1024
 MAX_DESCRIPTION_LEN = 1000
-MAX_DISPLAY_NAME_LEN = 80
+MAX_DISPLAY_NAME_LEN = 50
+MAX_PIECE_NAME_LEN = 50
+MAX_PIECE_NAMES_TEXT_LEN = 2048
+
+DISPLAY_NAME_ERROR = (
+    f"Display names must be at most {MAX_DISPLAY_NAME_LEN} characters, contain a letter or "
+    "number, and use only letters, numbers, spaces, hyphens, underscores, periods, plus signs, "
+    "slashes, and parentheses."
+)
+DISPLAY_NAME_PUNCTUATION = frozenset(" _-.+/()")
+DISPLAY_NAME_DISALLOWED_EDGE_SEPARATORS = frozenset(" _-")
+DISPLAY_NAME_REPEATED_SEPARATOR_RE = re.compile(r"([ _-])[ _-]+")
 
 UNSUPPORTED_CATALOGUED_BOOL_RULES: dict[str, str] = {
     "twoBoards": "two-board variants need the dedicated bughouse/supply lobby and game flow.",
@@ -119,6 +131,36 @@ CATALOGUED_PIECE_FAMILY_OVERRIDES = frozenset(
         "yokai",
         "perfect",
         "decimalshogi",
+    }
+)
+# Custom piece sets for these Shogi-derived variants use the pointed end of a
+# piece to show ownership. Their uploaded white/black SVGs describe the normal
+# white-oriented board; the generated CSS rotates each player's image when that
+# player is displayed on the opposite side after a board flip.
+CATALOGUED_DIRECTIONAL_PIECE_BASE_VARIANTS = frozenset(
+    {
+        "cannonshogi",
+        "dobutsu",
+        "gorogoro",
+        "gorogoroplus",
+        "kyotoshogi",
+        "minishogi",
+        "shogi",
+        "shoshogi",
+        "torishogi",
+        "yokai",
+    }
+)
+CATALOGUED_DIRECTIONAL_PIECE_FAMILIES = frozenset(
+    {
+        "cannonshogi",
+        "decimalshogi",
+        "dobutsu",
+        "kyoto",
+        "mansindam",
+        "shogi",
+        "tori",
+        "yokai",
     }
 )
 # Keep these static board families in sync with client/variants.ts. Dynamic
@@ -518,6 +560,57 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "promotionRoles": ("p",),
         "promotionOrder": CATALOGUED_CHESS_PROMOTION_ORDER,
     },
+    "raazuvaa": {
+        "displayName": "Raazuvaa",
+        "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
+        "baseVariant": "chess",
+    },
+    "chigorin": {
+        "displayName": "Chigorin Chess",
+        "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
+        "references": _fsf_builtin_references(
+            "https://www.chessvariants.com/diffsetup.dir/chigorin.html",
+        ),
+        "baseVariant": "chess",
+    },
+    "gustav3": {
+        "displayName": "Gustav III Chess",
+        "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
+        "references": _fsf_builtin_references(
+            "https://www.chessvariants.com/play/gustav-iiis-chess",
+        ),
+        "baseVariant": "chess",
+    },
+    "troitzky": {
+        "displayName": "Troitzky Chess",
+        "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
+        "references": _fsf_builtin_references(
+            "https://www.chessvariants.com/play/troitzky-chess",
+        ),
+        "baseVariant": "chess",
+    },
+    "omicron": {
+        "displayName": "Omicron Chess",
+        "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
+        "references": _fsf_builtin_references(
+            "http://www.eglebbk.dds.nl/program/chess-omicron.html",
+        ),
+        "baseVariant": "chess",
+    },
+    "petrified": {
+        "displayName": "Petrified",
+        "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
+        "references": _fsf_builtin_references("https://www.chess.com/variants/petrified"),
+        "baseVariant": "pawnsideways",
+    },
+    "pocketknight": {
+        "displayName": "Pocket Knight Chess",
+        "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
+        "references": _fsf_builtin_references(
+            "https://www.chessvariants.com/other.dir/pocket.html",
+        ),
+        "baseVariant": "chess",
+    },
     "yarishogi": {
         "displayName": "Yari Shogi",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
@@ -634,15 +727,6 @@ FSF_CATALOGUED_BUILTIN_VARIANTS_CANDIDATES: Mapping[str, Mapping[str, Any]] = {
         "baseVariant": "crazyhouse",
         "reviewNotes": "Drop variant with changed pawn-drop rules; review pocket/drop UI.",
     },
-    "chigorin": {
-        "displayName": "Chigorin Chess",
-        "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
-        "references": _fsf_builtin_references(
-            "https://www.chessvariants.com/diffsetup.dir/chigorin.html",
-        ),
-        "baseVariant": "chess",
-        "reviewNotes": "Asymmetric piece movement; review piece identities and diagrams.",
-    },
     "clobber": {
         "displayName": "Clobber",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
@@ -719,15 +803,6 @@ FSF_CATALOGUED_BUILTIN_VARIANTS_CANDIDATES: Mapping[str, Mapping[str, Any]] = {
         ),
         "baseVariant": "shogi",
         "reviewNotes": "Pychess exposes Gorogoro+ separately; compare rule differences first.",
-    },
-    "gustav3": {
-        "displayName": "Gustav III Chess",
-        "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
-        "references": _fsf_builtin_references(
-            "https://www.chessvariants.com/play/gustav-iiis-chess",
-        ),
-        "baseVariant": "chess",
-        "reviewNotes": "Uses wall squares; needs dedicated board/move-input review.",
     },
     "isolation": {
         "displayName": "Isolation",
@@ -842,15 +917,6 @@ FSF_CATALOGUED_BUILTIN_VARIANTS_CANDIDATES: Mapping[str, Mapping[str, Any]] = {
         "baseVariant": "shogi",
         "reviewNotes": "Shogi-family drops/promotions; review piece assets and byo UI.",
     },
-    "omicron": {
-        "displayName": "Omicron Chess",
-        "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
-        "references": _fsf_builtin_references(
-            "http://www.eglebbk.dds.nl/program/chess-omicron.html",
-        ),
-        "baseVariant": "chess",
-        "reviewNotes": "12x10 Omega-family variant; review board sizing, pieces and promotion UI.",
-    },
     "paradigm": {
         "displayName": "Paradigm Chess30",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
@@ -859,28 +925,6 @@ FSF_CATALOGUED_BUILTIN_VARIANTS_CANDIDATES: Mapping[str, Mapping[str, Any]] = {
         ),
         "baseVariant": "chess",
         "reviewNotes": "Uses non-standard bishop/horse hybrid pieces; review identities/assets.",
-    },
-    "petrified": {
-        "displayName": "Petrified",
-        "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
-        "references": _fsf_builtin_references("https://www.chess.com/variants/petrified"),
-        "baseVariant": "pawnsideways",
-        "reviewNotes": "Petrification mechanic may need dedicated UI/replay testing.",
-    },
-    "pocketknight": {
-        "displayName": "Pocket Knight Chess",
-        "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
-        "references": _fsf_builtin_references(
-            "https://www.chessvariants.com/other.dir/pocket.html",
-        ),
-        "baseVariant": "chess",
-        "reviewNotes": "Pocket/drop variant; review pocket UI and drop legality display.",
-    },
-    "raazuvaa": {
-        "displayName": "Raazuvaa",
-        "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
-        "baseVariant": "chess",
-        "reviewNotes": "Maldivian chess-like rules; needs rules/reference and adjudication review.",
     },
     "snailtrail": {
         "displayName": "Snail Trail",
@@ -899,15 +943,6 @@ FSF_CATALOGUED_BUILTIN_VARIANTS_CANDIDATES: Mapping[str, Mapping[str, Any]] = {
         ),
         "baseVariant": "chess",
         "reviewNotes": "Asymmetric Almost Chess variant; verify pieces and castling assumptions.",
-    },
-    "troitzky": {
-        "displayName": "Troitzky Chess",
-        "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
-        "references": _fsf_builtin_references(
-            "https://www.chessvariants.com/play/troitzky-chess",
-        ),
-        "baseVariant": "chess",
-        "reviewNotes": "Large/fairy-piece variant; review piece identities and promotion UI.",
     },
     "wolf": {
         "displayName": "Wolf Chess",
@@ -973,6 +1008,7 @@ class CataloguedVariantDocument(TypedDict):
     name: str
     displayName: str
     description: str
+    pieceNames: NotRequired[dict[str, str]]
     author: str
     ini: str
     rulesIni: NotRequired[str]
@@ -1022,6 +1058,7 @@ class CataloguedVariantClientDocument(TypedDict):
     name: str
     displayName: str
     tooltip: str
+    pieceNames: NotRequired[dict[str, str]]
     ini: str
     baseVariant: str
     startFen: str
@@ -1108,6 +1145,14 @@ def _catalogued_piece_family_override(doc: Mapping[str, Any]) -> str:
         return _clean_piece_family_override(str(doc.get("pieceFamilyOverride") or ""))
     except web.HTTPBadRequest:
         return ""
+
+
+def _catalogued_piece_set_is_directional(doc: Mapping[str, Any]) -> bool:
+    """Whether custom pieces must keep pointing toward the opponent."""
+    base_variant = str(doc.get("baseVariant") or "").strip().lower()
+    if base_variant in CATALOGUED_DIRECTIONAL_PIECE_BASE_VARIANTS:
+        return True
+    return _catalogued_piece_family_override(doc) in CATALOGUED_DIRECTIONAL_PIECE_FAMILIES
 
 
 def _clean_board_family_override(board_family: str | None) -> str:
@@ -1928,6 +1973,13 @@ def _svg_value_is_unsafe(value: str, *, allow_local_ref: bool = False) -> bool:
     return not (allow_local_ref and SAFE_SVG_LOCAL_REF_RE.fullmatch(value) is not None)
 
 
+def _svg_value_is_supported(attribute: str, value: str) -> bool:
+    # Accessible names commonly contain non-ASCII text (for example, the kanji
+    # printed on shogi pieces). ElementTree escapes the value when serializing,
+    # so it is safe to preserve after the unsafe-reference check above.
+    return attribute == "aria-label" or SAFE_SVG_VALUE_RE.fullmatch(value) is not None
+
+
 def _parse_safe_svg_style(style: str, filename: str) -> dict[str, str]:
     parsed: dict[str, str] = {}
     for chunk in style.split(";"):
@@ -2044,7 +2096,10 @@ def _sanitize_catalogued_svg(
             text=(f"{filename} is too large. The SVG must be at most {max_bytes // 1024} KiB.")
         )
 
-    text = raw.decode("utf-8", errors="strict").strip()
+    try:
+        text = raw.decode("utf-8", errors="strict").strip()
+    except UnicodeDecodeError as exc:
+        raise web.HTTPBadRequest(text=f"{filename} is not a valid UTF-8 SVG file.") from exc
     xml_decl = XML_DECL_RE.match(text)
     if xml_decl is not None:
         text = text[xml_decl.end() :].lstrip()
@@ -2071,7 +2126,7 @@ def _sanitize_catalogued_svg(
 
     try:
         root = ET.fromstring(text)
-    except (ET.ParseError, UnicodeDecodeError) as exc:
+    except ET.ParseError as exc:
         raise web.HTTPBadRequest(text=f"{filename} is not a valid UTF-8 SVG file.") from exc
 
     if _local_xml_name(root.tag) != "svg":
@@ -2111,7 +2166,7 @@ def _sanitize_catalogued_svg(
             allow_local_ref_value = local_attr in {"fill", "stroke", "filter"}
             if _svg_value_is_unsafe(value, allow_local_ref=allow_local_ref_value):
                 raise web.HTTPBadRequest(text=f"{filename} contains unsafe SVG attribute values.")
-            if not SAFE_SVG_VALUE_RE.fullmatch(value):
+            if not _svg_value_is_supported(local_attr, value):
                 raise web.HTTPBadRequest(
                     text=f"{filename} contains unsupported SVG attribute values."
                 )
@@ -2162,7 +2217,9 @@ def _sanitize_catalogued_board_svg(raw: bytes, filename: str, width: int, height
     return sanitized
 
 
-def _catalogued_piece_css_selector(variant_name: str, key: str) -> str:
+def _catalogued_piece_css_selector(
+    variant_name: str, key: str, *, image_layer: bool = False
+) -> str:
     # key format is wP, bP, w+P, b+P. Accept *.svg legacy keys too.
     key = _catalogued_piece_set_storage_key(key)
     color = "white" if key[0] == "w" else "black"
@@ -2170,14 +2227,26 @@ def _catalogued_piece_css_selector(variant_name: str, key: str) -> str:
     letter = key[2 if promoted else 1].lower()
     role_class = f"p{letter}-piece" if promoted else f"{letter}-piece"
     style_class = f".piece-style-catalogued-{variant_name}-custom"
+    piece_suffix = "::before" if image_layer else ""
     return (
-        f"{style_class} piece.{role_class}.{color}, "
+        f"{style_class} piece.{role_class}.{color}{piece_suffix}, "
         f"label.piece.catalogued-custom-preview{style_class}.{role_class}.{color}"
     )
 
 
-def _catalogued_piece_set_css(variant_name: str, piece_set: Mapping[str, Any]) -> str:
+def _catalogued_piece_set_css(
+    variant_name: str,
+    piece_set: Mapping[str, Any],
+    *,
+    directional: bool = False,
+) -> str:
     lines: list[str] = []
+    if directional:
+        style_class = f".piece-style-catalogued-{variant_name}-custom"
+        lines.append(
+            f"{style_class} piece::before "
+            '{content:"";display:block;width:100%;height:100%;pointer-events:none;}'
+        )
     for key in sorted(piece_set):
         item = piece_set[key]
         svg = str(item.get("svg") if isinstance(item, Mapping) else "")
@@ -2185,9 +2254,18 @@ def _catalogued_piece_set_css(variant_name: str, piece_set: Mapping[str, Any]) -
             continue
         data = base64.b64encode(svg.encode("utf-8")).decode("ascii")
         lines.append(
-            f"{_catalogued_piece_css_selector(variant_name, key)} "
+            f"{_catalogued_piece_css_selector(variant_name, key, image_layer=directional)} "
             "{background-position:center;background-size:contain;background-repeat:no-repeat;background-image:"
             f'url("data:image/svg+xml;base64,{data}");}}'
+        )
+    if directional:
+        # chessgroundx owns the piece element's transform for positioning and
+        # animation. Rotate only its image layer so that translation is left
+        # untouched.
+        lines.append(
+            f"{style_class} piece.white.enemy::before, "
+            f"{style_class} piece.black.ally::before "
+            "{transform:rotate(180deg);}"
         )
     return "\n".join(lines) + "\n"
 
@@ -2594,6 +2672,9 @@ def _client_doc(
         "archived": bool(doc.get("archived", False)),
         "enabled": bool(doc.get("enabled", True)),
     }
+    piece_names = parse_catalogued_piece_names(doc.get("pieceNames"))
+    if piece_names:
+        client_doc["pieceNames"] = piece_names
     if _is_fsf_builtin_catalogued_doc(doc):
         client_doc["fsfBuiltinVariant"] = _fsf_builtin_variant_name(doc)
         references = _catalogued_references_for_display(doc)
@@ -3244,6 +3325,7 @@ async def community_catalogued_variants_page(
                 "displayName": str(doc.get("displayName") or name),
                 "description": str(doc.get("description") or ""),
                 "author": str(doc.get("author") or ""),
+                "system": _is_fsf_builtin_catalogued_doc(doc),
                 "references": _catalogued_references_for_display(doc),
                 "width": int(doc.get("width") or 0),
                 "height": int(doc.get("height") or 0),
@@ -3306,7 +3388,9 @@ async def set_catalogued_variant_favorite(request: web.Request) -> web.Response:
     return json_response({"ok": True, "name": name, "favorite": favorite})
 
 
-async def _read_upload_payload(request: web.Request) -> tuple[str, str, str, str, str, str]:
+async def _read_upload_payload(
+    request: web.Request,
+) -> tuple[str, str, str, dict[str, str], str, str, str]:
     content_type = request.content_type or ""
 
     if content_type == "application/json":
@@ -3314,8 +3398,13 @@ async def _read_upload_payload(request: web.Request) -> tuple[str, str, str, str
         if not isinstance(data, Mapping):
             raise web.HTTPBadRequest(text="Expected JSON object.")
         ini = str(data.get("ini") or "")
-        display_name = str(data.get("displayName") or data.get("display_name") or "")
+        display_name = normalize_catalogued_display_name(
+            str(data.get("displayName") or data.get("display_name") or "")
+        )
         description = str(data.get("description") or "")
+        piece_names = parse_catalogued_piece_names(
+            data.get("pieceNames", data.get("piece_names", ""))
+        )
         piece_family_override = _read_piece_family_override(data)
         board_family_override = _read_board_family_override(data)
         visibility = _clean_visibility(str(data.get("visibility") or CATALOGUED_VISIBILITY_PRIVATE))
@@ -3323,6 +3412,7 @@ async def _read_upload_payload(request: web.Request) -> tuple[str, str, str, str
             ini,
             display_name,
             description,
+            piece_names,
             piece_family_override,
             board_family_override,
             visibility,
@@ -3330,7 +3420,7 @@ async def _read_upload_payload(request: web.Request) -> tuple[str, str, str, str
 
     if content_type.startswith("text/"):
         ini = await read_text_data(request)
-        return ini or "", "", "", "", "", CATALOGUED_VISIBILITY_PRIVATE
+        return ini or "", "", "", {}, "", "", CATALOGUED_VISIBILITY_PRIVATE
 
     data = await read_post_data(request)
     if data is None:
@@ -3343,8 +3433,11 @@ async def _read_upload_payload(request: web.Request) -> tuple[str, str, str, str
     else:
         ini = str(data.get("ini") or "")
 
-    display_name = str(data.get("displayName") or data.get("display_name") or "")
+    display_name = normalize_catalogued_display_name(
+        str(data.get("displayName") or data.get("display_name") or "")
+    )
     description = str(data.get("description") or "")
+    piece_names = parse_catalogued_piece_names(data.get("pieceNames", data.get("piece_names", "")))
     piece_family_override = _read_piece_family_override(data)
     board_family_override = _read_board_family_override(data)
     visibility = _clean_visibility(str(data.get("visibility") or CATALOGUED_VISIBILITY_PRIVATE))
@@ -3352,6 +3445,7 @@ async def _read_upload_payload(request: web.Request) -> tuple[str, str, str, str
         ini,
         display_name,
         description,
+        piece_names,
         piece_family_override,
         board_family_override,
         visibility,
@@ -3378,6 +3472,33 @@ async def check_catalogued_variant_rules(request: web.Request) -> web.Response:
     return json_response({"ok": True, "name": name, "startFen": start_fen})
 
 
+def normalize_catalogued_display_name(display_name: str) -> str:
+    """Validate and normalize a user-editable catalogue display name."""
+    cleaned = unicodedata.normalize("NFKC", display_name).strip()
+    if not cleaned:
+        return ""
+    if any(
+        char not in DISPLAY_NAME_PUNCTUATION
+        and not (unicodedata.category(char).startswith("L") or unicodedata.category(char) == "Nd")
+        for char in cleaned
+    ):
+        raise web.HTTPBadRequest(text=DISPLAY_NAME_ERROR)
+
+    cleaned = DISPLAY_NAME_REPEATED_SEPARATOR_RE.sub(r"\1", cleaned)
+    has_letter_or_number = any(
+        unicodedata.category(char).startswith("L") or unicodedata.category(char) == "Nd"
+        for char in cleaned
+    )
+    if (
+        len(cleaned) > MAX_DISPLAY_NAME_LEN
+        or not has_letter_or_number
+        or cleaned[0] in DISPLAY_NAME_DISALLOWED_EDGE_SEPARATORS
+        or cleaned[-1] in DISPLAY_NAME_DISALLOWED_EDGE_SEPARATORS
+    ):
+        raise web.HTTPBadRequest(text=DISPLAY_NAME_ERROR)
+    return cleaned
+
+
 def _clean_display_name(display_name: str, fallback: str) -> str:
     return (display_name or fallback).strip()[:MAX_DISPLAY_NAME_LEN] or fallback
 
@@ -3386,12 +3507,83 @@ def _clean_description(description: str) -> str:
     return description.strip()[:MAX_DESCRIPTION_LEN]
 
 
+def _clean_piece_name(piece: str, name: str) -> tuple[str, str]:
+    letter = piece.strip().lower()
+    if len(letter) != 1 or not letter.isascii() or not letter.isalpha():
+        raise web.HTTPBadRequest(
+            text="Invalid piece names. Use one ASCII letter before each colon, such as z:Zebra."
+        )
+
+    cleaned = " ".join(unicodedata.normalize("NFKC", name).split())
+    if (
+        not cleaned
+        or len(cleaned) > MAX_PIECE_NAME_LEN
+        or "," in cleaned
+        or ":" in cleaned
+        or any(unicodedata.category(char).startswith("C") for char in cleaned)
+        or not any(
+            unicodedata.category(char).startswith("L") or unicodedata.category(char) == "Nd"
+            for char in cleaned
+        )
+    ):
+        raise web.HTTPBadRequest(
+            text=(
+                f"Piece names must be 1-{MAX_PIECE_NAME_LEN} characters, contain a letter "
+                "or number, and cannot contain commas or colons."
+            )
+        )
+    return letter, cleaned
+
+
+def parse_catalogued_piece_names(value: object) -> dict[str, str]:
+    """Parse user-facing ``letter:name`` metadata into a normalized mapping."""
+
+    if value is None or value == "":
+        return {}
+
+    raw_entries: list[tuple[object, object]]
+    if isinstance(value, Mapping):
+        raw_entries = list(value.items())
+    elif isinstance(value, str):
+        if len(value) > MAX_PIECE_NAMES_TEXT_LEN:
+            raise web.HTTPBadRequest(text="Piece names are too long.")
+        raw_entries = []
+        for entry in value.split(","):
+            entry = entry.strip()
+            if not entry:
+                continue
+            piece, separator, name = entry.partition(":")
+            if not separator:
+                raise web.HTTPBadRequest(
+                    text=(
+                        "Invalid piece names. Use comma-separated letter:name pairs, "
+                        "such as p:Soldier, z:Zebra."
+                    )
+                )
+            raw_entries.append((piece, name))
+    else:
+        raise web.HTTPBadRequest(
+            text="Invalid piece names. Expected comma-separated letter:name pairs."
+        )
+
+    names: dict[str, str] = {}
+    for raw_piece, raw_name in raw_entries:
+        if not isinstance(raw_piece, str) or not isinstance(raw_name, str):
+            raise web.HTTPBadRequest(text="Piece name letters and names must be text.")
+        piece, name = _clean_piece_name(raw_piece, raw_name)
+        if piece in names:
+            raise web.HTTPBadRequest(text=f"Piece name {piece!r} is listed more than once.")
+        names[piece] = name
+    return names
+
+
 def _build_doc(
     *,
     name: str,
     base_variant: str,
     display_name: str,
     description: str,
+    piece_names: Mapping[str, str] | None,
     username: str,
     ini: str,
     start_fen: str,
@@ -3453,6 +3645,9 @@ def _build_doc(
         "createdAt": created_at,
         "updatedAt": datetime.now(timezone.utc),
     }
+    cleaned_piece_names = parse_catalogued_piece_names(piece_names)
+    if cleaned_piece_names:
+        doc["pieceNames"] = cleaned_piece_names
     if piece_family_override:
         doc["pieceFamilyOverride"] = _clean_piece_family_override(piece_family_override)
     if board_family_override:
@@ -3603,6 +3798,7 @@ def _build_fsf_builtin_doc(
             (existing or {}).get("displayName") or metadata.get("displayName") or name
         ),
         description=_fsf_builtin_description_for_doc(metadata, existing, references),
+        piece_names=(existing or {}).get("pieceNames") or metadata.get("pieceNames"),
         username=CATALOGUED_FSF_BUILTIN_AUTHOR,
         ini="",
         start_fen=start_fen,
@@ -3727,6 +3923,7 @@ async def upload_catalogued_variant(request: web.Request) -> web.Response:
         ini,
         display_name,
         description,
+        piece_names,
         piece_family_override,
         board_family_override,
         visibility,
@@ -3751,6 +3948,7 @@ async def upload_catalogued_variant(request: web.Request) -> web.Response:
         base_variant=validated.base_variant,
         display_name=display_name,
         description=description,
+        piece_names=piece_names,
         username=username,
         ini=ini,
         start_fen=validated.start_fen,
@@ -3997,7 +4195,11 @@ async def get_catalogued_piece_css(request: web.Request) -> web.Response:
         raise web.HTTPNotFound(text="This variant has no complete custom piece set.")
 
     return web.Response(
-        text=_catalogued_piece_set_css(str(doc["name"]), piece_set),
+        text=_catalogued_piece_set_css(
+            str(doc["name"]),
+            piece_set,
+            directional=_catalogued_piece_set_is_directional(doc),
+        ),
         content_type="text/css",
         headers={"Cache-Control": "private, max-age=300"},
     )
@@ -4125,6 +4327,7 @@ async def update_catalogued_variant(request: web.Request) -> web.Response:
         ini,
         display_name,
         description,
+        piece_names,
         piece_family_override,
         board_family_override,
         visibility,
@@ -4151,6 +4354,10 @@ async def update_catalogued_variant(request: web.Request) -> web.Response:
             }
         }
         unset_fields: dict[str, str] = {}
+        if piece_names:
+            update["$set"]["pieceNames"] = piece_names
+        else:
+            unset_fields["pieceNames"] = ""
         if piece_family_override:
             update["$set"]["pieceFamilyOverride"] = piece_family_override
         else:
@@ -4247,6 +4454,7 @@ async def update_catalogued_variant(request: web.Request) -> web.Response:
         base_variant=base_variant,
         display_name=display_name,
         description=description,
+        piece_names=piece_names,
         username=str(existing.get("author") or username),
         ini=ini,
         start_fen=start_fen,
@@ -4397,6 +4605,7 @@ async def clone_catalogued_variant(request: web.Request) -> web.Response:
         base_variant=validated.base_variant,
         display_name=display_name,
         description=str(doc.get("description") or ""),
+        piece_names=parse_catalogued_piece_names(doc.get("pieceNames")),
         username=username,
         ini=ini,
         start_fen=validated.start_fen,
