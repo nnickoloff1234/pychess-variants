@@ -364,6 +364,16 @@ export class AnalysisTreeController {
         return childPath;
     }
 
+    // records a played move and, if the tree accepted it, activates the resulting
+    // path in one step (no-op when there is no analysis tree yet, mirroring
+    // recordMove's early return)
+    consumeMove(step: Step): void {
+        const childPath = this.recordMove(step);
+        if (childPath === undefined) return;
+
+        this.activateTreePath(childPath);
+    }
+
     private treeCollapsedStorageKey() {
         return `${TREE_COLLAPSED_STORAGE_KEY}:${this.ctrl.gameId || `analysis:${this.ctrl.variant.name}`}`;
     }

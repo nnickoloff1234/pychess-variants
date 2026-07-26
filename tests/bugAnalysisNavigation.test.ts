@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, test } from '@jest/globals';
-import { h } from 'snabbdom';
 
 import {
     addOrSelectChild,
@@ -11,7 +10,7 @@ import {
 } from '../client/analysis/analysisTree';
 import { patch } from '../client/document';
 import { Step } from '../client/messages';
-import { updateMovelist } from '../client/two-board/common/movelist';
+import { MovelistView, updateMovelist } from '../client/two-board/common/movelist';
 
 function makeStep(
     fen: string,
@@ -80,7 +79,8 @@ describe('bughouse analysis mainline navigation', () => {
     test('mainline move clicks use the explicit mainline jump in tree mode', () => {
         const host = document.createElement('div');
         document.body.appendChild(host);
-        patch(host, h('div#movelist'));
+        const movelistView = new MovelistView();
+        patch(host, movelistView.placeholder());
 
         const steps: Step[] = [
             makeStep('fa0', 'fb0', undefined, undefined, 'white', '', 'a', 0, 0),
@@ -96,7 +96,7 @@ describe('bughouse analysis mainline navigation', () => {
             result: '*',
             ply: 2,
             plyVari: 0,
-            vmovelist: document.getElementById('movelist'),
+            movelistView,
             tree: stubTree(tree, {
                 getTreeActivePath: () => tree.root.children[0].children[0].path,
                 activateTreeMainlinePly: (ply: number) => {
@@ -119,7 +119,8 @@ describe('bughouse analysis mainline navigation', () => {
     test('variation rows expose the selected child path in tree mode', () => {
         const host = document.createElement('div');
         document.body.appendChild(host);
-        patch(host, h('div#movelist'));
+        const movelistView = new MovelistView();
+        patch(host, movelistView.placeholder());
 
         const steps: Step[] = [
             makeStep('fa0', 'fb0', undefined, undefined, 'white', '', 'a', 0, 0),
@@ -140,7 +141,7 @@ describe('bughouse analysis mainline navigation', () => {
             result: '*',
             ply: 2,
             plyVari: 0,
-            vmovelist: document.getElementById('movelist'),
+            movelistView,
             tree: stubTree(tree, {
                 getTreeActivePath: () => tree.root.children[0].children[0].path,
                 getTreeSelectedChildPath: () => selectedPath,
@@ -158,7 +159,8 @@ describe('bughouse analysis mainline navigation', () => {
     test('disclosure button is attached to the branched reply and hides bughouse sidelines', () => {
         const host = document.createElement('div');
         document.body.appendChild(host);
-        patch(host, h('div#movelist'));
+        const movelistView = new MovelistView();
+        patch(host, movelistView.placeholder());
 
         const steps: Step[] = [
             makeStep('fa0', 'fb0', undefined, undefined, 'white', '', 'a', 0, 0),
@@ -177,7 +179,7 @@ describe('bughouse analysis mainline navigation', () => {
             result: '*',
             ply: 3,
             plyVari: 0,
-            vmovelist: document.getElementById('movelist'),
+            movelistView,
             tree: stubTree(tree, {
                 getTreeActivePath: () => tree.root.children[0].children[0].children[0].path,
                 toggleTreeCollapsed: (path: string) => {
@@ -209,7 +211,8 @@ describe('bughouse analysis mainline navigation', () => {
     test('mainline bughouse tree context menu exposes mainline actions', () => {
         const host = document.createElement('div');
         document.body.appendChild(host);
-        patch(host, h('div#movelist'));
+        const movelistView = new MovelistView();
+        patch(host, movelistView.placeholder());
 
         const steps: Step[] = [
             makeStep('fa0', 'fb0', undefined, undefined, 'white', '', 'a', 0, 0),
@@ -229,7 +232,7 @@ describe('bughouse analysis mainline navigation', () => {
             result: '*',
             ply: 3,
             plyVari: 0,
-            vmovelist: document.getElementById('movelist'),
+            movelistView,
             tree: stubTree(tree, {
                 getTreeActivePath: () => tree.root.children[0].children[0].children[0].path,
                 getTreeContextMenu: () => ({ path: tree.root.children[0].children[0].path, x: 12, y: 14 }),
@@ -267,7 +270,8 @@ describe('bughouse analysis mainline navigation', () => {
     test('sideline bughouse tree context menu exposes variation actions', () => {
         const host = document.createElement('div');
         document.body.appendChild(host);
-        patch(host, h('div#movelist'));
+        const movelistView = new MovelistView();
+        patch(host, movelistView.placeholder());
 
         const steps: Step[] = [
             makeStep('fa0', 'fb0', undefined, undefined, 'white', '', 'a', 0, 0),
@@ -293,7 +297,7 @@ describe('bughouse analysis mainline navigation', () => {
             result: '*',
             ply: 3,
             plyVari: 0,
-            vmovelist: document.getElementById('movelist'),
+            movelistView,
             tree: stubTree(tree, {
                 getTreeActivePath: () => tree.root.children[0].children[0].children[0].path,
                 getTreeContextMenu: () => ({ path: b3Path, x: 12, y: 14 }),
@@ -333,7 +337,8 @@ describe('bughouse analysis mainline navigation', () => {
     test('bughouse tree nodes expose selected-line state and split SAN glyph suffixes', () => {
         const host = document.createElement('div');
         document.body.appendChild(host);
-        patch(host, h('div#movelist'));
+        const movelistView = new MovelistView();
+        patch(host, movelistView.placeholder());
 
         const steps: Step[] = [
             makeStep('fa0', 'fb0', undefined, undefined, 'white', '', 'a', 0, 0),
@@ -357,7 +362,7 @@ describe('bughouse analysis mainline navigation', () => {
             ply: 3,
             plyVari: 0,
             recordedMainlinePly: 3,
-            vmovelist: document.getElementById('movelist'),
+            movelistView,
             tree: stubTree(tree, {
                 getTreeActivePath: () => tree.root.children[0].children[0].children[0].path,
                 getTreeSelectedChildPath: () => branchPath,
@@ -377,7 +382,8 @@ describe('bughouse analysis mainline navigation', () => {
     test('forced bughouse mainline move is rendered as a variation row instead of a mainline cell', () => {
         const host = document.createElement('div');
         document.body.appendChild(host);
-        patch(host, h('div#movelist'));
+        const movelistView = new MovelistView();
+        patch(host, movelistView.placeholder());
 
         const steps: Step[] = [
             makeStep('fa0', 'fb0', undefined, undefined, 'white', '', 'a', 0, 0),
@@ -396,7 +402,7 @@ describe('bughouse analysis mainline navigation', () => {
             result: '*',
             ply: 3,
             plyVari: 0,
-            vmovelist: document.getElementById('movelist'),
+            movelistView,
             tree: stubTree(tree, {
                 getTreeActivePath: () => b1Path,
             }),

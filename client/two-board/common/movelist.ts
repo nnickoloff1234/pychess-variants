@@ -34,6 +34,41 @@ function asTreeCtrl(ctrl: TwoBoardController): AnalysisControllerBughouse | unde
     return treeCtrl.tree?.hasAnalysisTree() ? treeCtrl : undefined;
 }
 
+// Owns the #movelist element's retained vnode so callers never need a VNode/
+// HTMLElement-typed field of their own. Constructed before the page's DOM
+// exists (and before the controller does) — the placeholder it builds here is
+// the same vnode object embedded by analysis.ts/round.ts, so once the page's
+// top-level patch() runs, this.vnode's .elm is populated with no id lookup
+// needed. Two update modes mirror the two ways the movelist is rendered: the
+// analysis/tree path diffs incrementally against the last patch (preserving
+// scroll position and DOM identity across tree navigation), while the round/
+// legacy path always re-fetches the container fresh (round code elsewhere
+// resets #movelist's DOM directly between calls, so trusting a stale retained
+// vnode there would be wrong).
+export class MovelistView {
+    private vnode: VNode | HTMLElement;
+
+    constructor() {
+        this.vnode = h('div#movelist');
+    }
+
+    placeholder(): VNode {
+        return this.vnode as VNode;
+    }
+
+    update(newVnode: VNode): void {
+        this.vnode = patch(this.vnode, newVnode);
+    }
+
+    replace(newVnode: VNode, clearChildrenFirst = false): void {
+        const container = document.getElementById('movelist') as HTMLElement;
+        if (clearChildrenFirst) {
+            while (container.lastChild) container.removeChild(container.lastChild);
+        }
+        this.vnode = patch(container, newVnode);
+    }
+}
+
 export function selectMove(ctrl: TwoBoardController, ply: number): void {
     const treeCtrl = asTreeCtrl(ctrl);
     if (treeCtrl) {
@@ -158,7 +193,7 @@ export function createMovelistButtons(ctrl: TwoBoardController) {
         ),
         h('button', { on: { click: () => selectVariationBound(false) } }, [h('i.icon.icon-fast-forward')]),
     ];
-    ctrl.moveControls = patch(container, h('div#btn-controls-top.btn-controls', buttons));
+    patch(container, h('div#btn-controls-top.btn-controls', buttons));
 }
 
 function fillWithEmpty(
@@ -413,7 +448,7 @@ export function updateMovelist(ctrl: TwoBoardController, full = true, activate =
     const treeCtrl = asTreeCtrl(ctrl);
     if (treeCtrl) {
         if (ctrl.steps.length <= 1) {
-            ctrl.vmovelist = patch(ctrl.vmovelist, h('div#movelist', { class: { 'bug-analysis-tree': true } }));
+            ctrl.movelistView.update(h('div#movelist', { class: { 'bug-analysis-tree': true } }));
             return;
         }
 
@@ -558,7 +593,7 @@ export function updateMovelist(ctrl: TwoBoardController, full = true, activate =
         // diff against the retained vnode so snabbdom updates the list in place;
         // patching from a fresh element lookup would recreate the whole list and
         // reset its scroll position on every tree action
-        ctrl.vmovelist = patch(ctrl.vmovelist, h('div#movelist', { class: { 'bug-analysis-tree': true } }, moves));
+        ctrl.movelistView.update(h('div#movelist', { class: { 'bug-analysis-tree': true } }, moves));
         if (activate) scrollToPly(ctrl);
         return;
     }
@@ -664,13 +699,7 @@ export function updateMovelist(ctrl: TwoBoardController, full = true, activate =
         moves.push(h('div.status', result(ctrl.boardA.variant, ctrl.status, ctrl.result, teamFirst, teamSecond)));
     }
 
-    const container = document.getElementById('movelist') as HTMLElement;
-    if (full) {
-        while (container.lastChild) {
-            container.removeChild(container.lastChild);
-        }
-    }
-    ctrl.vmovelist = patch(container, h('div#movelist', moves));
+    ctrl.movelistView.replace(h('div#movelist', moves), full);
 
     if (activate) {
         activatePly(ctrl);
@@ -697,18 +726,15 @@ export function updateResult(ctrl: TwoBoardController) {
     const resultEl = document.querySelector('.result');
     if (resultEl) return;
 
-    const container = document.getElementById('movelist') as HTMLElement;
-
     const teams = ctrl.seats.teams;
     const teamFirst = teams[0].name();
     const teamSecond = teams[1].name();
 
-    ctrl.vmovelist = patch(
-        container,
+    ctrl.movelistView.replace(
         h('div#movelist', [
             h('div.result', ctrl.result),
             h('div.status', result(ctrl.boardA.variant, ctrl.status, ctrl.result, teamFirst, teamSecond)),
         ]),
     );
-    container.scrollTop = 99999;
+    (document.getElementById('movelist') as HTMLElement).scrollTop = 99999;
 }

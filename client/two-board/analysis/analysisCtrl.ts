@@ -1,39 +1,36 @@
-import { h, VNode } from 'snabbdom';
-
 import * as cg from 'chessgroundx/types';
 
 import { uci2LastMove } from '../../chess';
 import { updateMovelist, selectMove } from '../common/movelist';
-import { patch } from '../../document';
 import { Chart } from 'highcharts';
 import { BugBoardName, PyChessModel } from '../../types';
 import { MsgBoard } from '../../messages';
 import { GameControllerBughouse } from '../common/gameCtrl';
 import { sound } from '../../sound';
-import { renderClocks } from './analysisClock';
-import { movetimeChart } from './movetimeChart';
+import { AnalysisClockView, renderClocks } from './analysisClock';
+import { movetimeChart, MovetimeChartView } from './movetimeChart';
 import { TwoBoardController, initBoardSettings } from '@/two-board/twoBoardCtrl';
-import { getPgn, renderFENAndPGN, updateFENAndPGN } from './pgn';
+import { getPgn, PgnView, updateFENAndPGN } from './pgn';
 import { buildScoreStr, EngineController } from './engine';
 import { AnalysisTreeController } from './analysisTree';
+import { MovelistView } from '../common/movelist';
 
 export default class AnalysisControllerBughouse extends TwoBoardController {
-
-    vpgn: VNode;
 
     pgn: string;
     plyVari: number;
     recordedMainlinePly?: number;
-    showDests: boolean;
-    analysisChart: Chart;
 
     isAnalysisBoard: boolean;
 
     movetimeChart: Chart;
+    movetimeChartView: MovetimeChartView;
     chartFunctions: any[];
 
     engine: EngineController;
     tree: AnalysisTreeController;
+    pgnView: PgnView;
+    clockView: AnalysisClockView;
 
     constructor(
         el1: HTMLElement,
@@ -43,8 +40,13 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
         el2Pocket1: HTMLElement,
         el2Pocket2: HTMLElement,
         model: PyChessModel,
+        movelistView: MovelistView,
+        engine: EngineController,
+        pgnView: PgnView,
+        clockView: AnalysisClockView,
+        movetimeChartView: MovetimeChartView,
     ) {
-        super(el1, el1Pocket1, el1Pocket2, el2, el2Pocket1, el2Pocket2, model);
+        super(el1, el1Pocket1, el1Pocket2, el2, el2Pocket1, el2Pocket2, model, movelistView);
 
         // orient the boards as the viewer experienced the game: own/partner color at
         // the bottom for participants, white-A/black-B for spectators (the old default)
@@ -62,10 +64,12 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
         this.pgn = '';
         this.ply = isNaN(model['ply']) ? 0 : model['ply'];
 
-        this.showDests = localStorage.showDests === undefined ? true : localStorage.showDests === 'true';
-
-        this.engine = new EngineController(this, model.chess960 === 'True');
+        this.engine = engine;
+        this.engine.attachCtrl(this);
         this.tree = new AnalysisTreeController(this);
+        this.pgnView = pgnView;
+        this.clockView = clockView;
+        this.movetimeChartView = movetimeChartView;
 
         const fens = model.fen.split(' | ');
 
@@ -77,51 +81,12 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
             turnColor: this.boardA.turnColor, //not relevant/meaningful - we use the fens for that
         });
 
-        //
-        renderFENAndPGN(this, this.isAnalysisBoard ? getPgn(this) : this.pgn);
+        this.pgnView.render(this, this.isAnalysisBoard ? getPgn(this) : this.pgn);
 
-        if (this.isAnalysisBoard) {
-            (document.querySelector('[role="tablist"]') as HTMLElement).style.display = 'none';
-            (document.querySelector('[tabindex="0"]') as HTMLElement).style.display = 'flex';
-        }
-        //
-
-        // Add a click event handler to each tab
-        const tabs = document.querySelectorAll('[role="tab"]');
-        tabs!.forEach(tab => {
-            tab.addEventListener('click', changeTabs);
-        });
-        function changeTabs(e: Event) {
-            const target = e.target as Element;
-            const parent = target!.parentNode;
-            const grandparent = parent!.parentNode;
-
-            // Remove all current selected tabs
-            parent!.querySelectorAll('[aria-selected="true"]').forEach(t => t.setAttribute('aria-selected', 'false'));
-
-            // Set this tab as selected
-            target.setAttribute('aria-selected', 'true');
-
-            // Hide all tab panels
-            grandparent!
-                .querySelectorAll('[role="tabpanel"]')
-                .forEach(p => ((p as HTMLElement).style.display = 'none'));
-
-            // Show the selected panel
-            (
-                grandparent!.parentNode!.querySelector(`#${target.getAttribute('aria-controls')}`)! as HTMLElement
-            ).style.display = 'flex';
-        }
-        (document.querySelector('[tabindex="0"]') as HTMLElement).style.display = 'flex';
-        // const menuEl = document.getElementById('bars') as HTMLElement;
-        // menuEl.style.display = 'block';
-        //
         this.onMsgBoard(model['board'] as MsgBoard);
 
         initBoardSettings(this.boardA, this.boardB, this.variant);
         this.syncBoardHitAreas();
-
-        (document.getElementById('gaugePartner') as HTMLElement).classList.add('flipped');
     }
 
     private syncBoardHitAreas() {
@@ -134,22 +99,10 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
         });
     }
 
-    private drawAnalysisChart = (withRequest: boolean) => {
-        console.log('drawAnalysisChart ' + withRequest);
-    };
-
     private onMsgBoard = (msg: MsgBoard) => {
         if (msg.gameId !== this.gameId) return;
 
-        // console.log("got board msg:", msg);
         this.ply = msg.ply;
-        // this.fullfen = msg.fen;
-        // this.dests = new Map(Object.entries(msg.dests)) as cg.Dests;
-        // list of legal promotion moves
-        // this.promotions = msg.promo;
-
-        // const parts = msg.fen.split(" ");
-        // this.turnColor = parts[1] === "w" ? "white" : "black";
 
         this.result = msg.result;
         this.status = msg.status;
@@ -175,32 +128,12 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
 
             if (this.steps[0].analysis !== undefined) {
                 this.engine.clearInfo();
-                this.drawAnalysisChart(false);
             }
 
-            patch(document.getElementById('anal-clock-top') as HTMLElement, h('div.anal-clock.top'));
-            patch(document.getElementById('anal-clock-bottom') as HTMLElement, h('div.anal-clock.bottom'));
-            patch(document.getElementById('anal-clock-top-bug') as HTMLElement, h('div.anal-clock.top.bug'));
-            patch(document.getElementById('anal-clock-bottom-bug') as HTMLElement, h('div.anal-clock.bottom.bug'));
             renderClocks(this);
-
-            const cmt = document.getElementById('chart-movetime') as HTMLElement;
-            if (cmt) cmt.style.display = 'block';
             movetimeChart(this);
             this.syncBoardHitAreas();
         } else {
-            /*
-            if (msg.ply === this.steps.length) {
-                const step: Step = {
-                    'fen': msg.fen,
-                    'move': msg.lastMove,
-                    'check': msg.check,
-                    'turnColor': this.turnColor,
-                    'san': msg.steps[0].san,
-                    };
-                this.steps.push(step);
-                updateMovelist(this);
-            }*/
         }
 
         if (!this.tree.hasAnalysisTree() && this.steps.length >= 1) {
@@ -209,13 +142,6 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
             updateMovelist(this);
         }
 
-        // const lastMove = uci2LastMove(msg.lastMove);
-        // const step = this.steps[this.steps.length - 1];
-        // const capture = (lastMove.length > 0) && ((this.chessground.state.pieces.get(lastMove[1]) && step.san?.slice(0, 2) !== 'O-') || (step.san?.slice(1, 2) === 'x'));
-        //
-        // if (lastMove.length > 0 && (this.turnColor === this.mycolor || this.spectator)) {
-        //     sound.moveSound(this.variant, capture);
-        // }
         updateFENAndPGN(this);
 
         if (this.model['ply'] > 0) {
@@ -324,11 +250,7 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
 
     sendMove = (b: GameControllerBughouse, move: string) => {
         if (b.localAnalysis) this.engine.engineStop();
-        const san = b.san(move); // doing this before we push the move to the ffboard, after which its invalid
-        const sanSAN = b.sanSAN(move);
-        b.pushMove(move);
-        b.renderState();
-        b.chessground.set({ movable: { color: b.turnColor } });
+        const { san, sanSAN } = b.playMove(move);
 
         if (b.localAnalysis) this.engine.engineGo(b);
         //~
@@ -348,10 +270,7 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
             plyB: this.boardB.ply,
         };
 
-        const childPath = this.tree.recordMove(step);
-        if (childPath === undefined) return;
-
-        this.tree.activateTreePath(childPath);
+        this.tree.consumeMove(step);
         this.disableMovableOnCheckmate(b);
     };
 }

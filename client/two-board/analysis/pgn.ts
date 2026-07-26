@@ -1,4 +1,4 @@
-import { h } from 'snabbdom';
+import { h, VNode } from 'snabbdom';
 
 import * as cg from 'chessgroundx/types';
 
@@ -61,9 +61,28 @@ export function getPgn(ctrl: AnalysisControllerBughouse): string {
     return pgnText(ctrl, mainlineMoveText(ctrl));
 }
 
-export function renderFENAndPGN(ctrl: AnalysisControllerBughouse, pgn: string) {
-    let container = document.getElementById('copyfen') as HTMLElement;
-    if (container !== null) {
+// Owns the FEN & PGN panel's two retained regions (#copyfen, #pgntext), built
+// ctrl-free at construction so analysis.ts can embed them directly; render()
+// performs the ctrl-dependent content render, called both for the first render
+// (from the controller's constructor) and every subsequent refresh, so both
+// share the same retained state instead of a fresh id lookup each time.
+export class PgnView {
+    private vCopyfen: VNode | HTMLElement;
+    private vPgntext: VNode | HTMLElement;
+
+    constructor() {
+        this.vCopyfen = h('div#copyfen');
+        this.vPgntext = h('div#pgntext');
+    }
+
+    // the two regions are always rendered as adjacent siblings in the FEN & PGN
+    // panel, so — same as EngineController's renderPanel() — this widget hands
+    // analysis.ts one composed unit rather than two separate placeholder calls
+    placeholders(): VNode[] {
+        return [this.vCopyfen as VNode, this.vPgntext as VNode];
+    }
+
+    render(ctrl: AnalysisControllerBughouse, pgn: string): void {
         const buttons = [
             h(
                 'a.i-pgn',
@@ -105,18 +124,17 @@ export function renderFENAndPGN(ctrl: AnalysisControllerBughouse, pgn: string) {
             ]),
         ];
 
-        patch(container, h('div', buttons));
+        this.vCopyfen = patch(this.vCopyfen, h('div#copyfen', buttons));
+
+        const e = document.getElementById('fullfen') as HTMLInputElement;
+        e.value = ctrl.boardA.fullfen + ' | ' + ctrl.boardB.fullfen;
+
+        this.vPgntext = patch(this.vPgntext, h('div#pgntext', pgn));
     }
-
-    const e = document.getElementById('fullfen') as HTMLInputElement;
-    e.value = ctrl.boardA.fullfen + ' | ' + ctrl.boardB.fullfen;
-
-    container = document.getElementById('pgntext') as HTMLElement;
-    ctrl.vpgn = patch(container, h('div#pgntext', pgn));
 }
 
 // regenerate the PGN and refresh the FEN & PGN panel (no-op in embed contexts)
 export function updateFENAndPGN(ctrl: AnalysisControllerBughouse) {
     if (ctrl.model['embed']) return;
-    renderFENAndPGN(ctrl, getPgn(ctrl));
+    ctrl.pgnView.render(ctrl, getPgn(ctrl));
 }

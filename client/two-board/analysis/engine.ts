@@ -81,6 +81,10 @@ export function buildScoreStr(color: string, analysis: Ceval): string {
 }
 
 export class EngineController {
+    private ctrl!: AnalysisControllerBughouse;
+
+    private vinput: VNode | HTMLElement;
+    private vinputPartner: VNode | HTMLElement;
     vscore: VNode | HTMLElement;
     vscorePartner: VNode | HTMLElement;
     vinfo: VNode | HTMLElement;
@@ -101,19 +105,10 @@ export class EngineController {
     private fsfOriginalPrompt?: typeof window.prompt;
     private fsfInputQueue: string[];
 
-    constructor(
-        private readonly ctrl: AnalysisControllerBughouse,
-        private readonly chess960: boolean,
-    ) {
+    constructor(private readonly chess960: boolean) {
         this.fsfDebug = true;
         this.fsfError = [];
         this.fsfInputQueue = [];
-
-        ffishModule().then((loadedModule: any) => {
-            this.ffish = loadedModule;
-            this.ffish.loadVariantConfig(allVariantsIni(variantsIni));
-            this.notationAsObject = this.notation2ffishjs(ctrl.boardA.variant.notation);
-        });
 
         // UCI isready/readyok
         this.isEngineReady = false;
@@ -124,18 +119,47 @@ export class EngineController {
         this.multipv =
             localStorage.multipv === undefined ? 1 : Math.max(1, Math.min(5, parseInt(localStorage.multipv)));
 
-        patch(document.getElementById('input') as HTMLElement, h('input#input', this.renderInput(ctrl.boardA)));
-        patch(
-            document.getElementById('inputPartner') as HTMLElement,
-            h('input#inputPartner', this.renderInput(ctrl.boardB)),
-        );
+        this.vinput = h('input#input', { props: { name: 'engine', type: 'checkbox' } });
+        this.vinputPartner = h('input#inputPartner', { props: { name: 'engine', type: 'checkbox' } });
+        this.vscore = h('score#score', '');
+        this.vscorePartner = h('score#scorePartner', '');
+        this.vinfo = h('info#info', _('in local browser'));
+        this.vpvlines = [h('div#pv1'), h('div#pv2'), h('div#pv3'), h('div#pv4'), h('div#pv5')];
+    }
 
-        this.vscore = document.getElementById('score') as HTMLElement;
-        this.vscorePartner = document.getElementById('scorePartner') as HTMLElement;
-        this.vinfo = document.getElementById('info') as HTMLElement;
-        this.vpvlines = Array(5)
-            .fill(null)
-            .map((_, i) => document.querySelector(`.pvbox :nth-child(${i + 1})`) as HTMLElement);
+    // the whole engine panel is a single unit of this widget's own view — engine.ts
+    // is part view, part controller (unlike the top-level analysisCtrl.ts/analysis.ts
+    // split), so it owns this composed markup directly rather than exposing one
+    // placeholder method per leaf element for analysis.ts to reassemble
+    renderPanel(): VNode {
+        return h('div.engine', [
+            h('label.switch', [this.vinput as VNode, h('span#slider.sw-slider')]),
+            this.vscore as VNode,
+            h('div.infoBug', ['Fairy-Stockfish 11+', h('br'), this.vinfo as VNode]),
+            this.vscorePartner as VNode,
+            h('label.switch', [this.vinputPartner as VNode, h('span#sliderPartner.sw-slider')]),
+        ]);
+    }
+
+    pvPanel(): VNode {
+        return h('div.pvbox', this.vpvlines as VNode[]);
+    }
+
+    // called once by the real controller, immediately after its own construction —
+    // performs this widget's one ctrl-dependent initial render (the engine-toggle
+    // checkboxes need ctrl.boardA/ctrl.boardB) and makes `ctrl` available to every
+    // other method on this class from this point on
+    attachCtrl(ctrl: AnalysisControllerBughouse): void {
+        this.ctrl = ctrl;
+
+        ffishModule().then((loadedModule: any) => {
+            this.ffish = loadedModule;
+            this.ffish.loadVariantConfig(allVariantsIni(variantsIni));
+            this.notationAsObject = this.notation2ffishjs(this.ctrl.boardA.variant.notation);
+        });
+
+        this.vinput = patch(this.vinput, h('input#input', this.renderInput(ctrl.boardA)));
+        this.vinputPartner = patch(this.vinputPartner, h('input#inputPartner', this.renderInput(ctrl.boardB)));
     }
 
     notation2ffishjs = (n: cg.Notation) => {
@@ -268,11 +292,12 @@ export class EngineController {
             this.loadVariantsIntoFsfEngine();
         }
 
-        patch(document.getElementById('input') as HTMLElement, h('input#input', { attrs: { disabled: false } }));
-        patch(
-            document.getElementById('inputPartner') as HTMLElement,
-            h('input#inputPartner', { attrs: { disabled: false } }),
-        );
+        // reuse renderInput (not a bare { attrs: { disabled: false } }) so the change
+        // listener's `on` data is always present — patching a data-less vnode against
+        // a retained old vnode that does carry `on` makes snabbdom's eventlisteners
+        // module treat the listener as removed, not merely left unspecified
+        this.vinput = patch(this.vinput, h('input#input', this.renderInput(this.ctrl.boardA)));
+        this.vinputPartner = patch(this.vinputPartner, h('input#inputPartner', this.renderInput(this.ctrl.boardB)));
 
         this.fsfEngineBoard = new this.ffish.Board(this.ctrl.variant.name, this.ctrl.boardA.fullfen, false);
         window.addEventListener('beforeunload', () => this.fsfEngineBoard.delete());

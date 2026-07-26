@@ -1,3 +1,4 @@
+import { h, VNode } from 'snabbdom';
 import Highcharts from 'highcharts';
 import type { Options } from 'highcharts';
 
@@ -16,6 +17,27 @@ export interface MovePoint {
     name?: any;
     marker?: any;
     color: string;
+}
+
+// Owns the #chart-movetime container, built ctrl-free so analysis.ts can embed
+// it directly. `visible` bakes in the same isAnalysisBoard-derived initial
+// display style analysis.ts applied inline before. Highcharts owns its own
+// internal DOM subtree once mounted (it isn't a snabbdom-patched widget), so
+// this only hands it a real element reference instead of a string id.
+export class MovetimeChartView {
+    private vnode: VNode;
+
+    constructor(visible: boolean) {
+        this.vnode = h('div#chart-movetime', visible ? { style: { display: 'block' } } : {});
+    }
+
+    placeholder(): VNode {
+        return this.vnode;
+    }
+
+    element(): HTMLElement {
+        return this.vnode.elm as HTMLElement;
+    }
 }
 
 function getChatImagePath(chatCode: string): string {
@@ -229,7 +251,7 @@ export function movetimeChart(ctrl: AnalysisControllerBughouse) {
         },
     };
 
-    ctrl.movetimeChart = Highcharts.chart('chart-movetime', {
+    ctrl.movetimeChart = Highcharts.chart(ctrl.movetimeChartView.element(), {
         chart: {
             type: 'column',
             alignTicks: false,

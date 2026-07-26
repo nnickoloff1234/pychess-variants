@@ -1,5 +1,3 @@
-import { VNode } from 'snabbdom';
-
 import * as cg from 'chessgroundx/types';
 
 import { uci2LastMove } from '../chess';
@@ -9,7 +7,7 @@ import { Variant, VARIANTS } from '../variants';
 import { boardSettings } from '@/boardSettings';
 import { ChessgroundController } from '@/cgCtrl';
 import { GameControllerBughouse } from './common/gameCtrl';
-import { createMovelistButtons } from './common/movelist';
+import { createMovelistButtons, MovelistView } from './common/movelist';
 import { TwoBoardSeats } from './common/players';
 
 // Shared core of the two bughouse page controllers (RoundControllerBughouse and
@@ -36,8 +34,7 @@ export abstract class TwoBoardController {
     plyA: number = 0;
     plyB: number = 0;
 
-    vmovelist: VNode | HTMLElement;
-    moveControls: VNode;
+    movelistView: MovelistView;
     settings: boolean;
 
     abstract sendMove: (b: GameControllerBughouse, move: string) => void;
@@ -63,6 +60,7 @@ export abstract class TwoBoardController {
         el2Pocket1: HTMLElement,
         el2Pocket2: HTMLElement,
         model: PyChessModel,
+        movelistView: MovelistView,
     ) {
         this.model = model;
         this.home = model.home;
@@ -85,7 +83,7 @@ export abstract class TwoBoardController {
         this.boardB.parent = this;
 
         createMovelistButtons(this);
-        this.vmovelist = document.getElementById('movelist') as HTMLElement;
+        this.movelistView = movelistView;
     }
 
     protected stampStepPlys = (step: Step, idx: number): void => {

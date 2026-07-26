@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Structural requirements for the bughouse client controller layer (`client/two-board/`): a single shared controller core for two-board state, subclassing for round vs analysis concerns, an acyclic controller module graph, and behavior parity guarantees for structural refactors. Established by the `refactor-bughouse-ctrl-shared-logic` change (2026-07-18); extended to the seat-centric abstraction and viewer-oriented analysis boards by the `adopt-two-board-players-in-analysis` change (2026-07-25) and to isolated analysis PGN, engine-evaluation, and tree-navigation modules by the `extract-two-board-analysis-pgn`, `extract-two-board-analysis-engine`, and `extract-two-board-analysis-tree` changes (2026-07-25).
+Structural requirements for the bughouse client controller layer (`client/two-board/`): a single shared controller core for two-board state, subclassing for round vs analysis concerns, an acyclic controller module graph, and behavior parity guarantees for structural refactors. Established by the `refactor-bughouse-ctrl-shared-logic` change (2026-07-18); extended to the seat-centric abstraction and viewer-oriented analysis boards by the `adopt-two-board-players-in-analysis` change (2026-07-25); to isolated analysis PGN, engine-evaluation, and tree-navigation modules by the `extract-two-board-analysis-pgn`, `extract-two-board-analysis-engine`, and `extract-two-board-analysis-tree` changes (2026-07-25); to a controller free of direct DOM manipulation by the `dom-free-two-board-analysis-ctrl` change (2026-07-26); and to the shared base and round controllers by the `dom-free-two-board-ctrl-core` change (2026-07-26); and to widgets owning their own placeholder vnodes instead of being found by id by the `two-board-widgets-own-placeholder-vnodes` change (2026-07-26).
 
 ## Requirements
 
@@ -44,7 +44,7 @@ Modules that operate on "either bughouse controller" (`common/movelist.ts`, `com
 - **THEN** it narrows via `ctrl.tree?.hasAnalysisTree()` against the real `AnalysisControllerBughouse` type, and no duplicated structural interface re-declaring the tree controller's method signatures exists in `movelist.ts`
 
 ### Requirement: Behavior parity across the refactor
-The refactor SHALL NOT change any user-visible behavior of bughouse round play or analysis, with one deliberate exception: the initial orientation of the analysis boards for a viewer who participated in the analyzed game (viewer-oriented boards, per the "Viewer-oriented initial board orientation on the analysis page" requirement). Known divergences between the two controllers (e.g. round-only chat markers in the step loop, analysis-only eval stamping) SHALL be preserved in the respective subclass, not unified.
+The refactor SHALL NOT change any user-visible behavior of bughouse round play or analysis, with two deliberate exceptions: the initial orientation of the analysis boards for a viewer who participated in the analyzed game (viewer-oriented boards, per the "Viewer-oriented initial board orientation on the analysis page" requirement), and the initial visibility of the `#chart-movetime` movetime-chart placeholder for a real, in-progress game with zero moves played (per the "Analysis controller performs no direct DOM manipulation" requirement — this case now shows an empty chart placeholder where it previously stayed hidden, since `isAnalysisBoard` is the only signal available at static-template-build time and does not distinguish "no game" from "a game with no moves yet"). Known divergences between the two controllers (e.g. round-only chat markers in the step loop, analysis-only eval stamping) SHALL be preserved in the respective subclass, not unified.
 
 #### Scenario: Round play smoke
 - **WHEN** a bughouse game is played after the refactor (moves on both boards, clock updates, game end)
@@ -52,7 +52,7 @@ The refactor SHALL NOT change any user-visible behavior of bughouse round play o
 
 #### Scenario: Analysis smoke
 - **WHEN** a finished bughouse game is opened on the analysis page and the user scrolls plies, toggles the engine, and switches/flips boards
-- **THEN** board states, evals, movelist, and PGN output behave exactly as before, except the documented initial-orientation change for participants
+- **THEN** board states, evals, movelist, and PGN output behave exactly as before, except the documented initial-orientation change for participants and the documented zero-move chart-placeholder visibility change
 
 ### Requirement: Single player-info abstraction for the four bughouse seats
 The bughouse client SHALL represent the four seats (white/black × board a/b) as `Seat` objects (`client/two-board/common/players.ts`), each holding its board+color coordinates (`boardName`, `color`) and the `player: TwoBoardPlayer` sitting there. `TwoBoardPlayer` SHALL carry pure person identity only (`username`, `title`, `rating`) — no seat coordinates; there is one player instance per seat (in simul mode the same username appears in two seats as two instances). One person can never occupy seats of both teams; in simul mode one person occupies both seats of the same team.
@@ -154,3 +154,70 @@ Bughouse-analysis tree navigation SHALL live in `client/two-board/analysis/analy
 #### Scenario: Pure parts are unit-tested
 - **WHEN** the jest suite runs
 - **THEN** tree-controller navigation (path/node lookup, branch/line/fork traversal, context-menu coordinate math, collapse-path persistence round-trip through a stubbed `localStorage`) is covered by unit tests against a real `AnalysisTree` fixture, without a live analysis page
+
+### Requirement: Analysis controller performs no direct DOM manipulation
+`AnalysisControllerBughouse` SHALL NOT create DOM elements or set styles/classes directly (no `document.getElementById`/`classList`/`style` mutation, no `patch()` calls building ad-hoc elements). All static, unconditional DOM setup SHALL live in `client/two-board/analysis/analysis.ts`'s initial markup instead; any setup that genuinely depends on runtime data unavailable at static-template-build time SHALL be decided from `model` in `analysis.ts` when a template-time-available signal suffices, or delegated to the dedicated rendering module already responsible for that DOM area (e.g. `analysisClock.ts`, `movetimeChart.ts`, `pgn.ts`, `engine.ts`) — never left inline in the controller.
+
+#### Scenario: Static setup lives in the view
+- **WHEN** the analysis page is constructed
+- **THEN** the `gaugePartner` element's `flipped` class and the four `anal-clock-*` elements' `.anal-clock.*` classes are present from `analysis.ts`'s initial render, with no controller code assigning them afterward
+
+#### Scenario: Model-decided visibility replaces a runtime DOM toggle
+- **WHEN** the analysis page is constructed for a real game (`isAnalysisBoard` false) versus the plain variant analysis board (`isAnalysisBoard` true)
+- **THEN** `#chart-movetime`'s initial visibility is decided by `analysis.ts` from `isAnalysisBoard` at render time, with no controller code toggling its `style.display` afterward
+
+### Requirement: Shared base and round controllers hold no VNode/HTMLElement-typed fields or inline DOM code
+`TwoBoardController` (`twoBoardCtrl.ts`) and `RoundControllerBughouse` (`roundCtrl.ts`) SHALL NOT declare `VNode`/`HTMLElement`-typed fields, nor contain inline `document.*`/`patch()`/`h()` calls in class methods — with the sole exception of the constructor's `HTMLElement` mount-point parameters used to construct the chessground boards, `roundCtrl.ts`'s tab-focus (`document.hidden`/`visibilitychange`) tracking (neither of which is DOM content rendering), and `twoBoardCtrl.ts`'s pre-existing `swap`/`switchBoards`/`initBoardSettings` free functions (out of scope for this change). `AnalysisControllerBughouse` (`analysisCtrl.ts`) SHALL likewise hold no dead write-only `VNode` field left over from a prior extraction.
+
+Retained-vnode state that snabbdom's `patch(oldVnode, newVnode)` genuinely needs for incremental diffing (as opposed to state that is written but never read back) SHALL be owned by a small view-state class instantiated once by the controller and held via a non-DOM-typed member, in the module already responsible for that DOM area — not a bare controller field and not a bare module-level variable. Fields confirmed dead (written but never read back) SHALL be deleted outright, not relocated.
+
+#### Scenario: Dead fields removed
+- **WHEN** `AnalysisControllerBughouse` is constructed and its PGN panel is rendered, or `TwoBoardController` is constructed and its movelist buttons are rendered
+- **THEN** no `vpgn` field exists on the analysis controller and no `moveControls` field exists on the base controller; the underlying `patch()` calls in `pgn.ts`/`movelist.ts` still run exactly as before, just without assigning their result to a controller field
+
+#### Scenario: Movelist retained-vnode state owned by its rendering module
+- **WHEN** the movelist is updated (tree navigation, a new move, a result) after this change
+- **THEN** `common/movelist.ts` diffs against its own retained-vnode state (not a `TwoBoardController.vmovelist` field) and the movelist updates in place exactly as before, with no scroll-position reset
+
+#### Scenario: Round dialog and game-controls retained-vnode state owned by a dedicated round-view class
+- **WHEN** a draw/rematch offer dialog is shown, updated, or cleared, or the game-controls buttons transition to their post-game state, after this change
+- **THEN** `RoundControlsView` (`client/two-board/round/roundControls.ts`, not `roundCtrl.ts`) owns the retained vnode(s) and performs the diffed `patch()` calls, and the rendered result is pixel-for-pixel identical to before
+
+#### Scenario: Remaining ad-hoc round DOM code relocated
+- **WHEN** chat is rendered, the extension-choice widget is cleaned up, the abort button is cleared, the rematch button is inserted, the online-status icon is patched, or the player-bar/info-wrap orientation is swapped, after this change
+- **THEN** the DOM-authoring code for each lives in the dedicated round-view module (or another already-appropriate module), and `roundCtrl.ts` calls into it rather than calling `document.*`/`patch()`/`h()` inline
+
+#### Scenario: Behavior is unchanged
+- **WHEN** a bughouse round is played (moves, clock updates, draw/resign/rematch offers, game end, board flip/switch) or an analysis session is used, after this change
+- **THEN** all rendered output and behavior is identical to before this change — this is a pure code-motion refactor with no new deliberate behavior exceptions
+
+### Requirement: Analysis-page widgets own their placeholder vnode instead of being found by id
+Each of the five stateful two-board analysis widgets — the movelist (`MovelistView`), the engine panel (`EngineController`), the PGN panel (`PgnView`), the per-position analysis clocks, and the movetime chart (`MovetimeChartView`) — SHALL be constructed with no `ctrl` reference and no `document.*` access, building and storing its own placeholder vnode(s) purely. `client/two-board/analysis/analysis.ts` (and `client/two-board/round/round.ts` for the shared movelist) SHALL construct each widget's object during its synchronous view-building code and embed the object's placeholder vnode(s) directly in the returned tree, instead of writing a raw `h(...)` placeholder literal itself. The real controller's constructor (`AnalysisControllerBughouse`, and `TwoBoardController`/`RoundControllerBughouse` for the shared movelist) SHALL accept these pre-built objects as constructor parameters instead of instantiating them internally, and SHALL hand itself to whichever objects need `ctrl` for their first content-bearing render (or ongoing lifetime), exactly once, at the same point in construction where that widget's initial rendering already happens today.
+
+#### Scenario: Movelist placeholder owned by MovelistView
+- **WHEN** the analysis page or the round page is constructed
+- **THEN** the `#movelist` element originates from `MovelistView`'s own placeholder-vnode construction, embedded by `analysis.ts`/`round.ts`, not from a raw `h('div#movelist')` literal in either view file, and the base controller receives the `MovelistView` instance as a constructor parameter
+
+#### Scenario: Engine panel placeholders owned by EngineController, ctrl attached once
+- **WHEN** the analysis page is constructed
+- **THEN** `#score`/`#scorePartner`/`#info`/`#pv1`-`#pv5` originate from `EngineController`'s own constructor (no `document.getElementById`/`querySelector` lookups for them), and `EngineController.attachCtrl(ctrl)` is called exactly once, immediately after the real controller's own construction, before any other engine method runs — performing the `#input`/`#inputPartner` checkboxes' one ctrl-dependent initial render
+
+#### Scenario: PGN panel placeholders owned by PgnView
+- **WHEN** the analysis page is constructed
+- **THEN** the `#copyfen` and `#pgntext` regions originate from `PgnView`'s own constructor-built placeholders, and the PGN panel's first ctrl-dependent content render happens via a `PgnView` method taking `ctrl`, called at the point `renderFENAndPGN` runs today
+
+#### Scenario: Analysis clocks keyed by physical position, not color
+- **WHEN** the analysis page is constructed and later has its boards flipped or switched
+- **THEN** the clock view object's four retained placeholders are keyed by physical position (main-top, main-bottom, bug-top, bug-bottom), and color-to-position resolution continues to happen at render time exactly as before, so clock rendering after a flip/switch is unaffected by this change
+
+#### Scenario: Movetime chart container owned by MovetimeChartView
+- **WHEN** the analysis page is constructed and the movetime chart is (re)rendered
+- **THEN** `Highcharts.chart(...)` is called against `MovetimeChartView`'s own retained element reference instead of the string id `'chart-movetime'`, and Highcharts' existing recreate-the-whole-chart-on-every-call behavior is unchanged
+
+#### Scenario: Behavior is unchanged
+- **WHEN** the analysis or round page is used after this change (movelist updates, engine toggling, PGN panel content, clock rendering across flip/switch, movetime chart display)
+- **THEN** all rendered output and behavior is identical to before this change — this is a pure construction-time wiring change, with no change to any widget's re-render/update logic
+
+#### Scenario: Contiguous multi-element widgets expose one composed-view method
+- **WHEN** a widget's owned elements are always rendered together as one fixed-structure, contiguous block in the page view file's markup (the engine panel's checkboxes/score/info/scorePartner; the PGN panel's copyfen/pgntext pair)
+- **THEN** the widget exposes a single method returning that whole composed block (`EngineController.renderPanel()`/`pvPanel()`, `PgnView.placeholders()`), and the page view file calls just that method instead of reassembling individual per-leaf placeholders; widgets whose elements are not contiguous (`AnalysisClockView`'s four clocks, interleaved with chessground board-wrapper divs it doesn't own) correctly keep separate per-element placeholder methods
