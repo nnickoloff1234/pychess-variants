@@ -66,6 +66,47 @@ class CataloguedRulesTestCase(unittest.TestCase):
         self.assertNotIn("connectN = 5", all_text)
         self.assertNotIn("promotedPieceType = o:k", all_text)
 
+    def test_explicit_piece_names_are_used_in_generated_rules(self):
+        summary = catalogued_rule_summary(
+            {
+                "ini": """
+                [namedpieces:chess]
+                customPiece1 = z:WAD
+                pieceDrops = true
+                promotionPieceTypes = z
+                """,
+                "pieces": ["p", "z"],
+                "pocketRoles": ["z"],
+                "promotionRoles": ["p"],
+                "pieceNames": {"p": "Soldier", "z": "Zebra"},
+            }
+        )
+
+        all_text = "\n".join(
+            line["text"] for section in summary["sections"] for line in section["lines"]
+        )
+        self.assertIn("Soldier (p)", all_text)
+        self.assertIn("Zebra (z)", all_text)
+        self.assertIn("Zebra (z) is a custom piece", all_text)
+        self.assertNotIn("custom piece 1 (z)", all_text)
+
+    def test_piece_names_are_part_of_the_rule_summary_cache_key(self):
+        doc = {
+            "ini": "[cachepieces:chess]",
+            "pieces": ["z"],
+        }
+        zebra = catalogued_rule_summary({**doc, "pieceNames": {"z": "Zebra"}})
+        camel = catalogued_rule_summary({**doc, "pieceNames": {"z": "Camel"}})
+
+        zebra_text = "\n".join(
+            line["text"] for section in zebra["sections"] for line in section["lines"]
+        )
+        camel_text = "\n".join(
+            line["text"] for section in camel["sections"] for line in section["lines"]
+        )
+        self.assertIn("Zebra (z)", zebra_text)
+        self.assertIn("Camel (z)", camel_text)
+
     def test_wildcard_rank_promotion_region_is_described(self):
         summary = catalogued_rule_summary(
             {
@@ -104,6 +145,22 @@ class CataloguedRulesTestCase(unittest.TestCase):
         )
         self.assertNotIn("The board is", all_text)
         self.assertNotIn("starting position is defined", all_text)
+
+    def test_chess960_option_only_describes_castling_support(self):
+        summary = catalogued_rule_summary(
+            {
+                "ini": """
+                [custom960:chess]
+                chess960 = true
+                """,
+            }
+        )
+
+        all_text = "\n".join(
+            line["text"] for section in summary["sections"] for line in section["lines"]
+        )
+        self.assertIn("The variant supports Chess960-style castling.", all_text)
+        self.assertNotIn("randomized starting", all_text)
 
 
 if __name__ == "__main__":

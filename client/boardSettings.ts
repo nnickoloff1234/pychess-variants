@@ -15,7 +15,7 @@ import {
 import { Settings, NumberSettings, BooleanSettings } from './settings';
 import { slider, checkbox } from './view';
 import { BoardName, PyChessModel } from './types';
-import { BOARD_FAMILIES, isCataloguedVariant, PIECE_FAMILIES, Variant, VARIANTS } from './variants';
+import { BOARD_FAMILIES, cwdaArmyClassNames, isCataloguedVariant, PIECE_FAMILIES, Variant, VARIANTS } from './variants';
 import { renderResized, updateBounds } from 'chessgroundx/render';
 
 export interface BoardController {
@@ -107,11 +107,21 @@ function setCataloguedBoardStyle(target: HTMLElement, variant: Variant): void {
     target.style.removeProperty('--board-image');
 }
 
-function setPieceStyleClass(target: HTMLElement, family: string, css: string): void {
+function setPieceStyleClass(target: HTMLElement, family: string, css: string, variant: Variant): void {
     for (const className of Array.from(target.classList)) {
         if (className.startsWith('piece-style-')) target.classList.remove(className);
     }
     target.classList.add(pieceStyleClass(family, css));
+    target.classList.toggle('catalogued-piece-variant', isCataloguedVariant(variant.name));
+}
+
+function setCwdaArmyClasses(target: HTMLElement, initialFen: string): void {
+    for (const className of Array.from(target.classList)) {
+        if (className.startsWith('cwda-white-') || className.startsWith('cwda-black-')) {
+            target.classList.remove(className);
+        }
+    }
+    target.classList.add(...cwdaArmyClassNames(initialFen));
 }
 
 function pieceStyleTargets(variant: Variant, root: ParentNode = document): Set<HTMLElement> {
@@ -252,7 +262,7 @@ class BoardSettings {
             });
         }
 
-        targets.forEach(target => setPieceStyleClass(target, family as string, css));
+        targets.forEach(target => setPieceStyleClass(target, family as string, css, variant));
         this.updateDropSuggestion();
     }
 
@@ -261,7 +271,7 @@ class BoardSettings {
         return selectedPieceCSS(family, idx, variant);
     }
 
-    updateScopedPieceStyle(variant: Variant, el?: Element) {
+    updateScopedPieceStyle(variant: Variant, el?: Element, initialFen = '') {
         const family = variant.pieceFamily;
         const css = this.pieceCSS(family, variant);
         ensurePieceCSS(this.assetURL, family as string, css);
@@ -269,7 +279,8 @@ class BoardSettings {
         if (el instanceof HTMLElement) {
             const target = (el.closest('.' + family) as HTMLElement | null) ?? el;
             target.dataset.pieceVariant = variant.name;
-            setPieceStyleClass(target, family as string, css);
+            if (variant.name === 'cwda') setCwdaArmyClasses(target, initialFen);
+            setPieceStyleClass(target, family as string, css, variant);
         }
     }
 

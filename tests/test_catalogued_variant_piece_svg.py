@@ -12,6 +12,8 @@ from catalogued_variants import (
     _check_ini_with_pyffish_child,
     _catalogued_board_svg_css,
     _catalogued_disguised_piece_css,
+    _catalogued_piece_set_css,
+    _catalogued_piece_set_is_directional,
     _catalogued_piece_set_required_filenames,
     _copy_piece_set_if_complete_for_doc,
     _sanitize_catalogued_board_svg,
@@ -98,6 +100,33 @@ class CataloguedVariantPieceSvgSanitizerTestCase(unittest.TestCase):
         self.assertIn('stroke="url(#rg1)"', sanitized)
         self.assertIn('filter="url(#blur1)"', sanitized)
 
+    def test_accepts_unicode_aria_label(self) -> None:
+        svg = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 34">
+  <path d="M 0 0 L 10 10" aria-label="金" />
+</svg>""".encode()
+
+        sanitized = _sanitize_catalogued_piece_svg(svg, "b+B.svg")
+
+        self.assertIn('aria-label="金"', sanitized)
+
+    def test_rejects_non_utf8_file_as_bad_request(self) -> None:
+        png = b"\x89PNG\r\n\x1a\n"
+
+        with self.assertRaises(web.HTTPBadRequest) as exc:
+            _sanitize_catalogued_piece_svg(png, "wP.svg")
+
+        self.assertEqual("wP.svg is not a valid UTF-8 SVG file.", exc.exception.text)
+
+    def test_unicode_remains_unsupported_in_geometry_attributes(self) -> None:
+        svg = """<svg xmlns="http://www.w3.org/2000/svg" width="三" height="34">
+  <path d="M 0 0 L 10 10" />
+</svg>""".encode()
+
+        with self.assertRaises(web.HTTPBadRequest) as exc:
+            _sanitize_catalogued_piece_svg(svg, "wP.svg")
+
+        self.assertIn("unsupported SVG attribute values", exc.exception.text)
+
     def test_rejects_external_filter_reference(self) -> None:
         svg = b"""<svg xmlns="http://www.w3.org/2000/svg">
   <ellipse style="filter:url(http://example.invalid/filter.svg#blur1)" cx="23" cy="26" rx="22" ry="22" />
@@ -151,6 +180,54 @@ class CataloguedVariantPieceSvgSanitizerTestCase(unittest.TestCase):
         self.assertIn(
             "label.piece.catalogued-disguised-preview.piece-style-catalogued-wildebeest-disguised.white",
             css,
+        )
+
+    def test_directional_piece_css_rotates_reversed_player_images(self) -> None:
+        css = _catalogued_piece_set_css(
+            "yarishogi",
+            {
+                "wP": {"svg": '<svg xmlns="http://www.w3.org/2000/svg" />'},
+                "bP": {"svg": '<svg xmlns="http://www.w3.org/2000/svg" />'},
+            },
+            directional=True,
+        )
+
+        self.assertIn(
+            ".piece-style-catalogued-yarishogi-custom piece::before "
+            '{content:"";display:block;width:100%;height:100%;pointer-events:none;}',
+            css,
+        )
+        self.assertIn("piece.p-piece.white::before", css)
+        self.assertIn("piece.p-piece.black::before", css)
+        self.assertIn(
+            ".piece-style-catalogued-yarishogi-custom piece.white.enemy::before, "
+            ".piece-style-catalogued-yarishogi-custom piece.black.ally::before "
+            "{transform:rotate(180deg);}",
+            css,
+        )
+
+    def test_regular_piece_css_does_not_rotate_player_images(self) -> None:
+        css = _catalogued_piece_set_css(
+            "wildebeest",
+            {"wP": {"svg": '<svg xmlns="http://www.w3.org/2000/svg" />'}},
+        )
+
+        self.assertNotIn("rotate:", css)
+
+    def test_shogi_base_marks_custom_piece_set_as_directional(self) -> None:
+        self.assertTrue(_catalogued_piece_set_is_directional({"baseVariant": "shogi"}))
+        self.assertTrue(_catalogued_piece_set_is_directional({"baseVariant": "minishogi"}))
+
+    def test_directional_piece_family_override_marks_custom_set(self) -> None:
+        self.assertTrue(
+            _catalogued_piece_set_is_directional(
+                {"baseVariant": "chess", "pieceFamilyOverride": "tori"}
+            )
+        )
+
+    def test_shogi_promotion_alone_does_not_mark_custom_set_as_directional(self) -> None:
+        self.assertFalse(
+            _catalogued_piece_set_is_directional({"baseVariant": "chess", "promotionType": "shogi"})
         )
 
 

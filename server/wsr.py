@@ -632,7 +632,7 @@ async def handle_analysis(
             "username": data["username"],
             "game_id": data["gameId"],  # optional
             "position": game.board.initial_fen,  # start position (X-FEN)
-            "variant": game.variant,
+            "variant": game.board.variant,
             "chess960": game.chess960,
             "moves": " ".join(game.board.move_stack),  # moves of the game (UCI)
             "nnue": game.board.nnue,
@@ -743,6 +743,7 @@ async def handle_rematch(
                 player1=user,
                 chess960=chess960,
                 reused_fen=reused_fen,
+                is_rematch=True,
             )
             app_state.seeks[seek.id] = seek
 
@@ -776,6 +777,7 @@ async def handle_rematch(
                     player1=user,
                     chess960=chess960,
                     reused_fen=reused_fen,
+                    is_rematch=True,
                 )
                 app_state.seeks[seek.id] = seek
 
