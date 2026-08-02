@@ -5,6 +5,8 @@ description = "Chess variants server"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    # 3.14.2/3.14.3 reject a compressed data frame after the first
+    # WebSocket control frame due to a regression in aio-libs/aiohttp#12988.
     "aiohttp==3.14.1",
     "aiohttp-cors==0.8.1",
     "aiohttp-jinja2==1.6",
@@ -39,18 +41,82 @@ dev = [
     "motor==3.7.1",
     "objgraph==3.6.2",
     "playwright==1.61.0",
-    "pre-commit>=4.5.1",
+    "pre-commit>=4.6.1",
     "pytest<10.0.0",
     "pytest-aiohttp==1.1.1",
     "pyright==1.1.411",
-    "ruff==0.15.22",
+    "ruff==0.16.0",
     "textual==8.2.8",
-    "tqdm>=4.67.3",
+    "tqdm>=4.70.0",
 ]
 
 [tool.ruff]
 line-length = 100
 target-version = "py314"
+
+[tool.ruff.lint]
+# Converting established percent formatting to str.format() is not behavior-neutral
+# for all objects and would make many logging-style expressions less readable.
+ignore = ["UP031"]
+
+[tool.ruff.lint.per-file-ignores]
+# Keep runtime-compatible typing declarations where PEP 695 rewrites can change
+# runtime type objects, generic metadata, or class MRO.
+"server/bot_api.py" = ["BLE001", "UP040"]
+"server/bugchess/__init__.py" = ["UP046"]
+"server/bugchess/engine.py" = ["B006", "B008", "BLE001", "UP046", "UP047"]
+"server/bugchess/pgn.py" = ["PLW0406", "RUF015", "UP046", "UP047"]
+"server/bugchess/variant.py" = ["PYI059", "UP046"]
+"server/const.py" = ["UP040"]
+"server/routes.py" = ["UP040"]
+"server/tournament/tournament.py" = ["BLE001", "UP040"]
+"server/websocket_utils.py" = ["BLE001", "UP047"]
+"server/ws_types.py" = ["UP040"]
+
+# Broad catches and quiet fallbacks are intentional at these process, network,
+# import, and maintenance boundaries. Changing their exception coverage can alter
+# recovery behavior, so retain it while keeping these rules active elsewhere.
+"monitor/monitor.py" = ["BLE001", "DTZ901"]
+"scripts/backfill_user_created_at_from_games.py" = ["BLE001"]
+"scripts/create_game_profile_indexes.py" = ["ASYNC230"]
+"scripts/fix_dragonfly_castling_rights.py" = ["TRY004"]
+"scripts/fix_makpong.py" = ["DTZ001"]
+"scripts/inspect_game_indexes.py" = ["ASYNC230", "BLE001"]
+"scripts/puzzle_mate1_supply.py" = ["BLE001"]
+"scripts/py4swiss_memory_stress.py" = ["BLE001"]
+"server/bug/import_bugh_game.py" = ["BLE001"]
+"server/export2pgn.py" = ["BLE001"]
+"server/fairy/fairy_board.py" = ["BLE001", "S110"]
+"server/fishnet.py" = ["BLE001"]
+"server/forum/captcha.py" = ["BLE001"]
+"server/game.py" = ["BLE001", "S110"]
+"server/game_api.py" = ["BLE001", "DTZ011", "S110"]
+"server/header_challenges.py" = ["BLE001", "S110"]
+"server/import_puzzles.py" = ["ASYNC230", "BLE001"]
+"server/inbox_api.py" = ["BLE001", "S110"]
+"server/legacy_blog_catalog.py" = ["TRY004"]
+"server/logger.py" = ["B039", "BLE001"]
+"server/login.py" = ["BLE001"]
+"server/push_notifications.py" = ["BLE001"]
+"server/puzzle.py" = ["BLE001"]
+"server/pychess_global_app_state.py" = ["BLE001"]
+"server/server_metrics.py" = ["BLE001"]
+"server/user.py" = ["BLE001"]
+"server/utils.py" = ["BLE001", "S110", "TC004"]
+"server/views/__init__.py" = ["BLE001"]
+"server/views/ublog.py" = ["BLE001"]
+"server/views/user_mini.py" = ["BLE001"]
+"tests/client_stresstest.py" = ["B023", "BLE001"]
+
+# Preserve runtime semantics for shared defaults, closure capture, resource
+# lifetime, import timing, iterator exceptions, and timezone interpretation.
+"server/bugchess/gaviota.py" = ["SIM115"]
+"server/bugchess/polyglot.py" = ["B008"]
+"server/delete_bad_puzzles.py" = ["ASYNC230"]
+"server/fairy/__init__.py" = ["PLE0604"]
+"tests/test_games_api.py" = ["DTZ001"]
+"tests/test_tournament_flow.py" = ["RUF015"]
+"tests/test_tournament_persistence.py" = ["RUF015"]
 
 [tool.setuptools]
 packages = []  # Disable package discovery

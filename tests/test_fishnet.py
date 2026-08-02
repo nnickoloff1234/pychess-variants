@@ -6,13 +6,12 @@ from types import SimpleNamespace
 from typing import cast
 from unittest.mock import AsyncMock, patch
 
-import pytest
-from aiohttp import web
-
-from typedefs import pychess_global_app_state_key
 import fishnet
-from fishnet import _read_fishnet_json, _winning_chances
+import pytest
 import wsr
+from aiohttp import web
+from fishnet import _read_fishnet_json, _winning_chances
+from typedefs import pychess_global_app_state_key
 
 
 class FishnetTestCase(unittest.IsolatedAsyncioTestCase):
@@ -363,6 +362,12 @@ class FishnetTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(app_state.fishnet_queue.qsize(), 1)
 
     def test_drop_stale_analysis_work_removes_only_old_analysis(self):
+        queue = asyncio.PriorityQueue()
+        queue.put_nowait((fishnet.ANALYSIS, "analysis1"))
+        queue.put_nowait((fishnet.ANALYSIS, "analysis2"))
+        queue.put_nowait((fishnet.ANALYSIS, "analysis2"))
+        queue.put_nowait((fishnet.MOVE, "move1"))
+        queue.put_nowait((fishnet.MOVE, "missing"))
         app_state = SimpleNamespace(
             fishnet_works={
                 "analysis1": {
@@ -375,6 +380,7 @@ class FishnetTestCase(unittest.IsolatedAsyncioTestCase):
                 },
                 "move1": {"work": {"type": "move", "id": "move1"}, "time": 0.0},
             },
+            fishnet_queue=queue,
         )
 
         dropped = fishnet.drop_stale_analysis_work(
@@ -383,6 +389,12 @@ class FishnetTestCase(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(dropped, 1)
         self.assertEqual(set(app_state.fishnet_works), {"analysis2", "move1"})
+        self.assertEqual(app_state.fishnet_queue.qsize(), 2)
+        retained_ids = {
+            app_state.fishnet_queue.get_nowait()[1],
+            app_state.fishnet_queue.get_nowait()[1],
+        }
+        self.assertEqual(retained_ids, {"analysis2", "move1"})
 
     def test_drop_fishnet_work_for_game_compacts_queue(self):
         queue = asyncio.PriorityQueue()
@@ -505,6 +517,95 @@ class FishnetTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             ws_send_json.await_args.args[1]["message"],
             "Analysis unavailable right now.",
+        )
+
+    async def test_handle_analysis_deduplicates_pending_work_for_game(self):
+        game = SimpleNamespace(
+            id="g1",
+            steps=[],
+            board=SimpleNamespace(initial_fen="startpos", move_stack=[], nnue=True),
+            variant="chess",
+            chess960=False,
+        )
+        queue = asyncio.PriorityQueue()
+        queue.put_nowait((fishnet.ANALYSIS, "pending"))
+        app_state = SimpleNamespace(
+            games={"g1": game},
+            users={},
+            workers={"k"},
+            fishnet_worker_last_seen={"k": fishnet.monotonic()},
+            fishnet_monitor=defaultdict(list),
+            fishnet_works={
+                "pending": {
+                    "work": {"type": "analysis", "id": "pending"},
+                    "game_id": "g1",
+                    "time": fishnet.monotonic(),
+                    "variant": "chess",
+                }
+            },
+            fishnet_queue=queue,
+        )
+        ws_send_json = AsyncMock()
+
+        with (
+            patch("wsr.ws_send_json", new=ws_send_json),
+            patch(
+                "wsr.has_available_fishnet_worker",
+                side_effect=AssertionError("duplicate must return before worker lookup"),
+            ),
+        ):
+            await wsr.handle_analysis(
+                app_state,
+                SimpleNamespace(),
+                {"gameId": "g1", "username": "u"},
+                game,
+            )
+
+        self.assertEqual(set(app_state.fishnet_works), {"pending"})
+        self.assertEqual(app_state.fishnet_queue.qsize(), 1)
+        self.assertEqual(
+            ws_send_json.await_args.args[1]["message"],
+            "Analysis already requested...",
+        )
+
+    async def test_handle_analysis_does_not_replace_internal_engine_queue(self):
+        game = SimpleNamespace(
+            id="g1",
+            steps=[],
+            board=SimpleNamespace(initial_fen="startpos", move_stack=[], nnue=True),
+            variant="chess",
+            chess960=False,
+        )
+        existing_queue = asyncio.Queue()
+        engine = SimpleNamespace(
+            online=True,
+            game_queues={"g1": existing_queue},
+            event_queue=asyncio.Queue(),
+        )
+        app_state = SimpleNamespace(
+            games={"g1": game},
+            users={"Fairy-Stockfish": engine},
+            workers=set(),
+            fishnet_worker_last_seen={},
+            fishnet_monitor=defaultdict(list),
+            fishnet_works={},
+            fishnet_queue=asyncio.PriorityQueue(),
+        )
+        ws_send_json = AsyncMock()
+
+        with patch("wsr.ws_send_json", new=ws_send_json):
+            await wsr.handle_analysis(
+                app_state,
+                SimpleNamespace(),
+                {"gameId": "g1", "username": "u"},
+                game,
+            )
+
+        self.assertIs(engine.game_queues["g1"], existing_queue)
+        self.assertEqual(engine.event_queue.qsize(), 0)
+        self.assertEqual(
+            ws_send_json.await_args.args[1]["message"],
+            "Analysis already requested...",
         )
 
 
@@ -686,6 +787,45 @@ class FishnetAnalysisPvRegressionTestCase(unittest.IsolatedAsyncioTestCase):
         app_state.users["botuser"].send_game_message.assert_not_awaited()
         self.assertNotIn("work1", app_state.fishnet_works)
         app_state.db.game.find_one_and_update.assert_awaited_once()
+
+    async def test_extra_worker_row_is_ignored_for_zero_ply_game(self) -> None:
+        """fairyfishnet 1.16.69 splits an empty moves string into one empty
+        item, returning two rows for a game whose only step is its start
+        position. The extra row must not index past game.steps.
+        """
+        game = SimpleNamespace(id="g1", steps=[{"turnColor": "white"}])
+        app_state = self._make_app_state(game)
+        initial_position = {"score": self._score(15), "pv": "e2e4", "depth": 20}
+        duplicate_extra_row = {"score": self._score(15), "pv": "e2e4", "depth": 20}
+
+        response = await self._call(
+            app_state,
+            game,
+            [initial_position, duplicate_extra_row],
+        )
+
+        self.assertEqual(response.status, 204)
+        self.assertEqual(game.steps[0]["analysis"], {"s": {"cp": 15}, "d": 20})
+        self.assertEqual(app_state.users["botuser"].send_game_message.await_count, 1)
+        self.assertNotIn("work1", app_state.fishnet_works)
+        app_state.db.game.find_one_and_update.assert_awaited_once_with(
+            {"_id": "g1"},
+            {"$set": {"a": [{"s": {"cp": 15}, "d": 20}]}},
+        )
+
+    async def test_short_worker_response_remains_pending(self) -> None:
+        game = SimpleNamespace(
+            id="g1",
+            steps=[{"turnColor": "white"}, {"turnColor": "black"}],
+        )
+        app_state = self._make_app_state(game)
+        initial_position = {"score": self._score(15), "pv": "e2e4", "depth": 20}
+
+        response = await self._call(app_state, game, [initial_position])
+
+        self.assertEqual(response.status, 204)
+        self.assertIn("work1", app_state.fishnet_works)
+        app_state.db.game.find_one_and_update.assert_not_awaited()
 
 
 class FishnetVariantsEndpointTestCase(unittest.IsolatedAsyncioTestCase):

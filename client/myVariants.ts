@@ -978,8 +978,9 @@ function renderForm(model: PyChessModel): VNode {
                         ),
                     ),
                 ]),
-                h('div.catalogued-field.catalogued-field-half.catalogued-checkbox-field', [
-                    h('label.catalogued-checkbox-row', [
+                h('label.catalogued-field.catalogued-field-half.catalogued-checkbox-field', [
+                    h('span.catalogued-checkbox-row', [
+                        h('span', _('Directional custom pieces')),
                         h('input#catalogued-piece-set-directional', {
                             props: {
                                 type: 'checkbox',
@@ -997,7 +998,6 @@ function renderForm(model: PyChessModel): VNode {
                                 },
                             },
                         }),
-                        h('span', _('Directional custom pieces')),
                     ]),
                     h(
                         'span#catalogued-piece-set-directional-help.catalogued-help',
@@ -1006,100 +1006,6 @@ function renderForm(model: PyChessModel): VNode {
                         ),
                     ),
                 ]),
-                model.admin
-                    ? h('label.catalogued-field.catalogued-field-half', [
-                          h('span', _('Compatible piece set')),
-                          h(
-                              'select#catalogued-piece-family-override',
-                              {
-                                  props: {
-                                      value: state.draftPieceFamilyOverride,
-                                      disabled: state.saving,
-                                  },
-                                  on: {
-                                      change: (event: Event) => {
-                                          state.draftPieceFamilyOverride = (event.target as HTMLSelectElement).value;
-                                          state.formMessage = '';
-                                          state.formMessageTone = 'neutral';
-                                          rerender(model);
-                                      },
-                                  },
-                              },
-                              [
-                                  h(
-                                      'option',
-                                      { props: { value: '', selected: state.draftPieceFamilyOverride === '' } },
-                                      _('Auto-detect'),
-                                  ),
-                                  ...sitePieceFamilyOptions().map(family =>
-                                      h(
-                                          'option',
-                                          {
-                                              props: {
-                                                  value: family,
-                                                  selected: state.draftPieceFamilyOverride === family,
-                                              },
-                                          },
-                                          pieceFamilyOverrideLabel(family),
-                                      ),
-                                  ),
-                              ],
-                          ),
-                          h(
-                              'span.catalogued-help',
-                              _(
-                                  'Admin only. Overrides automatic built-in piece-set detection; custom SVG piece sets still take precedence.',
-                              ),
-                          ),
-                      ])
-                    : null,
-                model.admin
-                    ? h('label.catalogued-field.catalogued-field-half', [
-                          h('span', _('Compatible board style')),
-                          h(
-                              'select#catalogued-board-family-override',
-                              {
-                                  props: {
-                                      value: state.draftBoardFamilyOverride,
-                                      disabled: state.saving,
-                                  },
-                                  on: {
-                                      change: (event: Event) => {
-                                          state.draftBoardFamilyOverride = (event.target as HTMLSelectElement).value;
-                                          state.formMessage = '';
-                                          state.formMessageTone = 'neutral';
-                                          rerender(model);
-                                      },
-                                  },
-                              },
-                              [
-                                  h(
-                                      'option',
-                                      { props: { value: '', selected: state.draftBoardFamilyOverride === '' } },
-                                      _('Auto-detect'),
-                                  ),
-                                  ...siteBoardFamilyOptions().map(family =>
-                                      h(
-                                          'option',
-                                          {
-                                              props: {
-                                                  value: family,
-                                                  selected: state.draftBoardFamilyOverride === family,
-                                              },
-                                          },
-                                          boardFamilyOverrideLabel(family),
-                                      ),
-                                  ),
-                              ],
-                          ),
-                          h(
-                              'span.catalogued-help',
-                              _(
-                                  'Admin only. Overrides the board inherited from the base variant; an uploaded custom board SVG still takes precedence.',
-                              ),
-                          ),
-                      ])
-                    : null,
                 h('label.catalogued-field.catalogued-field-half', [
                     h('span', _('Visibility')),
                     h(
@@ -1139,6 +1045,109 @@ function renderForm(model: PyChessModel): VNode {
                     ),
                     h('span.catalogued-help', visibilityHelp(state.draftVisibility)),
                 ]),
+                h('fieldset.catalogued-appearance-fields.catalogued-field-full', [
+                    h('legend', _('Advanced appearance')),
+                    h('label.catalogued-field', [
+                        h('span', _('Compatible piece set')),
+                        h(
+                            'select#catalogued-piece-family-override',
+                            {
+                                props: {
+                                    value: state.draftPieceFamilyOverride,
+                                    disabled: state.saving,
+                                },
+                                on: {
+                                    change: (event: Event) => {
+                                        state.draftPieceFamilyOverride = (event.target as HTMLSelectElement).value;
+                                        state.formMessage = '';
+                                        state.formMessageTone = 'neutral';
+                                        rerender(model);
+                                    },
+                                },
+                            },
+                            [
+                                h(
+                                    'option',
+                                    {
+                                        props: {
+                                            value: '',
+                                            selected: state.draftPieceFamilyOverride === '',
+                                        },
+                                    },
+                                    _('Auto-detect'),
+                                ),
+                                ...sitePieceFamilyOptions().map(family =>
+                                    h(
+                                        'option',
+                                        {
+                                            props: {
+                                                value: family,
+                                                selected: state.draftPieceFamilyOverride === family,
+                                            },
+                                        },
+                                        pieceFamilyOverrideLabel(family),
+                                    ),
+                                ),
+                            ],
+                        ),
+                        h(
+                            'span.catalogued-help',
+                            _(
+                                'Overrides automatic built-in piece-set detection; custom SVG piece sets still take precedence.',
+                            ),
+                        ),
+                    ]),
+                    h('label.catalogued-field', [
+                        h('span', _('Compatible board style')),
+                        h(
+                            'select#catalogued-board-family-override',
+                            {
+                                props: {
+                                    value: state.draftBoardFamilyOverride,
+                                    disabled: state.saving,
+                                },
+                                on: {
+                                    change: (event: Event) => {
+                                        state.draftBoardFamilyOverride = (event.target as HTMLSelectElement).value;
+                                        state.formMessage = '';
+                                        state.formMessageTone = 'neutral';
+                                        rerender(model);
+                                    },
+                                },
+                            },
+                            [
+                                h(
+                                    'option',
+                                    {
+                                        props: {
+                                            value: '',
+                                            selected: state.draftBoardFamilyOverride === '',
+                                        },
+                                    },
+                                    _('Auto-detect'),
+                                ),
+                                ...siteBoardFamilyOptions().map(family =>
+                                    h(
+                                        'option',
+                                        {
+                                            props: {
+                                                value: family,
+                                                selected: state.draftBoardFamilyOverride === family,
+                                            },
+                                        },
+                                        boardFamilyOverrideLabel(family),
+                                    ),
+                                ),
+                            ],
+                        ),
+                        h(
+                            'span.catalogued-help',
+                            _(
+                                'Overrides the board inherited from the base variant; an uploaded custom board SVG still takes precedence.',
+                            ),
+                        ),
+                    ]),
+                ]),
                 h('label.catalogued-field.catalogued-field-full', [
                     h('span', _('Variant definition')),
                     h('textarea#catalogued-ini', {
@@ -1158,6 +1167,21 @@ function renderForm(model: PyChessModel): VNode {
                             },
                         },
                     }),
+                    editingSystem
+                        ? null
+                        : h('span.catalogued-help', [
+                              h(
+                                  'a.catalogued-reference-link',
+                                  {
+                                      attrs: {
+                                          href: 'https://github.com/fairy-stockfish/Fairy-Stockfish/blob/master/src/variants.ini',
+                                          target: '_blank',
+                                          rel: 'noopener',
+                                      },
+                                  },
+                                  _('Fairy-Stockfish variants.ini reference'),
+                              ),
+                          ]),
                     editingSystem
                         ? h(
                               'span.catalogued-help',

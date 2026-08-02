@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
-from typing import Mapping
+from collections.abc import Mapping
+from datetime import UTC, datetime
 from urllib.parse import urlparse
 
 from const import ANON_PREFIX
@@ -107,11 +107,11 @@ def post_url(post: Mapping[str, object]) -> str:
 
 def image_src(post: Mapping[str, object]) -> str:
     image = str(post.get("image") or "")
-    if image.startswith("http://") or image.startswith("https://"):
+    if image.startswith(("http://", "https://")):
         post_id = str(post.get("_id") or "")
         if post_id:
             return f"/blogs/image/{post_id}"
-    if image.startswith("/images/") or image.startswith("/icons/"):
+    if image.startswith(("/images/", "/icons/")):
         return f"/static{image}"
     return image
 
@@ -128,8 +128,8 @@ def display_date(post: Mapping[str, object]) -> str:
     dt = post.get("publishedAt") or post.get("updatedAt") or post.get("createdAt")
     if isinstance(dt, datetime):
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt.astimezone(timezone.utc).strftime("%Y-%m-%d")
+            dt = dt.replace(tzinfo=UTC)
+        return dt.astimezone(UTC).strftime("%Y-%m-%d")
     return ""
 
 

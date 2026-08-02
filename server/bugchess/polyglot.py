@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # This file is part of the python-chess library.
 # Copyright (C) 2012-2019 Niklas Fiekas <niklas.fiekas@backscattering.de>
@@ -16,19 +15,18 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-from bug import chess
 import collections
-import struct
-import os
 import mmap
+import os
 import random
+import struct
 import typing
-
+from collections.abc import Callable, Container, Iterator
 from types import TracebackType
-from typing import Callable, Container, Iterator, List, Optional, Type, Union
 
+from bug import chess
 
-PathLike = Union[str, bytes]
+PathLike = str | bytes
 
 
 ENTRY_STRUCT = struct.Struct(">QHHI")
@@ -820,7 +818,7 @@ POLYGLOT_RANDOM_ARRAY = [
 
 
 class ZobristHasher:
-    def __init__(self, array: List[int]) -> None:
+    def __init__(self, array: list[int]) -> None:
         assert len(array) >= 781
         self.array = array
 
@@ -911,18 +909,18 @@ class MemoryMappedReader:
 
         try:
             self.mmap = mmap.mmap(self.fd, 0, access=mmap.ACCESS_READ)  # type: Optional[mmap.mmap]
-        except ValueError, mmap.error:  # type: ignore
+        except OSError, ValueError:  # type: ignore
             # Can not memory map empty opening books.
             self.mmap = None
 
-    def __enter__(self) -> "MemoryMappedReader":
+    def __enter__(self) -> typing.Self:
         return self
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_value: Optional[BaseException],
-        traceback: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
     ) -> None:
         return self.close()
 
@@ -992,7 +990,7 @@ class MemoryMappedReader:
 
     def find_all(
         self,
-        board: Union[chess.Board, int],
+        board: chess.Board | int,
         *,
         minimum_weight: int = 1,
         exclude_moves: Container[chess.Move] = (),
@@ -1038,7 +1036,7 @@ class MemoryMappedReader:
 
     def find(
         self,
-        board: Union[chess.Board, int],
+        board: chess.Board | int,
         *,
         minimum_weight: int = 1,
         exclude_moves: Container[chess.Move] = (),
@@ -1066,12 +1064,12 @@ class MemoryMappedReader:
 
     def get(
         self,
-        board: Union[chess.Board, int],
-        default: Optional[Entry] = None,
+        board: chess.Board | int,
+        default: Entry | None = None,
         *,
         minimum_weight: int = 1,
         exclude_moves: Container[chess.Move] = (),
-    ) -> Optional[Entry]:
+    ) -> Entry | None:
         try:
             return self.find(board, minimum_weight=minimum_weight, exclude_moves=exclude_moves)
         except IndexError:
@@ -1079,7 +1077,7 @@ class MemoryMappedReader:
 
     def choice(
         self,
-        board: Union[chess.Board, int],
+        board: chess.Board | int,
         *,
         minimum_weight: int = 1,
         exclude_moves: Container[chess.Move] = (),
@@ -1105,7 +1103,7 @@ class MemoryMappedReader:
 
     def weighted_choice(
         self,
-        board: Union[chess.Board, int],
+        board: chess.Board | int,
         *,
         exclude_moves: Container[chess.Move] = (),
         random=random,

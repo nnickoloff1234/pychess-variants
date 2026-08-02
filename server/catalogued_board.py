@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import logging
+from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import lru_cache
 from html import escape
-import logging
-from typing import Any, Mapping, TypedDict
+from typing import Any, TypedDict
 
 log = logging.getLogger(__name__)
 
@@ -162,11 +163,13 @@ def _cached_start_board_svg(
     svg_width = width * cell_size
     svg_height = height * cell_size
     parts: list[str] = [
-        '<svg xmlns="http://www.w3.org/2000/svg" '
-        'class="catalogued-start-board-svg" role="img" '
-        'aria-label="Default starting position" '
-        f'width="{svg_width}" height="{svg_height}" '
-        f'viewBox="0 0 {svg_width} {svg_height}">',
+        (
+            '<svg xmlns="http://www.w3.org/2000/svg" '
+            'class="catalogued-start-board-svg" role="img" '
+            'aria-label="Default starting position" '
+            f'width="{svg_width}" height="{svg_height}" '
+            f'viewBox="0 0 {svg_width} {svg_height}">'
+        ),
         "<title>Default starting position</title>",
     ]
 

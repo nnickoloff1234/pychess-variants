@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
-from typing import Callable, Literal, Mapping, NotRequired, Sequence, TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, Literal, NotRequired, TypedDict
 
 if TYPE_CHECKING:
     from user import User
@@ -411,6 +412,10 @@ class ViewContext(TypedDict, total=False):
     variant_display_name: Callable[[str], str]
     theme: str
     game_category: str
+    category_variants: Mapping[str, object]
+    category_variant_groups: Mapping[str, str]
+    category_variant_list: tuple[str, ...]
+    category_variant_set: frozenset[str]
     game_category_intro: bool
     catalogued_variants: str
     pm_friends_only: bool
@@ -486,6 +491,7 @@ class ViewContext(TypedDict, total=False):
     online_users: Sequence[User]
     profile: str | None
     profile_title: str
+    profile_restricted: bool
     ublog_posts: list[object]
     ublog_post_count: int
     ublog_is_owner: bool

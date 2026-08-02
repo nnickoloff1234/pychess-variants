@@ -1,13 +1,13 @@
 from aiohttp import web
-
 from const import category_matches
-from ublog import post_url
-from views import get_user_context
 from pychess_global_app_state_utils import get_app_state
+from ublog import post_url
+
+from views import get_user_context
 
 
 async def blog(request: web.Request) -> web.StreamResponse:
-    user, _context = await get_user_context(request)
+    _user, context = await get_user_context(request)
     app_state = get_app_state(request.app)
 
     blog_id = request.match_info.get("blogId")
@@ -27,7 +27,8 @@ async def blog(request: web.Request) -> web.StreamResponse:
         raise web.HTTPNotFound()
 
     category = migrated.get("category", "all")
-    if user.game_category != "all" and not category_matches(user.game_category, category):
+    game_category = context["game_category"]
+    if game_category != "all" and not category_matches(game_category, category):
         raise web.HTTPNotFound()
 
     raise web.HTTPFound(post_url(migrated))

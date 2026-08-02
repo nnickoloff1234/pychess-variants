@@ -1,21 +1,20 @@
 import unittest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
-from aiohttp import web
-
 import test_logger
+from aiohttp import web
 from catalogued_variants import (
     _canonical_piece_set_filename,
-    _check_ini_with_pyffish_child,
     _catalogued_board_svg_css,
     _catalogued_disguised_piece_css,
     _catalogued_piece_set_css,
     _catalogued_piece_set_is_directional,
     _catalogued_piece_set_required_filenames,
-    _copy_piece_set_if_complete_for_doc,
+    _check_ini_with_pyffish_child,
+    _copy_catalogued_uploaded_assets,
     _has_complete_piece_set,
     _read_bool_metadata,
     _sanitize_catalogued_board_svg,
@@ -101,6 +100,24 @@ class CataloguedVariantPieceSvgSanitizerTestCase(unittest.TestCase):
         self.assertIn('stop-opacity="1"', sanitized)
         self.assertIn('stroke="url(#rg1)"', sanitized)
         self.assertIn('filter="url(#blur1)"', sanitized)
+
+    def test_accepts_digit_prefixed_local_references(self) -> None:
+        svg = b"""<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <defs>
+    <linearGradient id="0">
+      <stop stop-color="#fff" offset="0" />
+    </linearGradient>
+    <radialGradient id="1a" xlink:href="#0" />
+  </defs>
+  <path fill="url(#1a)" d="M 0 0 L 10 10" />
+</svg>"""
+
+        sanitized = _sanitize_catalogued_piece_svg(svg, "wR.svg")
+
+        self.assertIn('id="0"', sanitized)
+        self.assertIn('id="1a"', sanitized)
+        self.assertIn('href="#0"', sanitized)
+        self.assertIn('fill="url(#1a)"', sanitized)
 
     def test_accepts_unicode_aria_label(self) -> None:
         svg = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 34">
@@ -566,7 +583,7 @@ startFen = 8/8/8/8/8/8/8/8
             ),
         )
 
-    def test_existing_piece_set_is_not_preserved_when_metadata_adds_required_svgs(self) -> None:
+    def test_existing_piece_set_is_preserved_when_metadata_adds_required_svgs(self) -> None:
         updated_doc: Any = {
             "_id": "metapromo",
             "name": "metapromo",
@@ -597,8 +614,8 @@ startFen = 8/8/8/8/8/8/8/8
             "category": "other",
             "visibility": "private",
             "gameCount": 0,
-            "createdAt": datetime.now(timezone.utc),
-            "updatedAt": datetime.now(timezone.utc),
+            "createdAt": datetime.now(UTC),
+            "updatedAt": datetime.now(UTC),
         }
         old_complete_before_metadata: Any = {
             "pieceSet": {
@@ -607,12 +624,19 @@ startFen = 8/8/8/8/8/8/8/8
                 "wP": {"svg": "<svg />", "size": 7},
                 "bP": {"svg": "<svg />", "size": 7},
             },
-            "pieceSetUpdatedAt": datetime.now(timezone.utc),
+            "pieceSetUpdatedAt": datetime.now(UTC),
+            "boardSvg": {"svg": "<svg />", "size": 7},
+            "boardSvgUpdatedAt": datetime.now(UTC),
         }
 
-        _copy_piece_set_if_complete_for_doc(updated_doc, old_complete_before_metadata)
+        _copy_catalogued_uploaded_assets(updated_doc, old_complete_before_metadata)
 
-        self.assertNotIn("pieceSet", updated_doc)
+        self.assertIn("pieceSet", updated_doc)
+        self.assertFalse(_has_complete_piece_set(updated_doc))
+        self.assertEqual(updated_doc["boardSvg"], old_complete_before_metadata["boardSvg"])
+        self.assertEqual(
+            updated_doc["boardSvgUpdatedAt"], old_complete_before_metadata["boardSvgUpdatedAt"]
+        )
 
     def test_existing_piece_set_is_preserved_when_it_matches_new_metadata_requirements(
         self,
@@ -647,8 +671,8 @@ startFen = 8/8/8/8/8/8/8/8
             "category": "other",
             "visibility": "private",
             "gameCount": 0,
-            "createdAt": datetime.now(timezone.utc),
-            "updatedAt": datetime.now(timezone.utc),
+            "createdAt": datetime.now(UTC),
+            "updatedAt": datetime.now(UTC),
         }
         matching_piece_set: Any = {
             "pieceSet": {
@@ -659,10 +683,11 @@ startFen = 8/8/8/8/8/8/8/8
                 "w+P": {"svg": "<svg />", "size": 7},
                 "b+P": {"svg": "<svg />", "size": 7},
             },
-            "pieceSetUpdatedAt": datetime.now(timezone.utc),
+            "pieceSetUpdatedAt": datetime.now(UTC),
         }
 
-        _copy_piece_set_if_complete_for_doc(updated_doc, matching_piece_set)
+        _copy_catalogued_uploaded_assets(updated_doc, matching_piece_set)
 
         self.assertIn("pieceSet", updated_doc)
         self.assertIn("w+P", updated_doc["pieceSet"])
+        self.assertTrue(_has_complete_piece_set(updated_doc))

@@ -1,18 +1,20 @@
 from __future__ import annotations
-import re
+
+import logging
 import random
+import re
 from functools import lru_cache
 from typing import TYPE_CHECKING
+
+from const import CATEGORIES
 
 # -*- coding: utf-8 -*-
 from fairy.ataxx import ATAXX_FENS
 from fairy.caparandom import caparandom_rank8
 from fairy.chess960 import CHESS960_FENS
-from fairy.jieqi import make_initial_mapping, apply_move_and_transform, BLACK_PIECES, RED_PIECES
-from const import CATEGORIES
 from fairy.cwda import cwda_engine_variant
+from fairy.jieqi import BLACK_PIECES, RED_PIECES, apply_move_and_transform, make_initial_mapping
 from fairy.racingkings import RACINGKINGS_FENS
-import logging
 
 log = logging.getLogger(__name__)
 
@@ -221,6 +223,13 @@ class FairyBoard:
         return self.sf.get_fen(self.variant, self.initial_fen, [], False, True)
 
     def push(self, move, append=True, *, raise_on_error=True):
+        previous_fen = self.fen
+        previous_color = self.color
+        previous_ply = self.ply
+        previous_stack_length = len(self.move_stack)
+        previous_jieqi_mapping = (
+            dict(self.jieqi_covered_pieces) if self.jieqi_covered_pieces is not None else None
+        )
         try:
             # log.debug("move=%s, fen=%s", move, self.fen
             if append:
@@ -241,10 +250,12 @@ class FairyBoard:
                     self.count_started,
                 )
         except Exception:
-            try:
-                self.pop(remove=append)
-            except Exception:
-                pass
+            del self.move_stack[previous_stack_length:]
+            self.fen = previous_fen
+            self.color = previous_color
+            self.ply = previous_ply
+            if previous_jieqi_mapping is not None:
+                self.jieqi_covered_pieces = previous_jieqi_mapping
             if raise_on_error:
                 log.error(
                     "sf.get_fen() failed on %s %s %s %s %s %s %s",
@@ -389,7 +400,7 @@ class FairyBoard:
         }
         fen = self.fen
         if "[" in fen:
-            board, rest = fen.split("[")
+            board, _rest = fen.split("[")
         else:
             board = fen.split()[0]
         board = board.replace("+", "")
@@ -548,9 +559,9 @@ def get_fog_fen(fen, persp_color):
     # remove castling rights of the player in fog
     # because the resulting fog FEN may have no king
     if persp_color == WHITE:
-        parts[2] = "".join((letter for letter in parts[2] if letter.isupper()))
+        parts[2] = "".join(letter for letter in parts[2] if letter.isupper())
     else:
-        parts[2] = "".join((letter for letter in parts[2] if letter.islower()))
+        parts[2] = "".join(letter for letter in parts[2] if letter.islower())
     fen = " ".join(parts)
 
     fen = sf.get_fog_fen(fen, "fogofwar")

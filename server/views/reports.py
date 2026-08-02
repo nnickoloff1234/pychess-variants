@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
-from typing import Any, Mapping
+from collections.abc import Iterable, Mapping
+from typing import Any
 
 import aiohttp_jinja2
 from aiohttp import web
-
 from pychess_global_app_state_utils import get_app_state
 from report_api import REPORT_REASON_LABELS, TIMEOUT_REASONS
 from settings import ADMINS
 from typing_defs import ViewContext
+
 from views import get_user_context
 
 REPORT_SOURCE_LABELS: dict[str, str] = {
@@ -32,7 +32,7 @@ def _is_admin_username(username: str) -> bool:
 def _report_source_context(report: Mapping[str, Any]) -> tuple[str, str]:
     url = str(report.get("url") or "").strip()
     if url:
-        if url.startswith("/") or url.startswith("http://") or url.startswith("https://"):
+        if url.startswith(("/", "http://", "https://")):
             return ("Context link", url)
         return ("Context link", "")
 

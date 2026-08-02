@@ -1,38 +1,40 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Mapping
+
 import asyncio
 import random
 import string
+from collections.abc import Mapping
 from time import monotonic
+from typing import TYPE_CHECKING
 
 import aiohttp_session
+import game
 from aiohttp import web
 from aiohttp.web_ws import WebSocketResponse
-
-from bug.wsr_bug import handle_resign_bughouse, handle_rematch_bughouse, handle_reconnect_bughouse
-import game
 from broadcast import round_broadcast
-from chat import chat_response
+from bug.wsr_bug import handle_reconnect_bughouse, handle_rematch_bughouse, handle_resign_bughouse
 from catalogued_variants import catalogued_variant_allows_fishnet
-from link_filter import sanitize_user_message
+from chat import chat_response
 from cheat_report import (
     CEVAL_REPORT_ACTION_AUTO_FORFEIT,
     CEVAL_REPORT_ACTION_REPORTED_ONLY,
     append_ceval_cheat_report,
     ceval_auto_lose_enabled,
 )
-from const import ANON_PREFIX, ANALYSIS, CASUAL, STARTED
+from const import ANALYSIS, ANON_PREFIX, CASUAL, STARTED
 from draw import draw, reject_draw
-from fairy import WHITE, BLACK, FairyBoard
+from fairy import BLACK, WHITE, FairyBoard
 from fishnet import (
     drop_stale_analysis_work,
     has_available_fishnet_worker,
+    has_pending_analysis_work_for_game,
 )
+from link_filter import sanitize_user_message
 from newid import new_id
 
 if TYPE_CHECKING:
-    from clock import Clock
     from bug.game_bug import GameBug
+    from clock import Clock
     from game import Game
     from pychess_global_app_state import PychessGlobalAppState
     from pymongo.asynchronous.database import AsyncDatabase
@@ -42,13 +44,13 @@ if TYPE_CHECKING:
         AbortResignMessage,
         AnalysisMessage,
         AnalysisMoveMessage,
-        ByoyomiMessage,
         BerserkMessage,
         BugRoundChatMessage,
+        ByoyomiMessage,
         CevalDetectedMessage,
         ChatMessage,
-        CountResponse,
         CountMessage,
+        CountResponse,
         DeletedMessage,
         DeleteMessage,
         DrawMessage,
@@ -57,13 +59,13 @@ if TYPE_CHECKING:
         GameStartMessage,
         GameUserConnectedMessage,
         LeaveMessage,
-        MoveMessage,
         MoreTimeMessage,
         MoreTimeRequest,
-        RematchOfferMessage,
-        RematchRejectedMessage,
+        MoveMessage,
         ReadyMessage,
         RematchMessage,
+        RematchOfferMessage,
+        RematchRejectedMessage,
         RequestAnalysisMessage,
         RoundChatMessage,
         RoundInboundMessage,
@@ -73,11 +75,13 @@ if TYPE_CHECKING:
         UserPresenceMessage,
         ViewRematchMessage,
     )
-from pychess_global_app_state_utils import get_app_state
+import logging
+
+import logger
+from bug.utils_bug import play_move as play_move_bug
 from json_utils import json_dumps
+from pychess_global_app_state_utils import get_app_state
 from seek import Seek
-from ws_structs import ROUND_TYPED_DECODERS
-from ws_types import BughouseMoveMessage, MoveMessage, RoundInboundMessage
 from utils import (
     analysis_move,
     join_seek,
@@ -87,10 +91,9 @@ from utils import (
     tv_game,
     tv_game_user,
 )
-from bug.utils_bug import play_move as play_move_bug
-from websocket_utils import process_ws, get_user, ws_send_json
-import logging
-import logger
+from websocket_utils import get_user, process_ws, ws_send_json
+from ws_structs import ROUND_TYPED_DECODERS
+from ws_types import BughouseMoveMessage, MoveMessage, RoundInboundMessage
 
 log = logging.getLogger(__name__)
 
@@ -146,7 +149,7 @@ def _flag_claim_allowed(game: game.Game, user: User) -> bool:
     # where elapsed uses server monotonic time. This avoids trusting client
     # clock values and avoids tolerance-based false positives in this path.
     saved = game.clocks_w[-1] if user_color == WHITE else game.clocks_b[-1]
-    elapsed = int(round((monotonic() - game.last_server_clock) * 1000))
+    elapsed = round((monotonic() - game.last_server_clock) * 1000)
     return (saved - elapsed) <= 0
 
 
@@ -537,7 +540,8 @@ async def handle_setup(
             if user.username == game.bplayer.username
             else game.bplayer.username
         )
-        opp_player = users[opp_name] if opp_name in users else None
+        # Users.get() is async and may load from MongoDB; this must remain a cache-only lookup.
+        opp_player = users[opp_name] if opp_name in users else None  # noqa: SIM401
 
         game.steps[0]["fen"] = data["fen"]
 
@@ -613,6 +617,18 @@ async def handle_analysis(
     if dropped_stale_work:
         log.warning("Dropped %s stale fishnet analysis work items", dropped_stale_work)
 
+    if has_pending_analysis_work_for_game(app_state, game.id):
+        await ws_send_json(
+            ws,
+            chat_response(
+                "roundchat",
+                "",
+                "Analysis already requested...",
+                room="spectator",
+            ),
+        )
+        return
+
     # If there is any active fishnet client, use it.
     has_fishnet_worker = has_available_fishnet_worker(app_state)
 
@@ -657,6 +673,17 @@ async def handle_analysis(
         engine = app_state.users["Fairy-Stockfish"]
 
         if (engine is not None) and engine.online:
+            if data["gameId"] in engine.game_queues:
+                await ws_send_json(
+                    ws,
+                    chat_response(
+                        "roundchat",
+                        "",
+                        "Analysis already requested...",
+                        room="spectator",
+                    ),
+                )
+                return
             engine.game_queues[data["gameId"]] = asyncio.Queue()
             await engine.event_queue.put(game.analysis_start(data["username"]))
             analysis_requested = True

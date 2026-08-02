@@ -1,62 +1,66 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any, Coroutine, List, Mapping, Set
+
 import asyncio
 from asyncio import Queue
-from datetime import MINYEAR, datetime, timezone
+from collections.abc import Coroutine, Mapping
+from datetime import MINYEAR, UTC, datetime
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 import aiohttp_session
 from aiohttp import web
 from aiohttp.web_ws import WebSocketResponse
-
 from broadcast import round_broadcast
 from const import (
     ANON_PREFIX,
-    STARTED,
-    TEST_PREFIX,
-    reserved,
-    CATEGORY_VARIANTS,
-    CATEGORY_VARIANT_GROUPS,
+    BLOCK,
     CATEGORY_VARIANT_CODES,
+    CATEGORY_VARIANT_GROUPS,
     CATEGORY_VARIANT_LISTS,
     CATEGORY_VARIANT_SETS,
+    CATEGORY_VARIANTS,
+    FOLLOW,
     GAME_CATEGORY_ALL,
+    MAX_USER_BLOCK,
+    STARTED,
+    TEST_PREFIX,
     normalize_game_category,
+    reserved,
 )
-from glicko2.glicko2 import gl2, new_default_perf, perf_map_with_defaults, Rating
+from glicko2.glicko2 import MU, Rating, gl2, sparse_perf_map
 from json_utils import json_response
 from newid import id8
 from notify import notify
-from const import BLOCK, FOLLOW, MAX_USER_BLOCK
-from websocket_utils import ws_send_json_many, ws_send_str_many
 from user_stats import normalize_user_count
+from websocket_utils import ws_send_json_many, ws_send_str_many
 
 if TYPE_CHECKING:
     from typing_defs import (
         NotificationContent,
         NotificationDocument,
+        PerfEntry,
         PerfGl,
-        PerfMap,
-        UserCount,
         UserBlocksResponse,
+        UserCount,
         UserJson,
         UserStatusJson,
     )
-from variants import RATED_VARIANTS, VARIANTS, get_server_variant
-from settings import (
-    URI,
-    LOCALHOST,
-)
 from redirects import safe_redirect_path
 from request_utils import read_post_data
+from settings import (
+    LOCALHOST,
+    URI,
+)
+from variants import RATED_VARIANTS, VARIANTS
 
 if TYPE_CHECKING:
-    from pychess_global_app_state import PychessGlobalAppState
     from game import Game
+    from pychess_global_app_state import PychessGlobalAppState
     from seek import Seek
 
-from pychess_global_app_state_utils import get_app_state
 import logging
+
+from pychess_global_app_state_utils import get_app_state
 
 log = logging.getLogger(__name__)
 
@@ -78,8 +82,8 @@ def _as_utc(dt: datetime | None) -> datetime | None:
     if dt is None:
         return None
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
 def _as_required_utc(dt: datetime) -> datetime:
@@ -96,8 +100,8 @@ class User:
         username: str | None = None,
         anon: bool = False,
         title: str = "",
-        perfs: PerfMap | None = None,
-        pperfs: PerfMap | None = None,
+        perfs: Mapping[str, Mapping[str, object]] | None = None,
+        pperfs: Mapping[str, Mapping[str, object]] | None = None,
         count: UserCount | None = None,
         enabled: bool = True,
         shadowban: bool = False,
@@ -128,7 +132,7 @@ class User:
         self.oauth_id: str = oauth_id
         self.oauth_provider: str = oauth_provider
         self.created_at: datetime = (
-            datetime(MINYEAR, 1, 1, tzinfo=timezone.utc)
+            datetime(MINYEAR, 1, 1, tzinfo=UTC)
             if created_at is None
             else _as_required_utc(created_at)
         )
@@ -138,7 +142,7 @@ class User:
         self.update_game_category(game_category)
 
         if username is None:
-            self.anon = False if self.app_state.anon_as_test_users else True
+            self.anon = not self.app_state.anon_as_test_users
             self.username: str = (
                 TEST_PREFIX if self.app_state.anon_as_test_users else ANON_PREFIX
             ) + id8()
@@ -148,15 +152,15 @@ class User:
         self.seeks: dict[str, Seek] = {}
 
         self.ready_for_auto_pairing: bool = False
-        self.lobby_sockets: Set[WebSocketResponse] = set()
+        self.lobby_sockets: set[WebSocketResponse] = set()
         self.tournament_sockets: dict[
             str, set[WebSocketResponse | None]
         ] = {}  # {tournamentId: set()}
         self.simul_sockets: dict[str, set[WebSocketResponse]] = {}  # {simulId: set()}
 
-        self.notify_channels: Set[Queue[str]] = set()
-        self.inbox_channels: Set[Queue[str]] = set()
-        self.challenge_channels: Set[Queue[str]] = set()
+        self.notify_channels: set[Queue[str]] = set()
+        self.inbox_channels: set[Queue[str]] = set()
+        self.challenge_channels: set[Queue[str]] = set()
         self.challenge_offline_task: asyncio.Task[None] | None = None
 
         self.puzzles: dict[
@@ -169,13 +173,13 @@ class User:
         self.game_in_progress: str | None = None
         self.abandon_game_tasks: dict[str, asyncio.Task[None]] = {}
         self.background_tasks: set[asyncio.Task[None]] = set()
-        self.correspondence_games: List[Game] = []
+        self.correspondence_games: list[Game] = []
 
         # Reverse-index of game ids this user is currently spectating, kept in
         # sync with game.spectators.add()/discard() (see wsr.py). Lets
         # clear_spectator_references() drop stale spectator entries in
         # O(watched games) instead of scanning every active game on the server.
-        self.watched_games: Set[str] = set()
+        self.watched_games: set[str] = set()
 
         self.blocked: set[str] = set()
         self.following: set[str] = set()
@@ -190,19 +194,19 @@ class User:
             # User() with perfs=None can be dangerous
             _id = "%s|%s" % (self.username, self.title)
             hs = app_state.highscore
-            if any((_id in hs[variant] for variant in RATED_VARIANTS)):
+            if any(_id in hs[variant] for variant in RATED_VARIANTS):
                 raise RatingResetError(
                     "%s User() called with perfs=None. Use await users.get() instead.", username
                 )
 
-        self.perfs = perf_map_with_defaults(RATED_VARIANTS, perfs)
-        self.pperfs = perf_map_with_defaults(RATED_VARIANTS, pperfs)
+        self.perfs = sparse_perf_map(RATED_VARIANTS, perfs)
+        self.pperfs = sparse_perf_map(RATED_VARIANTS, pperfs)
         self.count = normalize_user_count(count)
 
         self.enabled: bool = enabled
         self.shadowban: bool = shadowban
 
-        self.last_seen: datetime = datetime(MINYEAR, 1, 1, tzinfo=timezone.utc)
+        self.last_seen: datetime = datetime(MINYEAR, 1, 1, tzinfo=UTC)
 
         # last game played
         self.tv: str | None = None
@@ -378,32 +382,23 @@ class User:
             self.ever_connected = True
 
     def get_rating_value(self, variant: str, chess960: bool | None) -> int:
-        try:
-            return int(round(self.perfs[variant + ("960" if chess960 else "")]["gl"]["r"], 0))
-        except KeyError:
-            return 1500
+        perf = self.perfs.get(variant + ("960" if chess960 else ""))
+        return int(round(perf["gl"]["r"], 0)) if perf is not None else MU
 
     def get_rating(self, variant: str, chess960: bool | None) -> Rating:
         variant_key = variant + ("960" if chess960 else "")
-        try:
-            gl = self.perfs[variant_key]["gl"]
-            la = self.perfs[variant_key]["la"]
-            return gl2.create_rating(gl["r"], gl["d"], gl["v"], la)
-        except KeyError:
-            rating = gl2.create_rating()
-            if get_server_variant(variant, chess960).rating_enabled:
-                self.perfs[variant_key] = new_default_perf()
-            return rating
+        perf = self.perfs.get(variant_key)
+        if perf is None:
+            return gl2.create_rating()
+        gl = perf["gl"]
+        return gl2.create_rating(gl["r"], gl["d"], gl["v"], perf["la"])
 
     def get_puzzle_rating(self, variant: str, chess960: bool | None) -> Rating:
-        try:
-            gl = self.pperfs[variant + ("960" if chess960 else "")]["gl"]
-            la = self.pperfs[variant + ("960" if chess960 else "")]["la"]
-            return gl2.create_rating(gl["r"], gl["d"], gl["v"], la)
-        except KeyError:
-            rating = gl2.create_rating()
-            self.pperfs[variant + ("960" if chess960 else "")] = new_default_perf()
-            return rating
+        perf = self.pperfs.get(variant + ("960" if chess960 else ""))
+        if perf is None:
+            return gl2.create_rating()
+        gl = perf["gl"]
+        return gl2.create_rating(gl["r"], gl["d"], gl["v"], perf["la"])
 
     def set_silence(self) -> None:
         self.silence += SILENCE
@@ -417,35 +412,39 @@ class User:
     async def set_rating(self, variant: str, chess960: bool, rating: Rating) -> None:
         if self.anon:
             return
+        variant_key = variant + ("960" if chess960 else "")
         gl: PerfGl = {"r": rating.mu, "d": rating.phi, "v": rating.sigma}
-        la = datetime.now(timezone.utc)
-        nb = self.perfs[variant + ("960" if chess960 else "")].get("nb", 0)
-        self.perfs[variant + ("960" if chess960 else "")] = {
+        la = datetime.now(UTC)
+        previous = self.perfs.get(variant_key)
+        entry: PerfEntry = {
             "gl": gl,
             "la": la,
-            "nb": nb + 1,
+            "nb": (0 if previous is None else previous["nb"]) + 1,
         }
+        self.perfs[variant_key] = entry
 
         if self.app_state.db is not None:
             await self.app_state.db.user.find_one_and_update(
-                {"_id": self.username}, {"$set": {"perfs": self.perfs}}
+                {"_id": self.username}, {"$set": {f"perfs.{variant_key}": entry}}
             )
 
     async def set_puzzle_rating(self, variant: str, chess960: bool, rating: Rating) -> None:
         if self.anon:
             return
+        variant_key = variant + ("960" if chess960 else "")
         gl: PerfGl = {"r": rating.mu, "d": rating.phi, "v": rating.sigma}
-        la = datetime.now(timezone.utc)
-        nb = self.pperfs[variant + ("960" if chess960 else "")].get("nb", 0)
-        self.pperfs[variant + ("960" if chess960 else "")] = {
+        la = datetime.now(UTC)
+        previous = self.pperfs.get(variant_key)
+        entry: PerfEntry = {
             "gl": gl,
             "la": la,
-            "nb": nb + 1,
+            "nb": (0 if previous is None else previous["nb"]) + 1,
         }
+        self.pperfs[variant_key] = entry
 
         if self.app_state.db is not None:
             await self.app_state.db.user.find_one_and_update(
-                {"_id": self.username}, {"$set": {"pperfs": self.pperfs}}
+                {"_id": self.username}, {"$set": {f"pperfs.{variant_key}": entry}}
             )
 
     async def increment_game_count(self, result: int, rated: bool) -> None:
@@ -738,7 +737,7 @@ class User:
             self.username,
             self.bot,
             self.anon,
-            self.perfs["chess"]["gl"]["r"],
+            self.get_rating_value("chess", False),
         )
 
     def update_game_category(self, game_category: str) -> None:

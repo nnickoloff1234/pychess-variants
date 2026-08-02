@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import MINYEAR, datetime, timezone
+from datetime import MINYEAR, UTC, datetime
 from time import monotonic
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING
 
 from const import ANON_PREFIX, BLOCK, MAX_USER_BLOCK
-from glicko2.glicko2 import perf_map_with_defaults
+from glicko2.glicko2 import sparse_perf_map
 from typing_defs import PerfMap, RelationDocument, UserCount, UserDocument
 from user_stats import normalize_user_count
 from variants import RATED_VARIANTS
@@ -86,9 +87,9 @@ class PublicUsers:
             title=title,
             bot=title == "BOT",
             enabled=doc.get("enabled", True),
-            created_at=doc.get("createdAt", datetime(MINYEAR, 1, 1, tzinfo=timezone.utc)),
+            created_at=doc.get("createdAt", datetime(MINYEAR, 1, 1, tzinfo=UTC)),
             count=normalize_user_count(doc.get("count")),
-            perfs=perf_map_with_defaults(RATED_VARIANTS, doc.get("perfs")),
+            perfs=sparse_perf_map(RATED_VARIANTS, doc.get("perfs")),
             blocked=blocked,
             pm_friends_only=doc.get("pmf", False),
             oauth_id=doc.get("oauth_id") or "",
@@ -102,53 +103,70 @@ class PublicUsers:
             title="",
             bot=False,
             enabled=True,
-            created_at=datetime(MINYEAR, 1, 1, tzinfo=timezone.utc),
+            created_at=datetime(MINYEAR, 1, 1, tzinfo=UTC),
             count=normalize_user_count(None),
-            perfs=perf_map_with_defaults(RATED_VARIANTS, None),
+            perfs={},
             blocked=frozenset(),
             pm_friends_only=False,
             oauth_id="",
             oauth_provider="",
         )
 
-    async def get_profile(self, username: str) -> PublicProfile | None:
+    async def get_profile(
+        self,
+        username: str,
+        *,
+        cache: bool = True,
+        include_blocked: bool = True,
+    ) -> PublicProfile | None:
         live_user = self._live_user(username)
         if live_user is not None:
             return self._profile_from_live_user(live_user)
 
-        self._cleanup_if_needed()
-        cached = self._profiles.get(username)
-        now = monotonic()
-        if cached is not None and cached[0] > now:
-            return cached[1]
+        if cache:
+            self._cleanup_if_needed()
+            cached = self._profiles.get(username)
+            now = monotonic()
+            if cached is not None and cached[0] > now:
+                return cached[1]
+        else:
+            now = monotonic()
 
         if username.startswith(ANON_PREFIX):
             profile = self._anon_profile(username)
-            self._profiles[username] = (now + PUBLIC_PROFILE_CACHE_TTL_SECONDS, profile)
-            self._titles[username] = (now + PUBLIC_TITLE_CACHE_TTL_SECONDS, "")
+            if cache:
+                self._profiles[username] = (now + PUBLIC_PROFILE_CACHE_TTL_SECONDS, profile)
+                self._titles[username] = (now + PUBLIC_TITLE_CACHE_TTL_SECONDS, "")
             return profile
 
         if self.app_state.db is None:
-            self._profiles[username] = (now + PUBLIC_PROFILE_CACHE_TTL_SECONDS, None)
+            if cache:
+                self._profiles[username] = (now + PUBLIC_PROFILE_CACHE_TTL_SECONDS, None)
             return None
 
         doc: UserDocument | None = await self.app_state.db.user.find_one({"_id": username})
         if doc is None:
-            self._profiles[username] = (now + PUBLIC_PROFILE_CACHE_TTL_SECONDS, None)
-            self._titles[username] = (now + PUBLIC_TITLE_CACHE_TTL_SECONDS, None)
+            if cache:
+                self._profiles[username] = (now + PUBLIC_PROFILE_CACHE_TTL_SECONDS, None)
+                self._titles[username] = (now + PUBLIC_TITLE_CACHE_TTL_SECONDS, None)
             return None
 
-        cursor = self.app_state.db.relation.find(
-            {"u1": username, "r": BLOCK}, projection={"_id": 0, "u2": 1}
-        )
-        docs: list[RelationDocument] = await cursor.to_list(MAX_USER_BLOCK)
+        blocked: frozenset[str] = frozenset()
+        if include_blocked:
+            cursor = self.app_state.db.relation.find(
+                {"u1": username, "r": BLOCK}, projection={"_id": 0, "u2": 1}
+            )
+            docs: list[RelationDocument] = await cursor.to_list(MAX_USER_BLOCK)
+            blocked = frozenset(relation["u2"] for relation in docs)
+
         profile = self._profile_from_doc(
             username=username,
             doc=doc,
-            blocked=frozenset(doc["u2"] for doc in docs),
+            blocked=blocked,
         )
-        self._profiles[username] = (now + PUBLIC_PROFILE_CACHE_TTL_SECONDS, profile)
-        self._titles[username] = (now + PUBLIC_TITLE_CACHE_TTL_SECONDS, profile.title)
+        if cache:
+            self._profiles[username] = (now + PUBLIC_PROFILE_CACHE_TTL_SECONDS, profile)
+            self._titles[username] = (now + PUBLIC_TITLE_CACHE_TTL_SECONDS, profile.title)
         return profile
 
     async def get_titles(self, usernames: Iterable[str]) -> dict[str, str]:

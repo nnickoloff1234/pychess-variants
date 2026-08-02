@@ -1,15 +1,15 @@
-from aiohttp import web
 import aiohttp_jinja2
-
+from aiohttp import web
 from const import T_CREATED
-from views import get_user_context
 from pychess_global_app_state_utils import get_app_state
-from typing_defs import ViewContext
-from tournament_director import is_tournament_director
 from tournament.tournaments import (
-    load_tournament,
     get_tournament_name,
+    load_tournament,
 )
+from tournament_director import is_tournament_director
+from typing_defs import ViewContext
+
+from views import get_user_context
 
 
 @aiohttp_jinja2.template("index.html")
@@ -24,10 +24,13 @@ async def tournament(request: web.Request) -> ViewContext:
     if tournament is None:
         return context  # web.HTTPFound("/")
 
-    if is_tournament_director(user, app_state) and tournament.status == T_CREATED:
-        if request.path.endswith("/cancel"):
-            await tournament.abort()
-            raise web.HTTPFound("/tournaments")
+    if (
+        is_tournament_director(user, app_state)
+        and tournament.status == T_CREATED
+        and request.path.endswith("/cancel")
+    ):
+        await tournament.abort()
+        raise web.HTTPFound("/tournaments")
 
     if request.path.endswith("/pause") and tournament.get_player_by_name(user.username) is not None:
         await tournament.pause(user)

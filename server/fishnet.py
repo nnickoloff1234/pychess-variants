@@ -1,23 +1,23 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, cast
+
 import asyncio
-import math
 import hashlib
+import math
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import lru_cache
-from time import monotonic
 from pathlib import Path
+from time import monotonic
+from typing import TYPE_CHECKING, cast
 
 from aiohttp import web
-
 from broadcast import round_broadcast
 from catalogued_variants import (
     catalogued_variant_ai_disabled,
     catalogued_variant_allows_fishnet,
     clear_catalogued_variant_ai_failures,
-    record_catalogued_variant_ai_failure,
     extract_variant_base_name,
+    record_catalogued_variant_ai_failure,
 )
 from const import ANALYSIS, INVALIDMOVE, MOVE, STARTED
 from typing_defs import (
@@ -35,12 +35,13 @@ from typing_defs import (
 if TYPE_CHECKING:
     from game import Game
     from pychess_global_app_state import PychessGlobalAppState
+import logging
+
+from json_utils import json_response
 from pychess_global_app_state_utils import get_app_state
 from request_utils import read_json_data
 from settings import FISHNET_KEYS
 from utils import load_game, play_move
-from json_utils import json_response
-import logging
 
 log = logging.getLogger(__name__)
 
@@ -98,7 +99,7 @@ def _fishnet_variants_payload_cache(
     cache = getattr(app_state, "fishnet_variant_payloads", None)
     if cache is None:
         cache = {}
-        setattr(app_state, "fishnet_variant_payloads", cache)
+        app_state.fishnet_variant_payloads = cache
     return cache
 
 
@@ -389,6 +390,34 @@ def _should_save_analysis_pv(
     return drop >= 0.1
 
 
+def _compact_fishnet_queue(app_state: PychessGlobalAppState) -> int:
+    """Drop stale and duplicate queue IDs while preserving genuinely queued work."""
+    retained_ids: set[str] = set()
+    retained: list[tuple[int, str]] = []
+    drained = 0
+
+    while True:
+        try:
+            priority, work_id = app_state.fishnet_queue.get_nowait()
+        except asyncio.QueueEmpty:
+            break
+        drained += 1
+        try:
+            app_state.fishnet_queue.task_done()
+        except ValueError:
+            log.error("Fishnet queue accounting was already unbalanced during compaction")
+
+        work = app_state.fishnet_works.get(work_id)
+        if work is not None and work_id not in retained_ids:
+            retained_ids.add(work_id)
+            retained.append((priority, work_id))
+
+    for item in retained:
+        app_state.fishnet_queue.put_nowait(item)
+
+    return drained - len(retained)
+
+
 def drop_stale_analysis_work(app_state: PychessGlobalAppState, *, now: float | None = None) -> int:
     if now is None:
         now = monotonic()
@@ -401,6 +430,7 @@ def drop_stale_analysis_work(app_state: PychessGlobalAppState, *, now: float | N
     ]
     for work_id in stale_ids:
         del app_state.fishnet_works[work_id]
+    _compact_fishnet_queue(app_state)
     return len(stale_ids)
 
 
@@ -411,27 +441,9 @@ def drop_fishnet_work_for_game(app_state: PychessGlobalAppState, game_id: str) -
         for work_id, work in tuple(app_state.fishnet_works.items())
         if work.get("game_id") == game_id
     }
-    if not work_ids:
-        return 0
-
     for work_id in work_ids:
         app_state.fishnet_works.pop(work_id, None)
-
-    retained: list[tuple[int, str]] = []
-    while True:
-        try:
-            item = app_state.fishnet_queue.get_nowait()
-        except asyncio.QueueEmpty:
-            break
-        try:
-            app_state.fishnet_queue.task_done()
-        except ValueError:
-            log.error("Fishnet queue accounting was already unbalanced during game cleanup")
-        if item[1] not in work_ids and item[1] in app_state.fishnet_works:
-            retained.append(item)
-
-    for item in retained:
-        app_state.fishnet_queue.put_nowait(item)
+    _compact_fishnet_queue(app_state)
     return len(work_ids)
 
 
@@ -456,7 +468,7 @@ def prune_stale_fishnet_workers(
         app_state.fishnet_worker_last_seen.pop(key, None)
         worker = FISHNET_KEYS.get(key, key)
         if monitor is not None:
-            monitor[worker].append("%s %s %s" % (datetime.now(timezone.utc), "-", "timed out"))
+            monitor[worker].append("%s %s %s" % (datetime.now(UTC), "-", "timed out"))
 
     if stale_keys and len(app_state.workers) == 0:
         users = app_state.users
@@ -723,7 +735,7 @@ async def get_work(
             fm[worker].append(
                 "%s %s %s %s of %s moves"
                 % (
-                    datetime.now(timezone.utc),
+                    datetime.now(UTC),
                     work_id,
                     "request",
                     "analysis",
@@ -754,7 +766,7 @@ async def get_work(
             fm[worker].append(
                 "%s %s %s %s for level %s"
                 % (
-                    datetime.now(timezone.utc),
+                    datetime.now(UTC),
                     work_id,
                     "request",
                     "move",
@@ -789,7 +801,7 @@ async def get_work(
             fm[worker].append(
                 "%s %s %s %s"
                 % (
-                    datetime.now(timezone.utc),
+                    datetime.now(UTC),
                     work_id,
                     "drop",
                     "%s after %s stale reissues"
@@ -804,7 +816,7 @@ async def get_work(
         fm[worker].append(
             "%s %s %s %s"
             % (
-                datetime.now(timezone.utc),
+                datetime.now(UTC),
                 work_id,
                 "request",
                 "%s AGAIN (%s/%s)"
@@ -848,9 +860,7 @@ async def fishnet_acquire(request: web.Request) -> web.Response:
 
     if key not in app_state.workers:
         app_state.workers.add(key)
-        app_state.fishnet_monitor[worker].append(
-            "%s %s %s" % (datetime.now(timezone.utc), "-", "joined")
-        )
+        app_state.fishnet_monitor[worker].append("%s %s %s" % (datetime.now(UTC), "-", "joined"))
         app_state.fishnet_monitor[worker].append(nnue)
         app_state.users["Fairy-Stockfish"].online = True
 
@@ -879,9 +889,7 @@ async def fishnet_analysis(request: web.Request) -> web.Response:
         return response
 
     work: FishnetWork = app_state.fishnet_works[work_id]
-    app_state.fishnet_monitor[worker].append(
-        "%s %s %s" % (datetime.now(timezone.utc), work_id, "analysis")
-    )
+    app_state.fishnet_monitor[worker].append("%s %s %s" % (datetime.now(UTC), work_id, "analysis"))
 
     gameId = work["game_id"]
     game = await load_game(app_state, gameId)
@@ -891,8 +899,27 @@ async def fishnet_analysis(request: web.Request) -> web.Response:
 
     username = work["username"]
 
-    length = len(data["analysis"])
-    for j, analysis in enumerate(reversed(data["analysis"])):
+    analysis_rows = data["analysis"]
+    step_count = len(game.steps)
+    known_zero_ply_worker_shape = (
+        not work.get("moves") and step_count == 1 and len(analysis_rows) == 2
+    )
+    if len(analysis_rows) != step_count and not known_zero_ply_worker_shape:
+        log.warning(
+            "Fishnet analysis length mismatch for work %s game %s: received=%s steps=%s",
+            work_id,
+            gameId,
+            len(analysis_rows),
+            step_count,
+        )
+
+    # fairyfishnet 1.16.69 treats an empty move string as one empty move and
+    # consequently returns two rows for a zero-ply game. Bound the response to
+    # the server's reconstructed steps so that current deployed workers remain
+    # compatible and malformed/stale responses cannot index past game.steps.
+    analysis_rows = analysis_rows[:step_count]
+    length = len(analysis_rows)
+    for j, analysis in enumerate(reversed(analysis_rows)):
         i = length - j - 1
         if analysis is None:
             continue
@@ -915,7 +942,7 @@ async def fishnet_analysis(request: web.Request) -> web.Response:
         else:
             step_analysis = existing
 
-        prev = data["analysis"][i - 1] if i > 0 else None
+        prev = analysis_rows[i - 1] if i > 0 else None
         turn_color = game.steps[i].get("turnColor")
 
         added_pv = False
@@ -941,7 +968,7 @@ async def fishnet_analysis(request: web.Request) -> web.Response:
         await app_state.users[username].send_game_message(gameId, response)
 
     # remove completed work
-    if all(data["analysis"]):
+    if len(analysis_rows) == step_count and all(analysis_rows):
         del app_state.fishnet_works[work_id]
         await clear_catalogued_variant_ai_failures(app_state, str(work.get("variant") or ""))
         new_data = {"a": [step["analysis"] for step in game.steps]}
@@ -966,9 +993,7 @@ async def fishnet_move(request: web.Request) -> web.Response:
     worker = FISHNET_KEYS[key]
     app_state.fishnet_worker_last_seen[key] = monotonic()
 
-    app_state.fishnet_monitor[worker].append(
-        "%s %s %s" % (datetime.now(timezone.utc), work_id, "move")
-    )
+    app_state.fishnet_monitor[worker].append("%s %s %s" % (datetime.now(UTC), work_id, "move"))
 
     if work_id not in app_state.fishnet_works:
         response = await get_work(app_state, data)
@@ -1065,7 +1090,7 @@ async def fishnet_abort(request: web.Request) -> web.Response:
     app_state.fishnet_worker_last_seen[key] = monotonic()
 
     app_state.fishnet_monitor[worker].append(
-        "%s %s %s (%s)" % (datetime.now(timezone.utc), work_id, "abort", abort_reason)
+        "%s %s %s (%s)" % (datetime.now(UTC), work_id, "abort", abort_reason)
     )
 
     # remove fishnet client

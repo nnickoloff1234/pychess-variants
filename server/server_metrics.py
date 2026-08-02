@@ -1,21 +1,21 @@
 from __future__ import annotations
 
-import inspect
-import sys
-import gc
-import resource
-import time
 import asyncio
-from asyncio import Event, Task, Queue
+import gc
+import inspect
+import logging
+import resource
+import sys
+import time
+from asyncio import Event, Queue, Task
 from collections import defaultdict
 from collections.abc import Iterable, Mapping
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, TypedDict, cast
 
+import pyffish as sf
 from aiohttp import web
 from aiohttp.web_response import StreamResponse
-import pyffish as sf
-
 from bug.game_bug import GameBug
 from catalogued_betza import (
     _cached_betza_svg,
@@ -25,24 +25,22 @@ from catalogued_betza import (
 from catalogued_board import _cached_start_board_svg
 from catalogued_rules import _cached_catalogued_rule_summary
 from clock import Clock
-from game import Game
-from fishnet import fishnet_variants_payload_cache_bytes
-import logging
-
 from const import STARTED, reserved
-from lobby import Lobby
-from seek import Seek
-from user import User
-from variants import CataloguedServerVariant, Variant
 from fairy.fairy_board import FairyBoard, get_fog_fen
 from fairy.jieqi import index_to_square, square_to_index
+from fishnet import fishnet_variants_payload_cache_bytes
+from game import Game
 from glicko2.glicko2 import Rating
-from settings import PYCHESS_MONITOR_TOKEN, URI, LOCALHOST
+from json_utils import json_response
+from lobby import Lobby
+from pychess_global_app_state_utils import get_app_state
+from seek import Seek
+from settings import LOCALHOST, PYCHESS_MONITOR_TOKEN, URI
 from simul.simul import Simul
 from tournament.tournament import GameData, PlayerData, Tournament, player_json
-from pychess_global_app_state_utils import get_app_state
-from json_utils import json_response
 from typedefs import request_protection_state_key
+from user import User
+from variants import CataloguedServerVariant, Variant
 
 if TYPE_CHECKING:
     from pychess_global_app_state import PychessGlobalAppState
@@ -55,7 +53,7 @@ def _seek_expire_sort_key(seek: Seek) -> float:
     if expire_at is None:
         return float("-inf")
     if expire_at.tzinfo is None:
-        expire_at = expire_at.replace(tzinfo=timezone.utc)
+        expire_at = expire_at.replace(tzinfo=UTC)
     return expire_at.timestamp()
 
 
@@ -78,6 +76,8 @@ class QueueInfo(TypedDict):
     id: int
     name: str
     size: int
+    maxsize: int
+    full: bool
     file: str
     source: str
 
@@ -229,12 +229,16 @@ def _state_summary(
     public_titles = getattr(app_state.public_users, "_titles", {})
     request_protection = request.app[request_protection_state_key]
     payload_stats = _catalogued_payload_stats(app_state.catalogued_variants)
+    tournament_stats = app_state.tournament_cache_stats()
     return {
         "users": len(app_state.users),
+        "user_perf_entries": sum(len(user.perfs) for user in app_state.users.values()),
+        "user_puzzle_perf_entries": sum(len(user.pperfs) for user in app_state.users.values()),
         "games": len(app_state.games),
         "seeks": len(app_state.seeks),
         "invites": len(app_state.invites),
         "tournaments": len(app_state.tournaments),
+        **tournament_stats,
         "simuls": len(app_state.simuls),
         "catalogued_variants": len(app_state.catalogued_variants),
         "pyffish_variants": len(sf.variants()),
@@ -267,25 +271,61 @@ def _stream_summary(app_state: PychessGlobalAppState) -> dict[str, int]:
     simul_ws = sum(
         len(ws_set) for user in app_state.users.values() for ws_set in user.simul_sockets.values()
     )
-    notify_sse = sum(len(user.notify_channels) for user in app_state.users.values())
-    inbox_sse = sum(len(user.inbox_channels) for user in app_state.users.values())
-    challenge_sse = sum(len(user.challenge_channels) for user in app_state.users.values())
-    invite_sse = sum(len(channels) for channels in app_state.invite_channels.values())
+    notify_queues = tuple(
+        queue for user in app_state.users.values() for queue in user.notify_channels
+    )
+    inbox_queues = tuple(
+        queue for user in app_state.users.values() for queue in user.inbox_channels
+    )
+    challenge_queues = tuple(
+        queue for user in app_state.users.values() for queue in user.challenge_channels
+    )
+    invite_queues = tuple(
+        queue for channels in app_state.invite_channels.values() for queue in channels
+    )
+    game_queues = tuple(app_state.game_channels)
+    all_sse_queues = game_queues + invite_queues + notify_queues + inbox_queues + challenge_queues
+    bot_event_queues = tuple(user.event_queue for user in app_state.users.values() if user.bot)
+    bot_game_queues = tuple(
+        queue
+        for user in app_state.users.values()
+        if user.bot
+        for queue in user.game_queues.values()
+    )
+    all_bot_queues = bot_event_queues + bot_game_queues
     active_bot_game_streams = sum(
         len(user.active_game_streams) for user in app_state.users.values() if user.bot
+    )
+    game_sse_queued_messages = sum(queue.qsize() for queue in game_queues)
+    game_sse_max_queue = max(
+        (queue.qsize() for queue in game_queues),
+        default=0,
     )
     return {
         "lobby_websockets": lobby_ws,
         "game_websockets": game_ws,
         "tournament_websockets": tournament_ws,
         "simul_websockets": simul_ws,
-        "game_sse": len(app_state.game_channels),
-        "invite_sse": invite_sse,
+        "game_sse": len(game_queues),
+        "game_sse_queued_messages": game_sse_queued_messages,
+        "game_sse_max_queue": game_sse_max_queue,
+        "game_sse_full_queues": sum(queue.full() for queue in game_queues),
+        "invite_sse": len(invite_queues),
         "invite_sse_groups": len(app_state.invite_channels),
-        "notify_sse": notify_sse,
-        "inbox_sse": inbox_sse,
-        "challenge_sse": challenge_sse,
+        "notify_sse": len(notify_queues),
+        "inbox_sse": len(inbox_queues),
+        "challenge_sse": len(challenge_queues),
+        "sse_queued_messages": sum(queue.qsize() for queue in all_sse_queues),
+        "sse_max_queue": max((queue.qsize() for queue in all_sse_queues), default=0),
+        "sse_full_queues": sum(queue.full() for queue in all_sse_queues),
+        "invite_sse_queued_messages": sum(queue.qsize() for queue in invite_queues),
+        "notify_sse_queued_messages": sum(queue.qsize() for queue in notify_queues),
+        "inbox_sse_queued_messages": sum(queue.qsize() for queue in inbox_queues),
+        "challenge_sse_queued_messages": sum(queue.qsize() for queue in challenge_queues),
         "active_bot_game_streams": active_bot_game_streams,
+        "bot_event_queued_messages": sum(queue.qsize() for queue in bot_event_queues),
+        "bot_game_queued_messages": sum(queue.qsize() for queue in bot_game_queues),
+        "bot_max_queue": max((queue.qsize() for queue in all_bot_queues), default=0),
     }
 
 
@@ -340,7 +380,7 @@ def _lightweight_metrics(
     cache_rows = cache_stats()
     return {
         "mode": "summary",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "process_memory": process_memory_stats(),
         "state": _state_summary(app_state, request),
         "registered": _registered_summary(app_state),
@@ -477,8 +517,10 @@ def memory_stats(
                 queues.append(
                     {
                         "id": id(obj),
-                        "name": str(obj),
+                        "name": type(obj).__name__,
                         "size": obj.qsize(),
+                        "maxsize": obj.maxsize,
+                        "full": obj.full(),
                         "file": "-",
                         "source": "-",
                     }
@@ -541,7 +583,7 @@ async def metrics_handler(request: web.Request) -> web.StreamResponse:
     log.debug("Running memory_stats() time: %s", (time.process_time() - start))
 
     # Prepare object details
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     users: list[dict[str, object]] = [
         {
@@ -604,7 +646,7 @@ async def metrics_handler(request: web.Request) -> web.StreamResponse:
         for game_id, game in sorted(app_state.games.items(), key=lambda x: x[1].date, reverse=True)
     ]
     connections: list[dict[str, str]] = [
-        {"id": username, "timestamp": datetime.now(timezone.utc).isoformat()}
+        {"id": username, "timestamp": datetime.now(UTC).isoformat()}
         for username in app_state.lobby.lobbysockets
     ]
 
@@ -895,7 +937,7 @@ async def metrics_handler(request: web.Request) -> web.StreamResponse:
 
     metrics: dict[str, object] = {
         "active_connections": len(active_connections),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "top_allocations": [
             {
                 "type": stat["type"],

@@ -1,32 +1,33 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Iterable
+
 import asyncio
 import hashlib
 import hmac
+import logging
 import random
 import string
-from datetime import datetime, timedelta, timezone
+from collections.abc import Iterable
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
 import aiohttp
 from aiohttp import web
-
 from broadcast import broadcast_streams
-from settings import DEV, TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, URI
-from streamers import TWITCH_STREAMERS
 from pychess_global_app_state_utils import get_app_state
 from request_utils import read_json_data, read_text_data
-import logging
+from settings import DEV, TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, URI
+from streamers import TWITCH_STREAMERS
 
 if TYPE_CHECKING:
     from typing_defs import (
         StreamInfo,
         TwitchOAuthTokenResponse,
+        TwitchStreamsResponse,
         TwitchSubscriptionData,
         TwitchSubscriptionRequestResponse,
         TwitchSubscriptionsResponse,
-        TwitchStreamsResponse,
-        TwitchWebhookPayload,
         TwitchUsersResponse,
+        TwitchWebhookPayload,
     )
 
 log = logging.getLogger(__name__)
@@ -67,7 +68,7 @@ class Twitch:
     def __init__(self, app: web.Application) -> None:
         self.app: web.Application = app
         self.token: str | None = None
-        self.token_valid_until: datetime = datetime.now(timezone.utc)
+        self.token_valid_until: datetime = datetime.now(UTC)
         self.subscriptions: dict[str, TwitchSubscriptionData] = {}
         self.streams: dict[str, StreamInfo] = {}
         self.headers: dict[str, str] = {}
@@ -84,7 +85,7 @@ class Twitch:
         if TWITCH_CLIENT_ID == "":
             return
 
-        if self.token_valid_until <= datetime.now(timezone.utc):
+        if self.token_valid_until <= datetime.now(UTC):
             await self.get_oauth_token()
 
         # TODO: if we make SECRET permanent (move it to env vars)
@@ -114,40 +115,44 @@ class Twitch:
             "grant_type": "client_credentials",
         }
 
-        async with aiohttp.ClientSession() as client_session:
-            async with client_session.post(TWITCH_OAUTH2_TOKEN_URL, json=data) as resp:
-                if resp.status == 400:
-                    log.exception("OAuth2 failed")
-                    return
+        async with (
+            aiohttp.ClientSession() as client_session,
+            client_session.post(TWITCH_OAUTH2_TOKEN_URL, json=data) as resp,
+        ):
+            if resp.status == 400:
+                log.exception("OAuth2 failed")
+                return
 
-                response_data: TwitchOAuthTokenResponse = await resp.json()
-                if "status" in response_data:
-                    if response_data["status"] == 400:
-                        log.error("Invalid TWITCH_CLIENT_ID")
-                    elif response_data["status"] == 403:
-                        log.error("Invalid TWITCH_CLIENT_SECRET")
-                else:
-                    self.token = response_data["access_token"]
-                    self.token_valid_until = datetime.now(timezone.utc) + timedelta(
-                        seconds=response_data["expires_in"]
-                    )
-                    self.headers = {
-                        "Client-ID": TWITCH_CLIENT_ID,
-                        "Authorization": "Bearer %s" % self.token,
-                        "Content-Type": "application/json",
-                    }
+            response_data: TwitchOAuthTokenResponse = await resp.json()
+            if "status" in response_data:
+                if response_data["status"] == 400:
+                    log.error("Invalid TWITCH_CLIENT_ID")
+                elif response_data["status"] == 403:
+                    log.error("Invalid TWITCH_CLIENT_SECRET")
+            else:
+                self.token = response_data["access_token"]
+                self.token_valid_until = datetime.now(UTC) + timedelta(
+                    seconds=response_data["expires_in"]
+                )
+                self.headers = {
+                    "Client-ID": TWITCH_CLIENT_ID,
+                    "Authorization": "Bearer %s" % self.token,
+                    "Content-Type": "application/json",
+                }
 
     async def delete_subscription(self, subscription_id: str) -> None:
         log.debug("delete_subscription %s", subscription_id)
         if subscription_id not in self.subscriptions:
             return
 
-        async with aiohttp.ClientSession() as client_session:
-            async with client_session.delete(
+        async with (
+            aiohttp.ClientSession() as client_session,
+            client_session.delete(
                 "%s?id=%s" % (TWITCH_EVENTSUB_API_URL, subscription_id),
                 headers=self.headers,
-            ):
-                pass
+            ),
+        ):
+            pass
 
     async def request_subscription(
         self, name: str, broadcaster_user_id: str, subscription_type: str
@@ -169,31 +174,33 @@ class Twitch:
             },
         }
 
-        async with aiohttp.ClientSession() as client_session:
-            async with client_session.post(
-                TWITCH_EVENTSUB_API_URL, headers=self.headers, json=data
-            ) as resp:
-                response_data: TwitchSubscriptionRequestResponse = await resp.json()
-                if "error" in response_data:
-                    log.debug("request_subscription response: %s", response_data)
-                else:
-                    try:
-                        subs = response_data["data"][0]
-                        self.subscriptions[subs["id"]] = subs
-                    except KeyError:
-                        log.error(
-                            "No 'data' in twitch request_subscription() json response: %s",
-                            response_data,
-                        )
+        async with (
+            aiohttp.ClientSession() as client_session,
+            client_session.post(TWITCH_EVENTSUB_API_URL, headers=self.headers, json=data) as resp,
+        ):
+            response_data: TwitchSubscriptionRequestResponse = await resp.json()
+            if "error" in response_data:
+                log.debug("request_subscription response: %s", response_data)
+            else:
+                try:
+                    subs = response_data["data"][0]
+                    self.subscriptions[subs["id"]] = subs
+                except KeyError:
+                    log.error(
+                        "No 'data' in twitch request_subscription() json response: %s",
+                        response_data,
+                    )
 
     async def get_subscriptions(self) -> None:
         log.debug("get_subscriptions from twitch")
-        async with aiohttp.ClientSession() as client_session:
-            async with client_session.get(TWITCH_EVENTSUB_API_URL, headers=self.headers) as resp:
-                response_data: TwitchSubscriptionsResponse = await resp.json()
-                for subs in response_data["data"]:
-                    log.debug("subs: %r", subs)
-                    self.subscriptions[subs["id"]] = subs
+        async with (
+            aiohttp.ClientSession() as client_session,
+            client_session.get(TWITCH_EVENTSUB_API_URL, headers=self.headers) as resp,
+        ):
+            response_data: TwitchSubscriptionsResponse = await resp.json()
+            for subs in response_data["data"]:
+                log.debug("subs: %r", subs)
+                self.subscriptions[subs["id"]] = subs
 
     async def get_users_data(self, usernames: Iterable[str]) -> list[tuple[str, str]]:
         log.debug("get_users_data from twitch")
@@ -276,20 +283,19 @@ async def twitch_request_handler(request: web.Request) -> web.Response:
                 await broadcast_streams(app_state)
 
         if header_sub_type == "stream.online":
-            if event["type"] == "live":
-                if streamer not in twitch.streams:
-                    twitch.streams[streamer] = {
-                        "username": TWITCH_STREAMERS[streamer],
-                        "streamer": streamer,
-                        "site": "twitch",
-                        "title": "",
-                    }
-                    await broadcast_streams(app_state)
+            if event["type"] == "live" and streamer not in twitch.streams:
+                twitch.streams[streamer] = {
+                    "username": TWITCH_STREAMERS[streamer],
+                    "streamer": streamer,
+                    "site": "twitch",
+                    "title": "",
+                }
+                await broadcast_streams(app_state)
 
-                    app_state.create_background_task(
-                        remove(3600),
-                        name="twitch-remove-streamer",
-                    )  # 1 hour
+                app_state.create_background_task(
+                    remove(3600),
+                    name="twitch-remove-streamer",
+                )  # 1 hour
 
         elif header_sub_type == "stream.offline":
             if streamer in twitch.streams:

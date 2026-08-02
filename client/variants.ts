@@ -25,6 +25,10 @@ export interface BoardFamily {
 
 export interface PieceFamily {
     readonly pieceCSS: string[];
+    // These styles draw at least one piece on ::before so its artwork can rotate
+    // without changing the piece element's chessground-owned transform. Applying
+    // the missing-piece background to the element would show both images at once.
+    readonly imageLayerCSS?: string[];
 }
 
 export type HiddenInfoMode = 'none' | 'fog' | 'covered_pieces';
@@ -228,6 +232,7 @@ export const PIECE_FAMILIES: Record<string, PieceFamily> = {
         ],
     },
     capa: { pieceCSS: ['capa0', 'capa1', 'capa2', 'capa3', 'capa4', 'capa5', 'disguised'] },
+    centaur: { pieceCSS: ['centaur0', 'centaur1', 'disguised'] },
     dragon: { pieceCSS: ['dragon1', 'dragon0', 'dragon2', 'disguised'] },
     seirawan: { pieceCSS: ['seir1', 'seir0', 'seir2', 'seir3', 'seir4', 'seir5', 'disguised'] },
     makruk: { pieceCSS: ['makrukwb', 'makrukwr', 'makruk', 'makruks', 'makruki', 'makrukc', 'disguised'] },
@@ -255,11 +260,21 @@ export const PIECE_FAMILIES: Record<string, PieceFamily> = {
             'firi',
             'disguised',
         ],
+        imageLayerCSS: ['shogik', 'shogi', 'cz'],
     },
-    kyoto: { pieceCSS: ['kyoto', 'kyotok', 'kyotoks', 'kyotoi', 'kyotod', 'disguised'] },
+    kyoto: {
+        pieceCSS: ['kyoto', 'kyotok', 'kyotoks', 'kyotoi', 'kyotod', 'disguised'],
+        imageLayerCSS: ['kyoto', 'kyotok', 'kyotoks'],
+    },
     dobutsu: { pieceCSS: ['dobutsu', 'disguised'] },
-    tori: { pieceCSS: ['torii', 'torik', 'torim', 'porti', 'cz', 'disguised'] },
-    cannonshogi: { pieceCSS: ['ctp3d', 'ctim', 'bnw', 'cz', 'czalt', 'firi', 'disguised'] },
+    tori: {
+        pieceCSS: ['torii', 'torik', 'torim', 'porti', 'cz', 'disguised'],
+        imageLayerCSS: ['cz'],
+    },
+    cannonshogi: {
+        pieceCSS: ['ctp3d', 'ctim', 'bnw', 'cz', 'czalt', 'firi', 'disguised'],
+        imageLayerCSS: ['cz', 'czalt'],
+    },
     xiangqi: {
         pieceCSS: [
             'lishu',
@@ -297,6 +312,7 @@ export const PIECE_FAMILIES: Record<string, PieceFamily> = {
         ],
     },
     shatranj: { pieceCSS: ['shatranj0', 'shatranj1', 'disguised'] },
+    courier: { pieceCSS: ['courier', 'disguised'] },
     shako: { pieceCSS: ['shako0', 'shako1', 'shako2', 'disguised'] },
     shogun: { pieceCSS: ['shogun0', 'shogun1', 'shogun2', 'shogun3', 'shogun4', 'shogun5', 'disguised'] },
     orda: { pieceCSS: ['orda0', 'orda1', 'disguised'] },
@@ -316,7 +332,10 @@ export const PIECE_FAMILIES: Record<string, PieceFamily> = {
     borderlands: { pieceCSS: ['borderlands', 'disguised'] },
     yokai: { pieceCSS: ['yokai', 'disguised'] },
     perfect: { pieceCSS: ['perfect0', 'disguised'] },
-    decimalshogi: { pieceCSS: ['shogik', 'disguised'] },
+    decimalshogi: {
+        pieceCSS: ['shogik', 'disguised'],
+        imageLayerCSS: ['shogik'],
+    },
     cwda: { pieceCSS: ['cwda', 'couchtomato'] },
     letter: { pieceCSS: ['disguised'] },
 };
@@ -2378,6 +2397,7 @@ type CataloguedPieceIdentityMap = Record<string, string>;
 // Nightrider or Kniroo), so keep the known identities variant-scoped.
 const CATALOGUED_PIECE_IDENTITIES_BY_CONTEXT: Record<string, CataloguedPieceIdentityMap> = {
     'pieceFamily:capa': { a: 'archbishop', c: 'chancellor' },
+    'pieceFamily:centaur': { a: 'archbishop', c: 'chancellor', g: 'centaur' },
     'pieceFamily:shatranj': { b: 'alfil', q: 'fers' },
     almost: { c: 'chancellor' },
     amazon: { a: 'amazon' },

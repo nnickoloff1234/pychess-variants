@@ -1,19 +1,20 @@
-# -*- coding: utf-8 -*-
+import asyncio
 import json
 import time
 import unittest
-from datetime import datetime, timedelta, timezone
+from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+import game_api
+import header_challenges
+import inbox_api
 import test_logger
+import utils
 from aiohttp.client_exceptions import ClientConnectionResetError
 from aiohttp.test_utils import AioHTTPTestCase
 from bson.int64 import Int64
-from mongomock_motor import AsyncMongoMockClient
-from pymongo.errors import BulkWriteError
-
-import game_api
 from const import SHIELD, STARTED, SWISS, T_FINISHED
 from game import Game
 from game_api import (
@@ -23,12 +24,15 @@ from game_api import (
     safe_write_eof,
     variant_counts_from_docs,
 )
+from glicko2.glicko2 import new_default_perf
+from mongomock_motor import AsyncMongoMockClient
 from pychess_global_app_state_utils import get_app_state
-from server import make_app
-from user import User
-import utils
-from variants import VARIANTS, get_server_variant
+from pymongo.errors import BulkWriteError
 from settings import MONGO_DB_NAME
+from user import User
+from variants import VARIANTS, get_server_variant
+
+from server import make_app
 
 test_logger.init_test_logger()
 
@@ -89,7 +93,7 @@ class GamesApiCategoryFilterTestCase(AioHTTPTestCase):
                 "r": "a",
                 "m": [],
                 "s": STARTED,
-                "d": datetime(2025, 1, 2, tzinfo=timezone.utc),
+                "d": datetime(2025, 1, 2, tzinfo=UTC),
                 "y": 1,
             }
         )
@@ -100,7 +104,7 @@ class GamesApiCategoryFilterTestCase(AioHTTPTestCase):
                     "v": chess_code,
                     "z": 0,
                     "status": T_FINISHED,
-                    "startsAt": datetime(2025, 1, 3, tzinfo=timezone.utc),
+                    "startsAt": datetime(2025, 1, 3, tzinfo=UTC),
                     "winner": self.winner_probe,
                     "nbGames": 1,
                     "nbPlayers": 3,
@@ -110,7 +114,7 @@ class GamesApiCategoryFilterTestCase(AioHTTPTestCase):
                     "v": chess_code,
                     "z": 0,
                     "status": T_FINISHED,
-                    "startsAt": datetime(2025, 1, 4, tzinfo=timezone.utc),
+                    "startsAt": datetime(2025, 1, 4, tzinfo=UTC),
                     "winner": self.shield_probe,
                     "fr": SHIELD,
                     "nbGames": 1,
@@ -143,6 +147,53 @@ class GamesApiCategoryFilterTestCase(AioHTTPTestCase):
         self.assertIn(("chess", True), variants)
         self.assertNotIn(("shogi", False), variants)
 
+    async def test_direct_anonymous_profile_uses_restricted_rendering(self):
+        app_state = get_app_state(self.app)
+        await app_state.db.ublog_post.insert_one(
+            {
+                "_id": "restricted-profile-post",
+                "author": self.profile_probe,
+                "title": "Restricted profile blog probe",
+                "slug": "restricted-profile-blog-probe",
+                "markdown": "This should not be loaded for a direct anonymous profile request.",
+                "live": True,
+            }
+        )
+
+        response = await self.client.get(f"/@/{self.profile_probe}")
+
+        self.assertEqual(response.status, 200)
+        body = await response.text()
+        self.assertIn('data-profile-restricted="True"', body)
+        self.assertNotIn("Restricted profile blog probe", body)
+        self.assertNotIn(self.profile_probe, app_state.public_users._profiles)
+        self.assertNotIn(self.profile_probe, app_state.public_users._titles)
+
+    async def test_internal_profile_navigation_keeps_full_rendering(self):
+        app_state = get_app_state(self.app)
+        await app_state.db.ublog_post.insert_one(
+            {
+                "_id": "internal-profile-post",
+                "author": self.profile_probe,
+                "title": "Internal profile blog probe",
+                "slug": "internal-profile-blog-probe",
+                "markdown": "This should be loaded after an internal navigation.",
+                "live": True,
+            }
+        )
+
+        response = await self.client.get(
+            f"/@/{self.profile_probe}",
+            headers={"Referer": str(self.client.make_url("/"))},
+        )
+
+        self.assertEqual(response.status, 200)
+        body = await response.text()
+        self.assertIn('data-profile-restricted="False"', body)
+        self.assertIn("Internal profile blog probe", body)
+        self.assertIn(self.profile_probe, app_state.public_users._profiles)
+        self.assertIn(self.profile_probe, app_state.public_users._titles)
+
     async def test_profile_page_and_games_api_do_not_cache_public_user(self):
         self.set_session_user(self.user.username)
         app_state = get_app_state(self.app)
@@ -161,6 +212,37 @@ class GamesApiCategoryFilterTestCase(AioHTTPTestCase):
         payload = await response.json()
         self.assertEqual(["profiledb1"], [item["_id"] for item in payload])
         self.assertNotIn(self.profile_probe, app_state.users)
+
+    async def test_profile_sidebar_lists_only_variants_with_rated_games(self):
+        self.set_session_user(self.user.username)
+        app_state = get_app_state(self.app)
+        self.user.update_game_category("all")
+
+        played_perf = new_default_perf()
+        played_perf["gl"]["r"] = 1625.0
+        played_perf["nb"] = 3
+        unplayed_perf = new_default_perf()
+        unplayed_perf["gl"]["r"] = 1550.0
+        await app_state.db.user.update_one(
+            {"_id": self.profile_probe},
+            {
+                "$set": {
+                    "perfs": {
+                        "chess": played_perf,
+                        "antichess": unplayed_perf,
+                    }
+                }
+            },
+        )
+
+        response = await self.client.get(f"/@/{self.profile_probe}")
+        self.assertEqual(response.status, 200)
+        body = await response.text()
+        self.assertIn(f"/@/{self.profile_probe}/perf/chess", body)
+        self.assertNotIn(f"/@/{self.profile_probe}/perf/antichess", body)
+
+        response = await self.client.get(f"/@/{self.profile_probe}/perf/antichess")
+        self.assertEqual(response.status, 200)
 
     async def test_winners_and_shields_pages_do_not_cache_public_users(self):
         self.set_session_user(self.user.username)
@@ -227,7 +309,7 @@ class GamesApiCategoryFilterTestCase(AioHTTPTestCase):
                 "r": "a",
                 "m": [],
                 "s": STARTED,
-                "d": datetime(2025, 1, 5, tzinfo=timezone.utc),
+                "d": datetime(2025, 1, 5, tzinfo=UTC),
                 "y": 1,
             }
         )
@@ -475,7 +557,7 @@ class UserGamesQueryParamsTestCase(AioHTTPTestCase):
                     "r": "b",
                     "m": [],
                     "s": STARTED + 1,
-                    "d": datetime(2025, 1, 1, tzinfo=timezone.utc),
+                    "d": datetime(2025, 1, 1, tzinfo=UTC),
                     "y": 1,
                 },
                 {
@@ -486,7 +568,7 @@ class UserGamesQueryParamsTestCase(AioHTTPTestCase):
                     "r": "a",
                     "m": [],
                     "s": STARTED + 1,
-                    "d": datetime(2025, 1, 2, tzinfo=timezone.utc),
+                    "d": datetime(2025, 1, 2, tzinfo=UTC),
                     "y": 1,
                 },
                 {
@@ -497,7 +579,7 @@ class UserGamesQueryParamsTestCase(AioHTTPTestCase):
                     "r": "a",
                     "m": [],
                     "s": STARTED + 1,
-                    "d": datetime(2025, 1, 3, tzinfo=timezone.utc),
+                    "d": datetime(2025, 1, 3, tzinfo=UTC),
                     "y": 1,
                     "ts": [Int64(60000), Int64(59000)],
                 },
@@ -607,6 +689,13 @@ class ExportWriteEofTestCase(unittest.IsolatedAsyncioTestCase):
 
 
 class SSESubscribeErrorFallbackTestCase(unittest.IsolatedAsyncioTestCase):
+    class _TrackingSet(set):
+        added = None
+
+        def add(self, item):
+            self.added = item
+            super().add(item)
+
     class _UsersStub:
         def __init__(self, user):
             self.user = user
@@ -615,7 +704,8 @@ class SSESubscribeErrorFallbackTestCase(unittest.IsolatedAsyncioTestCase):
             return self.user
 
     async def test_subscribe_notify_handles_sse_setup_error(self):
-        notify_user = SimpleNamespace(notify_channels=set())
+        notify_channels = self._TrackingSet()
+        notify_user = SimpleNamespace(notify_channels=notify_channels)
         app_state = SimpleNamespace(users=self._UsersStub(notify_user))
         request = SimpleNamespace(app=object())
 
@@ -631,10 +721,17 @@ class SSESubscribeErrorFallbackTestCase(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status, 200)
         self.assertEqual(len(notify_user.notify_channels), 0)
+        self.assertEqual(notify_channels.added.maxsize, utils.SSE_SNAPSHOT_QUEUE_MAXSIZE)
+        with self.assertRaises(asyncio.QueueShutDown):
+            notify_channels.added.get_nowait()
 
     async def test_subscribe_invites_handles_sse_setup_error(self):
         game_id = "abcd1234"
-        app_state = SimpleNamespace(invite_channels={game_id: set()}, invite_events={})
+        invite_channels = self._TrackingSet()
+        app_state = SimpleNamespace(
+            invite_channels={game_id: invite_channels},
+            invite_events={},
+        )
         request = SimpleNamespace(app=object(), match_info={"gameId": game_id})
 
         with (
@@ -645,9 +742,66 @@ class SSESubscribeErrorFallbackTestCase(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status, 200)
         self.assertFalse(app_state.invite_channels.get(game_id))
+        self.assertEqual(invite_channels.added.maxsize, game_api.SSE_SNAPSHOT_QUEUE_MAXSIZE)
+        with self.assertRaises(asyncio.QueueShutDown):
+            invite_channels.added.get_nowait()
+
+    async def test_subscribe_inbox_handles_sse_setup_error(self):
+        inbox_channels = self._TrackingSet()
+        inbox_user = SimpleNamespace(inbox_channels=inbox_channels)
+        app_state = SimpleNamespace(users=self._UsersStub(inbox_user))
+        request = SimpleNamespace(app=object())
+
+        with (
+            patch("inbox_api.get_app_state", return_value=app_state),
+            patch("inbox_api._session_username", new=AsyncMock(return_value="sse-user")),
+            patch("inbox_api.sse_response", side_effect=RuntimeError("setup failed")),
+        ):
+            response = await inbox_api.subscribe_inbox(request)
+
+        self.assertEqual(response.status, 200)
+        self.assertEqual(len(inbox_channels), 0)
+        self.assertEqual(inbox_channels.added.maxsize, inbox_api.SSE_EVENT_QUEUE_MAXSIZE)
+        with self.assertRaises(asyncio.QueueShutDown):
+            inbox_channels.added.get_nowait()
+
+    async def test_subscribe_challenges_handles_sse_setup_error(self):
+        challenge_channels = self._TrackingSet()
+        challenge_user = SimpleNamespace(
+            challenge_channels=challenge_channels,
+            update_online=lambda: None,
+            online=True,
+        )
+        app_state = SimpleNamespace(users=self._UsersStub(challenge_user))
+        request = SimpleNamespace(app=object())
+
+        with (
+            patch("header_challenges.get_app_state", return_value=app_state),
+            patch(
+                "header_challenges.aiohttp_session.get_session",
+                new=AsyncMock(return_value={"user_name": "sse-user"}),
+            ),
+            patch("header_challenges.cancel_direct_challenge_offline"),
+            patch(
+                "header_challenges.reactivate_direct_challenges",
+                new=AsyncMock(),
+            ),
+            patch("header_challenges.sse_response", side_effect=RuntimeError("setup failed")),
+        ):
+            response = await header_challenges.subscribe_challenges(request)
+
+        self.assertEqual(response.status, 200)
+        self.assertEqual(len(challenge_channels), 0)
+        self.assertEqual(
+            challenge_channels.added.maxsize,
+            header_challenges.SSE_SNAPSHOT_QUEUE_MAXSIZE,
+        )
+        with self.assertRaises(asyncio.QueueShutDown):
+            challenge_channels.added.get_nowait()
 
     async def test_subscribe_games_handles_sse_setup_error(self):
-        app_state = SimpleNamespace(game_channels=set())
+        game_channels = self._TrackingSet()
+        app_state = SimpleNamespace(game_channels=game_channels)
         request = SimpleNamespace(app=object())
 
         with (
@@ -658,6 +812,42 @@ class SSESubscribeErrorFallbackTestCase(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status, 200)
         self.assertEqual(len(app_state.game_channels), 0)
+        queue = game_channels.added
+        self.assertEqual(queue.maxsize, game_api.ONGOING_GAME_QUEUE_MAXSIZE)
+        with self.assertRaises(asyncio.QueueShutDown):
+            queue.get_nowait()
+
+    async def test_subscribe_games_times_out_blocked_send_and_drains_queue(self):
+        game_channels = self._TrackingSet()
+        app_state = SimpleNamespace(game_channels=game_channels)
+        request = SimpleNamespace(app=object())
+
+        class SlowResponse:
+            def is_connected(self):
+                return True
+
+            async def send(self, _payload):
+                await asyncio.Event().wait()
+
+        slow_response = SlowResponse()
+
+        @asynccontextmanager
+        async def slow_sse_response(_request):
+            game_channels.added.put_nowait("payload")
+            yield slow_response
+
+        with (
+            patch("game_api.get_app_state", return_value=app_state),
+            patch("game_api.sse_response", slow_sse_response),
+            patch("sse_utils.SSE_SEND_TIMEOUT", 0.01),
+        ):
+            response = await game_api.subscribe_games(request)
+
+        self.assertIs(response, slow_response)
+        self.assertEqual(len(game_channels), 0)
+        self.assertEqual(game_channels.added.qsize(), 0)
+        with self.assertRaises(asyncio.QueueShutDown):
+            game_channels.added.get_nowait()
 
 
 class InviteReloadPersistenceTestCase(AioHTTPTestCase):
@@ -706,7 +896,7 @@ class InviteReloadPersistenceTestCase(AioHTTPTestCase):
                 "byoyomi": 0,
                 "day": 0,
                 "gameId": "Expi1234",
-                "expireAt": datetime.now(timezone.utc) - timedelta(minutes=1),
+                "expireAt": datetime.now(UTC) - timedelta(minutes=1),
             }
         )
         await db.seek.insert_one(
@@ -728,7 +918,7 @@ class InviteReloadPersistenceTestCase(AioHTTPTestCase):
                 "gameId": "BotD1234",
                 "botChallengeStatus": "declined",
                 "botChallengeDeclineReason": "This bot does not support this variant.",
-                "expireAt": datetime.now(timezone.utc) + timedelta(minutes=30),
+                "expireAt": datetime.now(UTC) + timedelta(minutes=30),
             }
         )
         return make_app(db_client=db_client, simple_cookie_storage=True)

@@ -1,17 +1,16 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from types import SimpleNamespace
 import unittest
+from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import test_logger
-
 from compress import R2C
-from const import MATE
-from glicko2.glicko2 import new_default_perf_map
-from game import Game
+from const import MATE, STARTED
 from fairy.fairy_board import FairyBoard
+from game import Game
+from glicko2.glicko2 import new_default_perf_map
 from user import User
 from utils import pgn as export_pgn
 from variants import VARIANTS, get_server_variant
@@ -30,7 +29,7 @@ def make_export_doc(move: str) -> dict:
         "v": "c",
         "m": [encode(move)],
         "if": CAPA_CASTLING_FEN,
-        "d": datetime(2026, 2, 18, tzinfo=timezone.utc),
+        "d": datetime(2026, 2, 18, tzinfo=UTC),
         "us": ["White", "Black"],
         "r": R2C["*"],
         "b": 10,
@@ -61,7 +60,7 @@ def make_game(game_id: str, variant: str, initial_fen: str, *, corr: bool = Fals
             chess960=False,
             corr=corr,
         )
-    game.date = datetime(2026, 2, 18, tzinfo=timezone.utc)
+    game.date = datetime(2026, 2, 18, tzinfo=UTC)
     return game
 
 
@@ -97,24 +96,14 @@ class EmbassyCastlingPgnTestCase(unittest.TestCase):
         game.steps = []
         game.clocks_w = [0]
         game.clocks_b = [0]
-        game.date = datetime(2025, 1, 1, tzinfo=timezone.utc)
-        game.loaded_at = datetime(2026, 4, 1, tzinfo=timezone.utc)
+        game.date = datetime(2025, 1, 1, tzinfo=UTC)
+        game.loaded_at = datetime(2026, 4, 1, tzinfo=UTC)
         game.status = MATE
 
         game.board = FairyBoard("chess")
-        game.board.move_stack = ["e2e4", "e7e5"]
-
-        real_push = game.board.push
-
-        def fail_on_second_move(move, append=True, *, raise_on_error=True):
-            if move == "e7e5":
-                if raise_on_error:
-                    raise ValueError("historical replay failure")
-                return False
-            return real_push(move, append=append, raise_on_error=raise_on_error)
+        game.board.move_stack = ["e2e4", "e2e4"]
 
         with (
-            patch.object(game.board, "push", side_effect=fail_on_second_move),
             patch("game.log.warning") as mock_warning,
             patch("game.log.exception") as mock_exception,
         ):
@@ -124,6 +113,41 @@ class EmbassyCastlingPgnTestCase(unittest.TestCase):
         self.assertEqual("e2e4", game.steps[0]["move"])
         mock_warning.assert_called_once()
         mock_exception.assert_not_called()
+
+    def test_create_steps_never_mutates_live_board_on_invalid_history(self) -> None:
+        game = make_game("current-corrupt-replay", "chess", "", corr=True)
+        game.steps = []
+        game.clocks_w = [0]
+        game.clocks_b = [0]
+        game.loaded_at = datetime(2026, 7, 30, tzinfo=UTC)
+        game.status = STARTED
+
+        valid_board = FairyBoard("chess")
+        valid_board.push("e2e4")
+        game.board = FairyBoard("chess")
+        game.board.move_stack = ["e2e4", "e2e4"]
+        game.board.fen = valid_board.fen
+        game.board.ply = 2
+        game.board.color = valid_board.color
+        before = (
+            game.board.fen,
+            game.board.color,
+            game.board.ply,
+            list(game.board.move_stack),
+        )
+
+        with patch("game.log.exception"):
+            game.create_steps()
+
+        self.assertEqual(
+            before,
+            (
+                game.board.fen,
+                game.board.color,
+                game.board.ply,
+                game.board.move_stack,
+            ),
+        )
 
     def test_export_pgn_fallback_accepts_modern_embassy_castling(self) -> None:
         # In current games the move can be embassy-style (e8b8) even if stored variant is capablanca.

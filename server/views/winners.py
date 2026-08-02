@@ -1,23 +1,23 @@
 import aiohttp_jinja2
 from aiohttp import web
-
-from typing_defs import ViewContext
-from views import get_user_context
 from pychess_global_app_state_utils import get_app_state
 from tournament.tournaments import get_winners
-from variants import VARIANTS, VARIANT_ICONS
+from typing_defs import ViewContext
+from variants import VARIANT_ICONS, VARIANTS
+
+from views import get_user_context
 
 
 @aiohttp_jinja2.template("winners.html")
 async def winners(request: web.Request) -> ViewContext:
-    user, context = await get_user_context(request)
+    _user, context = await get_user_context(request)
 
     app_state = get_app_state(request.app)
 
     variant = request.match_info.get("variant")
     allowed_variants = None
-    if user.game_category != "all":
-        allowed_variants = user.category_variant_list
+    if context["game_category"] != "all":
+        allowed_variants = context["category_variant_list"]
 
     if (variant is not None) and (variant not in VARIANTS):
         variant = None

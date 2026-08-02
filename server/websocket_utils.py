@@ -1,30 +1,42 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, TypeVar, cast
-from collections.abc import Awaitable, Callable, Iterable, Mapping
+
 import asyncio
 import logging
 import re
+from collections.abc import Awaitable, Callable, Iterable, Mapping
+from typing import TYPE_CHECKING, TypeVar, cast
+
 import aiohttp
 import aiohttp_session
 import msgspec
 from aiohttp import WSMessage, web
-from aiohttp.web_ws import WebSocketResponse
 from aiohttp.client_exceptions import ClientConnectionResetError
+from aiohttp.web_ws import WebSocketResponse
+from const import NONE_USER
+from preferences import (
+    apply_anonymous_session_preferences,
+    effective_game_category,
+    effective_theme,
+)
 
 if TYPE_CHECKING:
     from pychess_global_app_state import PychessGlobalAppState
     from user import User
 
 from pychess_global_app_state_utils import get_app_state
+from request_protection import enforce_new_anonymous_identity_limit
+from typedefs import REQUEST_NEW_SESSION_KEY
 
 log = logging.getLogger(__name__)
 
 _SEND_CONCURRENCY = 200
 _SEND_TIMEOUT_SECS = 2.0
+_RECEIVE_TIMEOUT_SECS = 30.0
 _WS_JSON_ENCODER = msgspec.json.Encoder()
 _WS_JSON_DECODER = msgspec.json.Decoder()
 _TYPE_FIELD_RE = re.compile(r'"type"\s*:\s*"([^"\\]+)"')
 _TYPE_PREFIX = '{"type":"'
+_WS_SESSION_CHANGED_KEY = "pychess_ws_session_changed"
 
 
 def _ws_json_dumps(msg: Mapping[str, object] | None) -> str:
@@ -59,8 +71,37 @@ def _ws_json_loads(
 
 
 async def get_user(session: aiohttp_session.Session, request: web.Request) -> User:
-    session_user = session.get("user_name")
-    user = await get_app_state(request.app).users.get(session_user)
+    app_state = get_app_state(request.app)
+    session_user_value = session.get("user_name")
+    session_user = session_user_value if isinstance(session_user_value, str) else None
+
+    if session_user is None:
+        if not WebSocketResponse().can_prepare(request).ok:
+            return app_state.users[NONE_USER]
+        if app_state.disable_new_anons:
+            session.invalidate()
+            raise web.HTTPFound("/login")
+
+        # Anonymous page rendering is stateless. Materialize the browser's
+        # persistent identity only when it actually opens a websocket.
+        from user import User
+
+        enforce_new_anonymous_identity_limit(request)
+        user = User(
+            app_state,
+            anon=not app_state.anon_as_test_users,
+            theme=effective_theme(session, None),
+            game_category=effective_game_category(session, None),
+        )
+        app_state.users[user.username] = user
+        session["user_name"] = user.username
+        request[REQUEST_NEW_SESSION_KEY] = True
+        request[_WS_SESSION_CHANGED_KEY] = True
+        log.info("+++ New websocket guest user %s connected.", user.username)
+        return user
+
+    user = await app_state.users.get(session_user)
+    apply_anonymous_session_preferences(session, user)
     return user
 
 
@@ -88,11 +129,22 @@ async def process_ws(
         session.invalidate()
         return None
 
-    ws = WebSocketResponse(heartbeat=3.0, receive_timeout=10.0)
+    # The client sends an application-level "/n" ping every 2.5 seconds and
+    # reconnects if its pong is missing. Keep server cleanup deliberately
+    # slower so short network stalls do not race an aggressive protocol ping.
+    ws = WebSocketResponse(receive_timeout=_RECEIVE_TIMEOUT_SECS)
     ws_ready = ws.can_prepare(request)
     if not ws_ready.ok:
         log.debug("Ignoring non-websocket request on %s: %r", request.rel_url.path, ws_ready)
         return None
+
+    if request.get(_WS_SESSION_CHANGED_KEY, False):
+        storage = request.get(aiohttp_session.STORAGE_KEY)
+        if storage is None:
+            raise RuntimeError("aiohttp_session storage is not installed")
+        # aiohttp-session intentionally skips prepared websocket responses, so
+        # persist a newly materialized anonymous identity in the handshake.
+        await storage.save_session(request, ws, session)
 
     await ws.prepare(request)
 
@@ -168,8 +220,8 @@ async def process_ws(
                 break
             else:
                 log.debug("%s ws other msg.type %s %s", request.rel_url.path, msg.type, msg)
-    except OSError:
-        # disconnected
+    except TimeoutError, OSError:
+        # Disconnected or stale.
         pass
     except Exception:
         log.exception(
@@ -188,7 +240,7 @@ async def ws_send_str(ws: WebSocketResponse, msg: str) -> bool:
     try:
         await asyncio.wait_for(ws.send_str(msg), timeout=_SEND_TIMEOUT_SECS)
         return True
-    except ConnectionResetError, ClientConnectionResetError, RuntimeError, asyncio.TimeoutError:
+    except TimeoutError, ConnectionResetError, ClientConnectionResetError, RuntimeError:
         # Peer disconnected between scheduling and actual send.
         return False
 
@@ -206,12 +258,7 @@ async def ws_send_str_many(ws_set: Iterable[WebSocketResponse | None], msg: str)
             try:
                 await asyncio.wait_for(ws.send_str(msg), timeout=_SEND_TIMEOUT_SECS)
                 return True
-            except (
-                ConnectionResetError,
-                ClientConnectionResetError,
-                RuntimeError,
-                asyncio.TimeoutError,
-            ):
+            except TimeoutError, ConnectionResetError, ClientConnectionResetError, RuntimeError:
                 return False
             except Exception:
                 return False
@@ -227,7 +274,7 @@ async def ws_send_json(ws: WebSocketResponse | None, msg: Mapping[str, object] |
     try:
         await asyncio.wait_for(ws.send_str(_ws_json_dumps(msg)), timeout=_SEND_TIMEOUT_SECS)
         return True
-    except ConnectionResetError, ClientConnectionResetError, RuntimeError, asyncio.TimeoutError:
+    except TimeoutError, ConnectionResetError, ClientConnectionResetError, RuntimeError:
         # Peer disconnected between scheduling and actual send.
         return False
     except Exception:

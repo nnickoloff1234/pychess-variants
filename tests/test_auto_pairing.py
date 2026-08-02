@@ -1,23 +1,22 @@
-# -*- coding: utf-8 -*-
 import unittest
-import test_logger
 from itertools import product
 
-from mongomock_motor import AsyncMongoMockClient
+import test_logger
 from aiohttp.test_utils import AioHTTPTestCase
-
-from server import make_app
-from seek import Seek
-from user import User
-from pychess_global_app_state_utils import get_app_state
-from glicko2.glicko2 import new_default_perf_map
 from auto_pair import (
     add_to_auto_pairings,
     find_matching_seek,
     find_matching_user,
     find_matching_user_for_seek,
 )
+from glicko2.glicko2 import new_default_perf_map
+from mongomock_motor import AsyncMongoMockClient
+from pychess_global_app_state_utils import get_app_state
+from seek import Seek
+from user import User
 from variants import VARIANTS
+
+from server import make_app
 
 test_logger.init_test_logger()
 
@@ -37,7 +36,7 @@ ALL_TC = [
     (10, 30, 1),
 ]
 
-ALL_VARIANT = product(map(lambda x: x.removesuffix("960"), VARIANTS), (True, False))
+ALL_VARIANT = product((x.removesuffix("960") for x in VARIANTS), (True, False))
 
 DATA = {
     "all": {"variants": ALL_VARIANT, "tcs": ALL_TC, "rrmin": -1000, "rrmax": 1000},
@@ -109,7 +108,7 @@ class AutoPairingTestCase(AioHTTPTestCase):
         app_state = get_app_state(self.app)
 
         variant_tc = ("chess", False, 5, 5, 0)
-        auto_variant_tc, matching_user, matching_seek = add_to_auto_pairings(
+        _initial_auto_variant_tc, matching_user, matching_seek = add_to_auto_pairings(
             app_state, self.bplayer, DATA["chess"]
         )
 
@@ -119,7 +118,7 @@ class AutoPairingTestCase(AioHTTPTestCase):
         self.assertTrue(self.bplayer.ready_for_auto_pairing)
 
         variant_tc = ("chess", True, 5, 5, 0)
-        auto_variant_tc, matching_user, matching_seek = add_to_auto_pairings(
+        _auto_variant_tc, matching_user, matching_seek = add_to_auto_pairings(
             app_state, self.aplayer, DATA["chess960"]
         )
 

@@ -18,7 +18,16 @@ class MonitorRecordTestCase(unittest.TestCase):
             },
             "state": {
                 "users": 120,
+                "user_perf_entries": 245,
+                "user_puzzle_perf_entries": 18,
                 "games": 8,
+                "tournaments": 14,
+                "finished_tournaments": 9,
+                "tournament_remove_tasks": 8,
+                "tournament_user_references": 210,
+                "finished_tournament_user_references": 180,
+                "tournaments_with_active_sockets": 2,
+                "tournament_active_sockets": 3,
                 "active_tasks": 17,
                 "catalogued_variants": 31,
                 "pyffish_variants": 151,
@@ -36,6 +45,15 @@ class MonitorRecordTestCase(unittest.TestCase):
                 "lobby_websockets": 4,
                 "game_websockets": 5,
                 "game_sse": 2,
+                "game_sse_queued_messages": 37,
+                "game_sse_max_queue": 29,
+                "game_sse_full_queues": 1,
+                "sse_queued_messages": 41,
+                "sse_max_queue": 29,
+                "sse_full_queues": 1,
+                "bot_event_queued_messages": 3,
+                "bot_game_queued_messages": 4,
+                "bot_max_queue": 3,
             },
             "caches": [
                 {"name": "one", "currsize": 12},
@@ -48,9 +66,25 @@ class MonitorRecordTestCase(unittest.TestCase):
         self.assertEqual(summary["rss_plus_swap_mib"], 499.75)
         self.assertEqual(summary["swap_mib"], 98.5)
         self.assertEqual(summary["allocated_blocks"], 123456)
+        self.assertEqual(summary["user_perf_entries"], 245)
+        self.assertEqual(summary["user_puzzle_perf_entries"], 18)
         self.assertEqual(summary["registered_cache_evictions"], 12)
+        self.assertEqual(summary["finished_tournaments"], 9)
+        self.assertEqual(summary["tournament_remove_tasks"], 8)
+        self.assertEqual(summary["finished_tournament_user_references"], 180)
+        self.assertEqual(summary["tournaments_with_active_sockets"], 2)
+        self.assertEqual(summary["tournament_active_sockets"], 3)
         self.assertEqual(summary["tasks"], 17)
         self.assertEqual(summary["streams"], 11)
+        self.assertEqual(summary["game_sse"], 2)
+        self.assertEqual(summary["game_sse_queued_messages"], 37)
+        self.assertEqual(summary["game_sse_max_queue"], 29)
+        self.assertEqual(summary["game_sse_full_queues"], 1)
+        self.assertEqual(summary["sse_queued_messages"], 41)
+        self.assertEqual(summary["sse_max_queue"], 29)
+        self.assertEqual(summary["bot_event_queued_messages"], 3)
+        self.assertEqual(summary["bot_game_queued_messages"], 4)
+        self.assertEqual(summary["bot_max_queue"], 3)
         self.assertEqual(summary["pyffish_variants"], 151)
         self.assertEqual(summary["catalogued_payload_bytes"], 8192)
         self.assertEqual(summary["cache_entries"], 42)
@@ -83,6 +117,15 @@ class MonitorRecordTestCase(unittest.TestCase):
                         "tournament_websockets": 1,
                         "simul_websockets": 0,
                         "game_sse": 2,
+                        "game_sse_queued_messages": 37,
+                        "game_sse_max_queue": 29,
+                        "game_sse_full_queues": 1,
+                        "sse_queued_messages": 41,
+                        "sse_max_queue": 29,
+                        "sse_full_queues": 1,
+                        "bot_event_queued_messages": 3,
+                        "bot_game_queued_messages": 4,
+                        "bot_max_queue": 3,
                         "invite_sse": 1,
                         "notify_sse": 3,
                         "inbox_sse": 0,
@@ -99,6 +142,14 @@ class MonitorRecordTestCase(unittest.TestCase):
         self.assertEqual(summary["users"], 120)
         self.assertEqual(summary["registered_cache_only"], 70)
         self.assertEqual(summary["streams"], 19)
+        self.assertEqual(summary["game_sse_queued_messages"], 37)
+        self.assertEqual(summary["game_sse_max_queue"], 29)
+        self.assertEqual(summary["game_sse_full_queues"], 1)
+        self.assertEqual(summary["sse_queued_messages"], 41)
+        self.assertEqual(summary["sse_max_queue"], 29)
+        self.assertEqual(summary["bot_event_queued_messages"], 3)
+        self.assertEqual(summary["bot_game_queued_messages"], 4)
+        self.assertEqual(summary["bot_max_queue"], 3)
         self.assertEqual(summary["cache_entries"], 42)
 
     def test_summary_deltas_compare_first_and_last_samples(self) -> None:

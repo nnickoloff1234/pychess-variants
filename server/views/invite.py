@@ -1,13 +1,14 @@
-import aiohttp_jinja2
-from aiohttp import web
-
 import logging
 
+import aiohttp_jinja2
+from aiohttp import web
 from json_utils import json_dumps
-from utils import join_seek, load_game, remove_seek
-from typing_defs import ViewContext
-from views import add_game_context, get_user_context
 from pychess_global_app_state_utils import get_app_state
+from sse_utils import enqueue_sse_payload
+from typing_defs import ViewContext
+from utils import join_seek, load_game, remove_seek
+
+from views import add_game_context, get_user_context
 
 log = logging.getLogger(__name__)
 
@@ -64,7 +65,11 @@ async def invite(request: web.Request) -> ViewContext:
                         # Put response data to sse subscriber queue
                         channels = app_state.invite_channels.get(gameId, set())
                         for queue in channels:
-                            await queue.put(json_dumps({"gameId": gameId, "accept": True}))
+                            enqueue_sse_payload(
+                                queue,
+                                json_dumps({"gameId": gameId, "accept": True}),
+                                replace_pending=True,
+                            )
                     except ConnectionResetError:
                         log.error("/invite/accept/ ConnectionResetError for user %s", user.username)
             else:

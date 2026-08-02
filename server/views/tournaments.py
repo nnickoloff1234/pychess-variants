@@ -1,22 +1,22 @@
 import asyncio
+import logging
 from typing import TYPE_CHECKING
 
-from aiohttp import web
 import aiohttp_jinja2
-
+from aiohttp import web
 from const import TRANSLATED_PAIRING_SYSTEM_NAMES
 from misc import time_control_str
-from typing_defs import ViewContext
-from views import get_user_context
 from pychess_global_app_state_utils import get_app_state
 from request_utils import read_post_data
-from tournament_director import is_tournament_director
 from tournament.tournaments import (
     create_or_update_tournament,
     get_latest_tournaments,
 )
+from tournament_director import is_tournament_director
+from typing_defs import ViewContext
 from variants import VARIANT_ICONS
-import logging
+
+from views import get_user_context
 
 log = logging.getLogger(__name__)
 
@@ -74,8 +74,8 @@ async def tournaments(request: web.Request) -> ViewContext:
     context["pairing_system_name"] = pairing_system_name
     context["time_control_str"] = time_control_str
     tables = await get_latest_tournaments(app_state, lang)
-    if user.game_category != "all":
-        allowed_variants = user.category_variant_set
+    if context["game_category"] != "all":
+        allowed_variants = context["category_variant_set"]
         started, scheduled, completed = tables
         started = [
             t for t in started if (t.variant + ("960" if t.chess960 else "")) in allowed_variants

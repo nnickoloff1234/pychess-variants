@@ -1,12 +1,35 @@
-import asyncio
 import json
 import logging
-from datetime import datetime, timezone
+from collections.abc import Mapping
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Mapping
+from typing import TYPE_CHECKING, Any
 
 import aiohttp_session
 from aiohttp import web
+from catalogued_variants import (
+    catalogued_variant_client_doc_for_game,
+    catalogued_variants_for_client,
+)
+from const import (
+    ANON_PREFIX,
+    CATEGORY_VARIANT_GROUPS,
+    CATEGORY_VARIANT_LISTS,
+    CATEGORY_VARIANT_SETS,
+    CATEGORY_VARIANTS,
+    DARK_FEN,
+    GAME_CATEGORY_ALL,
+    HTTP_ANON_USER,
+    STARTED,
+)
+from fairy import BLACK, WHITE
+from json_utils import json_dumps
+from preferences import (
+    apply_anonymous_session_preferences,
+    effective_game_category,
+    effective_theme,
+)
+from pychess_global_app_state_utils import get_app_state
 from pymongo.errors import (
     AutoReconnect,
     ConnectionFailure,
@@ -15,25 +38,19 @@ from pymongo.errors import (
     ServerSelectionTimeoutError,
     WaitQueueTimeoutError,
 )
-
-from catalogued_variants import (
-    catalogued_variant_client_doc_for_game,
-    catalogued_variants_for_client,
-)
-from const import ANON_PREFIX, DARK_FEN, GAME_CATEGORY_ALL, STARTED
-from fairy import BLACK, WHITE
-from json_utils import json_dumps
-from lang import LOCALE
-from pychess_global_app_state_utils import get_app_state
+from request_protection import enforce_new_anonymous_identity_limit
 from settings import ADMINS, SIMULING
+from typedefs import REQUEST_NEW_SESSION_KEY
 from typing_defs import UserDocument, ViewContext
 from user import User
 from utils import corr_games
 from variants import ALL_VARIANTS
 
+from lang import LOCALE
+
 if TYPE_CHECKING:
-    from game import Game
     from bug.game_bug import GameBug
+    from game import Game
 
 log = logging.getLogger(__name__)
 
@@ -96,10 +113,11 @@ async def get_user_context(request: web.Request) -> tuple[User, ViewContext]:
 
     # Who made the request?
     session = await aiohttp_session.get_session(request)
-    session_user = session.get("user_name")
+    session_user_value = session.get("user_name")
+    session_user = session_user_value if isinstance(session_user_value, str) else None
 
-    session["last_visit"] = datetime.now(timezone.utc).isoformat()
     if session_user is not None:
+        session["last_visit"] = datetime.now(UTC).isoformat()
         log.info("+++ Existing user %s connected.", session_user)
         doc: UserDocument | None = None
         # Anonymous users are in-memory only and are not persisted in db.user.
@@ -113,11 +131,10 @@ async def get_user_context(request: web.Request) -> tuple[User, ViewContext]:
                     "index() app_state.db.user.find_one Exception. Failed to get user %s from mongodb!",
                     session_user,
                 )
-        if doc is not None:
-            if not doc.get("enabled", True):
-                log.info("Closed account %s tried to connect.", session_user)
-                session.invalidate()
-                raise web.HTTPFound("/")
+        if doc is not None and not doc.get("enabled", True):
+            log.info("Closed account %s tried to connect.", session_user)
+            session.invalidate()
+            raise web.HTTPFound("/")
 
         if session_user in app_state.users:
             user = app_state.users[session_user]
@@ -128,16 +145,42 @@ async def get_user_context(request: web.Request) -> tuple[User, ViewContext]:
                 session.invalidate()
                 raise web.HTTPFound("/")
     else:
-        if app_state.disable_new_anons:
-            session.invalidate()
-            await asyncio.sleep(3)
-            raise web.HTTPFound("/login")
+        # Ordinary anonymous page views stay stateless. A persistent Anon-*
+        # identity is created only when a request can actually perform an
+        # anonymous action (non-GET) or when a websocket is opened. Keep the
+        # existing Test-* behavior for local ``-a`` development mode.
+        if request.method in {"GET", "HEAD"} and not app_state.anon_as_test_users:
+            user = app_state.users[HTTP_ANON_USER]
+        else:
+            if app_state.disable_new_anons:
+                session.invalidate()
+                raise web.HTTPFound("/login")
 
-        user = User(app_state, anon=not app_state.anon_as_test_users)
-        log.info("+++ New guest user %s connected.", user.username)
-        app_state.users[user.username] = user
-        session["user_name"] = user.username
-        await asyncio.sleep(3)
+            enforce_new_anonymous_identity_limit(request)
+            user = User(
+                app_state,
+                anon=not app_state.anon_as_test_users,
+                theme=effective_theme(session, None),
+                game_category=effective_game_category(session, None),
+            )
+            log.info("+++ New guest user %s connected.", user.username)
+            app_state.users[user.username] = user
+            session["user_name"] = user.username
+            request[REQUEST_NEW_SESSION_KEY] = True
+
+    theme = effective_theme(session, user)
+    game_category = effective_game_category(session, user)
+
+    # A materialized Anon-* user should carry the browser preferences into
+    # websocket-backed pages and later requests. Never mutate the shared
+    # Anon-HTTP object used by stateless anonymous GET requests.
+    if user.anon and user.username != HTTP_ANON_USER:
+        apply_anonymous_session_preferences(session, user)
+
+    category_variants = CATEGORY_VARIANTS[game_category]
+    category_variant_groups = CATEGORY_VARIANT_GROUPS[game_category]
+    category_variant_list = CATEGORY_VARIANT_LISTS[game_category]
+    category_variant_set = CATEGORY_VARIANT_SETS[game_category]
 
     view = request.path.split("/")[1] if len(request.path) > 2 else "lobby"
     lang = LOCALE.get()
@@ -149,10 +192,10 @@ async def get_user_context(request: web.Request) -> tuple[User, ViewContext]:
             return variant
         return gettext(server_variant.translated_name)
 
-    if user.game_category == GAME_CATEGORY_ALL:
+    if game_category == GAME_CATEGORY_ALL:
         menu_variant = "chess"
     else:
-        menu_variant = user.category_variant_list[0] if user.category_variant_list else "chess"
+        menu_variant = category_variant_list[0] if category_variant_list else "chess"
 
     mod_report_score = 0
     if _is_admin_username(user.username):
@@ -176,8 +219,12 @@ async def get_user_context(request: web.Request) -> tuple[User, ViewContext]:
         "user": user,
         "lang": lang,
         "variant_display_name": variant_display_name,
-        "theme": user.theme,
-        "game_category": user.game_category,
+        "theme": theme,
+        "game_category": game_category,
+        "category_variants": category_variants,
+        "category_variant_groups": category_variant_groups,
+        "category_variant_list": category_variant_list,
+        "category_variant_set": category_variant_set,
         "game_category_intro": (not user.anon) and (not getattr(user, "game_category_set", False)),
         "catalogued_variants": json_dumps(
             catalogued_variants_for_client(
@@ -244,7 +291,7 @@ async def add_corr_games_context(
 
 
 def add_game_context(
-    game: "Game | GameBug",
+    game: Game | GameBug,
     ply: int | str | None,
     user: User,
     context: ViewContext,
@@ -291,5 +338,3 @@ def add_game_context(
         context["bplayerB"] = game_two_boards.bplayerB.username
         context["btitleB"] = game_two_boards.bplayerB.title
         context["bratingB"] = game_two_boards.brating_b
-
-    return

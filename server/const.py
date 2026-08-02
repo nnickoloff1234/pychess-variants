@@ -1,11 +1,12 @@
 from __future__ import annotations
-from datetime import timedelta
-from enum import global_enum, IntEnum, StrEnum
+
 import re
+from datetime import timedelta
+from enum import IntEnum, StrEnum, global_enum
 from typing import TypeAlias
 
 from settings import static_url
-from variants import CataloguedServerVariant, ServerVariants, VARIANTS, get_server_variant
+from variants import VARIANTS, CataloguedServerVariant, ServerVariants, get_server_variant
 
 POCKET_PATTERN = re.compile("\\[(.*)\\]")
 
@@ -14,6 +15,7 @@ ANON_PREFIX = "Anon" + DASH
 TEST_PREFIX = "Test" + DASH
 
 NONE_USER = "None" + DASH + "User"
+HTTP_ANON_USER = ANON_PREFIX + "HTTP"
 
 RESERVED_USERS = (
     "Random-Mover",
@@ -22,6 +24,7 @@ RESERVED_USERS = (
     "Invite-friend",
     "PyChess",
     NONE_USER,
+    HTTP_ANON_USER,
 )
 
 
@@ -66,6 +69,16 @@ MAX_NAMED_SPECTATORS = 20
 
 # Periodically check for sse_request is_connected()
 SSE_GET_TIMEOUT = 10
+SSE_SEND_TIMEOUT = 10
+
+# State snapshots supersede older snapshots. Event queues allow a short burst
+# before disconnecting a subscriber that cannot keep up.
+SSE_SNAPSHOT_QUEUE_MAXSIZE = 1
+SSE_EVENT_QUEUE_MAXSIZE = 32
+
+# A slow /api/ongoing SSE subscriber must not retain an unbounded history of
+# serialized board updates.
+ONGOING_GAME_QUEUE_MAXSIZE = 256
 
 
 # tournament status
@@ -310,8 +323,8 @@ CATEGORIES = {
 }
 
 VARIANT_GROUPS = {}
-for categ in CATEGORIES:
-    for variant in CATEGORIES[categ]:
+for categ, category_variants in CATEGORIES.items():
+    for variant in category_variants:
         VARIANT_GROUPS[variant] = categ
 
 GAME_CATEGORY_ALL = "all"
@@ -335,8 +348,8 @@ CATEGORY_VARIANT_CODES = {
     GAME_CATEGORY_ALL: frozenset(variant.code for variant in VARIANTS.values()),
 }
 
-for category in CATEGORIES:
-    variants: CategoryVariantMap = {v: VARIANTS[v] for v in CATEGORIES[category] if v in VARIANTS}
+for category, category_variants in CATEGORIES.items():
+    variants: CategoryVariantMap = {v: VARIANTS[v] for v in category_variants if v in VARIANTS}
     CATEGORY_VARIANTS[category] = variants
     CATEGORY_VARIANT_GROUPS[category] = {v: category for v in variants}
     CATEGORY_VARIANT_LISTS[category] = tuple(variants.keys())

@@ -1,17 +1,18 @@
-from datetime import datetime
-import os
 import logging
+import os
+from datetime import datetime
 from urllib.parse import urlparse
 
 import aiohttp
-from monitor.metrics_client import fetch_metrics, metrics_url, monitor_token
-
+from rich.text import Text
 from textual.app import App, ComposeResult
+from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
+from textual.reactive import reactive
 from textual.widgets import (
-    Header,
-    Footer,
     DataTable,
+    Footer,
+    Header,
     Label,
     Rule,
     Sparkline,
@@ -20,10 +21,8 @@ from textual.widgets import (
     TabbedContent,
     TabPane,
 )
-from textual.containers import Vertical, Horizontal
-from textual.reactive import reactive
-from rich.text import Text
 
+from monitor.metrics_client import fetch_metrics, metrics_url, monitor_token
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -131,7 +130,7 @@ class MemoryMonitorApp(App):
 
     @staticmethod
     def build_column_config(items: list[dict[str, object]]) -> list[tuple[str, str]]:
-        keys = sorted({key for item in items for key in item.keys()})
+        keys = sorted({key for item in items for key in item})
         return [(key.replace("_", " ").title(), key) for key in keys]
 
     def sync_category_columns(self, category: str) -> None:
@@ -202,8 +201,8 @@ class MemoryMonitorApp(App):
 
     def watch_sort_columns(self, value: dict) -> None:
         """Update tables when sort_columns changes."""
-        for category in value:
-            if value[category] is not None:
+        for category, sort_column in value.items():
+            if sort_column is not None:
                 self.update_category_table(category)
 
     def watch_sort_ascendings(self, value: dict) -> None:

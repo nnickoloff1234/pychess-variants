@@ -1,16 +1,18 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Mapping
+import logging
+from collections.abc import Mapping
+from typing import TYPE_CHECKING
 
 from broadcast import round_broadcast
-from bug.game_bug import GameBug
-from fairy import FairyBoard
 from const import STARTED
+from fairy import FairyBoard
 from newid import new_id
 from pychess_global_app_state import PychessGlobalAppState
 from seek import Seek
-from bug.utils_bug import play_move, join_seek_bughouse
-import logging
+
+from bug.game_bug import GameBug
+from bug.utils_bug import join_seek_bughouse, play_move
 
 if TYPE_CHECKING:
     from user import User
@@ -84,7 +86,7 @@ async def handle_rematch_bughouse(
         log.info("other_plauers %s.", other_players)
         if all(
             elem in game.rematch_offers
-            for elem in map(lambda u: app_state.users[u.username].username, other_players)
+            for elem in (app_state.users[u.username].username for u in other_players)
         ):
             color = "w"  # if game.wplayer.username == opp_name else "b"
             fen = game.initial_fen

@@ -1,66 +1,64 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Callable
 
 import asyncio
-import re
-
-
 import random
-from datetime import date, datetime, timezone, timedelta
+import re
+from collections.abc import Callable
+from datetime import UTC, date, datetime, timedelta
+from typing import TYPE_CHECKING, ClassVar
 
-from aiohttp import web
 import aiohttp_session
+from aiohttp import web
 from aiohttp_sse import sse_response
-
 from broadcast import round_broadcast
+from clock import CorrClock
+from compress import C2R, R2C
 from const import (
-    DARK_FEN,
-    NOTIFY_PAGE_SIZE,
-    STARTED,
-    VARIANT_960_TO_PGN,
-    INVALIDMOVE,
-    UNKNOWNFINISH,
     CASUAL,
-    RATED,
+    DARK_FEN,
     IMPORTED,
-    SSE_GET_TIMEOUT,
+    INVALIDMOVE,
+    NOTIFY_PAGE_SIZE,
+    RATED,
+    SSE_SNAPSHOT_QUEUE_MAXSIZE,
+    STARTED,
     T_STARTED,
+    UNKNOWNFINISH,
+    VARIANT_960_TO_PGN,
     category_matches,
 )
-from compress import R2C, C2R
-from convert import mirror5, mirror9, grand2zero, zero2grand
+from convert import grand2zero, mirror5, mirror9, zero2grand
 from fairy import (
     BLACK,
-    WHITE,
-    STANDARD_FEN,
-    MANCHU_FEN,
-    FairyBoard,
     FEN_OK,
+    MANCHU_FEN,
     NOTATION_SAN,
+    STANDARD_FEN,
+    WHITE,
+    FairyBoard,
     get_san_moves,
     modded_variant,
     validate_fen,
 )
 from fairy.jieqi import make_initial_mapping
-from clock import CorrClock
-from game import Game
+from game import Game, StaleMovePersistenceError
 from newid import new_id
 from seek import (
     ANON_RESTRICTED_SEEK_MESSAGE,
-    TWO_BOARD_TARGETED_SEEK_MESSAGE,
     DIRECT_CHALLENGE_ACCEPTED,
+    TWO_BOARD_TARGETED_SEEK_MESSAGE,
     is_anon_restricted_seek,
     is_targeted_two_board_seek,
 )
+from ublog import display_date, image_src, post_url
 from user import User
 from users import NotInDbUsers
-from ublog import display_date, image_src, post_url
 from valid_fen import VALID_FEN
 
 if TYPE_CHECKING:
     from bug.game_bug import GameBug
-    from pychess_global_app_state import PychessGlobalAppState
     from game import Game
+    from pychess_global_app_state import PychessGlobalAppState
     from seek import Seek
     from typing_defs import (
         ClockValues,
@@ -77,12 +75,15 @@ if TYPE_CHECKING:
         NewGameMessage,
         SeekStatusMessage,
     )
-from pychess_global_app_state_utils import get_app_state
-from json_utils import json_response
-from request_utils import read_post_data
 import logging
-from variants import TWO_BOARD_VARIANT_CODES, C2V, GRANDS, get_server_variant, is_catalogued_variant
+
+from json_utils import json_response
+from preferences import effective_game_category
+from pychess_global_app_state_utils import get_app_state
+from request_utils import read_post_data
 from settings import URI
+from sse_utils import consume_sse_queue
+from variants import C2V, GRANDS, TWO_BOARD_VARIANT_CODES, get_server_variant, is_catalogued_variant
 
 log = logging.getLogger(__name__)
 USERNAME_PREFIX_RE = re.compile(r"^[a-zA-Z0-9_-]{3,20}$")
@@ -184,15 +185,51 @@ async def load_game_from_doc(
     *,
     cache_finished: bool = True,
 ) -> Game | GameBug | None:
-    """Return Game object from app cache or an already fetched database document.
+    """Return one shared Game object for an already fetched database document.
 
     Startup restore already iterates over game documents from MongoDB. Parsing the
     document directly avoids one extra ``find_one({_id: ...})`` round trip for
-    every active game restored during server initialization.
+    every active game restored during server initialization. A construction task
+    is shared by concurrent lazy loads and background restore so a game can never
+    acquire two independent in-process move locks.
     """
     game_id = doc["_id"]
     if game_id in app_state.games:
         return app_state.games[game_id]
+
+    load_task = app_state.game_load_tasks.get(game_id)
+    if load_task is None:
+        load_task = asyncio.create_task(
+            _load_game_from_doc(app_state, doc),
+            name=f"load-game-{game_id}",
+        )
+        app_state.game_load_tasks[game_id] = load_task
+
+        def remove_completed_load_task(done: asyncio.Task[Game | GameBug | None]) -> None:
+            if app_state.game_load_tasks.get(game_id) is done:
+                app_state.game_load_tasks.pop(game_id, None)
+
+        load_task.add_done_callback(remove_completed_load_task)
+
+    game = await asyncio.shield(load_task)
+    if game is None:
+        return None
+
+    if game.status > STARTED and cache_finished:
+        cached_game = app_state.games.setdefault(game_id, game)
+        if cached_game is game:
+            app_state.schedule_game_cache_removal(game)
+        return cached_game
+
+    return game
+
+
+async def _load_game_from_doc(
+    app_state: PychessGlobalAppState,
+    doc: GameDocument,
+) -> Game | GameBug | None:
+    """Construct a game once; callers apply their finished-game cache policy."""
+    game_id = doc["_id"]
 
     if doc.get("vini") and doc["v"] not in C2V:
         from catalogued_variants import ensure_catalogued_variant_from_game_doc
@@ -204,7 +241,7 @@ async def load_game_from_doc(
     if doc["v"] in TWO_BOARD_VARIANT_CODES:
         from bug.utils_bug import load_game_bug_from_doc
 
-        return await load_game_bug_from_doc(app_state, doc, cache_finished=cache_finished)
+        return await load_game_bug_from_doc(app_state, doc, cache_finished=False)
 
     # log.debug("load_game() parse START")
     wp, bp = doc["us"]
@@ -343,7 +380,7 @@ async def load_game_from_doc(
     game.date = doc["d"]
     game.last_move_time = doc.get("l")
     if game.date.tzinfo is None:
-        game.date = game.date.replace(tzinfo=timezone.utc)
+        game.date = game.date.replace(tzinfo=UTC)
     game.status = doc["s"]
     game.level = level if level is not None else 0
     game.result = C2R[doc["r"]]
@@ -415,12 +452,10 @@ async def load_game_from_doc(
             crosstable: Crosstable = crosstable_doc
             game.crosstable = crosstable
 
-    game.loaded_at = datetime.now(timezone.utc)
+    game.loaded_at = datetime.now(UTC)
 
-    if game.status <= STARTED or cache_finished:
+    if game.status <= STARTED:
         app_state.games[game_id] = game
-        if game.status > STARTED:
-            app_state.schedule_game_cache_removal(game)
 
     # log.debug("load_game() parse DONE")
     return game
@@ -474,10 +509,10 @@ async def import_game(request):
         date_tag = data.get("Date", "")
         date = date_tag[0:10]
         date = map(int, date.split("." if "." in date else "/"))
-        date = datetime(*date, tzinfo=timezone.utc)
+        date = datetime(*date, tzinfo=UTC)
     except Exception:
         log.debug("Date tag parsing failed. %s", date_tag)
-        date = datetime.now(timezone.utc)
+        date = datetime.now(UTC)
 
     try:
         minute = False
@@ -1037,6 +1072,29 @@ async def play_move(
 
         try:
             await game.play_move(move, clocks, ply)
+        except StaleMovePersistenceError:
+            log.warning(
+                "Rejecting stale move after persistence conflict in %s by %s (move=%s)",
+                gameId,
+                user.username,
+                move,
+            )
+            cached_game = app_state.games.get(gameId)
+            if cached_game is game:
+                app_state.games.pop(gameId, None)
+                await game.cancel_clocks_for_eviction()
+                cached_game = None
+
+            authoritative_game = (
+                cached_game if isinstance(cached_game, Game) else await load_game(app_state, gameId)
+            )
+            if not isinstance(authoritative_game, Game):
+                log.error("Unable to reload %s after a persistence conflict", gameId)
+                return
+
+            game = authoritative_game
+            await send_human_resync("stale-persistence")
+            return
         except SystemError:
             invalid_move = True
             log.exception(
@@ -1163,7 +1221,7 @@ def pgn(doc):
         # Export helpers may run outside normal startup caches. Load the inline
         # rules saved with the game so the move decoder and FSF replay can work.
         class _NoState:
-            catalogued_variants: dict = {}
+            catalogued_variants: ClassVar[dict] = {}
 
         from catalogued_variants import ensure_catalogued_variant_from_game_doc
 
@@ -1179,19 +1237,18 @@ def pgn(doc):
     initial_fen = doc.get("if")
     usi_format = variant.endswith("shogi") and doc.get("uci") is None
 
-    if usi_format:
-        # wplayer, bplayer = bplayer, wplayer
-        if initial_fen:
-            # print("load_game() USI SFEN was:", initial_fen)
-            parts = initial_fen.split()
-            if len(parts) > 3 and parts[1] in "wb":
-                pockets = "[%s]" % parts[2] if parts[2] not in "-0" else ""
-                initial_fen = (
-                    parts[0] + pockets + (" w" if parts[1] == "b" else " b") + " 0 " + parts[3]
-                )
-            else:
-                initial_fen = parts[0] + (" w" if parts[1] == "b" else " b") + " 0"
-            # print("   changed to:", initial_fen)
+    # wplayer, bplayer = bplayer, wplayer
+    if usi_format and initial_fen:
+        # print("load_game() USI SFEN was:", initial_fen)
+        parts = initial_fen.split()
+        if len(parts) > 3 and parts[1] in "wb":
+            pockets = "[%s]" % parts[2] if parts[2] not in "-0" else ""
+            initial_fen = (
+                parts[0] + pockets + (" w" if parts[1] == "b" else " b") + " 0 " + parts[3]
+            )
+        else:
+            initial_fen = parts[0] + (" w" if parts[1] == "b" else " b") + " 0"
+        # print("   changed to:", initial_fen)
 
     if usi_format and variant in ("shogi", "shoshogi"):
         mirror = mirror9
@@ -1383,18 +1440,23 @@ def sanitize_fen(variant, initial_fen, chess960, base=False):
         non_piece = "0123456789*-"
     else:
         non_piece = "~+0123456789[]-"
-    invalid1 = any((c not in start[0] + non_piece for c in init[0]))
+    invalid1 = any(c not in start[0] + non_piece for c in init[0])
 
     # Required number of rows
     invalid2 = start[0].count("/") != init[0].count("/")
 
     # Accept zh FEN in lichess format (they use / instead if [] for pockets)
-    if invalid2 and variant == "crazyhouse":
-        if (init[0].count("/") == 8) and ("[" not in init[0]) and ("]" not in init[0]):
-            k = init[0].rfind("/")
-            init[0] = init[0][:k] + "[" + init[0][k + 1 :] + "]"
-            sanitized_fen = " ".join(init)
-            invalid2 = False
+    if (
+        invalid2
+        and variant == "crazyhouse"
+        and (init[0].count("/") == 8)
+        and ("[" not in init[0])
+        and ("]" not in init[0])
+    ):
+        k = init[0].rfind("/")
+        init[0] = init[0][:k] + "[" + init[0][k + 1 :] + "]"
+        sanitized_fen = " ".join(init)
+        invalid2 = False
 
     # Allowed starting colors
     invalid3 = len(init) > 1 and init[1] not in "bw"
@@ -1407,18 +1469,18 @@ def sanitize_fen(variant, initial_fen, chess960, base=False):
     invalid4 = False
     if len(init) > 2:
         if variant in ("seirawan", "shouse"):
-            invalid4 = any((c not in "KQABCDEFGHkqabcdefgh-" for c in init[2]))
+            invalid4 = any(c not in "KQABCDEFGHkqabcdefgh-" for c in init[2])
         elif chess960:
-            if all((c in "KQkq-" for c in init[2])):
+            if all(c in "KQkq-" for c in init[2]):
                 chess960 = False
             else:
-                invalid4 = any((c not in "ABCDEFGHIJabcdefghij-" for c in init[2]))
+                invalid4 = any(c not in "ABCDEFGHIJabcdefghij-" for c in init[2])
         elif variant[-5:] != "shogi" and variant not in (
             "dobutsu",
             "gorogoro",
             "gorogoroplus",
         ):
-            invalid4 = any((c not in start[2] + "-" for c in init[2]))
+            invalid4 = any(c not in start[2] + "-" for c in init[2])
 
         # Castling right need rooks and king placed in starting square
         if (
@@ -1525,7 +1587,7 @@ async def get_blogs(request, tag=None, limit=0):
     session = await aiohttp_session.get_session(request)
     session_user = session.get("user_name")
     user = await app_state.users.get(session_user) if session_user else None
-    game_category = user.game_category if user is not None else session.get("game_category", "all")
+    game_category = effective_game_category(session, user)
 
     async def enrich_author_titles(blogs: list[dict]) -> list[dict]:
         titles = await app_state.public_users.get_titles(
@@ -1649,7 +1711,7 @@ async def notification_items_for_user(app_state, user: User, page_num: int = 0):
         if not opp:
             continue
         last_msg = doc.get("lastMsg", {}) or {}
-        created_at = last_msg.get("createdAt") or doc.get("updatedAt") or datetime.now(timezone.utc)
+        created_at = last_msg.get("createdAt") or doc.get("updatedAt") or datetime.now(UTC)
         inbox_notifications.append(
             {
                 "type": "inboxMsg",
@@ -1687,28 +1749,22 @@ async def subscribe_notify(request):
         return json_response({})
 
     user = await app_state.users.get(session_user)
-    queue = asyncio.Queue()
+    queue: asyncio.Queue[str] = asyncio.Queue(maxsize=SSE_SNAPSHOT_QUEUE_MAXSIZE)
     user.notify_channels.add(queue)
     response: web.StreamResponse = web.Response(status=200)
     try:
         async with sse_response(request) as response:
-            while response.is_connected():
-                try:
-                    payload = await asyncio.wait_for(queue.get(), timeout=SSE_GET_TIMEOUT)
-                    await response.send(payload)
-                    queue.task_done()
-                except asyncio.TimeoutError:
-                    if not response.is_connected():
-                        break
+            await consume_sse_queue(response, queue)
     except Exception:
         pass
     finally:
         user.notify_channels.discard(queue)
+        queue.shutdown(immediate=True)
     return response
 
 
 def corr_games(games):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return [
         {
             "gameId": game.id,

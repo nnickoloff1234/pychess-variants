@@ -1,12 +1,14 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Iterable, Mapping
+
 import asyncio
+from collections.abc import Mapping
+from typing import TYPE_CHECKING
 
 from json_utils import json_dumps
 
 if TYPE_CHECKING:
-    from game import Game
     from bug.game_bug import GameBug
+    from game import Game
     from pychess_global_app_state import PychessGlobalAppState
 import logging
 
@@ -25,7 +27,7 @@ async def round_broadcast(
     game: Game | GameBug,
     response: Mapping[str, object],
     full: bool = False,
-    channels: Iterable[asyncio.Queue[str]] | None = None,
+    channels: set[asyncio.Queue[str]] | None = None,
 ) -> None:
     # Snapshot live collections because awaits below let other tasks add/remove
     # spectators/channels while we're broadcasting.
@@ -56,4 +58,16 @@ async def round_broadcast(
     for player in players:
         await player.send_game_message_str(game.id, payload)
     for queue in ch:
-        await queue.put(payload)
+        try:
+            queue.put_nowait(payload)
+        except asyncio.QueueFull:
+            log.warning(
+                "Dropping slow /api/ongoing subscriber with %d queued messages",
+                queue.qsize(),
+            )
+            queue.shutdown(immediate=True)
+            if channels is not None:
+                channels.discard(queue)
+        except asyncio.QueueShutDown:
+            if channels is not None:
+                channels.discard(queue)

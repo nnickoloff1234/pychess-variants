@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logger
 import argparse
 import asyncio
 import faulthandler
@@ -8,18 +7,16 @@ import logging
 import os
 from urllib.parse import urlparse
 
-from aiohttp import web
-from aiohttp.web_app import Application
-from aiohttp_session import SimpleCookieStorage
-from aiohttp_session.cookie_storage import EncryptedCookieStorage
 import aiohttp_cors
 import aiohttp_jinja2
 import aiohttp_session
 import jinja2
-
-from pymongo import AsyncMongoClient
+import logger
+from aiohttp import web
+from aiohttp.web_app import Application
+from aiohttp_session import SimpleCookieStorage
+from aiohttp_session.cookie_storage import EncryptedCookieStorage
 from aiohttp_swagger3 import SwaggerDocs, SwaggerInfo
-
 from db_wrapper import AsyncDBWrapper
 from middlewares import (
     cross_origin_policy_middleware,
@@ -30,24 +27,24 @@ from middlewares import (
 )
 from pychess_global_app_state import PychessGlobalAppState
 from pychess_global_app_state_utils import get_app_state
+from pymongo import AsyncMongoClient
 from request_protection import RequestProtectionState, request_protection_middleware
-from startup_timer import StartupTimer
-
-from typedefs import (
-    client_key,
-    anon_as_test_users_key,
-    pychess_global_app_state_key,
-    db_key,
-    request_protection_state_key,
-)
 from routes import get_routes, post_routes
 from settings import (
     ALLOWED_ORIGINS,
     MAX_AGE,
-    SECRET_KEY,
-    MONGO_HOST,
     MONGO_DB_NAME,
+    MONGO_HOST,
+    SECRET_KEY,
     URI,
+)
+from startup_timer import StartupTimer
+from typedefs import (
+    anon_as_test_users_key,
+    client_key,
+    db_key,
+    pychess_global_app_state_key,
+    request_protection_state_key,
 )
 
 log = logging.getLogger(__name__)
@@ -73,16 +70,15 @@ def make_app(
         )
 
         app.middlewares.append(redirect_to_https)
-        app[request_protection_state_key] = RequestProtectionState()
-        app.middlewares.append(request_protection_middleware)
-        app.middlewares.append(request_timing_middleware)
-        app.middlewares.append(cross_origin_policy_middleware)
 
         app[anon_as_test_users_key] = anon_as_test_users
 
         parts = urlparse(URI)
         is_secure = parts.scheme == "https"
 
+        # Install session handling before request protection so the protection
+        # middleware can distinguish authenticated users from anonymous
+        # profile crawlers without creating any application-level guest state.
         aiohttp_session.setup(
             app,
             (
@@ -97,6 +93,10 @@ def make_app(
             ),
         )
 
+        app[request_protection_state_key] = RequestProtectionState()
+        app.middlewares.append(request_protection_middleware)
+        app.middlewares.append(request_timing_middleware)
+        app.middlewares.append(cross_origin_policy_middleware)
         app.middlewares.append(set_user_locale)
 
         aiohttp_jinja2.setup(
@@ -270,5 +270,5 @@ if __name__ == "__main__":
     web.run_app(
         app,
         access_log=None,
-        port=int(os.environ.get("PORT", 8080)),
+        port=int(os.environ.get("PORT", "8080")),
     )

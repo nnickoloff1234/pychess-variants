@@ -1,22 +1,24 @@
 from __future__ import annotations
-import random
+
 import logging
-from datetime import datetime, timezone
+import random
+from datetime import UTC, datetime
 
 import aiohttp_session
-from pymongo.errors import DuplicateKeyError
-
-from fairy import FairyBoard
-from glicko2.glicko2 import MU, PHI, SIGMA, gl2, Rating
-from json_utils import json_response
-from pychess_global_app_state_utils import get_app_state
-from request_utils import read_post_data
 from const import (
-    GAME_CATEGORY_ALL,
-    CATEGORY_VARIANT_SETS,
     CATEGORY_VARIANT_LISTS,
-    normalize_game_category,
+    CATEGORY_VARIANT_SETS,
+    GAME_CATEGORY_ALL,
 )
+from fairy import FairyBoard
+from glicko2.glicko2 import MU, PHI, SIGMA, Rating, gl2
+from json_utils import json_response
+from preferences import effective_game_category, effective_theme
+from pychess_global_app_state_utils import get_app_state
+from pymongo.errors import DuplicateKeyError
+from request_protection import enforce_new_anonymous_identity_limit
+from request_utils import read_post_data
+from typedefs import REQUEST_NEW_SESSION_KEY
 from variants import VARIANTS
 
 log = logging.getLogger(__name__)
@@ -104,6 +106,34 @@ async def _read_puzzle_post(request):
     return await read_post_data(request)
 
 
+async def _get_puzzle_session_user(request):
+    app_state = get_app_state(request.app)
+    session = await aiohttp_session.get_session(request)
+    session_user_value = session.get("user_name")
+    session_user = session_user_value if isinstance(session_user_value, str) else None
+    if session_user is not None:
+        return await app_state.users.get(session_user)
+    if app_state.disable_new_anons:
+        return None
+
+    # The puzzle page itself is stateless, but completing or voting on a
+    # puzzle is an anonymous action that needs a stable browser identity.
+    from user import User
+
+    enforce_new_anonymous_identity_limit(request)
+    user = User(
+        app_state,
+        anon=not app_state.anon_as_test_users,
+        theme=effective_theme(session, None),
+        game_category=effective_game_category(session, None),
+    )
+    app_state.users[user.username] = user
+    session["user_name"] = user.username
+    request[REQUEST_NEW_SESSION_KEY] = True
+    log.info("+++ New puzzle guest user %s connected.", user.username)
+    return user
+
+
 async def get_puzzle(request, puzzleId):
     puzzle = await get_app_state(request.app).db.puzzle.find_one({"_id": puzzleId})
     return puzzle
@@ -118,7 +148,7 @@ async def get_daily_puzzle(request):
     if "puzzle" not in db_collections:
         return empty_puzzle("chess")
 
-    today = datetime.now(timezone.utc).date().isoformat()
+    today = datetime.now(UTC).date().isoformat()
     daily_puzzle_ids = app_state.daily_puzzle_ids
     session = await aiohttp_session.get_session(request)
     session_user = session.get("user_name")
@@ -128,12 +158,7 @@ async def get_daily_puzzle(request):
         current_user = await app_state.users.get(session_user)
     else:
         current_user = None
-    game_category = (
-        current_user.game_category
-        if current_user is not None
-        else session.get("game_category", GAME_CATEGORY_ALL)
-    )
-    game_category = normalize_game_category(game_category)
+    game_category = effective_game_category(session, current_user)
     key = daily_puzzle_key(today, game_category)
 
     if key in daily_puzzle_ids:
@@ -190,7 +215,13 @@ async def get_daily_puzzle(request):
     return puzzle
 
 
-async def next_puzzle(request, user):
+async def next_puzzle(
+    request,
+    user,
+    *,
+    puzzle_variant: str | None = None,
+    use_user_variant: bool = True,
+):
     app_state = get_app_state(request.app)
     skipped = list(user.puzzles.keys())
     filters = [
@@ -198,14 +229,19 @@ async def next_puzzle(request, user):
         {"c": {"$ne": True}},
         {"r": {"$ne": False}},
     ]
-    if user.puzzle_variant is not None:
-        variant = user.puzzle_variant
-        filters.append({"v": variant})
-    elif user.game_category != GAME_CATEGORY_ALL:
-        variant = user.category_variant_list[0] if user.category_variant_list else "chess"
+    selected_variant = user.puzzle_variant if use_user_variant else puzzle_variant
+    if selected_variant is not None:
+        variant = selected_variant
         filters.append({"v": variant})
     else:
-        variant = "chess"
+        session = await aiohttp_session.get_session(request)
+        game_category = effective_game_category(session, user)
+        if game_category != GAME_CATEGORY_ALL:
+            category_variants = CATEGORY_VARIANT_LISTS[game_category]
+            variant = category_variants[0] if category_variants else "chess"
+            filters.append({"v": variant})
+        else:
+            variant = "chess"
 
     puzzle = None
 
@@ -250,13 +286,9 @@ async def puzzle_complete(request):
 
     await puzzle.set_played()
 
-    # Who made the request?
-    session = await aiohttp_session.get_session(request)
-    session_user = session.get("user_name")
-    if session_user is None:
+    user = await _get_puzzle_session_user(request)
+    if user is None:
         return json_response({})
-
-    user = await app_state.users.get(session_user)
 
     if puzzleId in user.puzzles:
         return json_response({})
@@ -297,13 +329,9 @@ async def puzzle_vote(request):
     good = post_data["vote"] == "true"
     up_or_down = "u" if good else "d"
 
-    # Who made the request?
-    session = await aiohttp_session.get_session(request)
-    session_user = session.get("user_name")
-    if session_user is None:
+    user = await _get_puzzle_session_user(request)
+    if user is None:
         return json_response({})
-
-    user = await app_state.users.get(session_user)
 
     if user.puzzles.get(puzzleId):
         return json_response({})
@@ -341,7 +369,7 @@ async def update_puzzle_ratings(
 def default_puzzle_perf(puzzle_eval):
     perf = {
         "gl": {"r": float(MU), "d": float(PHI), "v": float(SIGMA)},
-        "la": datetime.now(timezone.utc),
+        "la": datetime.now(UTC),
         "nb": 0,
     }
     if len(puzzle_eval) > 1 and puzzle_eval[0] == "#":
@@ -363,7 +391,7 @@ class Puzzle:
 
     async def set_puzzle_rating(self, _variant: str, _chess960: bool, rating: Rating):
         gl = {"r": rating.mu, "d": rating.phi, "v": rating.sigma}
-        la = datetime.now(timezone.utc)
+        la = datetime.now(UTC)
         nb = self.perf.get("nb", 0)
         self.perf = {
             "gl": gl,

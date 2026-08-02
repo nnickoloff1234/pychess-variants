@@ -1,8 +1,9 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from const import NOTIFY_PAGE_SIZE, NOTIFY_EXPIRE_WEEKS
+from const import NOTIFY_EXPIRE_WEEKS, NOTIFY_PAGE_SIZE
 from json_utils import json_dumps
 from newid import new_id
+from sse_utils import enqueue_sse_payload
 from typing_defs import NotificationContent, NotificationDocument
 
 NOTIFICATION_CACHE_LIMIT = 100
@@ -12,7 +13,7 @@ async def _notification_document(
     db, username: str, notif_type: str, content: NotificationContent
 ) -> NotificationDocument:
     _id = await new_id(None if db is None else db.notify)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return {
         "_id": _id,
         "notifies": username,
@@ -39,7 +40,11 @@ async def notify(db, user, notif_type: str, content: NotificationContent) -> Non
         del user.notifications[:-NOTIFICATION_CACHE_LIMIT]
 
     for queue in tuple(user.notify_channels):
-        await queue.put(json_dumps(user.notifications[-NOTIFY_PAGE_SIZE:]))
+        enqueue_sse_payload(
+            queue,
+            json_dumps(user.notifications[-NOTIFY_PAGE_SIZE:]),
+            replace_pending=True,
+        )
 
     if db is not None:
         await db.notify.insert_one(document)

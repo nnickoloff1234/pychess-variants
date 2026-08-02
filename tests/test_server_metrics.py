@@ -1,17 +1,17 @@
-# -*- coding: utf-8 -*-
-
-from datetime import datetime, timedelta, timezone
+import asyncio
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 import test_logger
 from aiohttp.test_utils import AioHTTPTestCase
-from mongomock_motor import AsyncMongoMockClient
-
-from pychess_global_app_state_utils import get_app_state
-from server import make_app
-from user import User
 from fairy.fairy_board import FOG_FEN_CACHE_SIZE
+from mongomock_motor import AsyncMongoMockClient
+from pychess_global_app_state_utils import get_app_state
+from server_metrics import memory_stats
 from tournament.tournament import PLAYER_JSON_CACHE_SIZE
+from user import User
+
+from server import make_app
 
 test_logger.init_test_logger()
 
@@ -54,20 +54,69 @@ class ServerMetricsDiagnosticsTestCase(AioHTTPTestCase):
         state = payload["state"]
         self.assertGreater(state["active_tasks"], 0)
         self.assertGreaterEqual(state["pyffish_variants"], state["catalogued_variants"])
+        self.assertGreaterEqual(state["tournaments"], state["finished_tournaments"])
+        self.assertGreaterEqual(
+            state["tournament_user_references"],
+            state["finished_tournament_user_references"],
+        )
+        self.assertGreaterEqual(state["tournament_active_sockets"], 0)
         self.assertEqual(state["catalogued_ini_bytes"], 3)
         self.assertEqual(state["catalogued_piece_svg_bytes"], 5)
         self.assertEqual(state["catalogued_board_svg_bytes"], 5)
         self.assertEqual(state["catalogued_payload_bytes"], 13)
 
+        queue = asyncio.Queue[str](maxsize=2)
+        queue.put_nowait("first")
+        queue.put_nowait("second")
+        app_state.game_channels.add(queue)
+        response = await self.client.get(
+            "/metrics?summary=True",
+            headers={"Authorization": "Bearer test"},
+        )
+        streams = (await response.json())["streams"]
+        self.assertEqual(streams["game_sse"], 1)
+        self.assertEqual(streams["game_sse_queued_messages"], 2)
+        self.assertEqual(streams["game_sse_max_queue"], 2)
+        self.assertEqual(streams["game_sse_full_queues"], 1)
+        self.assertEqual(streams["sse_queued_messages"], 2)
+        self.assertEqual(streams["sse_max_queue"], 2)
+        self.assertEqual(streams["sse_full_queues"], 1)
+        self.assertGreaterEqual(streams["bot_event_queued_messages"], 0)
+        self.assertGreaterEqual(streams["bot_game_queued_messages"], 0)
+        self.assertGreaterEqual(streams["bot_max_queue"], 0)
+
+    async def test_full_queue_diagnostics_do_not_serialize_payloads(self):
+        queue = asyncio.Queue[str](maxsize=4)
+        queue.put_nowait("sensitive-payload")
+
+        with patch("server_metrics.gc.get_objects", return_value=[queue]):
+            _stats, _tasks, queues, _counts = memory_stats()
+
+        self.assertEqual(
+            queues,
+            [
+                {
+                    "id": id(queue),
+                    "name": "Queue",
+                    "size": 1,
+                    "maxsize": 4,
+                    "full": False,
+                    "file": "-",
+                    "source": "-",
+                }
+            ],
+        )
+        self.assertNotIn("sensitive-payload", str(queues))
+
     async def test_metrics_anon_summary_has_bucket_and_detached_diagnostics(self):
         app_state = get_app_state(self.app)
 
         anon_recent = User(app_state, anon=True)
-        anon_recent.last_seen = datetime.now(timezone.utc) - timedelta(minutes=5)
+        anon_recent.last_seen = datetime.now(UTC) - timedelta(minutes=5)
         app_state.users[anon_recent.username] = anon_recent
 
         anon_mid = User(app_state, anon=True)
-        anon_mid.last_seen = datetime.now(timezone.utc) - timedelta(minutes=30)
+        anon_mid.last_seen = datetime.now(UTC) - timedelta(minutes=30)
         app_state.users[anon_mid.username] = anon_mid
 
         anon_default = User(app_state, anon=True)
@@ -145,6 +194,8 @@ class ServerMetricsDiagnosticsTestCase(AioHTTPTestCase):
 
         state = payload["object_details"]["state"][0]
         for key in (
+            "user_perf_entries",
+            "user_puzzle_perf_entries",
             "tournaments",
             "simuls",
             "catalogued_variants",
@@ -185,6 +236,16 @@ class ServerMetricsDiagnosticsTestCase(AioHTTPTestCase):
             "inbox_sse",
             "challenge_sse",
             "active_bot_game_streams",
+            "sse_queued_messages",
+            "sse_max_queue",
+            "sse_full_queues",
+            "invite_sse_queued_messages",
+            "notify_sse_queued_messages",
+            "inbox_sse_queued_messages",
+            "challenge_sse_queued_messages",
+            "bot_event_queued_messages",
+            "bot_game_queued_messages",
+            "bot_max_queue",
         ):
             self.assertIn(key, streams)
 

@@ -1,15 +1,16 @@
 import unittest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
+from typing import ClassVar
 
 import test_logger
 from aiohttp.test_utils import AioHTTPTestCase
-from mongomock_motor import AsyncMongoMockClient
-
 from const import STARTED
+from mongomock_motor import AsyncMongoMockClient
 from pychess_global_app_state_utils import get_app_state
-from server import make_app
 from views import add_game_context
+
+from server import make_app
 
 test_logger.init_test_logger()
 
@@ -45,7 +46,7 @@ class BughouseContextTestCase(unittest.TestCase):
             byoyomi_period = 0
             result = "*"
             status = STARTED + 1
-            date = datetime(2026, 3, 19, tzinfo=timezone.utc)
+            date = datetime(2026, 3, 19, tzinfo=UTC)
             browser_title = "Bughouse"
             ply = 4
             initial_fen = "start-a | start-b"
@@ -89,8 +90,8 @@ class GamesApiBughousePreviewTestCase(AioHTTPTestCase):
             preview_fen = "fen-a"
             wplayer = SimpleNamespace(username="whiteA", title="")
             bplayer = SimpleNamespace(username="blackA", title="")
-            spectators: set[object] = set()
-            non_bot_players: list[object] = []
+            spectators: ClassVar[set[object]] = set()
+            non_bot_players: ClassVar[list[object]] = []
 
             @property
             def board(self) -> object:

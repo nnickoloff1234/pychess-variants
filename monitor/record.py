@@ -2,20 +2,19 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from collections.abc import Mapping, Sequence
-from datetime import datetime, timezone
 import json
 import os
-from pathlib import Path
 import tempfile
 import time
+from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 import aiohttp
 
 from monitor.metrics_client import fetch_metrics, metrics_url, monitor_token
-
 
 DEFAULT_INTERVAL_SECONDS = 600.0
 DEFAULT_SAMPLES = 7
@@ -28,14 +27,33 @@ SUMMARY_KEYS = (
     "peak_rss_mib",
     "allocated_blocks",
     "users",
+    "user_perf_entries",
+    "user_puzzle_perf_entries",
     "registered_total",
     "registered_cache_only",
     "registered_cache_evictions",
     "anon_total",
     "games",
+    "tournaments",
+    "finished_tournaments",
+    "tournament_remove_tasks",
+    "tournament_user_references",
+    "finished_tournament_user_references",
+    "tournaments_with_active_sockets",
+    "tournament_active_sockets",
     "tasks",
     "queues",
     "streams",
+    "game_sse",
+    "game_sse_queued_messages",
+    "game_sse_max_queue",
+    "game_sse_full_queues",
+    "sse_queued_messages",
+    "sse_max_queue",
+    "sse_full_queues",
+    "bot_event_queued_messages",
+    "bot_game_queued_messages",
+    "bot_max_queue",
     "catalogued_variants",
     "pyffish_variants",
     "catalogued_payload_bytes",
@@ -106,11 +124,22 @@ def summarize_metrics(metrics: Mapping[str, Any]) -> dict[str, int | float]:
         "peak_rss_mib": _number(process, "peak_rss_mib"),
         "allocated_blocks": _number(process, "allocated_blocks"),
         "users": _number(state, "users"),
+        "user_perf_entries": _number(state, "user_perf_entries"),
+        "user_puzzle_perf_entries": _number(state, "user_puzzle_perf_entries"),
         "registered_total": _number(registered, "registered_total"),
         "registered_cache_only": _number(registered, "registered_cache_only"),
         "registered_cache_evictions": _number(registered, "registered_cache_evictions"),
         "anon_total": _number(anon, "anon_total"),
         "games": _number(state, "games"),
+        "tournaments": _number(state, "tournaments"),
+        "finished_tournaments": _number(state, "finished_tournaments"),
+        "tournament_remove_tasks": _number(state, "tournament_remove_tasks"),
+        "tournament_user_references": _number(state, "tournament_user_references"),
+        "finished_tournament_user_references": _number(
+            state, "finished_tournament_user_references"
+        ),
+        "tournaments_with_active_sockets": _number(state, "tournaments_with_active_sockets"),
+        "tournament_active_sockets": _number(state, "tournament_active_sockets"),
         "tasks": tasks,
         "queues": queues,
         "streams": sum(
@@ -128,6 +157,16 @@ def summarize_metrics(metrics: Mapping[str, Any]) -> dict[str, int | float]:
                 "active_bot_game_streams",
             )
         ),
+        "game_sse": _number(streams, "game_sse"),
+        "game_sse_queued_messages": _number(streams, "game_sse_queued_messages"),
+        "game_sse_max_queue": _number(streams, "game_sse_max_queue"),
+        "game_sse_full_queues": _number(streams, "game_sse_full_queues"),
+        "sse_queued_messages": _number(streams, "sse_queued_messages"),
+        "sse_max_queue": _number(streams, "sse_max_queue"),
+        "sse_full_queues": _number(streams, "sse_full_queues"),
+        "bot_event_queued_messages": _number(streams, "bot_event_queued_messages"),
+        "bot_game_queued_messages": _number(streams, "bot_game_queued_messages"),
+        "bot_max_queue": _number(streams, "bot_max_queue"),
         "catalogued_variants": _number(state, "catalogued_variants"),
         "pyffish_variants": _number(state, "pyffish_variants"),
         "catalogued_payload_bytes": _number(state, "catalogued_payload_bytes"),
@@ -175,7 +214,12 @@ def _format_summary(sample: int, summary: Mapping[str, int | float]) -> str:
         f"sample={sample} total={summary['rss_plus_swap_mib']:.2f} MiB "
         f"rss={summary['rss_mib']:.2f} MiB swap={summary['swap_mib']:.2f} MiB "
         f"users={summary['users']} cache_only={summary['registered_cache_only']} "
-        f"games={summary['games']} tasks={summary['tasks']} streams={summary['streams']}"
+        f"ratings={summary['user_perf_entries']}+{summary['user_puzzle_perf_entries']} "
+        f"games={summary['games']} tasks={summary['tasks']} streams={summary['streams']} "
+        f"game_sse={summary['game_sse']} "
+        f"sse_backlog={summary['sse_queued_messages']} "
+        f"sse_max={summary['sse_max_queue']} "
+        f"bot_backlog={summary['bot_event_queued_messages'] + summary['bot_game_queued_messages']}"
     )
 
 
@@ -210,7 +254,7 @@ async def record_metrics(
                 if delay > 0:
                     await asyncio.sleep(delay)
 
-                captured_at = datetime.now(timezone.utc).isoformat()
+                captured_at = datetime.now(UTC).isoformat()
                 request_started = time.monotonic()
                 try:
                     metrics = await fetch_metrics(
@@ -231,7 +275,7 @@ async def record_metrics(
                     first_summary = first_summary or summary
                     last_summary = summary
                     print(_format_summary(sample, summary), flush=True)
-                except (aiohttp.ClientError, asyncio.TimeoutError, TypeError, ValueError) as exc:
+                except (TimeoutError, aiohttp.ClientError, TypeError, ValueError) as exc:
                     record = {
                         "captured_at": captured_at,
                         "elapsed_seconds": round(time.monotonic() - started, 3),

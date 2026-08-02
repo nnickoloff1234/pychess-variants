@@ -1,15 +1,15 @@
 import unittest
 from types import SimpleNamespace
+from typing import ClassVar
 from unittest.mock import AsyncMock, patch
 
 import test_logger
-
 from aiohttp.test_utils import AioHTTPTestCase
-from mongomock_motor import AsyncMongoMockClient
-
 from compress import encode_move_standard
-from server import make_app
+from mongomock_motor import AsyncMongoMockClient
 from utils import _encode_import_moves
+
+from server import make_app
 
 test_logger.init_test_logger()
 
@@ -52,7 +52,7 @@ class ImportGameCleanupTestCase(AioHTTPTestCase):
 
     async def test_import_game_cancels_temporary_clock(self):
         class DummyGame:
-            instances = []
+            instances: ClassVar[list[object]] = []
 
             def __init__(
                 self,

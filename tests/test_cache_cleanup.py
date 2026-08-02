@@ -1,32 +1,33 @@
-# -*- coding: utf-8 -*-
-
 import asyncio
 import unittest
 from contextlib import suppress
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from time import monotonic
+from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import patch
 
+import ai
+import pychess_global_app_state
 import test_logger
-from aiohttp.test_utils import AioHTTPTestCase
-from mongomock_motor import AsyncMongoMockClient
-
+import user as user_module
+import utils
 from ai import bot_game_tasks
+from aiohttp.test_utils import AioHTTPTestCase
 from clock import BOT_FIRST_MOVE_TIMEOUT, Clock, CorrClock
 from compress import R2C
-from const import ABORTED, CASUAL
+from const import ABORTED, CASUAL, T_FINISHED
 from fairy import FairyBoard
 from game import Game
+from mongomock_motor import AsyncMongoMockClient
 from pychess_global_app_state_utils import get_app_state
-from server import make_app
 from seek import Seek
 from user import User
-from utils import load_game
+from utils import load_game, load_game_from_doc
 from variants import get_server_variant
 from wsr import finally_logic
-import pychess_global_app_state
-import ai
-import user as user_module
+
+from server import make_app
 
 test_logger.init_test_logger()
 
@@ -70,7 +71,7 @@ class CacheCleanupTestCase(AioHTTPTestCase):
             "i": 0,
             "bp": 0,
             "m": [],
-            "d": datetime.now(timezone.utc),
+            "d": datetime.now(UTC),
             "f": FairyBoard.start_fen("chess"),
             "s": ABORTED,
             "r": R2C["*"],
@@ -87,6 +88,54 @@ class CacheCleanupTestCase(AioHTTPTestCase):
         self.assertIsNone(game.stopwatch.clock_task)
         self.assertIsNone(game.wplayer.game_in_progress)
         self.assertIsNone(game.bplayer.game_in_progress)
+
+    async def test_concurrent_document_loads_share_one_game_construction(self):
+        app_state = get_app_state(self.app)
+        await self._insert_user_doc("singleflight-white")
+        await self._insert_user_doc("singleflight-black")
+        doc = {
+            "_id": "singleflight-game",
+            "us": ["singleflight-white", "singleflight-black"],
+            "p0": {"e": "1500?"},
+            "p1": {"e": "1500?"},
+            "v": get_server_variant("chess", False).code,
+            "b": 1,
+            "i": 0,
+            "bp": 0,
+            "m": [],
+            "d": datetime.now(UTC),
+            "f": FairyBoard.start_fen("chess"),
+            "s": -2,
+            "r": R2C["*"],
+            "x": 0,
+            "y": int(CASUAL),
+            "z": 0,
+            "c": True,
+        }
+        real_loader = utils._load_game_from_doc
+        entered = asyncio.Event()
+        release = asyncio.Event()
+        calls = 0
+
+        async def delayed_loader(state, loaded_doc):
+            nonlocal calls
+            calls += 1
+            entered.set()
+            await release.wait()
+            return await real_loader(state, loaded_doc)
+
+        with patch("utils._load_game_from_doc", side_effect=delayed_loader):
+            first = asyncio.create_task(load_game_from_doc(app_state, doc))
+            await entered.wait()
+            second = asyncio.create_task(load_game_from_doc(app_state, doc))
+            await asyncio.sleep(0)
+            release.set()
+            first_game, second_game = await asyncio.gather(first, second)
+
+        self.assertEqual(1, calls)
+        self.assertIs(first_game, second_game)
+        self.assertIs(first_game, app_state.games[doc["_id"]])
+        self.assertNotIn(doc["_id"], app_state.game_load_tasks)
 
     async def test_load_finished_game_without_cache_skips_app_cache(self):
         app_state = get_app_state(self.app)
@@ -105,7 +154,7 @@ class CacheCleanupTestCase(AioHTTPTestCase):
             "i": 0,
             "bp": 0,
             "m": [],
-            "d": datetime.now(timezone.utc),
+            "d": datetime.now(UTC),
             "f": FairyBoard.start_fen("chess"),
             "s": ABORTED,
             "r": R2C["*"],
@@ -144,7 +193,7 @@ class CacheCleanupTestCase(AioHTTPTestCase):
             "i": 0,
             "m": [],
             "o": [],
-            "d": datetime.now(timezone.utc),
+            "d": datetime.now(UTC),
             "f": FairyBoard.start_fen("bughouse"),
             "s": ABORTED,
             "r": R2C["*"],
@@ -183,7 +232,7 @@ class CacheCleanupTestCase(AioHTTPTestCase):
             "i": 0,
             "m": [],
             "o": [],
-            "d": datetime.now(timezone.utc),
+            "d": datetime.now(UTC),
             "f": FairyBoard.start_fen("bughouse"),
             "s": ABORTED,
             "r": R2C["*"],
@@ -220,7 +269,7 @@ class CacheCleanupTestCase(AioHTTPTestCase):
             "i": 0,
             "bp": 0,
             "m": [],
-            "d": datetime.now(timezone.utc),
+            "d": datetime.now(UTC),
             "f": FairyBoard.start_fen("chess"),
             "s": ABORTED,
             "r": R2C["*"],
@@ -260,7 +309,7 @@ class CacheCleanupTestCase(AioHTTPTestCase):
             "i": 0,
             "bp": 0,
             "m": [],
-            "d": datetime.now(timezone.utc),
+            "d": datetime.now(UTC),
             "f": FairyBoard.start_fen("chess"),
             "s": ABORTED,
             "r": R2C["*"],
@@ -565,6 +614,19 @@ class CacheCleanupTestCase(AioHTTPTestCase):
         app_state.users[anon.username] = anon
         self.assertNotIn(anon.username, app_state.users.cache_access)
 
+    async def test_registered_user_cache_enumeration_does_not_refresh_access(self):
+        app_state = get_app_state(self.app)
+        await self._insert_user_doc("cache-enumerated")
+        user = await app_state.users.get("cache-enumerated")
+        app_state.users.cache_access[user.username] = 100
+
+        self.assertIn(user, list(app_state.users.values()))
+        self.assertIn((user.username, user), list(app_state.users.items()))
+        self.assertEqual(100, app_state.users.cache_access[user.username])
+
+        self.assertIs(user, app_state.users[user.username])
+        self.assertGreater(app_state.users.cache_access[user.username], 100)
+
     async def test_registered_user_cache_protects_players_in_cached_finished_game(self):
         app_state = get_app_state(self.app)
         for username in ("cache-game-white", "cache-game-black"):
@@ -605,6 +667,93 @@ class CacheCleanupTestCase(AioHTTPTestCase):
             now=1000,
         )
         self.assertCountEqual([white.username, black.username], evicted)
+
+    async def test_finished_tournament_cache_waits_for_active_socket(self):
+        app_state = get_app_state(self.app)
+        tournament_id = "finished-cache-active"
+        viewer = User(app_state, username="finished-cache-viewer")
+        app_state.users[viewer.username] = viewer
+
+        class DummySocket:
+            closed = False
+
+            async def close(self):
+                self.closed = True
+
+        socket = DummySocket()
+        tournament = SimpleNamespace(
+            id=tournament_id,
+            status=T_FINISHED,
+            clock_task=None,
+            players={viewer: object()},
+            player_keys_by_name={viewer.username: viewer},
+            bye_players=[],
+            spectators=set(),
+        )
+        before_stats = app_state.tournament_cache_stats()
+        app_state.tournaments[tournament_id] = cast(Any, tournament)
+        viewer.tournament_sockets[tournament_id] = {cast(Any, socket)}
+        app_state.tourneysockets[tournament_id] = {
+            viewer.username: viewer.tournament_sockets[tournament_id]
+        }
+
+        with patch.object(pychess_global_app_state, "LOCALHOST_CACHE_KEEP_TIME", 0.01):
+            app_state.schedule_tournament_cache_removal(cast(Any, tournament))
+            task = app_state.tournament_remove_tasks[tournament_id]
+            await asyncio.sleep(0.04)
+
+            self.assertIn(tournament_id, app_state.tournaments)
+            stats = app_state.tournament_cache_stats()
+            self.assertEqual(
+                stats["finished_tournaments"],
+                before_stats["finished_tournaments"] + 1,
+            )
+            self.assertEqual(
+                stats["finished_tournament_user_references"],
+                before_stats["finished_tournament_user_references"] + 1,
+            )
+            self.assertEqual(
+                stats["tournament_active_sockets"],
+                before_stats["tournament_active_sockets"] + 1,
+            )
+
+            socket.closed = True
+            await asyncio.wait_for(task, timeout=0.2)
+
+        self.assertNotIn(tournament_id, app_state.tournaments)
+        self.assertNotIn(tournament_id, app_state.tourneysockets)
+        self.assertNotIn(tournament_id, app_state.tournament_cache_access)
+        self.assertNotIn(tournament_id, viewer.tournament_sockets)
+
+    async def test_finished_tournament_cache_refreshes_idle_deadline(self):
+        app_state = get_app_state(self.app)
+        tournament_id = "finished-cache-refresh"
+        tournament = SimpleNamespace(
+            id=tournament_id,
+            status=T_FINISHED,
+            clock_task=None,
+            players={},
+            player_keys_by_name={},
+            bye_players=[],
+            spectators=set(),
+        )
+        app_state.tournaments[tournament_id] = cast(Any, tournament)
+        app_state.tourneysockets[tournament_id] = {}
+
+        with patch.object(pychess_global_app_state, "LOCALHOST_CACHE_KEEP_TIME", 0.05):
+            app_state.schedule_tournament_cache_removal(cast(Any, tournament))
+            task = app_state.tournament_remove_tasks[tournament_id]
+            first_access = app_state.tournament_cache_access[tournament_id]
+            await asyncio.sleep(0.03)
+
+            app_state.schedule_tournament_cache_removal(cast(Any, tournament))
+            self.assertGreater(app_state.tournament_cache_access[tournament_id], first_access)
+            await asyncio.sleep(0.03)
+            self.assertIn(tournament_id, app_state.tournaments)
+
+            await asyncio.wait_for(task, timeout=0.1)
+
+        self.assertNotIn(tournament_id, app_state.tournaments)
 
     async def test_user_remove_ignores_missing_cache_entry(self):
         app_state = get_app_state(self.app)
@@ -716,9 +865,9 @@ class CacheCleanupTestCase(AioHTTPTestCase):
             patch.object(user_module, "ANON_TIMEOUT", 123),
             patch.object(user_module, "ANON_NEVER_CONNECTED_TIMEOUT", 7),
             patch.object(user_module.asyncio, "sleep", new=fake_sleep),
+            self.assertRaises(RuntimeError),
         ):
-            with self.assertRaises(RuntimeError):
-                await anon.remove()
+            await anon.remove()
 
         self.assertEqual([123], sleeps)
         self.assertIn(anon.username, app_state.users)

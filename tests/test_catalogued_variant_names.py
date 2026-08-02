@@ -1,8 +1,7 @@
 import unittest
 
-from aiohttp import web
-
 import test_logger
+from aiohttp import web
 from catalogued_variants import (
     extract_variant_name,
     normalize_catalogued_display_name,
@@ -56,15 +55,19 @@ class CataloguedVariantNameTestCase(unittest.TestCase):
 
     def test_rejects_emoji_symbols_and_decorative_combining_marks(self) -> None:
         for display_name in ("Emoji 🎉 Chess", "Heart ♥ Chess", "C̸hess"):
-            with self.subTest(display_name=display_name):
-                with self.assertRaises(web.HTTPBadRequest):
-                    normalize_catalogued_display_name(display_name)
+            with (
+                self.subTest(display_name=display_name),
+                self.assertRaises(web.HTTPBadRequest),
+            ):
+                normalize_catalogued_display_name(display_name)
 
     def test_rejects_display_name_with_separator_at_an_edge(self) -> None:
         for display_name in ("-Chess", "Chess_", "---"):
-            with self.subTest(display_name=display_name):
-                with self.assertRaises(web.HTTPBadRequest):
-                    normalize_catalogued_display_name(display_name)
+            with (
+                self.subTest(display_name=display_name),
+                self.assertRaises(web.HTTPBadRequest),
+            ):
+                normalize_catalogued_display_name(display_name)
 
     def test_rejects_display_name_over_fifty_characters(self) -> None:
         with self.assertRaises(web.HTTPBadRequest):

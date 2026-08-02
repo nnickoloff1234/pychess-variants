@@ -1,11 +1,11 @@
 import aiohttp_jinja2
 from aiohttp import web
-
-from typing_defs import ViewContext
-from views import get_user_context
-from settings import ADMINS
 from pychess_global_app_state_utils import get_app_state
+from settings import ADMINS
+from typing_defs import ViewContext
 from variants import VARIANT_ICONS
+
+from views import get_user_context
 
 
 @aiohttp_jinja2.template("players.html")
@@ -16,9 +16,9 @@ async def players(request: web.Request) -> ViewContext:
     online_users = [
         u
         for u in app_state.users.values()
-        if u.username == user.username or (u.online and not u.anon)
+        if not u.anon and (u.username == user.username or u.online)
     ]
-    anon_online = sum((1 for u in app_state.users.values() if u.anon and u.online))
+    anon_online = sum(1 for u in app_state.users.values() if u.anon and u.online)
 
     context["icons"] = VARIANT_ICONS
     context["users"] = app_state.users
@@ -29,7 +29,7 @@ async def players(request: web.Request) -> ViewContext:
     variant = request.match_info.get("variant")
 
     if variant is None:
-        allowed_variants = user.category_variant_set
+        allowed_variants = context["category_variant_set"]
         context["highscore"] = {
             variant: dict(app_state.highscore[variant].items()[:10])
             for variant in app_state.highscore

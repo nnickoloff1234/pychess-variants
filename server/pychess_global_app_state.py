@@ -1,16 +1,20 @@
 from __future__ import annotations
 
-import os
-from datetime import timedelta, timezone, datetime, date
-from operator import neg
 import asyncio
 import collections
 import gettext
-from typing import Any, Coroutine, List, Set, TYPE_CHECKING, TypeVar
+import os
+from collections.abc import Coroutine
+from datetime import UTC, date, datetime, timedelta
+from operator import neg
+from time import monotonic
+from typing import TYPE_CHECKING, Any, TypeVar
 
+import aiohttp_jinja2
 from aiohttp import web
 from aiohttp.web_ws import WebSocketResponse
-import aiohttp_jinja2
+from pythongettext.msgfmt import Msgfmt, PoSyntaxError
+from sortedcollections import ValueSortedDict
 from tenacity import (
     AsyncRetrying,
     before_sleep_log,
@@ -18,95 +22,96 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
-from pythongettext.msgfmt import Msgfmt, PoSyntaxError
-from sortedcollections import ValueSortedDict
-
 if TYPE_CHECKING:
     from bug.game_bug import GameBug
-    from ws_types import LobbyLeaderboardEntry, TournamentWinnerEntry
     from typing_defs import TournamentCalendarEvent
+    from ws_types import LobbyLeaderboardEntry, TournamentWinnerEntry
+
+import logging
+import sys
 
 from ai import BOT_task
+from broadcast import round_broadcast
+from chat_flood import ChatFlood
+from cheat_report import CEVAL_AUTO_LOSE_CONFIG_NAME, CHEAT_REPORT_COLLECTION
 from const import (
-    NONE_USER,
+    ABORTED,
+    ARENA,
+    GAME_CATEGORIES,
+    HTTP_ANON_USER,
     LANGUAGES,
     MAX_CHAT_LINES,
     MONTHLY,
-    ARENA,
-    WEEKLY,
+    NONE_USER,
+    SCHEDULE_MAX_DAYS,
     SHIELD,
+    STARTED,
     T_CREATED,
     T_STARTED,
-    SCHEDULE_MAX_DAYS,
-    STARTED,
-    ABORTED,
-    GAME_CATEGORIES,
+    WEEKLY,
     reserved,
 )
-from broadcast import round_broadcast
 from discord_bot import DiscordBot, FakeDiscordBot
-from chat_flood import ChatFlood
-from cheat_report import CHEAT_REPORT_COLLECTION, CEVAL_AUTO_LOSE_CONFIG_NAME
 from game import Game
+from gc_telemetry import start_gc_telemetry
 from generate_crosstable import generate_crosstable
 from generate_highscore import generate_highscore
 from generate_shield import generate_shield
 from lobby import Lobby
-from logger import DEFAULT_LOGGING_CONFIG
-from tournament.scheduler import (
-    MONTHLY_VARIANTS,
-    SEATURDAY,
-    NEW_MONTHLY_VARIANTS,
-    PAUSED_MONTHLY_VARIANTS,
-    WEEKLY_VARIANTS,
-    SHIELDS,
-    new_scheduled_tournaments,
-    create_scheduled_tournaments,
-)
-from seek import Seek, should_persist_seek_on_shutdown, should_restore_persisted_seek
-from settings import (
-    FISHNET_KEYS,
-    DISCORD_TOKEN,
-    URI,
-    LOCALHOST,
-    STATIC_ROOT,
-    SOURCE_VERSION,
-    DEV,
-    static_url,
-)
-from gc_telemetry import start_gc_telemetry
 from lobby_panels_cache import (
     refresh_lobby_leaderboard_cache,
     refresh_lobby_tournament_winners_cache,
 )
+from logger import DEFAULT_LOGGING_CONFIG
 from public_users import PublicUsers
+from push_notifications import PUSH_SUBSCRIPTION_COLLECTION, PushNotifier
+from puzzle import rename_puzzle_fields
+from seek import Seek, should_persist_seek_on_shutdown, should_restore_persisted_seek
+from settings import (
+    DEV,
+    DISCORD_TOKEN,
+    FISHNET_KEYS,
+    LOCALHOST,
+    SOURCE_VERSION,
+    STATIC_ROOT,
+    URI,
+    static_url,
+)
 from simul.simul import Simul
 from simul.simuls import load_active_simuls
+from startup_timer import StartupTimer
+from tournament.scheduler import (
+    MONTHLY_VARIANTS,
+    NEW_MONTHLY_VARIANTS,
+    PAUSED_MONTHLY_VARIANTS,
+    SEATURDAY,
+    SHIELDS,
+    WEEKLY_VARIANTS,
+    create_scheduled_tournaments,
+    new_scheduled_tournaments,
+)
 from tournament.tournament import Tournament, player_json
 from tournament.tournaments import (
-    translated_tournament_name,
     get_scheduled_tournaments,
     load_tournament,
+    translated_tournament_name,
 )
-from typedefs import anon_as_test_users_key, client_key
 from twitch import Twitch
+from typedefs import anon_as_test_users_key, client_key
 from user import User
-from users import Users, NotInDbUsers
+from users import NotInDbUsers, Users
 from utils import load_game_from_doc, send_bot_game_start_unless_streaming
+from variants import RATED_VARIANTS, VARIANTS
 from videos import VIDEOS
 from youtube import Youtube
+
 from lang import LOCALE
-import logging
-import sys
-from variants import VARIANTS, RATED_VARIANTS
-from puzzle import rename_puzzle_fields
-from push_notifications import PUSH_SUBSCRIPTION_COLLECTION, PushNotifier
-from startup_timer import StartupTimer
 
 log = logging.getLogger(__name__)
 
 GAME_KEEP_TIME = 1800  # keep game in app[games_key] for GAME_KEEP_TIME secs
-TOURNAMENT_KEEP_TIME = 1800  # keep ended tournaments in cache for TOURNAMENT_KEEP_TIME secs
+TOURNAMENT_KEEP_TIME = 5 * 60  # retain an idle finished tournament after its last access
+TOURNAMENT_ACTIVE_RECHECK_INTERVAL = 60  # never evict while a viewer socket is active
 REGISTERED_USER_CACHE_TTL = 30 * 60
 REGISTERED_USER_CACHE_SWEEP_INTERVAL = 5 * 60
 T = TypeVar("T")
@@ -123,7 +128,7 @@ LOCALHOST_CACHE_KEEP_TIME = 1 if _is_test_run() else TOURNAMENT_KEEP_TIME
 
 
 class PychessGlobalAppState:
-    tourney_calendar: list["TournamentCalendarEvent"] | None
+    tourney_calendar: list[TournamentCalendarEvent] | None
 
     def __init__(self, app: web.Application):
         from typedefs import db_key
@@ -151,6 +156,7 @@ class PychessGlobalAppState:
             self.background_tasks: set[asyncio.Task[Any]] = set()
             self.game_remove_tasks: dict[str, asyncio.Task[None]] = {}
             self.tournament_remove_tasks: dict[str, asyncio.Task[None]] = {}
+            self.tournament_cache_access: dict[str, float] = {}
 
             # translated scheduled tournament names {(variant, frequency, t_type): tournament.name, ...}
             self.tourneynames: dict[str, dict] = {lang: {} for lang in LANGUAGES}
@@ -162,22 +168,26 @@ class PychessGlobalAppState:
 
             # lichess allows 7 team message per week, so we will send one (cumulative) per day only
             # TODO: save/restore from db
-            self.sent_lichess_team_msg: List[date] = []
+            self.sent_lichess_team_msg: list[date] = []
 
             self.seeks: dict[str, Seek] = {}
             self.auto_pairing_users: dict[User, tuple[int, int]] = {}
             self.auto_pairings: dict[tuple[str, bool, int, int, int], set[User]] = {}
             self.games: dict[str, Game | GameBug] = {}
+            # Concurrent HTTP/websocket loads and background correspondence restore
+            # must share one construction task. Otherwise distinct live Game objects
+            # can accept the same move with independent in-process move locks.
+            self.game_load_tasks: dict[str, asyncio.Task[Game | GameBug | None]] = {}
             self.invites: dict[str, Seek] = {}
-            self.game_channels: Set[asyncio.Queue[str]] = set()
-            self.invite_channels: dict[str, Set[asyncio.Queue[str]]] = {}
+            self.game_channels: set[asyncio.Queue[str]] = set()
+            self.invite_channels: dict[str, set[asyncio.Queue[str]]] = {}
             # Signalled by subscribe_invites() as soon as the SSE channel for a
             # given gameId is ready. challenge_accept/decline wait on this instead
             # of busy-polling invite_channels.
             self.invite_events: dict[str, asyncio.Event] = {}
             self.highscore = {variant: ValueSortedDict(neg) for variant in RATED_VARIANTS}
-            self.lobby_leaderboard: list["LobbyLeaderboardEntry"] = []
-            self.lobby_tournament_winners: list["TournamentWinnerEntry"] = []
+            self.lobby_leaderboard: list[LobbyLeaderboardEntry] = []
+            self.lobby_tournament_winners: list[TournamentWinnerEntry] = []
             self.shield = {}
             self.shield_owners = {}  # {variant: username, ...}
             self.daily_puzzle_ids = {}  # {date or date:category: puzzle._id, ...}
@@ -230,7 +240,7 @@ class PychessGlobalAppState:
             self.__start_gc_stats_logger()
 
         with startup.phase("start push notifier"):
-            self.started_at = datetime.now(timezone.utc)
+            self.started_at = datetime.now(UTC)
             self.push_notifier = PushNotifier(self)
             if self.push_notifier.enabled:
                 self.create_background_task(self.push_notifier.run(), name="push-notifier")
@@ -292,7 +302,7 @@ class PychessGlobalAppState:
                     {"$or": [{"status": T_STARTED}, {"status": T_CREATED}]}
                 )
                 cursor.sort("startsAt", -1)
-                to_date = (datetime.now(timezone.utc) + timedelta(days=SCHEDULE_MAX_DAYS)).date()
+                to_date = (datetime.now(UTC) + timedelta(days=SCHEDULE_MAX_DAYS)).date()
                 async for doc in cursor:
                     if doc["status"] == T_STARTED or (
                         doc["status"] == T_CREATED and doc["startsAt"].date() <= to_date
@@ -503,7 +513,7 @@ class PychessGlobalAppState:
             # Correspondence games can be numerous and are not latency-critical during
             # Heroku restart recovery. Load live non-correspondence games before aiohttp
             # starts accepting traffic, then restore correspondence games in the background.
-            today = datetime.now(timezone.utc)
+            today = datetime.now(UTC)
             active_game_filter = {"r": "d", "$or": [{"s": -2}, {"s": -1}]}
 
             async def restore_active_game_doc(doc, *, corr: bool) -> bool:
@@ -1001,6 +1011,9 @@ class PychessGlobalAppState:
         result["Random-Mover"] = User(self, bot=True, username="Random-Mover")
         result["Fairy-Stockfish"] = User(self, bot=True, username="Fairy-Stockfish")
         result["Discord-Relay"] = User(self, anon=True, username="Discord-Relay")
+        # Shared, stateless identity for ordinary anonymous HTTP page views.
+        # It is reserved, so User.__init__ does not create a cleanup task.
+        result[HTTP_ANON_USER] = User(self, anon=True, username=HTTP_ANON_USER)
         result["Random-Mover"].online = True
 
         # To handle old anon user sessions with names prefixed with "Anon-" (hyphen!)
@@ -1013,10 +1026,67 @@ class PychessGlobalAppState:
         await asyncio.sleep(LOCALHOST_CACHE_KEEP_TIME if URI == LOCALHOST else GAME_KEEP_TIME)
         await self._evict_game_from_cache(game)
 
+    @staticmethod
+    def _tournament_referenced_users(tournament: Tournament) -> set[User]:
+        users = set(tournament.players)
+        users.update(tournament.player_keys_by_name.values())
+        users.update(tournament.bye_players)
+        users.update(tournament.spectators)
+        return users
+
+    @staticmethod
+    def _tournament_socket_is_active(ws: WebSocketResponse | None) -> bool:
+        return ws is not None and not getattr(ws, "closed", False)
+
+    def tournament_has_active_sockets(self, tournament_id: str) -> bool:
+        central_socket_sets = self.tourneysockets.get(tournament_id, {}).values()
+        if any(
+            self._tournament_socket_is_active(ws) for ws_set in central_socket_sets for ws in ws_set
+        ):
+            return True
+
+        tournament = self.tournaments.get(tournament_id)
+        return tournament is not None and any(
+            self._tournament_socket_is_active(ws)
+            for user in self._tournament_referenced_users(tournament)
+            for ws in user.tournament_sockets.get(tournament_id, ())
+        )
+
+    def tournament_cache_stats(self) -> dict[str, int]:
+        tournament_users: set[User] = set()
+        finished_users: set[User] = set()
+        finished_tournaments = 0
+        tournaments_with_active_sockets = 0
+        active_sockets = 0
+
+        for tournament_id, tournament in self.tournaments.items():
+            referenced_users = self._tournament_referenced_users(tournament)
+            tournament_users.update(referenced_users)
+            if tournament.status > T_STARTED:
+                finished_tournaments += 1
+                finished_users.update(referenced_users)
+
+            tournament_active_sockets = sum(
+                int(self._tournament_socket_is_active(ws))
+                for ws_set in self.tourneysockets.get(tournament_id, {}).values()
+                for ws in ws_set
+            )
+            active_sockets += tournament_active_sockets
+            tournaments_with_active_sockets += int(tournament_active_sockets > 0)
+
+        return {
+            "finished_tournaments": finished_tournaments,
+            "tournament_user_references": len(tournament_users),
+            "finished_tournament_user_references": len(finished_users),
+            "tournaments_with_active_sockets": tournaments_with_active_sockets,
+            "tournament_active_sockets": active_sockets,
+        }
+
     def schedule_tournament_cache_removal(self, tournament: Tournament):
         if tournament is None or tournament.status <= T_STARTED:
             return
 
+        self.tournament_cache_access[tournament.id] = monotonic()
         task = self.tournament_remove_tasks.get(tournament.id)
         if task is not None and not task.done():
             return
@@ -1027,17 +1097,34 @@ class PychessGlobalAppState:
         )
         self.tournament_remove_tasks[tournament.id] = task
 
-        def _cleanup_task(_task, tournament_id=tournament.id):
-            self.tournament_remove_tasks.pop(tournament_id, None)
+        def _cleanup_task(done_task, tournament_id=tournament.id):
+            if self.tournament_remove_tasks.get(tournament_id) is done_task:
+                self.tournament_remove_tasks.pop(tournament_id, None)
 
         task.add_done_callback(_cleanup_task)
 
     async def remove_tournament_from_cache(self, tournament_id: str):
-        await asyncio.sleep(LOCALHOST_CACHE_KEEP_TIME if URI == LOCALHOST else TOURNAMENT_KEEP_TIME)
+        keep_time = LOCALHOST_CACHE_KEEP_TIME if URI == LOCALHOST else TOURNAMENT_KEEP_TIME
+        active_recheck = (
+            LOCALHOST_CACHE_KEEP_TIME if URI == LOCALHOST else TOURNAMENT_ACTIVE_RECHECK_INTERVAL
+        )
+        while True:
+            last_access = self.tournament_cache_access.get(tournament_id)
+            if last_access is None:
+                return
+            remaining = keep_time - (monotonic() - last_access)
+            if remaining > 0:
+                await asyncio.sleep(remaining)
+                continue
 
-        tournament = self.tournaments.get(tournament_id)
-        if tournament is None or tournament.status <= T_STARTED:
-            return
+            tournament = self.tournaments.get(tournament_id)
+            if tournament is None or tournament.status <= T_STARTED:
+                self.tournament_cache_access.pop(tournament_id, None)
+                return
+            if self.tournament_has_active_sockets(tournament_id):
+                await asyncio.sleep(active_recheck)
+                continue
+            break
 
         if tournament.clock_task is not None and not tournament.clock_task.done():
             tournament.clock_task.cancel()
@@ -1046,18 +1133,25 @@ class PychessGlobalAppState:
             except asyncio.CancelledError:
                 pass
 
+        referenced_users = self._tournament_referenced_users(tournament)
+        sockets: set[WebSocketResponse] = set()
         socket_map = self.tourneysockets.pop(tournament_id, {})
         for ws_set in socket_map.values():
-            for ws in tuple(ws_set):
-                if ws is None:
-                    continue
-                try:
-                    await ws.close()
-                except Exception:
-                    log.debug("Failed to close tournament socket for %s", tournament_id)
+            sockets.update(ws for ws in ws_set if ws is not None)
+        for user in referenced_users:
+            ws_set = user.tournament_sockets.pop(tournament_id, ())
+            sockets.update(ws for ws in ws_set if ws is not None)
+            user.update_online()
+
+        for ws in sockets:
+            try:
+                await ws.close()
+            except Exception:
+                log.debug("Failed to close tournament socket for %s", tournament_id)
 
         if tournament_id in self.tournaments:
             del self.tournaments[tournament_id]
+        self.tournament_cache_access.pop(tournament_id, None)
 
         player_json.cache_clear()
         log.debug("Removed tournament %s OK", tournament_id)
@@ -1204,10 +1298,10 @@ class PychessGlobalAppState:
                 log.debug("%s cancelled" % taskname)
 
     def online_count(self):
-        return sum((1 for user in self.users.values() if user.online))
+        return sum(1 for user in self.users.values() if user.online)
 
     def auto_pairing_count(self):
-        return sum((1 for user in self.auto_pairing_users if user.ready_for_auto_pairing))
+        return sum(1 for user in self.auto_pairing_users if user.ready_for_auto_pairing)
 
     def __str__(self):
         return self.__stringify(str)
@@ -1223,4 +1317,4 @@ class PychessGlobalAppState:
             values.append(strfunc(value))
         clsname = type(self).__name__
         variabs = ", ".join(values)
-        return "{}({})".format(clsname, variabs)
+        return f"{clsname}({variabs})"
