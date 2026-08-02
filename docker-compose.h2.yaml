@@ -1,0 +1,25 @@
+# Opt-in overlay: puts a TLS/HTTP-2 terminator in front of the dev server, so the
+# browser negotiates h2 the way it does against the Heroku deployment. Plain
+# `docker compose up` is unaffected.
+#
+#   docker compose -f docker-compose.yaml -f docker-compose.h2.yaml up -d caddy
+#   -> https://localhost:8443/   (self-signed; Chrome needs --ignore-certificate-errors)
+#
+# http://localhost:8080 keeps working alongside it, so the two transports can be
+# compared back to back.
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - 8443:8443
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - server
+
+volumes:
+  caddy_data:
+  caddy_config:

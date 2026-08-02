@@ -1,0 +1,15 @@
+# TLS terminator in front of the aiohttp dev server, so the browser talks HTTP/2
+# (Chrome only negotiates h2 over TLS). Mirrors how Heroku fronts the app in prod.
+# Uses Caddy's internal CA, so the cert is self-signed -> launch Chrome with
+# --ignore-certificate-errors when pointing it at https://localhost:8443/.
+{
+	local_certs
+	auto_https disable_redirects
+}
+
+localhost:8443 {
+	reverse_proxy server:8080 {
+		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-Host {host}
+	}
+}
