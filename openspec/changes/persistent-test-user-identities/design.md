@@ -32,9 +32,9 @@ Constraints:
 
 ### 1. Identify test users by prefix, gated on the mode
 
-At the two points that matter there is no `User` object to inspect — `Users.get()` receives only a username string — so the signal has to be the prefix. Add one helper (`is_test_username(username)` alongside `reserved()` in `const.py`) and use it in `Users`.
+At the two points that matter there is no `User` object to inspect — `Users.get()` receives only a username string — so the signal has to be the prefix. Add one method, `PychessGlobalAppState.is_test_user(username)`, and use it in `Users` and in the two game loaders.
 
-Every use is additionally gated on `app_state.anon_as_test_users`. A real account whose name began with `Test–` would otherwise be caught by the prefix branch and silently rebuilt as a guest instead of loaded from Mongo. Gating on the flag means production behaviour is unreachable from this code path, not merely unlikely.
+The flag check lives inside the method, so no call site can forget it. A real account whose name began with `Test–` would otherwise be caught by the prefix branch and silently rebuilt as a guest instead of loaded from Mongo. Gating on the flag means production behaviour is unreachable from this code path, not merely unlikely.
 
 *Alternative considered:* add an `is_test` attribute to `User`. Rejected — it does not help `get()`, which must decide before any `User` exists.
 
@@ -50,22 +50,15 @@ Both, rather than either alone, because `__setitem__` governs new entries while 
 
 *Alternative considered:* set `anon=True` for test users. Rejected, and this is the important one: `anon` is not a bookkeeping flag, it gates real capability — `is_anon_restricted_seek`, rated-game eligibility, the `anon=not app_state.anon_as_test_users` arguments in `puzzle.py` and `websocket_utils.py`. Flipping it would strip test users of exactly the abilities the mode exists to grant.
 
-### 3. Reconstruct a test user on lookup miss
+### 3. Do not reconstruct a test user on lookup miss
 
-`Users.get()` gains a branch directly beside the existing anon one:
+`Users.get()` keeps its existing behaviour for a test username that is absent from memory: fall through to `db.user`, find nothing, log `NOT IN db` and return `NONE_USER`, after which the next connection mints a fresh identity.
 
-```python
-if username.startswith(ANON_PREFIX):
-    ...                                   # existing
-if app_state.anon_as_test_users and is_test_username(username):
-    user = User(self.app_state, username=username)   # anon defaults False in this mode
-    self.app_state.users[username] = user
-    return user
-```
+Reconstructing the user from the name was implemented and then reverted. The session cookie is the only evidence that the name means anything, and the server has nothing to check it against — no db row, no in-memory entry. Accepting it makes `Users.get()` answer "who is this?" with "whoever the client claims". That is a materially different contract from the anon branch it would sit beside: an anon user carries no capability, whereas a test user is `anon=False` and may seek, play rated-path games and enter tournaments. Materialising one on the strength of a cookie alone hands those capabilities to an unverified name.
 
-placed **before** the `db.user` lookup, so a test username never reaches Mongo and never returns `NONE_USER`.
+The cost is accepted: after a restart a browser is issued a new identity, exactly as before. Decision 2 already removes the failure that actually bit mid-session — the 30-minute idle eviction — and it does so only for users the server genuinely knows about.
 
-The reconstructed user starts from defaults — no ratings, no history. That is a deliberate trade-off: it preserves *identity* (the name, hence the session, hence no category-filter modal and no confusion about which window is who) without pretending to preserve *state* that was only ever in memory. For a throwaway dev identity, the name is the part that matters.
+*Consequence for abandoned games:* while reconstruction was in place, opening an old game's URL re-attached it to the surviving identity and the lobby then prompted "You have an unfinished game!" on every visit. A guard was added to both game loaders to skip `game_in_progress` for test players, then removed along with reconstruction. Without reconstruction a browser no longer returns as a player of a pre-restart game, so the case that made it annoying is gone; a game evicted from memory and reloaded inside one process run can still re-attach to a live test user, and that is accepted as-is rather than special-cased. `utils.py` and `bug/utils_bug.py` are untouched by this change.
 
 ### 4. Readable names from the existing piece-name map
 
@@ -73,15 +66,15 @@ Replace `TEST_PREFIX + id8()` with `TEST_PREFIX + <PieceName><PieceName>` — tw
 
 This introduces **no new data**. `PIECE_OPTION_NAMES` already exists as a 38-entry `dict[str, str]` of piece labels. CamelCasing — split on any non-alphanumeric character, capitalise each word, join — makes the multi-word and hyphenated entries usable too (`shogi pawn` → `ShogiPawn`, `fers-alfil` → `FersAlfil`, `ai-wok` → `AiWok`), so nothing has to be discarded. The two spellings of `janggi elephant` collapse to one, leaving 37 distinct words. Every word is alphanumeric and starts with a letter, so no filtering for digit-initial names is needed.
 
-**Why two words.** One word gives only 37 names — too few for a machine that runs the four-window harness repeatedly, so the numeric suffix would become the norm rather than the exception, and `Test–Knight2` vs `Test–Knight3` is exactly the low-distinguishability problem this change exists to fix. Two ordered distinct words give 1332 combinations.
+**Why two words.** One word gives only 37 names — too few for a machine that runs the four-window harness repeatedly, so the numeric suffix would become the norm rather than the exception, and `Test–Knight2` vs `Test–Knight3` is exactly the low-distinguishability problem this change exists to fix. Two ordered distinct words give 1332 combinations, 1250 of them distinct after trimming.
 
-**Length cap.** `server/login.py` rejects a registered username longer than 20 characters, and `USERNAME_PREFIX_RE` in `utils.py` encodes the same bound. Generated names honour it: pairs whose total length would exceed 20 including the 5-character prefix are not offered, which leaves **824** names. Without the cap the worst case is `Test–BreakthroughPawnJanggiElephant` at 35 characters — unreadable in a player bar, which defeats the purpose. 824 is ample: collisions stay rare and the suffix stays a fallback.
+**Length cap.** `server/login.py` rejects a registered username longer than 20 characters, and `USERNAME_PREFIX_RE` in `utils.py` encodes the same bound. Generated names honour it by **trimming**: two different words are drawn and the concatenation is cut to the budget. Rejecting over-long draws and redrawing was tried first and abandoned — it needs either an unbounded retry loop whose exit is only probabilistic, or a filtered partner list, and both are more machinery than the problem deserves. Trimming is one slice, always terminates, and keeps every word in play. The worst case reads as `Test–BreakthroughPaw` rather than `Test–BreakthroughPawnJanggiElephant` at 35 characters, which would be unreadable in a player bar.
 
 The cap applies to the **final** username, suffix included. A collision suffix therefore *replaces* trailing characters of the pair rather than extending past 20: for an `N`-digit suffix the pair is truncated to `20 - len(TEST_PREFIX) - N` characters first. `Test–ArchbishopQueen` is already exactly 20, so its first collision yields `Test–ArchbishopQuee2`, not `Test–ArchbishopQueen2`. Dropping the suffix instead — the obvious reading of "cap the name at 20" — would return a name that is already taken, which is the one thing the generator must never do.
 
 Note that test usernames already fall outside `USERNAME_PREFIX_RE` regardless, because `TEST_PREFIX` contains an en-dash. The cap is adopted for display sanity and consistency with the site's own notion of a reasonable name, not because any validator would reject a longer one.
 
-`server/user.py` gains one import from `catalogued_rules`, which imports only the standard library, so there is no cycle. The list of admissible pairs (or the word list plus a length check at pick time) is built once at module import, not per call.
+`server/user.py` gains one import from `catalogued_rules`, which imports only the standard library, so there is no cycle. Only the 37-word list is built at module import; pairs are formed per call, since materialising 1250 strings for a dev-only path buys nothing.
 
 Generation checks the candidate against `app_state.users` and retries; after a bounded number of attempts it applies an incrementing numeric suffix (`Test–KnightCannon2`), truncating as above, and keeps incrementing until the result is unused. Termination and uniqueness are both safe: piece words contain no digits, so the trailing digits of a suffixed name unambiguously encode the counter, distinct counters give distinct strings, and the store is finite.
 
@@ -102,4 +95,4 @@ Only the `username is None` branch of `User.__init__` changes; an explicitly sup
 - **[Test users now accumulate for the process lifetime]** → By construction they are never evicted. Each is a small in-memory object and the mode is dev-only, so this is acceptable; if a long-lived dev server ever showed pressure, the fix would be a separate sweep keyed on "no sockets and no games for a very long time", not re-enabling the registered-user TTL.
 - **[Reconstruction hides a genuinely unknown user]** → After a restart, any `Test–` name a browser presents is accepted and materialised. That is the intent, but it means a stale cookie from a previous dev session resurrects that name rather than issuing a fresh one. Preferable to today's behaviour, and confined to the dev flag.
 - **[A registered account could be named with the test prefix]** → Mitigated by gating every prefix branch on `anon_as_test_users`, so the branch cannot execute in production regardless of the name.
-- **[Name pool exhaustion]** → 824 admissible pairs make exhaustion implausible in a dev session, and bounded retries plus a numeric suffix guarantee termination and uniqueness regardless; the failure mode is an uglier, truncated name such as `Test–ArchbishopQuee2`, never a hang, a duplicate, or a name over 20 characters.
+- **[Name pool exhaustion]** → 1250 distinct names make exhaustion implausible in a dev session, and bounded retries plus a numeric suffix guarantee termination and uniqueness regardless; the failure mode is an uglier, truncated name such as `Test–ArchbishopQuee2`, never a hang, a duplicate, or a name over 20 characters.
