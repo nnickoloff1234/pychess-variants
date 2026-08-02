@@ -23,9 +23,9 @@ Live-clock behavior (ticking, flagging, applying server clock updates, the conne
 - **WHEN** logic needs the seat of a partner, opponent, or opponent's partner (e.g. the clock-difference counterpart: same color, other board)
 - **THEN** it identifies the starting seat and the relation accessors return the correct related seat per bughouse team structure (team 1 = white-A + black-B, team 2 = black-A + white-B)
 
-#### Scenario: One seat container serves the whole round page
+#### Scenario: Round seat configuration shares the identification container
 - **WHEN** round code needs a seat by coordinates, by relation, or by viewer position — including for clock lookups
-- **THEN** it resolves it on `ctrl.seats`, no second `SeatConfiguration` instance exists on the page, and the seat it gets back is the same object identity the analysis-shared container holds
+- **THEN** it resolves it directly on `ctrl.seats`, the shared `SeatConfiguration<Seat>`; no round-specific seat container or `Seat` subclass exists, no second `SeatConfiguration` instance exists on the page, and the seat returned is the same object identity the analysis-shared container holds
 
 #### Scenario: Clocks are reachable from the seat
 - **WHEN** round code needs a seat's live clock (flag wiring, the premove clock-plus-increment math in `sendMove`, the `clocks`/`clocksB` values sent with a move, pausing every clock at game end)
