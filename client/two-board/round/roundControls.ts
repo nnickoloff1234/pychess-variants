@@ -97,7 +97,7 @@ export class RoundControlsView {
 }
 
 export function renderRoundChat(ctrl: ChatController): void {
-    patch(document.getElementById('bugroundchat') as HTMLElement, chatView(ctrl, 'bugroundchat'));
+    patch(document.getElementById('bugroundchat') as HTMLElement, chatView(ctrl, 'bugroundchat', { chatHeader: false }));
 }
 
 export function resetMovelistDom(): void {

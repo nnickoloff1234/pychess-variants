@@ -9,6 +9,8 @@ import { MovelistView } from '../common/movelist';
 import { RoundSeatView, RoundSeatViews } from './roundSeatView';
 import { trackSquareUnit } from '../squareUnit';
 import { TabbedPanels } from '../common/tabs';
+import { ChatPresetsView } from './chatPresets';
+import { twoBoardSeats } from '../common/seatConfiguration';
 import { _ } from '../../i18n';
 
 function createBoards(
@@ -22,6 +24,7 @@ function createBoards(
     movelistView: MovelistView,
     gameInfoView: GameInfoView,
     seatViews: RoundSeatViews,
+    chatPresetsView: ChatPresetsView | undefined,
 ) {
     /*this.ctrl = */ /*const ctrl = */ new RoundControllerBughouse(
         mainboardVNode.elm as HTMLElement,
@@ -34,6 +37,7 @@ function createBoards(
         movelistView,
         gameInfoView,
         seatViews,
+        chatPresetsView,
     );
     // window['onFSFline'] = ctrl.onFSFline;
 }
@@ -59,6 +63,14 @@ export function roundView(model: PyChessModel): VNode[] {
 
     const movelistView = new MovelistView();
     const gameInfoView = new GameInfoView();
+
+    // A spectator has no partner to tell anything, so they get no presets — the
+    // same condition the shared chat view used to apply, asked here instead, and
+    // through the same seat logic the controller will use rather than a second
+    // copy of it. When there are none, the Chat tab simply has one part.
+    const chatPresetsView = twoBoardSeats(model, model.username).isSpectator()
+        ? undefined
+        : new ChatPresetsView(variant);
 
     const seatViews: RoundSeatViews = {
         a: [new RoundSeatView(0, 'a'), new RoundSeatView(1, 'a')],
@@ -92,7 +104,16 @@ export function roundView(model: PyChessModel): VNode[] {
             // widget newly allows, and which tabs should be split is a separate
             // change — chat's two pieces are produced together inside the shared
             // chatView(), so dividing them is a change about chat, not about tabs
-            { label: _('Chat'), parts: [{ content: [h('div#bugroundchat')] }] },
+            // Two parts: the chat view, and the presets beside it. They are
+            // mounted adjacent for now, so nothing moves on screen — but either
+            // can be placed on its own, which is why the presets were pulled out
+            // of the chat view in the first place.
+            {
+                label: _('Chat'),
+                parts: chatPresetsView
+                    ? [{ content: [h('div#bugroundchat')] }, { panelClass: 'chatpresets-panel', content: [chatPresetsView.view()] }]
+                    : [{ content: [h('div#bugroundchat')] }],
+            },
             {
                 label: _('Moves'),
                 parts: [{ content: [h('div.movelist-block', [movelistView.placeholder(), h('div#move-controls')])] }],
@@ -123,6 +144,7 @@ export function roundView(model: PyChessModel): VNode[] {
                             movelistView,
                             gameInfoView,
                             seatViews,
+                            chatPresetsView,
                         );
                     },
                 },
@@ -162,6 +184,7 @@ export function roundView(model: PyChessModel): VNode[] {
                 // one of them somewhere else entirely.
                 h('div.bug-round-tools', [
                     roundTabs.panel(0, 0),
+                    ...(chatPresetsView ? [roundTabs.panel(0, 1)] : []),
                     roundTabs.panel(1, 0),
                     roundTabs.panel(2, 0),
                     h('div.bug-round-tools-bar', [roundTabs.tabList(), h('div#game-controls')]),

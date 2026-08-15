@@ -3,11 +3,12 @@ import * as cg from 'chessgroundx/types';
 
 import { _ } from '../../i18n';
 import { RoundSeatView, RoundSeatViews } from './roundSeatView';
+import { ChatPresetsView } from './chatPresets';
 import { Seat } from '../common/seat';
 import { Clock } from '../../clock';
 import { RoundControllerBughouseSocket } from '../socket/sockets';
 import { recordPendingMove } from '../socket/pendingMoves';
-import { ChatController, chatMessage } from '../../chat';
+import { ChatController, chatMessage, chatSender } from '../../chat';
 import { updateMovelist, updateResult, selectMove, MovelistView } from '../common/movelist';
 import { GameInfoView } from '../common/gameInfo';
 import { Clocks, MsgBoard, MsgGameEnd, MsgMove, MsgNewGame, MsgUserConnected, Step, StepChat } from '../../messages';
@@ -81,6 +82,7 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
         movelistView: MovelistView,
         gameInfoView: GameInfoView,
         seatViews: RoundSeatViews,
+        chatPresetsView: ChatPresetsView | undefined,
     ) {
         super(el1, el1Pocket1, el1Pocket2, el2, el2Pocket1, el2Pocket2, model, movelistView, gameInfoView);
 
@@ -170,6 +172,14 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
         //       all communication as it happens. However not sure how this can be combined with usual spectators chat
         //       without becoming a bit messy, but maybe it is ok.
         renderRoundChat(this);
+
+        // The presets' second initialisation step. They were constructed and
+        // rendered before this controller existed — the page's view is built
+        // first, and this runs from its insert hook — so this is the first moment
+        // they can be given the ability to send. They are handed chat's own
+        // sender, so a preset is reported and delivered exactly as typing the
+        // same text would be.
+        chatPresetsView?.wire(chatSender(this, 'bugroundchat'));
 
         /////////////////
         // const amISimuling = this.mycolor.get('a') !== undefined && this.mycolor.get('b') !== undefined;
@@ -487,18 +497,11 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
 
             steps.forEach((step, idx) => {
                 if (idx === 0) {
-                    chatMessage(
-                        '',
-                        'Messages visible to all 4 players for the first 4 moves',
-                        'bugroundchat',
-                        undefined,
-                        undefined,
-                        this,
-                    );
+                    chatMessage('', 'Messages visible to all 4 players for the first 4 moves', 'bugroundchat');
                 }
                 this.stampStepPlys(step, idx);
                 if (idx === 4) {
-                    chatMessage('', 'Chat visible only to your partner', 'bugroundchat', undefined, idx, this);
+                    chatMessage('', 'Chat visible only to your partner', 'bugroundchat');
                 }
                 if (step.chat) {
                     step.chat.forEach(c => {
@@ -521,9 +524,6 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
                         '',
                         'Game over. All messages visible to all.',
                         'bugroundchat',
-                        undefined,
-                        this.steps.length,
-                        this,
                     );
                 }
             });
@@ -532,14 +532,7 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
             // single step message
             if (ply === this.steps.length) {
                 if (ply === 0) {
-                    chatMessage(
-                        '',
-                        'Messages visible to all 4 players for the first 4 moves',
-                        'bugroundchat',
-                        undefined,
-                        undefined,
-                        this,
-                    );
+                    chatMessage('', 'Messages visible to all 4 players for the first 4 moves', 'bugroundchat');
                 }
                 this.stampStepPlys(steps[0], ply);
                 const full = false;
@@ -547,7 +540,7 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
                 const result = false;
                 updateMovelist(this, full, activate, result);
                 if (this.steps.length === 5) {
-                    chatMessage('', 'Chat visible only to your partner', 'bugroundchat', undefined, ply, this);
+                    chatMessage('', 'Chat visible only to your partner', 'bugroundchat');
                 }
             }
         }

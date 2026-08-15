@@ -221,11 +221,23 @@
        something to read mid-game on a phone. */
     body[data-variant='bughouse'][data-view='round'] #main-wrap {
         height: 100%;
-        grid-template-rows: 1fr;
+        /* minmax(0, 1fr) for the same reason as main.round.bug below: a bare `1fr`
+           is minmax(AUTO, 1fr), so this row grew to the round page's min-content
+           and carried the whole chain past the viewport — main.round and the app
+           both inherited 919px in an 835px viewport. The cap has to be at every
+           level between the body and the app, or the lowest bare fr wins. */
+        grid-template-rows: minmax(0, 1fr);
     }
     body[data-variant='bughouse'] main.round.bug {
         height: 100%;
-        grid-template-rows: 1fr auto auto auto;
+        /* minmax(0, 1fr), not a bare `1fr`. A bare fr is minmax(AUTO, 1fr), whose
+           minimum is the item's min-content — so the round app could force this
+           row past the viewport instead of being capped by it, and then its own
+           slack row grew to fit rather than absorbing. Seen when the chat presets
+           gained a size floor: the app went to 919px in an 835px viewport and the
+           slack row to 233px. With a zero minimum the app is capped, its slack row
+           absorbs, and the tools column scrolls its own content as intended. */
+        grid-template-rows: minmax(0, 1fr) auto auto auto;
     }
     body[data-variant='bughouse'] main.round.bug > under-board {
         display: none;
@@ -326,8 +338,16 @@
 
     /* The panel takes the height left after the boards and strips and scrolls its
        own content, so the page itself does not scroll. min-height:0 is what lets
-       a grid item shrink below its content at all. */
-    .bug-round-tools {
+       a grid item shrink below its content at all.
+
+       The body prefix is for specificity, not decoration. The top-level
+       `.bug-round-tools` rule further down this file sets `overflow: hidden`, and
+       at equal specificity the later rule wins — so without the prefix this
+       `overflow-y` was silently reset and the column could not scroll. It only
+       showed once the presets grew tall enough to need it: the column's content
+       then forced the grid's slack row from 148px to 233px and pushed the page
+       past the fold. Same trap as the short-landscape wrapper rule. */
+    body[data-variant='bughouse'] .bug-round-tools {
         min-height: 0;
         overflow-y: auto;
     }
@@ -794,35 +814,80 @@ main.round.bug .pocket.bottom {
   margin-top: unset;
 }
 
+/* THE PLAYER'S OWN BOARD SQUARE, as a value CSS can use. --cg-width-a and -b are
+   board IDENTITY, and which of them is the viewer's own depends on the switch —
+   the same role-versus-identity problem the pockets had. markRoles() already puts
+   `own-board` on whichever board that is, so `:has()` turns that class into a
+   value here, without JavaScript measuring anything or a third source of truth.
+   It stays correct through a switch because the class does. */
+.round-app.bug:has(#mainboard.own-board) {
+  --bug-own-sq: calc(var(--cg-width-a) / var(--files));
+}
+.round-app.bug:has(#bugboard.own-board) {
+  --bug-own-sq: calc(var(--cg-width-b) / var(--files));
+}
+
 div#chatpresets {
+  /* A preset button had no floor at all: `width: 60%` of a cell whose track was
+     `auto`, so it was whatever the column made it — measured 45.92px on the
+     desktop and 13.23px in portrait, against WCAG 2.2's 24px minimum target.
+     0.55 of the player's own board square reproduces roughly 60% of the desktop
+     size (27.5px) while scaling with the page rather than being a per-mode
+     constant: 26.4px in portrait, 30.1 in short landscape, 32.5 on the desktop.
+     The track floor is the button floor divided by the 60% the button occupies. */
+  --bug-preset-btn-min: calc(var(--bug-own-sq) * 0.55);
+
   display: grid;
-  grid-template-columns: repeat(var(--rolesCount), auto);
+  /* One column per pocket role, because the grid is PIECE-ALIGNED: column i is
+     piece i, so "need a knight" sits directly above "don't give a knight". That
+     is why the count is --rolesCount and not a number of columns that happen to
+     fit — an `auto-fit` track count would have given the desktop seven columns
+     and destroyed the correspondence.
+     Each track is at least the button floor divided by the 60% the button
+     occupies, so a track can grow but never squeeze a button below usable. */
+  grid-template-columns: repeat(var(--rolesCount), minmax(calc(var(--bug-preset-btn-min) / 0.6), 1fr));
   padding-top: 5px;
-  grid-template-rows: auto auto auto auto;
-  order: 3;
+}
+
+/* The presets are their own tab part now, a sibling of the chat view rather than
+   a child of it, so the `order: 3` that used to place them inside the chat view's
+   flex box means nothing here. Chat takes the space that is going; the presets
+   take the height their buttons need and no more, and do not scroll — the panel
+   default of `flex: 1 1 auto` with `overflow: hidden auto` is right for chat and
+   wrong for a fixed grid of buttons.
+
+   `flex-flow: column` is not decoration. A panel is `display: flex`, so its child
+   is laid out on the main axis — and a row's main axis is the width, which is
+   sized from content. The buttons are `width: 60%` of their grid cell and the
+   cells are `auto`, so content-sizing the grid is circular and it collapsed to
+   zero: measured 0x0 buttons in a 5px panel. As a column's cross-axis item the
+   grid stretches to the full width instead, which is exactly the relationship it
+   had inside the chat view's own column before it was pulled out. */
+.bug-round-tools > .chatpresets-panel {
+  flex: 0 0 auto;
+  flex-flow: column;
+  overflow: visible;
 }
 
 @media (orientation: portrait) {
-  div#chatpresets {
-    grid-template-columns: repeat(calc(var(--rolesCount) * 2), auto);
-  }
   .bugroundchat.chat {
       flex-direction: column-reverse;
   }
-}
-@media (max-height: 600px) and (orientation: landscape) {
-  div#chatpresets {
-    grid-template-columns: repeat(var(--rolesCount), auto);
+  /* This mode showed the presets above the chat, which used to fall out of the
+     chat view's column-reverse. They are outside that box now, so it is stated. */
+  .bug-round-tools > .chatpresets-panel {
+    order: -1;
   }
 }
 
-
 div#chatpresets button.bugchat {
   width: 60%;
-  /*width: 15%;*/
-  /*height: 15fr;*/
+  min-width: var(--bug-preset-btn-min);
+  /* aspect-ratio rather than `padding-top: 60%`: percentage padding resolves
+     against the cell width, so it cannot honour a minimum — the box would keep
+     its square shape by shrinking rather than by holding the floor. */
+  aspect-ratio: 1 / 1;
   justify-self: center;
-  padding-top: 60%;
   color: var(--font-color);
   background-color: var(--bg-color0);
   cursor: pointer;
