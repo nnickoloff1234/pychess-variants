@@ -3,6 +3,8 @@ import { h, VNode } from 'snabbdom';
 import { _ } from '../../i18n';
 import { patch } from '../../document';
 import { ChatController, chatView } from '../../chat';
+import { swap } from '../twoBoardCtrl';
+import { RoundSeatViews } from './roundSeatView';
 
 // Owns the round page's dialog (#offer-dialog) and game-controls (#game-controls)
 // retained vnodes, plus the other ad-hoc DOM rendering `roundCtrl.ts` previously
@@ -121,33 +123,67 @@ export function insertRematchButton(onViewRematch: () => void): void {
     patch(rematchButtonLocation, rematchButton);
 }
 
-// player-bar/info-wrap grid-area swaps for flipBoards()/switchBoards() — the round
-// page's clock/player bars sit in separate DOM regions from the boards themselves,
-// so the base class's board-level flip/switch is complemented by this layout swap
-export function swapClockGridAreasForFlip(): void {
-    const infoWrap0 = document.getElementsByClassName('info-wrap0')[0] as HTMLElement;
-    const infoWrap0bug = document.getElementsByClassName('info-wrap0 bug')[0] as HTMLElement;
-    const infoWrap1 = document.getElementsByClassName('info-wrap1')[0] as HTMLElement;
-    const infoWrap1bug = document.getElementsByClassName('info-wrap1 bug')[0] as HTMLElement;
-
-    let a = infoWrap0!.style.gridArea || 'clock-top';
-    infoWrap0!.style.gridArea = infoWrap1!.style.gridArea || 'clock-bot';
-    infoWrap1!.style.gridArea = a;
-    a = infoWrap0bug!.style.gridArea || 'clockB-top';
-    infoWrap0bug!.style.gridArea = infoWrap1bug!.style.gridArea || 'clockB-bot';
-    infoWrap1bug!.style.gridArea = a;
+// Seat rearrangement for flipBoards()/switchBoards(). Both work on seat strips —
+// the element holding one seat's pocket, clock and name — but on different parts
+// of them, because the two operations are not the same kind of move.
+//
+// FLIP exchanges the two seats of a board between its strips, and must leave the
+// pockets where they are: chessgroundx's toggleOrientation() calls redrawAll(),
+// which re-renders each pocket for the new orientation in place, so the top
+// pocket element always holds the top player's pocket. Moving the elements as
+// well would apply the exchange twice and show each player the wrong pocket.
+export function swapSeatBlocksForFlip(views: RoundSeatViews): void {
+    swap(views.a[0].blockElement(), views.a[1].blockElement());
+    swap(views.b[0].blockElement(), views.b[1].blockElement());
 }
 
-export function swapClockGridAreasForSwitch(): void {
-    const infoWrap0 = document.getElementsByClassName('info-wrap0')[0] as HTMLElement;
-    const infoWrap0bug = document.getElementsByClassName('info-wrap0 bug')[0] as HTMLElement;
-    const infoWrap1 = document.getElementsByClassName('info-wrap1')[0] as HTMLElement;
-    const infoWrap1bug = document.getElementsByClassName('info-wrap1 bug')[0] as HTMLElement;
+// SWITCH exchanges board A's strips with board B's, pocket and seat together, by
+// swapping where the strips are placed. This is what used to be a grid-area swap
+// on the seat blocks plus a DOM swap of the pocket elements; one strip carries both.
+export function swapSeatStripAreasForSwitch(views: RoundSeatViews): void {
+    swapGridArea(views.a[0].stripElement(), views.b[0].stripElement(), 'clock-top', 'clockB-top');
+    swapGridArea(views.a[1].stripElement(), views.b[1].stripElement(), 'clock-bot', 'clockB-bot');
+}
 
-    let a = infoWrap0!.style.gridArea || 'clock-top';
-    infoWrap0!.style.gridArea = infoWrap0bug!.style.gridArea || 'clockB-top';
-    infoWrap0bug!.style.gridArea = a;
-    a = infoWrap1!.style.gridArea || 'clock-bot';
-    infoWrap1!.style.gridArea = infoWrap1bug!.style.gridArea || 'clockB-bot';
-    infoWrap1bug!.style.gridArea = a;
+// The inline value wins over the class-based area from CSS, so the fallbacks must
+// name what the stylesheet would have placed the element in.
+function swapGridArea(one: HTMLElement, other: HTMLElement, oneArea: string, otherArea: string): void {
+    const held = one.style.gridArea || oneArea;
+    one.style.gridArea = other.style.gridArea || otherArea;
+    other.style.gridArea = held;
+}
+
+// Which board and which strips are the viewer's own, and which the partner's, as
+// classes CSS can select on. Nothing else carries this: `.bug` is board IDENTITY —
+// roundSeatView sets it from `board === 'b'` — so it is the partner's for a board-A
+// player and the viewer's own for a board-B player. The role lives only in the grid
+// area, which CSS cannot select on, and which switchBoards() rewrites at runtime.
+//
+// Derived from the effective area rather than from the seats, so it stays true
+// through a switch without a second source of truth to keep in step. Call it after
+// the initial placement and again after every swap.
+//
+// Both boards and strips need it: a mode that draws the partner smaller has to size
+// each element from the role's scale, and keying that off `#mainboard`/`#bugboard`
+// would give a board-A player the partner's size on their own board.
+export function markRoles(views: RoundSeatViews): void {
+    for (const board of ['a', 'b'] as const) {
+        for (const position of [0, 1] as const) {
+            const el = views[board][position].stripElement();
+            const fallback = `clock${board === 'b' ? 'B' : ''}-${position === 0 ? 'top' : 'bot'}`;
+            const own = (el.style.gridArea || fallback).startsWith('clock-');
+            el.classList.toggle('own-seat', own);
+            el.classList.toggle('partner-seat', !own);
+        }
+    }
+    for (const [id, fallback] of [
+        ['mainboard', 'board'],
+        ['bugboard', 'boardPartner'],
+    ] as const) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        const own = (el.style.gridArea || fallback) === 'board';
+        el.classList.toggle('own-board', own);
+        el.classList.toggle('partner-board', !own);
+    }
 }

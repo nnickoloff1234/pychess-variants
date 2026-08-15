@@ -29,7 +29,7 @@ import { sound, soundThemeSettings } from '../../sound';
 import { notify } from '../../notification';
 import { chatMessageBug, resetChat } from '@/two-board/round/chat';
 import { confirmDialog } from '@/confirmDialog';
-import { TwoBoardController, initBoardSettings } from '../twoBoardCtrl';
+import { TwoBoardController, initBoardSettings, switchBoardElements, redrawBoards } from '../twoBoardCtrl';
 import {
     RoundControlsView,
     renderRoundChat,
@@ -37,8 +37,9 @@ import {
     clearExtensionChoice,
     clearAbortIndicator,
     insertRematchButton,
-    swapClockGridAreasForFlip,
-    swapClockGridAreasForSwitch,
+    swapSeatBlocksForFlip,
+    swapSeatStripAreasForSwitch,
+    markRoles,
 } from './roundControls';
 
 // live remaining time of a clock, whether or not it is currently running (mirrors Clock's own tick math)
@@ -178,6 +179,11 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
             // I am not playing on board A at all. Switch:
             this.switchBoards();
         }
+        // After the initial placement, so the first paint already knows which strip
+        // is whose. switchBoards() marks again; this covers the case where it never
+        // ran — a board-A player, a spectator, and simul, where the viewer holds a
+        // seat on board A as well and so is never switched.
+        markRoles(this.seatViews);
 
         initBoardSettings(this.boardA, this.boardB, this.variant);
 
@@ -267,13 +273,18 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
     }
 
     flipBoards(): void {
-        swapClockGridAreasForFlip();
+        swapSeatBlocksForFlip(this.seatViews);
         super.flipBoards();
     }
 
+    // Deliberately not super.switchBoards(): that also moves the pocket elements,
+    // which is right for a page that places pockets on their own. Here a pocket
+    // travels inside its seat's strip, so moving it again would undo the switch.
     switchBoards(): void {
-        super.switchBoards();
-        swapClockGridAreasForSwitch();
+        switchBoardElements();
+        swapSeatStripAreasForSwitch(this.seatViews);
+        markRoles(this.seatViews);
+        redrawBoards(this);
     }
 
     sendMove = (b: GameControllerBughouse, move: string) => {

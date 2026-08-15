@@ -7,6 +7,9 @@ import { PyChessModel } from '../../types';
 import { RoundControllerBughouse } from './roundCtrl';
 import { MovelistView } from '../common/movelist';
 import { RoundSeatView, RoundSeatViews } from './roundSeatView';
+import { trackSquareUnit } from '../squareUnit';
+import { TabbedPanels } from '../common/tabs';
+import { _ } from '../../i18n';
 
 function createBoards(
     mainboardVNode: VNode,
@@ -38,6 +41,13 @@ function createBoards(
 export function roundView(model: PyChessModel): VNode[] {
     const variant = VARIANTS[model.variant];
 
+    // Ordering is load-bearing: the short-landscape grid sizes its board tracks
+    // from --bug-sq, so the property must exist before createBoards() runs.
+    // chessgroundx memoizes its hit-test bounds when a board is constructed, and
+    // nothing observes a board that merely moves — so a board built against a
+    // grid that changes afterwards keeps stale bounds and mis-resolves clicks.
+    trackSquareUnit();
+
     renderTimeago();
 
     let mainboardVNode: VNode,
@@ -55,8 +65,44 @@ export function roundView(model: PyChessModel): VNode[] {
         b: [new RoundSeatView(0, 'b'), new RoundSeatView(1, 'b')],
     };
 
+    // One pocket per seat, handed to that seat's strip. The element itself still
+    // belongs to the caller — chessgroundx is constructed against it below — but
+    // where it sits is the strip's business, not the grid's.
+    const pocket = (cls: string, id: string, keep: (vnode: VNode) => void): VNode =>
+        h(`div.${cls}`, [
+            h('div.' + variant.pieceFamily + '.twoboards', [
+                h('div.cg-wrap.pocket', [h(`div#${id}`, { hook: { insert: keep } })]),
+            ]),
+        ]);
+
+    const pocketA0 = pocket('pocket-top', 'pocket00', vnode => (mainboardPocket0 = vnode));
+    const pocketA1 = pocket('pocket-bot', 'pocket01', vnode => (mainboardPocket1 = vnode));
+    const pocketB0 = pocket('pocket-top-partner', 'pocket10', vnode => (bugboardPocket0 = vnode));
+    const pocketB1 = pocket('pocket-bot-partner', 'pocket11', vnode => (bugboardPocket1 = vnode));
+
+    // Each panel holds exactly one existing element, embedded as it is defined
+    // elsewhere — their own `grid-area` declarations come along and are simply
+    // inert now that they are panel children rather than grid items, the same way
+    // the pockets' were when seats became strips. Every one is still rendered and
+    // patched by its own owner, which is why they are embedded rather than rebuilt.
+    const roundTabs = new TabbedPanels(
+        'round-tabs',
+        [
+            { label: _('Chat'), content: [h('div#bugroundchat')] },
+            {
+                label: _('Moves'),
+                content: [h('div.movelist-block', [movelistView.placeholder(), h('div#move-controls')])],
+            },
+            { label: _('Info'), content: [gameInfoView.placeholder()] },
+        ],
+        _('Round tabs'),
+    );
+
     return [
-        h('aside.sidebar-first', [gameInfoView.placeholder()]),
+        // left in place but empty: the game-info placeholder it used to hold is
+        // now the Info panel's content. Whether an empty aside should still
+        // render is a layout question this change does not open.
+        h('aside.sidebar-first'),
         h(
             'div.round-app.bug',
             {
@@ -89,74 +135,29 @@ export function roundView(model: PyChessModel): VNode[] {
                     }),
                 ]),
                 // h('div.material.material-top.' + variant.piece + '.disabled'),
-                h('div.pocket-top', [
-                    h('div.' + variant.pieceFamily + '.twoboards', [
-                        h('div.cg-wrap.pocket', [
-                            h('div#pocket00', {
-                                hook: {
-                                    insert: vnode => {
-                                        mainboardPocket0 = vnode;
-                                    },
-                                },
-                            }),
-                        ]),
-                    ]),
-                ]),
-                h('div.pocket-top-partner', [
-                    h('div.' + variant.pieceFamily + '.twoboards', [
-                        h('div.cg-wrap.pocket', [
-                            h('div#pocket10', {
-                                hook: {
-                                    insert: vnode => {
-                                        bugboardPocket0 = vnode;
-                                    },
-                                },
-                            }),
-                        ]),
-                    ]),
-                ]),
-
-                seatViews.a[0].view(),
-                seatViews.b[0].view(),
-                h('div.bug-round-tools-part', [
-                    h('div.movelist-block', [movelistView.placeholder(), h('div#move-controls')]),
-                    h('div#offer-dialog'),
-                    h('div#game-controls'),
-                ]),
+                seatViews.a[0].view(pocketA0),
+                seatViews.b[0].view(pocketB0),
+                h('div.bug-round-tools-part', [h('div#offer-dialog')]),
+                // The tools column is this page's own element, carrying its
+                // `grid-area: tools` and the `min-width: 0` that makes the column
+                // yield before a board is pushed off screen; the widget supplies
+                // only the two parts inside it. Panels first, so the tablist reads
+                // as a bottom tab bar. Mounting them apart is possible and is the
+                // point of the widget's shape, but this layout wants them together.
+                //
+                // The bar shares that bottom row between the tablist and the game
+                // controls. #game-controls is only a placeholder here — roundControls
+                // finds it by id after this patch and renders the draw and resign
+                // buttons into it — so this moves where they sit and nothing else.
+                // They are in this column because the row below the boards cannot be
+                // reached in short landscape: they measured at y=546.67 in a 551px
+                // viewport that does not scroll, leaving no way to resign a game.
                 h('div.bug-round-tools', [
-                    h('div#bugroundchat'),
-
-                    // h('div#expiration-top'),
-                    // h('div#expiration-bottom'),
+                    roundTabs.tabPanels(),
+                    h('div.bug-round-tools-bar', [roundTabs.tabList(), h('div#game-controls')]),
                 ]),
-                seatViews.a[1].view(),
-                seatViews.b[1].view(),
-                h('div.pocket-bot', [
-                    h('div.' + variant.pieceFamily + '.twoboards', [
-                        h('div.cg-wrap.pocket', [
-                            h('div#pocket01', {
-                                hook: {
-                                    insert: vnode => {
-                                        mainboardPocket1 = vnode;
-                                    },
-                                },
-                            }),
-                        ]),
-                    ]),
-                ]),
-                h('div.pocket-bot-partner', [
-                    h('div.' + variant.pieceFamily + '.twoboards', [
-                        h('div.cg-wrap.pocket', [
-                            h('div#pocket11', {
-                                hook: {
-                                    insert: vnode => {
-                                        bugboardPocket1 = vnode;
-                                    },
-                                },
-                            }),
-                        ]),
-                    ]),
-                ]),
+                seatViews.a[1].view(pocketA1),
+                seatViews.b[1].view(pocketB1),
                 // h('div.material.material-bottom.' + variant.pieceFamily + '.disabled'),
             ],
         ),

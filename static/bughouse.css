@@ -59,67 +59,354 @@
  * round.css pocket-top-partner pocket-bot-partner
  ******************************************************************************************* */
 
-@media (max-width: 799px) and (orientation: portrait) {
+/* A seat strip is one seat's furniture as a single grid item: its pocket beside
+   its clock and name. Every layout below places strips and nothing smaller, which
+   is what lets flip and switch have exactly one kind of thing to move.
+
+   The pocket and the seat block keep the grid-area declarations they carry from
+   site.css; those are simply ignored now that both are flex children rather than
+   grid items, so the single-board round page is unaffected by them. */
+.seat-strip0 { grid-area: clock-top; }
+.seat-strip1 { grid-area: clock-bot; }
+.seat-strip0.bug { grid-area: clockB-top; }
+.seat-strip1.bug { grid-area: clockB-bot; }
+.seat-strip0, .seat-strip1 {
+  display: flex;
+  flex-direction: row;
+  /* Bottom-aligned, which is also what keeps the name clear of the file labels
+     overhanging below a board. A mode that turns the strip on its side restores
+     centring, because on a column strip this axis is the horizontal one. */
+  align-items: flex-end;
+  min-width: 0;
+}
+.seat-strip0 > .pocket-top, .seat-strip0 > .pocket-top-partner,
+.seat-strip1 > .pocket-bot, .seat-strip1 > .pocket-bot-partner {
+  flex: 0 0 auto;
+}
+/* the name is the only thing that absorbs a change in the strip's width */
+.seat-strip0 > .info-wrap0, .seat-strip1 > .info-wrap1 {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* --- what a strip looks like inside, stated once for every mode -------------
+ *
+ * A mode chooses only three things about a strip: where it sits (the grid-area
+ * above), how big it is (--bug-strip-h, and the two font parameters), and which
+ * axis it runs on (flex-direction, which portrait overrides for board B). The
+ * order the three pieces read in — pocket, name, clock — and which of them
+ * absorbs slack is the same everywhere, which is the point of decision 1b.
+ *
+ * Scoped to .round-app.bug rather than to the elements themselves: the analysis
+ * page draws the same round-player and clock-wrap elements under .analysis-app
+ * and must be untouched. That scope also out-specifies the page-wide
+ * `main.bug round-player0` below (0,2,1 against 0,1,2), which is why the fixed
+ * 0.7vw and 48px there are overridden here rather than deleted — deleting them
+ * would change the analysis page too.
+ *
+ * Defaults are the unsized case, so a mode that sets nothing keeps whatever it
+ * had: --bug-strip-h falls back to auto, and an undefined font parameter makes
+ * its declaration invalid at computed-value time, which leaves the size
+ * inherited exactly as it was before a parameter existed.
+ */
+.round-app.bug .seat-strip0, .round-app.bug .seat-strip1 {
+    height: var(--bug-strip-h, auto);
+    overflow: hidden;
+}
+/* The seat block's own children are clock, name, misc-info; reversing puts the
+   name against the pocket and ends the clock at the strip's trailing edge. */
+.round-app.bug .info-wrap0, .round-app.bug .info-wrap1 {
+    display: flex;
+    flex-direction: row-reverse;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-start;
+    height: var(--bug-strip-h, auto);
+    overflow: hidden;
+}
+.round-app.bug round-player0, .round-app.bug round-player1 {
+    flex: 1 1 auto;
+    min-width: 0;
+    /* not the 48px of `main.bug round-player0`, which exceeds a one-square strip */
+    height: auto;
+    /* bottom-aligned so it clears the file labels overhanging from the board */
+    align-self: flex-end;
+    /* Never vw: this page is routinely used in a quarter-tiled window, where the
+       0.7vw it used to inherit renders under 7px. The floor is the coordinate
+       labels' own size, 0.85em of the same inherited base font, so a mode that
+       sets no parameter still gets a legible name rather than a viewport-derived
+       one. */
+    font-size: var(--bug-name-fs, 0.85em);
+    line-height: 1.15;
+    /* fill each line rather than break at word boundaries, then stop after two
+       and clip — max-height rather than -webkit-line-clamp, which would add an
+       ellipsis. The full name stays in the DOM. */
+    white-space: normal;
+    word-break: break-all;
+    max-height: 2.3em;
+    overflow: hidden;
+    display: block;
+    padding: 0 0 0 0.35em;
+    background: none;
+}
+.round-app.bug .clock-wrap {
+    flex: 0 0 auto;
+    /* row-reverse on both boards, so the digits end at the strip's trailing edge
+       and the difference indicator sits over the leading digit. Board B carried
+       this globally already; board A had it in short landscape only. */
+    flex-direction: row-reverse;
+    /* main-start is the visual right edge under row-reverse, so this is what
+       anchors the clock there; flex-end would leave a gap between the name and
+       the digits. The clock is left to size to its content, so the width it is
+       not using goes to the name — it takes that width back when it starts
+       showing tenths. */
+    justify-content: flex-start;
+    align-self: flex-end;
+    font-size: var(--bug-clock-fs);
+}
+/* the difference matters more than the clock digit it covers */
+.round-app.bug .clock-difference {
+    font-size: 1.5em;
+}
+
+@media (orientation: portrait) {
+    /* The player's own strips run above and below a full-width board, so they lay
+       their contents in a row: the pocket sets the strip's height and the name and
+       clock ride beside it. Stacked, each strip cost the pocket's height PLUS the
+       name/clock block — 91px against 57px — and portrait has no such height to
+       spare. The partner's strips are not matched by this selector and keep the
+       stacked treatment, which is what their narrow column needs. */
+    .seat-strip0.bug, .seat-strip1.bug {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    /* Same as short landscape: the vertical budget does not accommodate the site
+       header. Boards and strips alone take 720 of 835px on a 19.5:9 phone. */
+    body[data-variant='bughouse'] header {
+        display: none;
+    }
+    /* Same guarantee short landscape makes: this mode budgets the whole viewport
+       for the boards, so the page itself must not scroll. Scoped to the bughouse
+       round page only — html keeps overflow:visible, so the viewport takes its
+       overflow from body.
+
+       Structural rather than incidental, and it does more than tidy the scrollbar
+       away. --bug-portrait-sq is computed from clientWidth, which EXCLUDES a
+       scrollbar; a page that overflows therefore publishes a unit 8px wider than
+       the space the board actually gets, and the board is clamped and quantised
+       down (measured: 384 intended, 373.33 rendered, offset 4.67px). No scrollbar
+       means clientWidth always equals innerWidth, so that whole failure mode
+       cannot arise rather than merely happening not to. */
+    body[data-variant='bughouse'][data-view='round'] {
+        height: 100vh;
+        overflow: hidden;
+    }
+    /* The app has to be as tall as the viewport for its own `1fr` slack row to
+       have anything to distribute — a fractional track can only share out space
+       that exists, the same trap the tools column hit in short landscape. Without
+       these the app is content-sized, the slack row collapses to whatever the
+       tools panel happens to want, and the player's block floats mid-page instead
+       of sitting on the bottom edge. Measured before: slack 15.57px of an intended
+       148, and the block ending 132.76px short of the bottom.
+
+       `under-board` is hidden rather than merely collapsed. It is not empty in the
+       DOM sense — it carries `#janggi-setup-buttons`, which no bughouse game uses,
+       and a crosstable container — but it renders as 7.71px of nothing while
+       reserving a 30.7px row below the app, which is the difference between the
+       player's block sitting on the bottom edge and 30px above it. Short landscape
+       makes the same trade by letting this element fall past the fold and clipping
+       it; portrait says so explicitly. The cost is the crosstable, which is not
+       something to read mid-game on a phone. */
+    body[data-variant='bughouse'][data-view='round'] #main-wrap {
+        height: 100%;
+        grid-template-rows: 1fr;
+    }
+    body[data-variant='bughouse'] main.round.bug {
+        height: 100%;
+        grid-template-rows: 1fr auto auto auto;
+    }
+    body[data-variant='bughouse'] main.round.bug > under-board {
+        display: none;
+    }
     .round-app.bug {
-        grid-template-columns: calc((var(--cg-width-a) / var(--files)) * var(--pocketLength)) calc(100vw - ((var(--cg-width-a) / var(--files)) * var(--pocketLength)));
+        /* The partner column is sized from the VIEWPORT, never from --cg-width-a.
+           chessgroundx writes --cg-width-a from the measured width of board A,
+           and board A is placed in this very column, so the previous rule
+
+             calc((var(--cg-width-a) / var(--files)) * var(--pocketLength))
+
+           was circular — and zero is a stable fixed point. Board A rendered 0
+           wide (with all 33 pieces present, so purely a sizing failure) and all
+           eight pockets collapsed with it, which makes bughouse unplayable: you
+           cannot drop a piece without a pocket. Measured 386x835: --cg-width-a
+           0px against a healthy --cg-width-b 389.33px.
+
+           The partner board is a fifth of the window height and, being square,
+           that is its width too — but expressed as the device-pixel-aligned
+           square that client/two-board/squareUnit.ts publishes, not as a bare
+           20vh. Reserving a rounder number than the board can occupy is what
+           leaves a line between a board and the pocket beneath it. Deliberately
+           no fallback: if the property is missing the track must break loudly
+           rather than silently regain the slack. */
+        /* Two columns, but only the partner's rows use the second one. The partner
+           board is a fifth of the viewport height and square, so it leaves most of
+           the width beside it empty — that is where the tools panel goes, rather
+           than taking a row of its own below everything and pushing the page past
+           the fold. Your own block spans both columns underneath. */
+        grid-template-columns: calc(var(--bug-portrait-partner-sq) * 8) minmax(0, 1fr);
+
+        /* Every row is a whole number of that board's own square, so no track
+           reserves more than the board or strip inside it can occupy — the
+           quantised units are what make that exact. A strip is one square tall,
+           the same relation short landscape uses.
+
+           Rows dropped as unoccupied: game-controls, offer, move-controls,
+           uboard, uleft. Only eight areas have an element in this mode, and
+           `under-board`/`under-left` are siblings of the round app, not children. */
         grid-template-rows:
-                               min-content
-                               min-content
-                               min-content
-                               min-content
-                               min-content
+                              var(--bug-portrait-partner-sq)
+                              calc(var(--bug-portrait-partner-sq) * 8)
+                              var(--bug-portrait-partner-sq)
 
-                               max-content
-                               min-content
-                               min-content
+                              minmax(0, 1fr)
 
-                               auto
-                               auto
-                               auto
-                               auto
-                               auto
-                               auto
-                               auto;
+                              var(--bug-portrait-sq)
+                              calc(var(--bug-portrait-sq) * 8)
+                              var(--bug-portrait-sq)
+
+                              auto;
+        /* The fourth row is the slack, and it sits ABOVE the player's own block so
+           that block is always flush with the bottom of the viewport whatever the
+           two boards work out to. The tools panel extends into it rather than
+           leaving a gap — a grid area has to be a rectangle, so the panel can grow
+           down its own column but cannot also reach under the partner's board.
+           That corner, one partner board wide, is the only space left over. */
         grid-template-areas:
-                              'boardPartner pocket-top-partner'
-                              'boardPartner clockB-top'
-                              'boardPartner .'
-                              'boardPartner clockB-bot'
-                              'boardPartner pocket-bot-partner'
+                              'clockB-top   tools'
+                              'boardPartner tools'
+                              'clockB-bot   tools'
 
-                              'pocket-top clock-top'
-                              'board board'
-                              'pocket-bot clock-bot'
+                              '.            tools'
 
-                              'tools tools'
-                              'game-controls game-controls'
-                              'offer offer'
-                              'move-controls move-controls'
-                              'toolsB toolsB'
-                              'uboard uboard'
-                              'uleft uleft';
-        column-gap: 0px;
+                              'clock-top    clock-top'
+                              'board        board'
+                              'clock-bot    clock-bot'
+
+                              'toolsB       toolsB';
+        column-gap: 0;
+    }
+
+    /* Each board is exactly the square unit for its axis, times the file count.
+       NOT `width: 100%` with an aspect-ratio: `cg-board` is position:absolute and
+       so contributes no layout height, which means this box is sized purely by
+       CSS while chessgroundx quantises the board it paints inside it down to whole
+       device pixels per file. Any difference between the two is a visible band —
+       measured 4.66px between the board and the pocket below it at 386x835.
+       Sizing the box from the same quantised unit makes the difference zero.
+
+       Centred, because the unit is rounded DOWN from the space available, leaving
+       a sub-square remainder that belongs on both sides rather than all on one. */
+       Keyed by ROLE, not by `#mainboard`/`#bugboard`. Those are board A and board
+       B, and twoBoardCtrl swaps which of them holds the `board` area per player —
+       so sizing by id would hand a board-A player the partner's size on their own
+       board. See roundControls.markRoles.
+
+       Both blocks are aligned to the left edge rather than centred, so the small
+       partner board lines up with the full-width board beneath it. */
+    .own-board {
+        width: calc(var(--bug-portrait-sq) * 8);
+        height: calc(var(--bug-portrait-sq) * 8);
+    }
+    .partner-board {
+        width: calc(var(--bug-portrait-partner-sq) * 8);
+        height: calc(var(--bug-portrait-partner-sq) * 8);
+    }
+
+    /* The panel takes the height left after the boards and strips and scrolls its
+       own content, so the page itself does not scroll. min-height:0 is what lets
+       a grid item shrink below its content at all. */
+    .bug-round-tools {
+        min-height: 0;
+        overflow-y: auto;
     }
     under-left {
         display: flex;
     }
-    .pocket-top .twoboards .pocket, .pocket-bot .twoboards .pocket {
-      width: calc(var(--pocketLength) * (var(--cg-width-a) / var(--files)));
-      height: calc(var(--cg-height-a) / var(--ranks));
-      --fs: calc(var(--cg-height-a) / var(--ranks));
+    /* Pockets carry the same rule short landscape settled on: a pocket piece is
+       exactly one board square, and the CELL it sits in is 0.8 of a square, so the
+       pieces sit closer together than they would on the board. The row's height is
+       what sizes the piece; the cell width is what spaces them.
+
+       0.8 is the spacing constant, not the width. With this variant's five slots
+       it happens to come to four board squares — half the width of an 8-file board
+       — but a variant with a different --pocketLength keeps the spacing and takes
+       whatever width that implies, which is why the length stays a multiplier.
+
+       Sized from the board's OWN measured width rather than from the published
+       units, because the units are keyed by role (yours / your partner's) while
+       these selectors are keyed by board identity (A / B) — and twoBoardCtrl swaps
+       which board holds the `board` area per player, so the two do not correspond.
+       `--cg-width-a` is chessgroundx's own quantised measurement of board A, so it
+       is exact; and reading it here is not the forbidden self-reference, because a
+       pocket does not sit in the track it is sizing itself from. */
+    /* ONE SCALE PER SEAT. Both strips are the same arrangement — pocket, name,
+       clock, in a row above or below their board — differing only in scale: the
+       partner's board is a fifth of the viewport height, your own is the full
+       width, so their squares differ by roughly half. Every strip parameter is a
+       fraction of its OWN board's square, so the two blocks are proportionally
+       identical at different sizes.
+
+       Keyed by ROLE, not by board identity, and inherited down to the pocket
+       inside the strip. That is what markSeatRoles() is for: `.bug` means board B,
+       so it is the partner's strip for a board-A player and the player's own for a
+       board-B player. Inheriting from the strip also removes the need to name
+       --cg-width-a/b per pocket, which had the same identity-vs-role mismatch. */
+    .own-seat {
+      --bug-seat-sq: var(--bug-portrait-sq);
+    }
+    .partner-seat {
+      --bug-seat-sq: var(--bug-portrait-partner-sq);
+      /* The partner block is the width of the partner board, so the strip lines up
+         with the board it describes rather than spanning a width the board does not
+         occupy. Left-aligned with it, and with the full-width board below. */
+      width: calc(var(--bug-portrait-partner-sq) * 8);
+    }
+    .own-seat, .partner-seat {
+      --bug-strip-h: var(--bug-seat-sq);
+      /* Same 0.8 spacing short landscape settled on: the piece is one board square
+         and the cell it sits in is 0.8 of one, so pieces sit closer together than
+         they do on the board. --pocketLength stays a multiplier, so a variant with
+         a different number of slots keeps the spacing and takes the width it needs. */
+      --bug-pocket-sq: calc(var(--bug-seat-sq) * 0.8);
+      /* The same fractions short landscape uses, but WITHOUT its `max(…, 0.85em)`
+         floor. The floor keeps a name legible when a strip is large; here it would
+         break the proportions of the partner block, which is deliberately small.
+         Nikolay's call: keep the proportions even where the type gets very small. */
+      --bug-clock-fs: calc(var(--bug-seat-sq) * 0.2);
+      --bug-name-fs: calc(var(--bug-seat-sq) * 0.218);
+    }
+    .round-app.bug .twoboards .pocket {
+      width: calc(var(--pocketLength) * var(--bug-pocket-sq));
+      height: var(--bug-seat-sq);
+      --fs: var(--bug-seat-sq);
       font-size: var(--fs);
     }
-    .pocket-top-partner .twoboards .pocket, .pocket-bot-partner .twoboards .pocket {
-      /*width: calc((100vw / (var(--files) + var(--pocketLength))) * var(--pocketLength));*/
-/*        width: auto;*/
-        width: calc((100vw - ((var(--cg-height-a) / var(--ranks)) * var(--pocketLength))));
-        height: calc((100vw - ((var(--cg-height-a) / var(--ranks)) * var(--pocketLength))) / var(--pocketLength));
+    /* Only the inner element carries the variant's real role count — chessgroundx
+       writes --pocketLength on it, and the .cg-wrap.pocket above would fall back to
+       the global default of 5 and mis-size any variant that differs.
 
-      /*height: calc(100cqmin / var(--pocketLength));*/
-/*      width: calc(var(--pocketLength) * (var(--cg-width-b) / var(--files)));
-      height: calc(var(--cg-height-b) / var(--ranks));*/
-      --fs: calc(20px / var(--ranks));
-      font-size: var(--fs);
+       `display: block` is load-bearing, not tidying. The wrap is an inline box by
+       default, which means two things: a sizing property does not apply to it at
+       all, so max-content was inert; and it generates a LINE BOX, whose leading
+       showed up as a gap between a board and its pocket. Measured while the strip
+       was rotated: inline gave a 48.67px wrapper and a 28px gap, block 20.67px
+       and 0. Kept now the strips are horizontal again — the wrapper should be the
+       pocket's size in either arrangement. */
+    .round-app.bug .twoboards .cg-wrap.pocket {
+      display: block;
+      width: max-content;
     }
     .clock-wrap {
       flex-direction: row-reverse;
@@ -130,15 +417,99 @@
     body[data-variant='bughouse'] header {
         display: none;
     }
+    /* The wrapper must FILL the width in this mode, and the `min-width: 800px`
+       rule above stops it: that rule gives main.round.bug two content-sized
+       columns and centres them, which is what the desktop mode wants, but this
+       mode is also wider than 800px so it matches too.
+
+       A content-sized wrapper makes this mode's `1fr` tools column inert — a
+       fractional track can only distribute space that already exists — so the
+       chat falls back to max-content and widens the app the moment a message
+       arrives. The centred boards then slide left, out from under the bounds
+       chessgroundx memoised at init, and every click lands one file off.
+
+       Measured on a fresh game: one chat line took the app 1211.55 -> 1276 and
+       board A 32.22px left, 0.59 of a square. With this rule the app is 1276
+       from the start, the tools column resolves to its real 386.33px remainder,
+       and the same chat line moves nothing at all.
+
+       This is the requirement "No grid track is sized by late-arriving content"
+       already states: the containing wrapper's own track has to fill the
+       available width or the fractional column achieves nothing.
+
+       The body prefix is for specificity, not decoration. The `min-width: 800px`
+       rule is `main.round.bug` too and sits LATER in this file, so at equal
+       specificity it would win and this would silently do nothing — it did,
+       first time round. Overriding only the columns here rather than excluding
+       this mode from that block, because the rows and areas it also sets are
+       still wanted. */
+    body[data-variant='bughouse'] main.round.bug {
+        grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+        justify-content: stretch;
+    }
+    /* This mode budgets the whole viewport height for the boards, so the page
+       itself must not scroll. Scoped to the bughouse round page only: html keeps
+       overflow:visible, so the viewport takes its overflow from body. */
+    body[data-variant='bughouse'][data-view='round'] {
+        height: 100vh;
+        overflow: hidden;
+    }
+    /* The tools column below is 1fr, and a fractional track can only share out
+       space that exists. #main-wrap's own track is content-sized here
+       (--main-max-width: auto, round.css), so without this the 1fr has nothing
+       to distribute and the column stays content-sized exactly as before. */
+    body[data-variant='bughouse'][data-view='round'] #main-wrap {
+        grid-template-columns: 1fr;
+    }
     .round-app.bug {
-        grid-template-columns: 40vh 40vh 40vh 40vh auto;
+        /* Tracks are multiples of --bug-sq, the device-pixel-aligned square that
+           client/two-board/squareUnit.ts publishes before the boards are built:
+           a board is 8 squares, so 4 per column across its two columns, and a
+           pocket row is exactly 1 square. Sizing the slot to what chessgroundx
+           will actually render is what removes the leftover that used to show as
+           lines between the boards and under them.
+
+           Deliberately no fallback value: if --bug-sq is missing the var() is
+           invalid at computed-value time and this whole declaration is dropped,
+           which fails loudly instead of silently reverting to the old geometry.
+
+           The last track is 1fr, not auto, so late-arriving chat content can no
+           longer widen the grid and slide the centred boards sideways. */
+        /* Rank labels are absolutely positioned and overhang their board to the
+           right by -1 * --ranks-right (15px: a 3px lead-in then a 12px glyph
+           box, chessground.css `coords.side`). With the boards now flush, the
+           left board's labels would land on the right board, so one gutter
+           track separates them. The right board's labels are left to overhang
+           into the chat, which is harmless. A dedicated track rather than
+           column-gap, because a gap would fall inside each board's two-column
+           span and widen the board slot itself. */
+        --ranks-gutter: calc(-1 * var(--ranks-right));
+        /* Pocket cell width. 0.8 of a board square reproduces exactly the pocket
+           this layout drew when it was pinned to four squares — five cells at 0.8
+           is four squares — so compaction is this one value. Square cells (1.0)
+           are not reachable: they leave the name 37px. */
+        --bug-pocket-sq: calc(var(--bug-sq) * 0.8);
+        /* This mode's three strip parameters. The strip is exactly the pocket row
+           the grid reserves for it, one square tall, and the clock and the name
+           are fractions of that square: a clock renders about 3.9x its font size
+           tall, so 0.2 is what fills the row without starving the name, and the
+           name's 0.218 was measured against the same square. Both were fixed in a
+           live dry run where --bug-sq is 54.67px (design decision 5b). */
+        --bug-strip-h: var(--bug-sq);
+        --bug-clock-fs: calc(var(--bug-sq) * 0.2);
+        --bug-name-fs: max(calc(var(--bug-sq) * 0.218), 0.85em);
+        grid-template-columns:
+                               calc(var(--bug-sq) * 8)
+                               var(--ranks-gutter)
+                               calc(var(--bug-sq) * 8)
+                               1fr;
         grid-template-rows:
-                               10vh
-                               20vh
-                               20vh
-                               20vh
-                               20vh
-                               10vh
+                               var(--bug-sq)
+                               calc(var(--bug-sq) * 2)
+                               calc(var(--bug-sq) * 2)
+                               calc(var(--bug-sq) * 2)
+                               calc(var(--bug-sq) * 2)
+                               var(--bug-sq)
 
                                auto
                                auto
@@ -148,65 +519,114 @@
                                auto;
         grid-template-areas:
 
-                              'pocket-top clock-top pocket-top-partner clockB-top tools'
-                              'board board boardPartner boardPartner tools'
-                              'board board boardPartner boardPartner tools'
-                              'board board boardPartner boardPartner tools'
-                              'board board boardPartner boardPartner tools'
-                              'pocket-bot clock-bot pocket-bot-partner clockB-bot tools'
+                              'clock-top . clockB-top tools'
+                              'board . boardPartner tools'
+                              'board . boardPartner tools'
+                              'board . boardPartner tools'
+                              'board . boardPartner tools'
+                              'clock-bot . clockB-bot tools'
 
-                              'game-controls game-controls game-controls game-controls game-controls'
-                              'offer offer offer offer offer'
-                              'move-controls move-controls move-controls move-controls move-controls'
-                              'toolsB toolsB toolsB toolsB toolsB'
-                              'uboard uboard uboard uboard uboard'
-                              'uleft uleft uleft uleft uleft';
+                              'game-controls game-controls game-controls game-controls'
+                              'offer offer offer offer'
+                              'move-controls move-controls move-controls move-controls'
+                              'toolsB toolsB toolsB toolsB'
+                              'uboard uboard uboard uboard'
+                              'uleft uleft uleft uleft';
         column-gap: 0px;
     }
+    /* When the viewport is too narrow for everything, the chat is what gives way
+       — never the boards. A grid item's automatic minimum size is its min-content,
+       and this one's presets grid holds that at ~196px, which is enough to push
+       the whole grid wider than the viewport. The app is centred, so that overflow
+       spills equally to both sides and the left board's first files fall off the
+       screen entirely — with `body { overflow: hidden }` above, they cannot even be
+       scrolled to. Dropping the floor lets the 1fr track take only what is left,
+       so both boards keep their full width and stay on screen, and the boards are
+       centred exactly as before whenever there is room to spare.
+
+       Measured on an iPhone SE landscape viewport (667x375, the tightest phone
+       tried): the grid was 782px against 665 with board A at x=-59; after this it
+       fits exactly, board A sits at x=0, and the chat takes the whole shortfall.
+       An iPhone 14 (844x390) never reaches the floor and is unaffected. */
     under-left {
         display: none;
     }
     .pocket-top .twoboards .pocket, .pocket-bot .twoboards .pocket {
-      width: 40vh;
-      height: 10vh;
+      width: calc(var(--pocketLength) * var(--bug-pocket-sq));
+      height: var(--bug-sq);
       --fs: calc(var(--cg-height-a) / var(--ranks));
       font-size: var(--fs);
     }
     .pocket-top-partner .twoboards .pocket, .pocket-bot-partner .twoboards .pocket {
-      width: 40vh;
-      height: 10vh;
+      width: calc(var(--pocketLength) * var(--bug-pocket-sq));
+      height: var(--bug-sq);
       --fs: calc(20px / var(--ranks));
       font-size: var(--fs);
     }
-    .clock-wrap {
-      flex-direction: row-reverse;
-        font-size: 5pt;
+    /* Only the inner element carries the variant's real role count — chessgroundx
+       writes --pocketLength on it. The .cg-wrap.pocket above it would fall back to
+       the global default of 5, so it shrink-wraps instead of being sized. */
+    .round-app.bug .twoboards .cg-wrap.pocket {
+      width: max-content;
+    }
+    /* A board's file labels overhang below it into the strip. Lift the board so
+       they paint over the pocket and clock rather than under them; the boards' own
+       boxes end above the strip, so nothing else is covered. They never take
+       pointer events, so a drag begun on a letter still reaches the pocket piece
+       beneath — stated here rather than relied on from chessground.css. */
+    .round-app.bug > selection#mainboard, .round-app.bug > selection#bugboard {
+        z-index: 2;
+    }
+    .round-app.bug .cg-wrap coords {
+        pointer-events: none;
     }
 }
 
 @media (min-height: 600px) and (orientation: landscape) {
-    .bug .info-wrap0, .bug .info-wrap1, .bug .clock-wrap {
-        justify-content: end;
-    }
-    .info-wrap0.bug, .info-wrap1.bug, .clock-wrap.bug {
-        justify-content: start;
-    }
+    /* This mode sets no strip parameters: its rows are min-content, so the strip
+       sizes to its contents, and the name falls back to the shared 0.85em floor
+       rather than the 0.7vw it used to inherit. The mirrored justify-content pair
+       that used to sit here went with the mirror itself — both boards now read
+       pocket, name, clock, so there is nothing left to mirror. */
     .round-app.bug {
         --board-scaleA: calc((var(--zoom-a) / 100));
         --board-scaleB: calc((var(--zoom-b) / 100));
         grid-row-gap: 2vmin;
-        grid-template-columns: calc(var(--pocketLength) * (var(--cg-width-a) / var(--files)))
-                               calc((30vw * var(--board-scaleA)) - var(--pocketLength) * (var(--cg-width-a) / var(--files)))
-                               calc(var(--pocketLength) * (var(--cg-width-a) / var(--files)))
-                               calc((30vw * var(--board-scaleB)) - var(--pocketLength) * (var(--cg-width-b) / var(--files)))
-                               calc(var(--pocketLength) * (var(--cg-width-b) / var(--files)))
-                               calc(var(--pocketLength) * (var(--cg-width-b) / var(--files)));
-        grid-template-rows: min-content min-content min-content min-content min-content;
-        grid-template-areas: 'pocket-top clock-top tools clockB-top pocket-top-partner toolsB'
-                             'board board tools boardPartner boardPartner toolsB'
-                             'pocket-bot clock-bot tools clockB-bot pocket-bot-partner tootsB'
-                             '. . move-controls move-controls . .'
-                             'uboard uboard uboard uboard uboard uboard';
+        /* One column per board, and the two boards adjacent: a player compares
+           them constantly, so nothing sits in the gap between them and the tools
+           column moves to their right.
+
+           A board is 31.25vw at full zoom, which makes it a quarter of the page
+           at the default zoom of 80 (ZoomSettings in client/boardSettings.ts) —
+           31.25 * 0.8 = 25. That keeps the shape of the rule this replaces,
+           `calc(30vw * var(--board-scaleA))`, whose intention was a board being a
+           fraction of the viewport scaled linearly by its own zoom slider; only
+           the constant is re-tuned. Each board keeps its own scale, so the two
+           sliders stay independent.
+
+           The tools column is a flat fifth of the viewport and deliberately does
+           NOT scale with zoom — its width is about reading chat and move lists,
+           not board geometry. This is a change: the track it replaces was
+           pocket-derived from --cg-width-a and therefore grew with the board. The
+           cost is that at low zoom the panel is proportionally dominant.
+
+           `move-controls` and `uboard` are gone: measured on the live page, of
+           the ten areas this template declared only eight had an occupant.
+           #move-controls now lives inside the Moves panel with the movelist block,
+           and under-board is a sibling of the round app rather than a child.
+
+           toolsB loses its column and becomes a content-sized row under the tools
+           column. It holds only #offer-dialog, empty except when a draw is
+           offered, and was occupying a full 203x474 track to do it. */
+        grid-template-columns: calc(31.25vw * var(--board-scaleA))
+                               calc(31.25vw * var(--board-scaleB))
+                               20vw;
+        column-gap: 2vmin;
+        grid-template-rows: min-content min-content min-content min-content;
+        grid-template-areas: 'clock-top clockB-top tools'
+                             'board boardPartner tools'
+                             'clock-bot clockB-bot tools'
+                             '. . toolsB';
     }
     .pocket-top .twoboards .pocket, .pocket-bot .twoboards .pocket {
       width: calc(var(--pocketLength) * (var(--cg-width-a) / var(--files)));
@@ -230,6 +650,12 @@
     grid-area: tools;
     display: flex;
     flex-flow: column;
+    /* The zero minimums are what let this column be driven to nothing: a flex
+       item's automatic minimum size would otherwise hold it open, and this column
+       yielding is precisely what keeps both boards on screen at narrow widths. */
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
 }
 
 .bug-round-tools-part {
@@ -239,10 +665,121 @@
 
 }
 
-.bug-round-tools-part .movelist-block{
-    max-height: calc(var(--cg-height-b));
-    min-height: calc(var(--cg-height-b));
+/* The tools column IS the tab widget (client/two-board/common/tabs.ts), not a box
+   around one, so `.bug-round-tools` above still supplies grid-area and the flex
+   column; only what the widget itself needs is added here.
 
+   Sizing comes from the container in both axes. The zero minimums are what let
+   the column be driven to nothing: a flex item's automatic minimum size would
+   otherwise hold the widget, its panels and its labels open, and this column
+   yielding is precisely what keeps both boards on screen at narrow widths.
+
+   Nothing here sets a height. `site.css` gives every tabpanel
+   `height: var(--panel-height)`, but that variable is defined only in
+   `analysis.css`, which this page does not load — the declaration is therefore
+   invalid at computed-value time and height falls back to `auto`, which is what
+   this layout wants. If a fixed height is ever wanted here, set the variable;
+   do not change the rule in site.css, which the analysis page depends on.
+
+   The movelist block used to be pinned to board B's height by a
+   `.bug-round-tools-part .movelist-block` rule. That selector no longer matches
+   now that the movelist is a panel's child, and a fixed height is the opposite
+   of what a panel wants, so it is gone; `main.round.bug .movelist-block`'s
+   `flex: 1` still applies and fills the panel. */
+/* `.bug-round-tools` is the page's own element (round.ts) and carries the column
+   itself; the widget contributes only #round-tabs-tabpanels and #round-tabs-tablist
+   inside it. Keyed by class rather than by an id, so `round-tabs` names one thing:
+   the widget's id prefix. */
+/* The bar shares one row between the tablist and the game controls. It takes its
+   natural height in the column, and clips: once the tablist has given up all it
+   can and the controls still do not fit, the overflow has to be cut off here
+   rather than widening the grid — this column yielding is what keeps both boards
+   on screen, and nothing added to it may reverse that. */
+.bug-round-tools-bar {
+    flex: 0 0 auto;
+    display: flex;
+    /* Wraps rather than squeezing. Side by side is a wide-column arrangement; in a
+       narrow column the controls' fixed width would eat most of the row and leave
+       the tablist unreadable. Measured on a 697x382 phone landscape, where the
+       column is 74.33px: sharing the row gave the tablist 23.67px — 7.89px per
+       label — where wrapping gives it the full 74.33 and 24.77 per label, which is
+       what mobile had before the controls moved here. The second row costs 40px of
+       the column's height, which the panel gives up.
+
+       Content-driven rather than a breakpoint: the tablist's flex-basis below is
+       what decides. Where the column can hold that basis plus the controls they
+       stay on one line; where it cannot, the controls wrap beneath. */
+    flex-flow: row wrap;
+    align-items: center;
+    min-width: 0;
+    overflow: hidden;
+}
+
+/* In the bar the tablist is the part that yields: it takes the width the controls
+   leave, and `min-width: 0` lets it shrink past its labels, which already clip.
+   The 120px basis is the width below which three labels stop being readable, and
+   is therefore also the point at which the bar wraps instead. */
+#round-tabs-tablist {
+    flex: 1 1 120px;
+    min-width: 0;
+}
+
+/* The controls neither grow into spare width nor shrink under pressure. At the
+   narrowest widths they are clipped by the bar at their natural size — a cut-off
+   button is still recognisable and still clickable where it is drawn, where one
+   scaled to a few pixels would be neither. */
+.bug-round-tools-bar > #game-controls,
+.bug-round-tools-bar > .btn-controls {
+    flex: 0 0 auto;
+}
+
+/* Each button is two thirds of a board square rather than the width of its glyph,
+   which left draw at 20px and resign at 29px. These are targets a player reaches
+   for under time pressure, so the size is stated rather than inherited from a
+   symbol. `site.css` gives them `flex: 1`, which would share the row instead —
+   overridden here so the pair is a fixed 2 x (2/3) squares wide.
+
+   The square is taken from the board chessgroundx actually rendered, not from
+   --bug-sq. Those agree in short landscape — both were 54.67 when measured —
+   because that mode sizes its boards as 8 x --bug-sq. They do not agree anywhere
+   else: --bug-sq is defined as a tenth of the viewport height, and the
+   `min-height: 600px` mode sizes its boards from 30vw instead, where --bug-sq
+   measured 91.33 against a real square of 40.67. Buttons keyed to --bug-sq came
+   out 60.89 wide there — 2.25x too large, taking 60% of a 203px column. */
+.bug-round-tools-bar .btn-controls button {
+    flex: 0 0 calc(var(--cg-width-a) / var(--files) * 2 / 3);
+    /* the basis alone is not enough: a flex item's automatic minimum size floors it
+       at min-content, which held resign at 28.79 where two thirds of a square is
+       27.11 — its flag glyph is wider than draw's ½, so only one of the pair
+       obeyed. Stating zero lets both take exactly the width asked for. */
+    min-width: 0;
+}
+
+/* The panel area takes the height the tablist leaves and passes it to whichever
+   panel is open, so it is a column in its own right. */
+#round-tabs-tabpanels {
+    flex: 1 1 auto;
+    display: flex;
+    flex-flow: column;
+    min-width: 0;
+    min-height: 0;
+}
+
+#round-tabs-tabpanels > [role='tabpanel'] {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    /* both axes stated together: giving only overflow-y would compute overflow-x
+       from visible to auto, and the panel would grow a horizontal scrollbar as
+       soon as its content is wider than the column — which the Info panel's
+       game-info is, at roughly 170px of min-content */
+    overflow: hidden auto;
+}
+
+#round-tabs-tablist > [role='tab'] {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
 }
 
 /* *****************************************************************************************
@@ -263,7 +800,7 @@ div#chatpresets {
   order: 3;
 }
 
-@media (max-width: 799px) and (orientation: portrait) {
+@media (orientation: portrait) {
   div#chatpresets {
     grid-template-columns: repeat(calc(var(--rolesCount) * 2), auto);
   }
@@ -445,16 +982,38 @@ button.bugchat::-moz-focus-inner {
 }
 
 @media (min-width: 800px) {
-  .bug {
-    grid-template-columns:
-      2 * minmax(calc(70vmin * var(--board-scaleA)), calc(100vh * var(--board-scaleA) - calc(var(--site-header-height) + var(--site-header-margin)) - 3rem))
-      minmax(240px, 400px);
-    grid-template-rows: fit-content(0) fit-content(0) 743px;
+  /* Scoped to main.round.bug. `.bug` is carried by #main-wrap.bug and the round
+     app as well, and this template describes only the round page's own areas —
+     so the wrapper, which declares a single 'main' area, was being given three
+     rows and ended 743px below its only child.
+
+     The grid-template-columns this rule used to carry is gone rather than fixed.
+     It read `2 * minmax(...) minmax(240px, 400px)`, which is not valid grid
+     syntax — `2 *` is not a multiplier — so the parser discarded the whole
+     declaration and these columns never applied. It was also incoherent: the
+     areas below are main.round's, while the columns were copied from
+     `.round-app`'s single-board rule in round.css. Deleting it preserves exactly
+     what renders today; inventing valid values would invent new behaviour.
+
+     The `side` row was a hardcoded 743px. Nothing derives that number, and it is
+     wrong both ways: too much for an empty aside — which is what this page has
+     had since the game-info panel moved into the Info tab — and arbitrary for a
+     populated one. It now sizes to its content like the two rows above it. */
+  main.round.bug {
+    /* Two columns, because that is what the areas below describe. Without this,
+       `.round` in site.css supplies THREE — a sidebar/board/panel set written for
+       the single-board page — and the bughouse areas only ever name two of them.
+       The third track then sat empty on the right and, since it absorbed the
+       leftover width, pinned everything to the left edge. `justify-content`
+       centres the pair once they are content-sized. */
+    grid-template-columns: minmax(0, max-content) minmax(0, max-content);
+    justify-content: center;
+    grid-template-rows: fit-content(0) fit-content(0) fit-content(0);
     grid-template-areas: 'app app' 'uleft uboard' 'side side';
   }
 }
 
-@media (max-width: 799px) and (orientation: portrait) {
+@media (orientation: portrait) {
   .bug .info-wrap0, .info-wrap0 {
     flex-direction: column-reverse;
     grid-area: clock-top;
@@ -620,7 +1179,7 @@ round-player1.bug {
   width: 100%;
 }
 
-@media (max-width: 799px) and (orientation: portrait) {
+@media (orientation: portrait) {
   main.round.bug #movelist {
     font-size: 1.1em;
   }
