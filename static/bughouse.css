@@ -687,9 +687,9 @@
    of what a panel wants, so it is gone; `main.round.bug .movelist-block`'s
    `flex: 1` still applies and fills the panel. */
 /* `.bug-round-tools` is the page's own element (round.ts) and carries the column
-   itself; the widget contributes only #round-tabs-tabpanels and #round-tabs-tablist
-   inside it. Keyed by class rather than by an id, so `round-tabs` names one thing:
-   the widget's id prefix. */
+   itself; the widget contributes only #round-tabs-tablist and one panel per tab
+   part inside it. Keyed by class rather than by an id, so `round-tabs` names one
+   thing: the widget's id prefix. */
 /* The bar shares one row between the tablist and the game controls. It takes its
    natural height in the column, and clips: once the tablist has given up all it
    can and the controls still do not fit, the overflow has to be cut off here
@@ -755,17 +755,19 @@
     min-width: 0;
 }
 
-/* The panel area takes the height the tablist leaves and passes it to whichever
-   panel is open, so it is a column in its own right. */
-#round-tabs-tabpanels {
-    flex: 1 1 auto;
-    display: flex;
-    flex-flow: column;
-    min-width: 0;
-    min-height: 0;
-}
+/* The open panel takes the height the tablist bar leaves. This used to be the job
+   of a #round-tabs-tabpanels element between the column and the panels, which the
+   widget no longer builds: a tab's parts are mounted individually so that a later
+   layout can put one of them somewhere else entirely. `.bug-round-tools` is
+   already `display: flex; flex-flow: column`, so the panels are now its direct
+   flex items and claim that height themselves — only one is ever displayed, so
+   only one ever claims it.
 
-#round-tabs-tabpanels > [role='tabpanel'] {
+   The zero minimums are not tidiness. A flex item's automatic minimum size would
+   hold the panel, its content and its labels open, and this column being able to
+   yield to nothing is precisely what keeps both boards on screen at narrow
+   widths. */
+.bug-round-tools > [role='tabpanel'] {
     flex: 1 1 auto;
     min-width: 0;
     min-height: 0;

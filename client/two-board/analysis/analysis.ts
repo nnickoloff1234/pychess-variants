@@ -107,23 +107,28 @@ export function analysisView(model: PyChessModel): VNode[] {
     const analysisTabs = new TabbedPanels(
         'analysis-tabs',
         [
+            // one part each: panelClass now belongs to the part, since it is the
+            // part that becomes an element and the part that gets placed
             {
                 label: _('Move times'),
-                panelClass: 'chart-container',
-                content: [movetimeChartView.placeholder()],
+                parts: [{ panelClass: 'chart-container', content: [movetimeChartView.placeholder()] }],
             },
             {
                 label: _('FEN & PGN'),
-                panelClass: 'fenpgn-panel',
-                content: [
-                    h('div#fentext', [
-                        h('strong', 'BFEN'),
-                        h('input#fullfen', {
-                            attrs: { readonly: true, spellcheck: false },
-                            on: { click: onClickFullfen },
-                        }),
-                    ]),
-                    ...pgnView.placeholders(),
+                parts: [
+                    {
+                        panelClass: 'fenpgn-panel',
+                        content: [
+                            h('div#fentext', [
+                                h('strong', 'BFEN'),
+                                h('input#fullfen', {
+                                    attrs: { readonly: true, spellcheck: false },
+                                    on: { click: onClickFullfen },
+                                }),
+                            ]),
+                            ...pgnView.placeholders(),
+                        ],
+                    },
                 ],
             },
         ],
@@ -236,7 +241,12 @@ export function analysisView(model: PyChessModel): VNode[] {
                 // under-board is the page's own element now; the widget contributes
                 // only the two parts inside it. The plain analysis board has nothing
                 // to switch to, so it simply does not mount the tablist.
-                h('under-board', isAnalysisBoard ? [analysisTabs.tabPanels()] : [analysisTabs.tabPanels(), analysisTabs.tabList()]),
+                h(
+                    'under-board',
+                    isAnalysisBoard
+                        ? [analysisTabs.panel(0, 0), analysisTabs.panel(1, 0)]
+                        : [analysisTabs.panel(0, 0), analysisTabs.panel(1, 0), analysisTabs.tabList()],
+                ),
             ],
         ),
     ];

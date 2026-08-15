@@ -88,12 +88,16 @@ export function roundView(model: PyChessModel): VNode[] {
     const roundTabs = new TabbedPanels(
         'round-tabs',
         [
-            { label: _('Chat'), content: [h('div#bugroundchat')] },
+            // one part each for now: splitting a tab across places is what the
+            // widget newly allows, and which tabs should be split is a separate
+            // change — chat's two pieces are produced together inside the shared
+            // chatView(), so dividing them is a change about chat, not about tabs
+            { label: _('Chat'), parts: [{ content: [h('div#bugroundchat')] }] },
             {
                 label: _('Moves'),
-                content: [h('div.movelist-block', [movelistView.placeholder(), h('div#move-controls')])],
+                parts: [{ content: [h('div.movelist-block', [movelistView.placeholder(), h('div#move-controls')])] }],
             },
-            { label: _('Info'), content: [gameInfoView.placeholder()] },
+            { label: _('Info'), parts: [{ content: [gameInfoView.placeholder()] }] },
         ],
         _('Round tabs'),
     );
@@ -152,8 +156,14 @@ export function roundView(model: PyChessModel): VNode[] {
                 // They are in this column because the row below the boards cannot be
                 // reached in short landscape: they measured at y=546.67 in a 551px
                 // viewport that does not scroll, leaving no way to resign a game.
+                // Each tab's panels are mounted individually now that the widget
+                // groups nothing. All of them land here for the moment, so the
+                // column looks exactly as it did; a later change is free to mount
+                // one of them somewhere else entirely.
                 h('div.bug-round-tools', [
-                    roundTabs.tabPanels(),
+                    roundTabs.panel(0, 0),
+                    roundTabs.panel(1, 0),
+                    roundTabs.panel(2, 0),
                     h('div.bug-round-tools-bar', [roundTabs.tabList(), h('div#game-controls')]),
                 ]),
                 seatViews.a[1].view(pocketA1),
