@@ -7,6 +7,7 @@ import { timeago } from './datetime';
 import { sizeMiniBoardHost } from './miniBoard';
 import { getLastMoveFen, splitVariantKey, VARIANTS } from './variants';
 import { displayUsername } from './user';
+import { renderFollowButtonState } from './followButton';
 
 interface MiniPerf {
     variant: string;
@@ -30,6 +31,7 @@ interface MiniPlaying {
 
 interface MiniPayload {
     username: string;
+    system?: boolean;
     title: string;
     online: boolean;
     canMessage?: boolean;
@@ -451,6 +453,13 @@ class UserMiniWidget {
         const actions = document.createElement('div');
         actions.className = 'umw-actions upt__actions btn-rack';
 
+        if (payload.system) {
+            if (!this.isAnon && payload.username !== this.currentUsername && payload.canFollow) {
+                actions.appendChild(this.makeFollowButton(payload.username, payload.following === true));
+            }
+            return actions.childElementCount > 0 ? actions : undefined;
+        }
+
         const watchLink = this.makeActionLink(
             'icon icon-tv',
             `/@/${encodeURIComponent(payload.username)}/tv`,
@@ -491,11 +500,7 @@ class UserMiniWidget {
         const button = document.createElement('a');
         button.className = 'umw-action-btn umw-follow-btn btn-rack__btn relation-button text icon icon-thumbs-o-up';
         button.href = `/api/${encodeURIComponent(username)}/follow`;
-        button.title = _('Follow');
-        button.setAttribute('aria-label', _('Follow'));
-        const renderState = () => {
-            button.textContent = following ? _('Following') : _('Follow');
-        };
+        const renderState = () => renderFollowButtonState(button, following);
         renderState();
         button.addEventListener('click', event => {
             event.preventDefault();

@@ -21,9 +21,14 @@ import { sound } from './sound';
 import { chatMessage, ChatController } from './chat';
 import { selectMove } from './movelist';
 import { Api } from 'chessgroundx/api';
+import { Chessground } from 'chessgroundx/chessground';
+import type { Config } from 'chessgroundx/config';
 import { fogFen, Variant } from './variants';
 import { isAnonUsername } from './user';
 import { animatePassMove } from './passMove';
+import { boardSettings } from './boardSettings';
+import { aliceBoardFen } from './aliceBoard';
+import type { AliceBoardName } from './aliceBoard';
 
 export abstract class GameController extends ChessgroundController implements ChatController {
     sock: WebsocketHeartbeatJs;
@@ -85,12 +90,15 @@ export abstract class GameController extends ChessgroundController implements Ch
     ctableContainer: VNode | HTMLElement;
     clickDrop: cg.Piece | undefined;
     mirrorBoard: boolean;
+    aliceSplitBoards: boolean;
+    aliceSplitBoard?: Api;
 
     spectator: boolean;
 
     // Settings
     clickDropEnabled: boolean;
     autoPromote?: boolean;
+    autoClaimDraw?: boolean;
     dblClickPass?: boolean;
 
     // Main line ply where analysis variation starts
@@ -105,6 +113,7 @@ export abstract class GameController extends ChessgroundController implements Ch
         pocket0: HTMLElement,
         pocket1: HTMLElement,
         boardName: BoardName = '',
+        aliceBoardEl?: HTMLElement,
     ) {
         super(el, model, fullfen, pocket0, pocket1, boardName);
 
@@ -127,6 +136,7 @@ export abstract class GameController extends ChessgroundController implements Ch
         this.rated = model['rated'];
         this.corr = model['corr'] === 'True';
         this.mirrorBoard = false;
+        this.aliceSplitBoards = false;
 
         this.spectator = this.username !== this.wplayer && this.username !== this.bplayer;
 
@@ -188,6 +198,111 @@ export abstract class GameController extends ChessgroundController implements Ch
         Mousetrap.bind('enter', () => this.skipGating());
         Mousetrap.bind('f', () => this.toggleOrientation());
         Mousetrap.bind('?', () => this.helpDialog());
+
+        if (this.variant.name === 'alice' && aliceBoardEl) {
+            this.initAliceSplitBoard(aliceBoardEl, model);
+            Mousetrap.bind('s', () => this.toggleAliceSplitBoards());
+        }
+    }
+
+    private initAliceSplitBoard(el: HTMLElement, model: PyChessModel): void {
+        this.aliceSplitBoard = Chessground(el, {
+            fen: aliceBoardFen(this.fullfen, 'b'),
+            orientation: this.mycolor,
+            dimensions: this.variant.board.dimensions,
+            notation: this.notation,
+            kingRoles: this.variant.kingRoles,
+            viewOnly: true,
+        });
+        boardSettings.updateScopedBoardStyle(this.variant, el);
+        boardSettings.updateScopedPieceStyle(this.variant, el, model.initialFen || this.fullfen);
+
+        const boardContainer = (el.closest('#aliceboard') as HTMLElement | null) ?? el;
+        const activateBoard = () => {
+            if (this.aliceSplitBoards) this.switchAliceBoards();
+        };
+        boardContainer.addEventListener('click', activateBoard);
+        boardContainer.addEventListener('keydown', event => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            activateBoard();
+        });
+
+        this.aliceSplitBoards = localStorage.aliceSplitBoards === 'true';
+        this.updateAliceSplitLayout();
+        this.refreshAliceBoards();
+    }
+
+    private activeAliceBoard(): AliceBoardName {
+        return this.mirrorBoard ? 'b' : 'a';
+    }
+
+    private inactiveAliceBoard(): AliceBoardName {
+        return this.mirrorBoard ? 'a' : 'b';
+    }
+
+    displayFen(fen: string): string {
+        if (this.variant.name !== 'alice') return fen;
+        if (this.aliceSplitBoards) return aliceBoardFen(fen, this.activeAliceBoard());
+        return this.mirrorBoard ? this.getAliceFen(fen) : fen;
+    }
+
+    syncAliceSplitBoard(fen: string, config: Config = {}): void {
+        if (!this.aliceSplitBoard) return;
+        this.aliceSplitBoard.set({
+            ...config,
+            fen: aliceBoardFen(fen, this.inactiveAliceBoard()),
+            orientation: this.chessground.state.orientation,
+        });
+    }
+
+    private refreshAliceBoards(): void {
+        // Chessground stores the checked square, not just whether the side to move is in check.
+        // Preserve the logical check state while making both grounds recompute that square from
+        // their newly assigned pieces when boards A and B are switched.
+        const check = !!(this.chessground.state.check?.length || this.aliceSplitBoard?.state.check?.length);
+        this.chessground.set({ fen: this.displayFen(this.fullfen) as cg.FEN, check });
+        if (this.aliceSplitBoard) {
+            this.setDests();
+            this.syncAliceSplitBoard(this.fullfen, { check });
+            this.updateAliceBoardLabels();
+            requestAnimationFrame(() => this.aliceSplitBoard?.redrawAll());
+        }
+    }
+
+    private updateAliceSplitLayout(): void {
+        document.querySelector('.round-app')?.classList.toggle('alice-split', this.aliceSplitBoards);
+        this.updateAliceBoardLabels();
+
+        const button = document.getElementById('alice-split');
+        if (button) {
+            button.setAttribute('aria-pressed', String(this.aliceSplitBoards));
+            button.setAttribute(
+                'title',
+                this.aliceSplitBoards ? _('Show merged board (S)') : _('Show separate boards (S)'),
+            );
+        }
+    }
+
+    private updateAliceBoardLabels(): void {
+        const mainboard = document.getElementById('mainboard');
+        const otherBoard = document.getElementById('aliceboard');
+        if (!mainboard || !otherBoard) return;
+
+        const active = this.activeAliceBoard().toUpperCase();
+        const inactive = this.inactiveAliceBoard().toUpperCase();
+        mainboard.dataset.aliceBoard = active;
+        otherBoard.dataset.aliceBoard = inactive;
+        mainboard.setAttribute('aria-label', _('Alice board %1 (active)', active));
+        otherBoard.setAttribute('aria-label', _('Alice board %1; click to activate', inactive));
+    }
+
+    toggleAliceSplitBoards(): void {
+        if (!this.aliceSplitBoard) return;
+        this.aliceSplitBoards = !this.aliceSplitBoards;
+        localStorage.aliceSplitBoards = String(this.aliceSplitBoards);
+        this.updateAliceSplitLayout();
+        this.refreshAliceBoards();
     }
 
     skipGating() {
@@ -196,6 +311,11 @@ export abstract class GameController extends ChessgroundController implements Ch
 
     helpDialog() {
         console.log('HELP!');
+    }
+
+    toggleOrientation(): void {
+        super.toggleOrientation();
+        this.aliceSplitBoard?.toggleOrientation();
     }
 
     flipped() {
@@ -323,7 +443,7 @@ export abstract class GameController extends ChessgroundController implements Ch
 
     switchAliceBoards(): void {
         this.mirrorBoard = !this.mirrorBoard;
-        this.chessground.set({ fen: this.getAliceFen(this.fullfen) });
+        this.refreshAliceBoards();
     }
 
     goPly(ply: number, _plyVari = 0) {
@@ -342,7 +462,7 @@ export abstract class GameController extends ChessgroundController implements Ch
                 step.san?.slice(1, 2) === 'x';
         }
 
-        const fen = this.mirrorBoard ? this.getAliceFen(step.fen) : step.fen;
+        const fen = this.displayFen(step.fen);
         this.chessground.set({
             fen: this.fog ? fogFen(fen) : fen,
             turnColor: step.turnColor,
@@ -351,6 +471,11 @@ export abstract class GameController extends ChessgroundController implements Ch
             },
             check: this.fog ? false : step.check,
             lastMove: this.fog ? undefined : lastMove,
+        });
+        this.syncAliceSplitBoard(step.fen, {
+            turnColor: step.turnColor,
+            check: step.check,
+            lastMove,
         });
         animatePassMove(this.chessground, this.variant.rules.pass && !this.fog, lastMove);
 

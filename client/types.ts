@@ -49,10 +49,14 @@ export type PyChessModel = {
     tournamentname: string;
     simulname: string;
     tournamentcreator: string;
+    tournamentmanager: boolean;
+    tournamentteamid: string;
+    tournamentteamname: string;
     inviter: string;
     botChallengeStatus: string;
     botChallengeDeclineReason: string;
     botChallengeOpponent: string;
+    botSupportedVariants: string[] | null;
     challengeId: string;
     ply: number;
     ct: CrossTable | string;
@@ -93,6 +97,7 @@ export type PyChessModel = {
     bratingB: string; // string, because can contain "?" suffix for provisional rating
 
     blogs: string;
+    timeline: string;
     corrGames: string;
     simulGames: string;
     simulHost: boolean;

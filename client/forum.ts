@@ -20,6 +20,7 @@ interface ForumCategory {
     _id: string;
     name: string;
     desc: string;
+    teamId?: string;
     nbTopics: number;
     nbPosts: number;
     lastPostAt?: string | null;
@@ -273,6 +274,8 @@ export function forumView(model: PyChessModel) {
     let canReply = false;
     let canClose = false;
     let canSticky = false;
+    let timelineUnsubscribed: boolean | null = null;
+    let updatingTimelineSubscription = false;
 
     let relocateTargets: ForumCategory[] = [];
 
@@ -617,6 +620,8 @@ export function forumView(model: PyChessModel) {
                 canReply = Boolean(data.canReply);
                 canClose = Boolean(data.canClose);
                 canSticky = Boolean(data.canSticky);
+                timelineUnsubscribed =
+                    typeof data.timelineUnsubscribed === 'boolean' ? data.timelineUnsubscribed : null;
                 relocateTargets = data.relocateTargets || [];
                 setFormCaptcha((data.captcha || null) as ForumCaptcha | null);
                 if (canReply && !formCaptcha) loadCaptcha();
@@ -864,6 +869,38 @@ export function forumView(model: PyChessModel) {
             .catch(err => {
                 console.warn('Failed to toggle topic sticky state.', err);
                 void alertDialog({ text: err instanceof Error ? err.message : _('Could not update topic.') });
+            });
+    }
+
+    /** Subscribe or unsubscribe from future timeline posts in this forum topic. */
+    function toggleTimelineSubscription() {
+        if (timelineUnsubscribed === null || updatingTimelineSubscription || !topicData) return;
+        const next = !timelineUnsubscribed;
+        updatingTimelineSubscription = true;
+        redraw();
+
+        fetch('/api/timeline/unsubscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+            body: new URLSearchParams({
+                channel: `forum:${topicData._id}`,
+                unsubscribed: String(next),
+            }).toString(),
+        })
+            .then(parseJsonResponse)
+            .then(({ status, data }) => {
+                if (status >= 400 || data.type === 'error') handleApiError(data, status);
+                timelineUnsubscribed = Boolean(data.unsubscribed);
+            })
+            .catch(err => {
+                console.warn('Failed to update timeline subscription.', err);
+                void alertDialog({
+                    text: err instanceof Error ? err.message : _('Could not update timeline subscription.'),
+                });
+            })
+            .finally(() => {
+                updatingTimelineSubscription = false;
+                redraw();
             });
     }
 
@@ -1137,9 +1174,16 @@ export function forumView(model: PyChessModel) {
             );
         }
 
+        const backHref = categData?.teamId
+            ? `/team/${encodeURIComponent(categData.teamId)}`
+            : '/forum';
         return h('main.forum.forum-categ.box', [
             h('div.box__top', [
-                h('h1', [h('a.text', { attrs: { href: '/forum' } }, '‹'), ` ${categData?.name || _('Forum')}`]),
+                h('h1', [
+                    h('a.text', { attrs: { href: backHref } }, '‹'),
+                    ...(categData?.teamId ? [h('span.team-icon.forum-team-icon', { attrs: { 'aria-hidden': 'true' } })] : []),
+                    h('span.forum-categ__title', categData?.name || _('Forum')),
+                ]),
                 h('div.box__top__actions', actions),
             ]),
             h('table.topics.slist.slist-pad', [
@@ -1516,6 +1560,16 @@ export function forumView(model: PyChessModel) {
                     h(
                         'div',
                         [
+                            timelineUnsubscribed !== null
+                                ? h(
+                                      'button.button.button-empty.text.timeline-unsubscribe',
+                                      {
+                                          props: { type: 'button', disabled: updatingTimelineSubscription },
+                                          on: { click: toggleTimelineSubscription },
+                                      },
+                                      timelineUnsubscribed ? _('Subscribe') : _('Unsubscribe'),
+                                  )
+                                : null,
                             canClose
                                 ? h(
                                       'button.button.button-empty.button-red',

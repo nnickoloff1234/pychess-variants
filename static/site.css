@@ -2142,11 +2142,11 @@ button[disabled] i {
 }
 @media (max-width: 799px) and (orientation: portrait) {
   .info-wrap0 {
-    grid-area: 4 / 1 / 4 / 2;
+    grid-area: user-top;
     justify-self: flex-end;
   }
   .info-wrap1 {
-    grid-area: 8 / 1 / 8 / 2;
+    grid-area: user-bot;
     justify-self: flex-end;
   }
 }
@@ -2377,20 +2377,6 @@ form#game-mode label {
   display: inline-flex;
   margin-right: 3px;
   color: var(--time-text);
-}
-
-.chat .discord-icon-container {
-  display: inline-flex;
-  align-items: center;
-  margin-right: 3px;
-  width: 0.8em;
-  height: 0.55em;
-  background: white;
-  background-position: center;
-  transform: translateY(2px);
-}
-.chat .discord-icon {
-  fill: #5865f2;
 }
 
 user {

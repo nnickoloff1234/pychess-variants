@@ -12,6 +12,7 @@ import { patch } from './document';
 import { boardSettings } from './boardSettings';
 import { Clock } from './clock';
 import { sound } from './sound';
+import { redirectFirst } from './tournamentAlerts';
 import { fogFen } from './variants';
 import { WHITE, BLACK, uci2LastMove, getCounting, isHandicap } from './chess';
 import { crosstableView } from './crosstable';
@@ -120,7 +121,7 @@ export class RoundController extends GameController {
     lastMaybeSentMsgMove: MsgMove | undefined;
     simulRoundHost?: SimulRoundHostController;
 
-    constructor(el: HTMLElement, model: PyChessModel) {
+    constructor(el: HTMLElement, model: PyChessModel, aliceBoardEl?: HTMLElement) {
         super(
             el,
             model,
@@ -128,6 +129,7 @@ export class RoundController extends GameController {
             document.getElementById('pocket0') as HTMLElement,
             document.getElementById('pocket1') as HTMLElement,
             '',
+            aliceBoardEl,
         );
         this.focus = !document.hidden;
         document.addEventListener('visibilitychange', () => {
@@ -203,6 +205,7 @@ export class RoundController extends GameController {
 
         this.settings = true;
         this.autoPromote = localStorage.autoPromote === undefined ? false : localStorage.autoPromote === 'true';
+        this.autoClaimDraw = localStorage.autoClaimDraw === undefined ? false : localStorage.autoClaimDraw === 'true';
         this.materialDifference =
             localStorage.materialDifference === undefined ? false : localStorage.materialDifference === 'true';
         // Track per-move Jieqi capture identities so replay can render captures at any ply.
@@ -755,6 +758,27 @@ export class RoundController extends GameController {
         this.setDialog(_('Draw offer sent'));
     };
 
+    private autoClaimDrawRequested = false;
+
+    private maybeAutoClaimDraw = () => {
+        if (this.spectator || this.status >= 0 || !this.autoClaimDraw || !this.ffishBoard) {
+            this.autoClaimDrawRequested = false;
+            return;
+        }
+        // Claimable draws (repetition / N-move) are optional ends: over only when claimDraw is true.
+        const claimable =
+            this.ffishBoard.isGameOver(true) &&
+            !this.ffishBoard.isGameOver(false) &&
+            this.ffishBoard.result(true) === '1/2-1/2';
+        if (!claimable) {
+            this.autoClaimDrawRequested = false;
+            return;
+        }
+        if (this.autoClaimDrawRequested) return;
+        this.autoClaimDrawRequested = true;
+        this.doSend({ type: 'draw', gameId: this.gameId });
+    };
+
     private rejectDrawOffer = () => {
         this.doSend({ type: 'reject_draw', gameId: this.gameId });
         this.clearDialog();
@@ -933,7 +957,10 @@ export class RoundController extends GameController {
     };
 
     private onMsgNewGame = (msg: MsgNewGame) => {
-        window.location.assign(this.home + '/' + msg['gameId']);
+        redirectFirst(msg.gameId, () => {
+            sound.genericNotify();
+            window.setTimeout(() => window.location.assign(this.home + '/' + msg.gameId), 700);
+        });
     };
 
     private onMsgViewRematch = (msg: MsgViewRematch) => {
@@ -1306,11 +1333,16 @@ export class RoundController extends GameController {
         if (this.spectator) {
             if (latestPly) {
                 this.chessground.set({
-                    fen: this.fog ? fogFen(this.fullfen) : this.fullfen,
+                    fen: this.fog ? fogFen(this.fullfen) : this.displayFen(this.fullfen),
                     turnColor: this.turnColor,
                     check: msg.check,
                     lastMove: this.fog ? undefined : lastMove,
                     movable: { color: undefined },
+                });
+                this.syncAliceSplitBoard(this.fullfen, {
+                    turnColor: this.turnColor,
+                    check: msg.check,
+                    lastMove,
                 });
                 animatePassMove(this.chessground, this.variant.rules.pass && !this.fog, lastMove);
             }
@@ -1329,7 +1361,7 @@ export class RoundController extends GameController {
             if (this.turnColor === this.mycolor) {
                 if (latestPly) {
                     this.chessground.set({
-                        fen: this.fog ? fogFen(this.fullfen) : this.fullfen,
+                        fen: this.fog ? fogFen(this.fullfen) : this.displayFen(this.fullfen),
                         turnColor: this.turnColor,
                         movable: {
                             free: false,
@@ -1337,6 +1369,11 @@ export class RoundController extends GameController {
                         },
                         check: msg.check,
                         lastMove: this.fog ? undefined : lastMove,
+                    });
+                    this.syncAliceSplitBoard(this.fullfen, {
+                        turnColor: this.turnColor,
+                        check: msg.check,
+                        lastMove,
                     });
                     animatePassMove(this.chessground, this.variant.rules.pass && !this.fog, lastMove);
 
@@ -1365,10 +1402,15 @@ export class RoundController extends GameController {
             } else {
                 this.chessground.set({
                     // giving fen here will place castling rooks to their destination in chess960 variants
-                    fen: this.fog ? fogFen(this.fullfen) : this.fullfen,
+                    fen: this.fog ? fogFen(this.fullfen) : this.displayFen(this.fullfen),
                     turnColor: this.turnColor,
                     check: msg.check,
                     lastMove: lastMove,
+                });
+                this.syncAliceSplitBoard(this.fullfen, {
+                    turnColor: this.turnColor,
+                    check: msg.check,
+                    lastMove,
                 });
                 animatePassMove(this.chessground, this.variant.rules.pass, lastMove);
 
@@ -1391,6 +1433,7 @@ export class RoundController extends GameController {
             this.updateMaterial();
         }
 
+        this.maybeAutoClaimDraw();
         this.simulRoundHost?.onBoard(msg);
     }
 

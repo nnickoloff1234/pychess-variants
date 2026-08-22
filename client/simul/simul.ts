@@ -2,8 +2,7 @@ import { h, VNode } from 'snabbdom';
 import { Chessground } from 'chessgroundx';
 import { Api } from 'chessgroundx/api';
 
-import { VARIANTS } from '../variants';
-import { getLastMoveFen, getVariantByKey, splitVariantKey } from '../variants';
+import { getLastMoveFen, getVariantByKey, isCataloguedVariant, splitVariantKey, VARIANTS } from '../variants';
 import { PyChessModel } from '../types';
 import { patch } from '../document';
 import { boardSettings } from '../boardSettings';
@@ -21,12 +20,14 @@ interface SimulPlayer {
     name: string;
     rating: number;
     title: string;
+    variant: string;
 }
 
 interface SimulGame {
     gameId: string;
     wplayer: string;
     bplayer: string;
+    hostSide: 'white' | 'black';
     variant: string;
     fen: string;
     lastMove?: string;
@@ -46,8 +47,8 @@ interface MsgSimulUserConnected {
     createdBy: string;
     name?: string;
     description?: string;
-    variant?: string;
-    chess960?: boolean;
+    fen?: string;
+    variants?: string[];
     base?: number;
     inc?: number;
     status?: number;
@@ -58,11 +59,14 @@ interface MsgSimulUserConnected {
     entryMaxRating?: number;
     entryMinRatedGames?: number;
     entryMinAccountAgeDays?: number;
+    entryTeamId?: string | null;
+    entryTeamName?: string | null;
     createdAt?: string;
     estimatedStartAt?: string | null;
     startsAt?: string | null;
     endsAt?: string | null;
     games?: SimulGame[];
+    hostGameId?: string | null;
 }
 
 interface MsgNewGame extends SimulGame {
@@ -93,10 +97,9 @@ interface MsgPlayerDenied {
     username: string;
 }
 
-interface MsgPlayerDisconnected {
-    type: 'player_disconnected';
+interface MsgPlayerWithdrawn {
+    type: 'player_withdrawn';
     username: string;
-    group: 'pending' | 'approved';
 }
 
 interface MsgError {
@@ -123,12 +126,13 @@ type SimulInboundMessage =
     | MsgPlayerJoined
     | MsgPlayerApproved
     | MsgPlayerDenied
-    | MsgPlayerDisconnected
+    | MsgPlayerWithdrawn
     | MsgChat
     | MsgFullChat
     | MsgError
     | { type: 'simul_started' }
-    | { type: 'simul_finished' };
+    | { type: 'simul_finished' }
+    | { type: 'host_game'; gameId: string };
 
 export class SimulController implements ChatController {
     sock;
@@ -140,23 +144,28 @@ export class SimulController implements ChatController {
     createdBy: string;
     model: PyChessModel;
     games: SimulGame[] = [];
+    hostGameId = '';
     chessgrounds: { [gameId: string]: Api } = {};
     hasRedirectedToGame = false;
     hostRedirectTimeout: number | null = null;
     hostStartGames: SimulGame[] = [];
     simulStatus: number;
     simulName: string;
-    variantKey: string;
+    variantKeys: string[];
+    selectedJoinVariant: string;
     base: number;
     inc: number;
     hostColor: string;
     hostExtraTime: number;
     hostExtraTimePerPlayer: number;
     description: string;
+    startingFen: string;
     entryMinRating: number;
     entryMaxRating: number;
     entryMinRatedGames: number;
     entryMinAccountAgeDays: number;
+    entryTeamId: string;
+    entryTeamName: string;
     createdAt: string;
     estimatedStartAt: string;
     startsAt: string;
@@ -170,17 +179,21 @@ export class SimulController implements ChatController {
         this.createdBy = '';
         this.simulStatus = Number.isFinite(model.status) ? model.status : T_CREATED;
         this.simulName = model['name'] || 'Simul';
-        this.variantKey = model['variant'] || 'chess';
+        this.variantKeys = [model['variant'] || 'chess'];
+        this.selectedJoinVariant = this.variantKeys[0];
         this.base = Number.isFinite(model.base) ? model.base : 0;
         this.inc = Number.isFinite(model.inc) ? model.inc : 0;
         this.hostColor = 'random';
         this.hostExtraTime = 0;
         this.hostExtraTimePerPlayer = 0;
         this.description = '';
+        this.startingFen = '';
         this.entryMinRating = 0;
         this.entryMaxRating = 0;
         this.entryMinRatedGames = 0;
         this.entryMinAccountAgeDays = 0;
+        this.entryTeamId = '';
+        this.entryTeamName = '';
         this.createdAt = '';
         this.estimatedStartAt = '';
         this.startsAt = '';
@@ -224,8 +237,8 @@ export class SimulController implements ChatController {
             case 'player_denied':
                 this.onMsgPlayerDenied(msg);
                 break;
-            case 'player_disconnected':
-                this.onMsgPlayerDisconnected(msg);
+            case 'player_withdrawn':
+                this.onMsgPlayerWithdrawn(msg);
                 break;
             case 'lobbychat':
                 this.onMsgChat(msg);
@@ -239,6 +252,11 @@ export class SimulController implements ChatController {
                 break;
             case 'simul_finished':
                 this.simulStatus = T_FINISHED;
+                this.hostGameId = '';
+                this.redraw();
+                break;
+            case 'host_game':
+                this.hostGameId = msg.gameId;
                 this.redraw();
                 break;
             case 'error':
@@ -255,8 +273,12 @@ export class SimulController implements ChatController {
         this.createdBy = msg.createdBy;
         if (msg.name) this.simulName = msg.name;
         if (typeof msg.description === 'string') this.description = msg.description;
-        if (msg.variant) {
-            this.variantKey = msg.variant + (msg.chess960 ? '960' : '');
+        if (typeof msg.fen === 'string') this.startingFen = msg.fen;
+        if (msg.variants && msg.variants.length > 0) {
+            this.variantKeys = msg.variants;
+            if (!this.variantKeys.includes(this.selectedJoinVariant)) {
+                this.selectedJoinVariant = this.variantKeys[0];
+            }
         }
         if (typeof msg.base === 'number') this.base = msg.base;
         if (typeof msg.inc === 'number') this.inc = msg.inc;
@@ -268,11 +290,14 @@ export class SimulController implements ChatController {
         if (typeof msg.entryMaxRating === 'number') this.entryMaxRating = msg.entryMaxRating;
         if (typeof msg.entryMinRatedGames === 'number') this.entryMinRatedGames = msg.entryMinRatedGames;
         if (typeof msg.entryMinAccountAgeDays === 'number') this.entryMinAccountAgeDays = msg.entryMinAccountAgeDays;
+        if (typeof msg.entryTeamId === 'string') this.entryTeamId = msg.entryTeamId;
+        if (typeof msg.entryTeamName === 'string') this.entryTeamName = msg.entryTeamName;
         if (typeof msg.createdAt === 'string') this.createdAt = msg.createdAt;
         if (typeof msg.estimatedStartAt === 'string') this.estimatedStartAt = msg.estimatedStartAt;
         if (typeof msg.startsAt === 'string') this.startsAt = msg.startsAt;
         if (typeof msg.endsAt === 'string') this.endsAt = msg.endsAt;
         this.games = msg.games ?? [];
+        this.hostGameId = typeof msg.hostGameId === 'string' ? msg.hostGameId : '';
         this.redraw();
     }
 
@@ -307,7 +332,7 @@ export class SimulController implements ChatController {
             game.result = msg.result;
             const cg = this.chessgrounds[msg.gameId];
             if (cg) {
-                const variant = VARIANTS[game.variant] || this.getVariantInfo();
+                const variant = this.getVariantInfo(game.variant);
                 const [lastMove, fen] = getLastMoveFen(variant.name, msg.lastMove, msg.fen);
                 cg.set({ fen, lastMove });
             }
@@ -336,7 +361,7 @@ export class SimulController implements ChatController {
         this.redraw();
     }
 
-    onMsgPlayerDisconnected(msg: MsgPlayerDisconnected) {
+    onMsgPlayerWithdrawn(msg: MsgPlayerWithdrawn) {
         this.pendingPlayers = this.pendingPlayers.filter(player => player.name !== msg.username);
         this.players = this.players.filter(player => player.name !== msg.username);
         this.redraw();
@@ -370,7 +395,13 @@ export class SimulController implements ChatController {
 
     joinSimul() {
         this.lastError = '';
-        this.doSend({ type: 'join', simulId: this.simulId });
+        this.doSend({ type: 'join', simulId: this.simulId, variant: this.selectedJoinVariant });
+        this.redraw();
+    }
+
+    withdrawSimul() {
+        this.lastError = '';
+        this.doSend({ type: 'withdraw', simulId: this.simulId });
         this.redraw();
     }
 
@@ -383,7 +414,7 @@ export class SimulController implements ChatController {
     }
 
     isHostWhite(game: SimulGame): boolean {
-        return game.wplayer === this.createdBy;
+        return game.hostSide === 'white';
     }
 
     getHostScore(game: SimulGame): '1' | '0' | '½' | '' {
@@ -473,17 +504,27 @@ export class SimulController implements ChatController {
     }
 
     getHostAndOpponent(game: SimulGame): { host: string; opponent: string } {
-        if (game.wplayer === this.createdBy) {
-            return { host: game.wplayer, opponent: game.bplayer };
-        }
-        if (game.bplayer === this.createdBy) {
-            return { host: game.bplayer, opponent: game.wplayer };
-        }
-        return { host: game.wplayer, opponent: game.bplayer };
+        const host = this.createdBy || '<erased>';
+        return game.hostSide === 'white'
+            ? { host, opponent: game.bplayer }
+            : { host, opponent: game.wplayer };
     }
 
-    getVariantInfo() {
-        return getVariantByKey(this.variantKey);
+    getVariantInfo(variantKey = this.variantKeys[0]) {
+        if (isCataloguedVariant(variantKey)) return VARIANTS[variantKey] || VARIANTS['chess'];
+        return getVariantByKey(variantKey);
+    }
+
+    variantDisplayName(variantKey: string): string {
+        const variantInfo = this.getVariantInfo(variantKey);
+        const chess960 = !isCataloguedVariant(variantKey) && splitVariantKey(variantKey).chess960;
+        return variantInfo.displayName(chess960);
+    }
+
+    variantSummary(): string {
+        const names = this.variantKeys.map(variantKey => this.variantDisplayName(variantKey));
+        const shown = names.slice(0, 4);
+        return names.length > shown.length ? `${shown.join(', ')} +${names.length - shown.length} more` : shown.join(', ');
     }
 
     renderEntryConditions(): VNode[] {
@@ -500,6 +541,14 @@ export class SimulController implements ChatController {
         if (this.entryMinAccountAgeDays > 0) {
             lines.push(h('p.simul__meta__line', `Entry: account age ${this.entryMinAccountAgeDays}+ days`));
         }
+        if (this.entryTeamId && this.entryTeamName) {
+            lines.push(
+                h('p.simul__meta__line', [
+                    'Entry: members of ',
+                    h('a', { attrs: { href: `/team/${this.entryTeamId}` } }, this.entryTeamName),
+                ]),
+            );
+        }
         return lines;
     }
 
@@ -512,7 +561,7 @@ export class SimulController implements ChatController {
         const buttons: VNode[] = [];
 
         if (isHost) {
-            if (approvedParticipants.length > 0) {
+            if (approvedParticipants.length > 1) {
                 buttons.push(
                     h(
                         'button.button.button-green.text.simul__cta',
@@ -538,7 +587,29 @@ export class SimulController implements ChatController {
                     ),
                 );
             }
-        } else if (!alreadyJoined) {
+        } else if (alreadyJoined) {
+            buttons.push(
+                h('button.button.simul__cta', { on: { click: () => this.withdrawSimul() } }, 'Withdraw'),
+            );
+        } else {
+            if (this.variantKeys.length > 1) {
+                buttons.push(
+                    h(
+                        'select.simul__join-variant',
+                        {
+                            props: { value: this.selectedJoinVariant },
+                            on: {
+                                change: event => {
+                                    this.selectedJoinVariant = (event.target as HTMLSelectElement).value;
+                                },
+                            },
+                        },
+                        this.variantKeys.map(variantKey =>
+                            h('option', { attrs: { value: variantKey } }, this.variantDisplayName(variantKey)),
+                        ),
+                    ),
+                );
+            }
             buttons.push(h('button.button.text.simul__cta', { on: { click: () => this.joinSimul() } }, 'Join'));
         }
 
@@ -546,8 +617,8 @@ export class SimulController implements ChatController {
     }
 
     renderApplicantRow(player: SimulPlayer, isHost: boolean, isPending: boolean): VNode {
-        const variantInfo = this.getVariantInfo();
-        const { chess960 } = splitVariantKey(this.variantKey);
+        const variantInfo = this.getVariantInfo(player.variant);
+        const { chess960 } = splitVariantKey(player.variant);
         return h(
             'tr',
             {
@@ -626,6 +697,7 @@ export class SimulController implements ChatController {
                 h('h1', [this.simulName, h('span.author', [' hosted by ', hostLinkNode()])]),
                 h('div.box__top__actions', buttons),
             ]),
+            this.renderDescription(),
             instruction ? h('p.instructions', instruction) : null,
             h('div.halves', [
                 h('div.half.candidates', [
@@ -694,6 +766,7 @@ export class SimulController implements ChatController {
                     ),
                 ]),
             ]),
+            this.renderDescription(),
             this.renderResultsSummary(),
             !isSimulFinished ? h('h2.simul__section-title', 'Games in progress') : null,
             this.renderMiniBoards(),
@@ -702,10 +775,10 @@ export class SimulController implements ChatController {
 
     renderSide(simulStatusText: string): VNode {
         const variantInfo = this.getVariantInfo();
-        const { chess960 } = splitVariantKey(this.variantKey);
-        const variantName = variantInfo.displayName(chess960);
+        const { chess960 } = splitVariantKey(this.variantKeys[0]);
+        const variantNames = this.variantSummary();
         const hostName = this.createdBy ? displayUsername(this.createdBy) : '-';
-        const canEdit = this.model['username'] === this.createdBy;
+        const canEdit = this.model['username'] === this.createdBy || this.model.admin;
         const hostLinkNode = () =>
             this.createdBy ? userLink(this.createdBy, hostName, { className: 'user-link' }) : h('span', hostName);
         const approvedCount = Math.max(0, this.players.length - (this.createdBy ? 1 : 0));
@@ -721,7 +794,7 @@ export class SimulController implements ChatController {
                     h('div', [
                         h('span.clock', this.formatTimeControl()),
                         h('p.simul__meta__headline', [
-                            h('span', `${variantName} • Casual`),
+                            h('span', `${variantNames} • Casual`),
                             canEdit
                                 ? h('a.icon-cog.simul__meta__edit', {
                                       attrs: {
@@ -748,10 +821,24 @@ export class SimulController implements ChatController {
                         : []),
                     ...(showPendingCount ? [h('p.simul__meta__line', `${approvedCount} accepted players`)] : []),
                     ...(showPendingCount ? [h('p.simul__meta__line', `${pendingCount} pending players`)] : []),
+                    ...(this.startingFen
+                        ? [
+                              h('p.simul__meta__line', [
+                                  h(
+                                      'a',
+                                      {
+                                          attrs: {
+                                              href: `/analysis/${encodeURIComponent(this.variantKeys[0])}?fen=${encodeURIComponent(this.startingFen)}`,
+                                              target: '_blank',
+                                              rel: 'noopener',
+                                          },
+                                      },
+                                      'Custom starting position',
+                                  ),
+                              ]),
+                          ]
+                        : []),
                 ]),
-                this.description
-                    ? h('section', [h('p.simul__meta__line.simul__meta__description', this.description)])
-                    : null,
                 this.renderEntryConditions().length > 0 ? h('section', [...this.renderEntryConditions()]) : null,
                 h('section', [
                     h('p.simul__meta__line', ['Hosted by ', hostLinkNode()]),
@@ -762,6 +849,10 @@ export class SimulController implements ChatController {
             ]),
             chatView(this, 'lobbychat'),
         ]);
+    }
+
+    renderDescription(): VNode | null {
+        return this.description ? h('div.simul-text', [h('p', this.description)]) : null;
     }
 
     renderTimingLine(): VNode | null {
@@ -811,7 +902,7 @@ export class SimulController implements ChatController {
             'div.simul__games',
             { class: { finished: this.simulStatus === T_FINISHED } },
             sortedGames.map(game => {
-                const variant = VARIANTS[game.variant] || this.getVariantInfo();
+                const variant = this.getVariantInfo(game.variant);
                 const isFinished = this.isGameFinished(game);
                 const pairing = this.getHostAndOpponent(game);
                 const hostScore = this.getHostScore(game);
@@ -821,7 +912,11 @@ export class SimulController implements ChatController {
                     'a',
                     {
                         key: game.gameId,
-                        attrs: { href: `/${game.gameId}` },
+                        class: { 'host-current': this.hostGameId === game.gameId },
+                        attrs:
+                            this.hostGameId === game.gameId
+                                ? { href: `/${game.gameId}`, title: 'Host is playing this game' }
+                                : { href: `/${game.gameId}` },
                     },
                     [
                         h('div.mini-game__player', [

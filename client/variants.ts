@@ -316,6 +316,7 @@ export const PIECE_FAMILIES: Record<string, PieceFamily> = {
     shatranj: { pieceCSS: ['shatranj0', 'shatranj1', 'disguised'] },
     courier: { pieceCSS: ['courier', 'disguised'] },
     shako: { pieceCSS: ['shako0', 'shako1', 'shako2', 'disguised'] },
+    pemba: { pieceCSS: ['alfaerie', 'disguised'] },
     shogun: { pieceCSS: ['shogun0', 'shogun1', 'shogun2', 'shogun3', 'shogun4', 'shogun5', 'disguised'] },
     orda: { pieceCSS: ['orda0', 'orda1', 'disguised'] },
     khans: { pieceCSS: ['khans0', 'khans1', 'disguised'] },
@@ -1353,7 +1354,7 @@ export const VARIANTS: Record<string, Variant> = {
 
     jieqi: variant({
         name: 'jieqi',
-        tooltip: 'Players can see the identity of the pieces after theirs first move.',
+        tooltip: 'Players can see the identity of the pieces after their first move.',
         startFen: 'r~n~b~a~ka~b~n~r~/9/1c~5c~1/p~1p~1p~1p~1p~/9/9/P~1P~1P~1P~1P~/1C~5C~1/9/R~N~B~A~KA~B~N~R~ w - - 0 1',
         hiddenInfo: true,
         hiddenInfoMode: 'covered_pieces',
@@ -2035,6 +2036,7 @@ export const twoBoarsVariants = variants.filter(v => VARIANTS[v].twoBoards);
 export const unsupportedAiVariants = ['alice', 'fogofwar', 'jieqi'];
 
 export const devVariants = ['borderlands', 'cwda', 'makbug', 'supply', 'yokai'];
+export const CATALOGUED_VARIANT_ICON = '☐';
 
 export interface CataloguedVariantClientDocument {
     readonly name: string;
@@ -2043,7 +2045,17 @@ export interface CataloguedVariantClientDocument {
     readonly pieceNames?: Readonly<Record<string, string>>;
     readonly betzaPieces?: Readonly<Record<string, string>>;
     readonly ini: string;
+    // Fairy-Stockfish rule inheritance. For FSF built-ins this names the
+    // registered direct parent from variant.cpp and is empty for internal
+    // helpers; it is not a pychess UI compatibility hint.
     readonly baseVariant?: string;
+    // Optional pychess-only compatibility profile used for general client
+    // defaults (promotion/pockets/rules UI and piece/board preference). It must
+    // never be treated as Fairy-Stockfish rule inheritance.
+    readonly clientVariant?: string;
+    // Optional chessground-only premove fallback when movement geometry is
+    // better represented by a different first-class variant.
+    readonly premoveVariant?: string;
     readonly startFen: string;
     readonly width: number;
     readonly height: number;
@@ -2058,7 +2070,6 @@ export interface CataloguedVariantClientDocument {
     readonly rulesGate?: boolean;
     readonly rulesPass?: boolean;
     readonly showCheckCounters?: boolean;
-    readonly icon?: string;
     readonly category?: string;
     readonly author?: string;
     readonly source?: 'user' | 'fairy-stockfish-builtin';
@@ -2156,19 +2167,19 @@ function cataloguedDerivedPocketRoles(
     meta: CataloguedVariantClientDocument,
     pieces: cg.Letter[],
     kingRoles: cg.Letter[],
-    baseVariant: Variant | undefined,
+    clientVariant: Variant | undefined,
     hasPocketOverride: boolean,
 ): cg.Letter[] {
     if (meta.pocketRoles?.length || hasPocketOverride) {
         return (meta.pocketRoles ?? []) as cg.Letter[];
     }
 
-    if (baseVariant?.pocket?.captureToHand) {
+    if (clientVariant?.pocket?.captureToHand) {
         const kingLetters = new Set(kingRoles);
         return pieces.filter(letter => !kingLetters.has(letter));
     }
 
-    return (baseVariant?.pocket?.roles.white.map(role => util.letterOf(role)) ?? []) as cg.Letter[];
+    return (clientVariant?.pocket?.roles.white.map(role => util.letterOf(role)) ?? []) as cg.Letter[];
 }
 
 function cataloguedExplicitPocketRoles(startFen: string): Set<cg.Letter> {
@@ -2218,7 +2229,7 @@ interface CataloguedPieceInfo {
     promotionType: PromotionType;
     promotionRoles: cg.Letter[];
     promotionOrder?: PromotionSuffix[];
-    baseVariant?: Variant;
+    clientVariant?: Variant;
 }
 
 function normalPieceLetter(letter: string | undefined): cg.Letter | undefined {
@@ -2307,10 +2318,10 @@ function cataloguedHasPocketOverride(meta: CataloguedVariantClientDocument): boo
     );
 }
 
-function cataloguedCaptureToHand(meta: CataloguedVariantClientDocument, baseVariant: Variant | undefined): boolean {
+function cataloguedCaptureToHand(meta: CataloguedVariantClientDocument, clientVariant: Variant | undefined): boolean {
     return cataloguedIniHasOption(meta.ini, 'capturesToHand')
         ? !!meta.captureToHand
-        : !!meta.captureToHand || !!baseVariant?.pocket?.captureToHand;
+        : !!meta.captureToHand || !!clientVariant?.pocket?.captureToHand;
 }
 
 function cataloguedHasPromotionOverride(meta: CataloguedVariantClientDocument): boolean {
@@ -2330,37 +2341,49 @@ function cataloguedHasPromotionOverride(meta: CataloguedVariantClientDocument): 
     ].some(key => cataloguedIniHasOption(meta.ini, key));
 }
 
+function cataloguedClientVariantName(meta: CataloguedVariantClientDocument): string | undefined {
+    // Ordinary uploaded variants normally have no clientVariant: their real
+    // INI base is also the best client fallback. FSF built-ins can override
+    // that approximation without corrupting baseVariant's engine semantics.
+    return meta.clientVariant || meta.baseVariant || undefined;
+}
+
+function cataloguedClientVariant(meta: CataloguedVariantClientDocument): Variant | undefined {
+    const name = cataloguedClientVariantName(meta);
+    return name ? VARIANTS[name] : undefined;
+}
+
 function cataloguedPieceInfo(meta: CataloguedVariantClientDocument): CataloguedPieceInfo {
-    const baseVariant = meta.baseVariant ? VARIANTS[meta.baseVariant] : undefined;
+    const clientVariant = cataloguedClientVariant(meta);
     const pieces = (meta.pieces?.length ? meta.pieces : ['k']) as cg.Letter[];
-    let kingRoles = (meta.kingRoles ?? baseVariant?.kingRoles.map(role => util.letterOf(role)) ?? []) as cg.Letter[];
+    let kingRoles = (meta.kingRoles ?? clientVariant?.kingRoles.map(role => util.letterOf(role)) ?? []) as cg.Letter[];
     const hasPocketOverride = cataloguedHasPocketOverride(meta);
-    const captureToHand = cataloguedCaptureToHand(meta, baseVariant);
+    const captureToHand = cataloguedCaptureToHand(meta, clientVariant);
     const pocketRoles = cataloguedRenderablePocketRoles(
         meta,
-        cataloguedDerivedPocketRoles(meta, pieces, kingRoles, baseVariant, hasPocketOverride),
+        cataloguedDerivedPocketRoles(meta, pieces, kingRoles, clientVariant, hasPocketOverride),
         kingRoles,
         captureToHand,
     );
     const hasPromotionOverride = cataloguedHasPromotionOverride(meta);
     const promotionType = hasPromotionOverride
         ? (meta.promotionType ?? 'regular')
-        : (baseVariant?.promotion.type ?? meta.promotionType ?? 'regular');
+        : (clientVariant?.promotion.type ?? meta.promotionType ?? 'regular');
     const promotionRoles = (
         hasPromotionOverride || meta.promotionRoles?.length
             ? (meta.promotionRoles ?? [])
-            : (baseVariant?.promotion.roles.map(role => util.letterOf(role)) ?? [])
+            : (clientVariant?.promotion.roles.map(role => util.letterOf(role)) ?? [])
     ) as cg.Letter[];
     const promotionOrder = meta.promotionOrder?.length
         ? [...meta.promotionOrder]
         : hasPromotionOverride
           ? undefined
-          : baseVariant
-            ? [...baseVariant.promotion.order]
+          : clientVariant
+            ? [...clientVariant.promotion.order]
             : undefined;
     kingRoles = cataloguedKingRolesWithPromotions(kingRoles, promotionType, promotionRoles);
 
-    return { pieces, kingRoles, pocketRoles, promotionType, promotionRoles, promotionOrder, baseVariant };
+    return { pieces, kingRoles, pocketRoles, promotionType, promotionRoles, promotionOrder, clientVariant };
 }
 
 function variantPieceLetters(variant: Variant): Set<cg.Letter> {
@@ -2409,6 +2432,7 @@ const CATALOGUED_PIECE_IDENTITIES_BY_CONTEXT: Record<string, CataloguedPieceIden
     centaur: { c: 'centaur' },
     chancellor: { c: 'chancellor' },
     chaturanga: { b: 'alfil', q: 'fers' },
+    chigorin: { c: 'chancellor' },
     courier: { e: 'alfil', f: 'fers', m: 'commoner', w: 'wazir' },
     extinction: { k: 'commoner' },
     georgian: { a: 'amazon' },
@@ -2416,6 +2440,7 @@ const CATALOGUED_PIECE_IDENTITIES_BY_CONTEXT: Record<string, CataloguedPieceIden
     gothic: { a: 'archbishop', c: 'chancellor' },
     grand: { a: 'archbishop', c: 'chancellor' },
     grasshopper: { g: 'grasshopper' },
+    gustav3: { a: 'amazon' },
     janus: { j: 'archbishop' },
     knightmate: { m: 'commoner' },
     legan: { p: 'legan-pawn' },
@@ -2423,10 +2448,12 @@ const CATALOGUED_PIECE_IDENTITIES_BY_CONTEXT: Record<string, CataloguedPieceIden
     newzealand: { n: 'kniroo', r: 'rookni' },
     nightrider: { n: 'nightrider' },
     nocheckatomic: { k: 'commoner' },
+    omicron: { c: 'champion', w: 'wizard' },
     opulent: { a: 'archbishop', c: 'chancellor', n: 'marquis', w: 'wizard', l: 'lion' },
     pawnback: { p: 'backward-pawn' },
     pawnsideways: { p: 'sideways-pawn' },
     perfect: { c: 'chancellor', m: 'archbishop', g: 'amazon' },
+    petrified: { k: 'commoner' },
     shatar: { j: 'bers' },
     shatranj: { b: 'alfil', q: 'fers' },
     tencubed: { a: 'archbishop', m: 'chancellor', c: 'champion', w: 'wizard' },
@@ -2544,6 +2571,9 @@ function cataloguedPieceIdentityContextKeys(meta: CataloguedVariantClientDocumen
     const seen = new Set<string>();
     addCataloguedContextKey(keys, seen, meta.fsfBuiltinVariant);
     if (meta.source === 'fairy-stockfish-builtin') addCataloguedContextKey(keys, seen, meta.name);
+    // Piece identity follows the actual engine inheritance relationship, not
+    // clientVariant. A compatibility profile may deliberately reuse a letter
+    // for another piece (e.g. Shatar's normal bishop vs Shatranj's Alfil).
     addCataloguedContextKey(keys, seen, meta.baseVariant);
 
     const baseVariant = meta.baseVariant ? VARIANTS[meta.baseVariant] : undefined;
@@ -2634,7 +2664,7 @@ function cataloguedCompatiblePieceSource(
     if (cataloguedNeedsCustomPieceGlyphs(meta, needed)) return undefined;
     const neededIdentities = cataloguedNeededPieceIdentities(meta, needed);
 
-    const baseVariantName = meta.baseVariant;
+    const clientVariantName = cataloguedClientVariantName(meta);
     return Object.values(VARIANTS)
         .filter(variant => !cataloguedVariantNames.has(variant.name))
         .map(variant => {
@@ -2649,8 +2679,8 @@ function cataloguedCompatiblePieceSource(
             roleCount: roles.size,
         }))
         .sort((left, right) => {
-            if (left.variantName === baseVariantName && right.variantName !== baseVariantName) return -1;
-            if (right.variantName === baseVariantName && left.variantName !== baseVariantName) return 1;
+            if (left.variantName === clientVariantName && right.variantName !== clientVariantName) return -1;
+            if (right.variantName === clientVariantName && left.variantName !== clientVariantName) return 1;
             return left.roleCount - right.roleCount || left.pieceCSSExclude.length - right.pieceCSSExclude.length;
         })[0];
 }
@@ -2682,9 +2712,9 @@ export function cataloguedCompatibleBoardFamily(
         return meta.boardFamilyOverride;
     }
 
-    const baseVariant = meta.baseVariant ? VARIANTS[meta.baseVariant] : undefined;
-    if (baseVariant && boardFamilyMatchesDimensions(baseVariant.boardFamily, meta.width, meta.height)) {
-        return baseVariant.boardFamily;
+    const clientVariant = cataloguedClientVariant(meta);
+    if (clientVariant && boardFamilyMatchesDimensions(clientVariant.boardFamily, meta.width, meta.height)) {
+        return clientVariant.boardFamily;
     }
     return undefined;
 }
@@ -2694,8 +2724,8 @@ export function registerCataloguedVariant(meta: CataloguedVariantClientDocument)
     if (VARIANTS[meta.name] && !cataloguedVariantNames.has(meta.name)) return;
 
     const info = cataloguedPieceInfo(meta);
-    const { pieces, kingRoles, pocketRoles, promotionType, promotionRoles, promotionOrder, baseVariant } = info;
-    const captureToHand = cataloguedCaptureToHand(meta, baseVariant);
+    const { pieces, kingRoles, pocketRoles, promotionType, promotionRoles, promotionOrder, clientVariant } = info;
+    const captureToHand = cataloguedCaptureToHand(meta, clientVariant);
     const boardFamily = cataloguedCompatibleBoardFamily(meta) ?? ensureCataloguedBoardFamily(meta.width, meta.height);
     const cataloguedPieceFamily = `catalogued-${meta.name}`;
     delete PIECE_FAMILIES[cataloguedPieceFamily];
@@ -2716,7 +2746,7 @@ export function registerCataloguedVariant(meta: CataloguedVariantClientDocument)
         aiDisabled: !!meta.aiDisabled,
         ratingEnabled: false,
         startFen: meta.startFen,
-        icon: meta.icon || '◇',
+        icon: CATALOGUED_VARIANT_ICON,
         boardFamily,
         hasBoard: !!meta.hasBoard,
         boardRevision: meta.boardRevision,
@@ -2727,21 +2757,21 @@ export function registerCataloguedVariant(meta: CataloguedVariantClientDocument)
         pocket: pocketRoles.length ? { roles: pocketRoles, captureToHand } : undefined,
         promotion: { type: promotionType, roles: promotionRoles, order: promotionOrder },
         rules: {
-            defaultTimeControl: baseVariant?.rules.defaultTimeControl ?? 'incremental',
-            enPassant: !!baseVariant?.rules.enPassant,
-            gate: !!meta.rulesGate || !!baseVariant?.rules.gate,
-            duck: !!baseVariant?.rules.duck,
-            pass: !!meta.rulesPass || !!baseVariant?.rules.pass,
-            setup: !!baseVariant?.rules.setup,
-            noDrawOffer: !!baseVariant?.rules.noDrawOffer,
+            defaultTimeControl: clientVariant?.rules.defaultTimeControl ?? 'incremental',
+            enPassant: !!clientVariant?.rules.enPassant,
+            gate: !!meta.rulesGate || !!clientVariant?.rules.gate,
+            duck: !!clientVariant?.rules.duck,
+            pass: !!meta.rulesPass || !!clientVariant?.rules.pass,
+            setup: !!clientVariant?.rules.setup,
+            noDrawOffer: !!clientVariant?.rules.noDrawOffer,
         },
         ui: {
-            showPromoted: !!meta.showPromoted || !!baseVariant?.ui.showPromoted,
-            showCheckCounters: !!meta.showCheckCounters || !!baseVariant?.ui.showCheckCounters,
-            counting: baseVariant?.ui.counting,
-            materialPoint: baseVariant?.ui.materialPoint,
-            pieceSound: baseVariant?.ui.pieceSound,
-            boardMark: baseVariant?.ui.boardMark || undefined,
+            showPromoted: !!meta.showPromoted || !!clientVariant?.ui.showPromoted,
+            showCheckCounters: !!meta.showCheckCounters || !!clientVariant?.ui.showCheckCounters,
+            counting: clientVariant?.ui.counting,
+            materialPoint: clientVariant?.ui.materialPoint,
+            pieceSound: clientVariant?.ui.pieceSound,
+            boardMark: clientVariant?.ui.boardMark || undefined,
         },
     });
     cataloguedVariantNames.add(meta.name);
@@ -2775,12 +2805,24 @@ export function disabledVariantsForCreateMode(
     createMode: 'createGame' | 'playFriend' | 'playAI' | 'playBOT' | 'createHost',
     profileid: string,
     anon: boolean,
+    botSupportedVariants: ReadonlySet<string> | null = null,
 ): string[] {
     // Two-board variants are only supported by the dedicated multi-seat lobby flow.
     // Hide them whenever the dialog is being used for invites, profile challenges,
     // bot/AI games, or hosting, where the generic single-board flow is used.
     if (createMode === 'playAI') return [...new Set([...twoBoarsVariants, ...unsupportedAiVariants])];
-    if (['playBOT', 'createHost'].includes(createMode)) return twoBoarsVariants;
+    if (createMode === 'playBOT') {
+        const disabled = new Set(twoBoarsVariants);
+        if (botSupportedVariants !== null) {
+            Object.values(VARIANTS).forEach(variant => {
+                const supportsNormal = botSupportedVariants.has(variant.name);
+                const supports960 = variant.chess960 && botSupportedVariants.has(`${variant.name}960`);
+                if (!supportsNormal && !supports960) disabled.add(variant.name);
+            });
+        }
+        return [...disabled];
+    }
+    if (createMode === 'createHost') return twoBoarsVariants;
     if (createMode !== 'createGame') return twoBoarsVariants;
     return anon || profileid !== '' ? twoBoarsVariants : [];
 }

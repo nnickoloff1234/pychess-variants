@@ -539,11 +539,22 @@ async def like(request: web.Request) -> web.StreamResponse:
         )
         liked = False
     else:
-        await app_state.db.ublog_post.update_one(
+        result = await app_state.db.ublog_post.update_one(
             {"_id": post_id, "author": profile_id},
             {"$addToSet": {"likes": user.username}},
         )
         liked = True
+        if result.modified_count > 0:
+            await app_state.timeline.publish(
+                "ublog-post-like",
+                user,
+                {
+                    "profile": profile_id,
+                    "slug": str(doc.get("slug") or ""),
+                    "postId": post_id,
+                    "title": str(doc.get("title") or ""),
+                },
+            )
 
     if wants_json:
         updated = await app_state.db.ublog_post.find_one(
@@ -839,6 +850,17 @@ async def update(request: web.Request) -> web.Response:
     updated = await _load_post(app_state, post_id, profile_id)
     if updated is None:
         raise web.HTTPNotFound()
+
+    if next_live and not bool(doc.get("live")):
+        await app_state.timeline.publish(
+            "ublog-post",
+            user,
+            {
+                "postId": post_id,
+                "slug": str(updated.get("slug") or ""),
+                "title": str(updated.get("title") or ""),
+            },
+        )
 
     if action == "view-post" and bool(updated.get("live")):
         raise web.HTTPFound(post_url(updated))

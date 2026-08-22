@@ -41,7 +41,6 @@ log = logging.getLogger(__name__)
 
 CATALOGUED_VARIANT_COLLECTION = "catalogued_variant"
 CATALOGUED_CATEGORY = "other"
-CATALOGUED_ICON = "◇"
 CATALOGUED_VISIBILITY_PRIVATE = "private"
 CATALOGUED_VISIBILITY_UNLISTED = "unlisted"
 CATALOGUED_VISIBILITY_PUBLIC = "public"
@@ -117,6 +116,7 @@ CATALOGUED_PIECE_FAMILY_OVERRIDES = frozenset(
         "mansindam",
         "orda",
         "ordamirror",
+        "pemba",
         "seirawan",
         "shako",
         "shatranj",
@@ -240,6 +240,27 @@ def _fsf_builtin_references(*urls: str) -> tuple[dict[str, str], ...]:
 # information, side-specific promotion UI, or regional adjudication that needs
 # first-class client support. Admins can still fill in display metadata and
 # upload piece/board SVGs for entries in this allowlist.
+#
+# Metadata relationship fields have deliberately separate responsibilities:
+#
+# * ``baseVariant`` describes Fairy-Stockfish rule inheritance. It names the
+#   registered Fairy-Stockfish variant whose constructor is the direct parent in
+#   variant.cpp. If the C++ constructor starts from an unregistered internal
+#   helper such as ``chess_variant_base()``, ``minishogi_variant_base()`` or
+#   ``variant_base()``, leave it empty rather than inventing a related variant.
+#   Server-side rule/Betza inheritance may rely on this field.
+# * ``clientVariant`` is an optional pychess-only compatibility profile. It is
+#   the closest existing first-class site variant for general client defaults
+#   such as promotion/pocket/rules UI and board/piece-family preference. It MUST
+#   NOT be used as Fairy-Stockfish inheritance or authoritative rule docs. When
+#   omitted, the client may fall back to ``baseVariant``.
+# * ``premoveVariant`` is an even narrower optional chessground fallback. Set it
+#   only when premove geometry is better represented by another first-class
+#   variant than ``clientVariant`` (for example Grand-style pawn start ranks on
+#   a variant whose other client defaults are Chess-like).
+#
+# More specific visual choices still belong in ``pieceFamilyOverride`` /
+# ``boardFamilyOverride``; Betza movement exceptions belong in catalogued_betza.
 FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
     "5check": {
         "displayName": "Five-Check Chess",
@@ -253,7 +274,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "displayName": "Almost Chess",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://en.wikipedia.org/wiki/Almost_chess"),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "promotionRoles": ("p",),
         "promotionOrder": ("c", "r", "b", "n"),
     },
@@ -263,7 +285,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "references": _fsf_builtin_references(
             "https://www.chessvariants.com/diffmove.dir/amazone.html",
         ),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "promotionRoles": ("p",),
         "promotionOrder": ("a", "r", "b", "n"),
     },
@@ -275,7 +298,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
             "https://chronatog.com/wp-content/uploads/2021/09/"
             "atomar-chess-rules.pdf",
         ),
-        "baseVariant": "atomic",
+        "baseVariant": "nocheckatomic",
+        "clientVariant": "atomic",
         "promotionRoles": ("p",),
         "promotionOrder": CATALOGUED_CHESS_PROMOTION_ORDER,
     },
@@ -285,7 +309,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "references": _fsf_builtin_references(
             "https://www.chessvariants.com/dpieces.dir/berlin.html",
         ),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "promotionRoles": ("p",),
         "promotionOrder": CATALOGUED_CHESS_PROMOTION_ORDER,
     },
@@ -295,7 +320,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "references": _fsf_builtin_references(
             "https://www.chessvariants.com/large.dir/contest/royalcourt.html",
         ),
-        "baseVariant": "capablanca",
+        "baseVariant": "",
+        "clientVariant": "capablanca",
         "promotionRoles": ("p",),
         "promotionOrder": ("c", "q", "r", "b", "n"),
     },
@@ -303,7 +329,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "displayName": "Chancellor Chess",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://en.wikipedia.org/wiki/Chancellor_chess"),
-        "baseVariant": "capablanca",
+        "baseVariant": "",
+        "clientVariant": "capablanca",
         "promotionRoles": ("p",),
         "promotionOrder": ("c", "q", "r", "b", "n"),
     },
@@ -317,7 +344,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "displayName": "Codrus",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("http://www.binnewirtz.com/Schlagschach1.htm"),
-        "baseVariant": "antichess",
+        "baseVariant": "giveaway",
+        "clientVariant": "antichess",
         "promotionRoles": ("p",),
         "promotionOrder": CATALOGUED_CHESS_PROMOTION_ORDER,
     },
@@ -327,7 +355,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "references": _fsf_builtin_references(
             "https://www.chessvariants.com/winning.dir/coregal.html",
         ),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "kingRoles": ("k", "q"),
         "promotionRoles": ("p",),
         "promotionOrder": CATALOGUED_CHESS_PROMOTION_ORDER,
@@ -336,7 +365,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "displayName": "Courier Chess",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://en.wikipedia.org/wiki/Courier_chess"),
-        "baseVariant": "shatranj",
+        "baseVariant": "",
+        "clientVariant": "shatranj",
         "promotionRoles": ("p",),
         "promotionOrder": ("f",),
     },
@@ -344,7 +374,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "displayName": "Extinction Chess",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://en.wikipedia.org/wiki/Extinction_chess"),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "promotionRoles": ("p",),
         "promotionOrder": ("k", "q", "r", "b", "n"),
     },
@@ -354,14 +385,16 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "references": _fsf_builtin_references(
             "https://en.wikipedia.org/wiki/Minichess#5%C3%975_chess",
         ),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "promotionRoles": ("p",),
         "promotionOrder": CATALOGUED_CHESS_PROMOTION_ORDER,
     },
     "georgian": {
         "displayName": "Georgian Chess",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
-        "baseVariant": "chess",
+        "baseVariant": "amazon",
+        "clientVariant": "chess",
         "promotionRoles": ("p",),
         "promotionOrder": ("a", "r", "b", "n"),
     },
@@ -371,7 +404,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "references": _fsf_builtin_references(
             "https://www.chessvariants.com/diffobjective.dir/giveaway.old.html",
         ),
-        "baseVariant": "antichess",
+        "baseVariant": "",
+        "clientVariant": "antichess",
         "promotionRoles": ("p",),
         "promotionOrder": ("k", "q", "r", "b", "n"),
     },
@@ -379,7 +413,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "displayName": "Grasshopper Chess",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://en.wikipedia.org/wiki/Grasshopper_chess"),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "promotionRoles": ("p",),
         "promotionOrder": ("q", "r", "b", "n", "g"),
     },
@@ -387,7 +422,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "displayName": "Janus Chess",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://en.wikipedia.org/wiki/Janus_Chess"),
-        "baseVariant": "capablanca",
+        "baseVariant": "",
+        "clientVariant": "capablanca",
         "promotionRoles": ("p",),
         "promotionOrder": ("j", "q", "r", "b", "n"),
     },
@@ -397,7 +433,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "references": _fsf_builtin_references(
             "https://en.wikipedia.org/wiki/V._R._Parton#Kinglet_chess",
         ),
-        "baseVariant": "chess",
+        "baseVariant": "extinction",
+        "clientVariant": "chess",
         "promotionRoles": ("p",),
         "promotionOrder": ("k",),
     },
@@ -407,7 +444,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "references": _fsf_builtin_references(
             "https://www.chessvariants.com/diffobjective.dir/knightmate.html",
         ),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "promotionRoles": ("p",),
         "promotionOrder": ("m", "q", "r", "b"),
     },
@@ -415,7 +453,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "displayName": "Legan Chess",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://en.wikipedia.org/wiki/Legan_chess"),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "promotionRoles": ("p",),
         "promotionOrder": CATALOGUED_CHESS_PROMOTION_ORDER,
     },
@@ -423,7 +462,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "displayName": "Los Alamos Chess",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://en.wikipedia.org/wiki/Los_Alamos_chess"),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "promotionRoles": ("p",),
         "promotionOrder": ("q", "r", "n"),
     },
@@ -431,7 +471,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "displayName": "Losers Chess",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://www.chessclub.com/help/Wild17"),
-        "baseVariant": "antichess",
+        "baseVariant": "",
+        "clientVariant": "antichess",
         "promotionRoles": ("p",),
         "promotionOrder": CATALOGUED_CHESS_PROMOTION_ORDER,
     },
@@ -439,7 +480,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "displayName": "Misère Chess",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("http://www.kotesovec.cz/gustav/gustav_alybadix.htm"),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "promotionRoles": ("p",),
         "promotionOrder": CATALOGUED_CHESS_PROMOTION_ORDER,
     },
@@ -447,14 +489,16 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "displayName": "Modern Chess",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://en.wikipedia.org/wiki/Modern_chess"),
-        "baseVariant": "capablanca",
+        "baseVariant": "",
+        "clientVariant": "capablanca",
         "promotionRoles": ("p",),
         "promotionOrder": ("m", "q", "r", "b", "n"),
     },
     "newzealand": {
         "displayName": "New Zealand Chess",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "promotionRoles": ("p",),
         "promotionOrder": CATALOGUED_CHESS_PROMOTION_ORDER,
     },
@@ -462,7 +506,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "displayName": "Nightrider Chess",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://en.wikipedia.org/wiki/Nightrider_(chess)"),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "promotionRoles": ("p",),
         "promotionOrder": CATALOGUED_CHESS_PROMOTION_ORDER,
     },
@@ -477,7 +522,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "displayName": "No-Check Atomic",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://www.chessclub.com/help/atomic"),
-        "baseVariant": "atomic",
+        "baseVariant": "",
+        "clientVariant": "atomic",
         "promotionRoles": ("p",),
         "promotionOrder": CATALOGUED_CHESS_PROMOTION_ORDER,
     },
@@ -493,7 +539,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "displayName": "Pawnback Chess",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://arxiv.org/abs/2009.04374"),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "promotionRoles": ("p",),
         "promotionOrder": CATALOGUED_CHESS_PROMOTION_ORDER,
     },
@@ -501,7 +548,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "displayName": "Pawnsideways Chess",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://arxiv.org/abs/2009.04374"),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "promotionRoles": ("p",),
         "promotionOrder": CATALOGUED_CHESS_PROMOTION_ORDER,
     },
@@ -511,7 +559,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "references": _fsf_builtin_references(
             "https://www.chessvariants.com/diffmove.dir/perfectchess.html",
         ),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "promotionRoles": ("p",),
         "promotionOrder": ("g", "c", "m", "q", "r", "b", "n"),
     },
@@ -519,7 +568,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "displayName": "Shatar",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://en.wikipedia.org/wiki/Shatar"),
-        "baseVariant": "shatranj",
+        "baseVariant": "",
+        "clientVariant": "shatranj",
         "promotionRoles": ("p",),
         "promotionOrder": ("j",),
     },
@@ -539,7 +589,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "references": _fsf_builtin_references(
             "https://www.chessvariants.com/contests/10/tencubedchess.html",
         ),
-        "baseVariant": "grand",
+        "baseVariant": "",
+        "clientVariant": "grand",
         "promotionRoles": ("p",),
         "promotionOrder": ("a", "m", "q"),
     },
@@ -550,7 +601,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
             "https://github.com/cutechess/cutechess/blob/master/"
             "projects/lib/src/board/threekingsboard.h",
         ),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "promotionRoles": ("p",),
         "promotionOrder": CATALOGUED_CHESS_PROMOTION_ORDER,
     },
@@ -558,22 +610,16 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "displayName": "Torpedo Chess",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://arxiv.org/abs/2009.04374"),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "promotionRoles": ("p",),
         "promotionOrder": CATALOGUED_CHESS_PROMOTION_ORDER,
     },
     "raazuvaa": {
         "displayName": "Raazuvaa",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
-        "baseVariant": "chess",
-    },
-    "chigorin": {
-        "displayName": "Chigorin Chess",
-        "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
-        "references": _fsf_builtin_references(
-            "https://www.chessvariants.com/diffsetup.dir/chigorin.html",
-        ),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
     },
     "gustav3": {
         "displayName": "Gustav III Chess",
@@ -581,7 +627,10 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "references": _fsf_builtin_references(
             "https://www.chessvariants.com/play/gustav-iiis-chess",
         ),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
+        "promotionRoles": ("p",),
+        "promotionOrder": ("a", "q", "r", "b", "n"),
     },
     "troitzky": {
         "displayName": "Troitzky Chess",
@@ -589,7 +638,9 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "references": _fsf_builtin_references(
             "https://www.chessvariants.com/play/troitzky-chess",
         ),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
+        "premoveVariant": "grand",
     },
     "omicron": {
         "displayName": "Omicron Chess",
@@ -597,13 +648,18 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "references": _fsf_builtin_references(
             "http://www.eglebbk.dds.nl/program/chess-omicron.html",
         ),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
+        "premoveVariant": "grand",
+        "promotionRoles": ("p",),
+        "promotionOrder": ("w", "c", "q", "r", "b", "n"),
     },
     "petrified": {
         "displayName": "Petrified",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://www.chess.com/variants/petrified"),
         "baseVariant": "pawnsideways",
+        "clientVariant": "chess",
     },
     "pocketknight": {
         "displayName": "Pocket Knight Chess",
@@ -611,13 +667,15 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         "references": _fsf_builtin_references(
             "https://www.chessvariants.com/other.dir/pocket.html",
         ),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
     },
     "yarishogi": {
         "displayName": "Yari Shogi",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://en.wikipedia.org/wiki/Yari_shogi"),
-        "baseVariant": "shogi",
+        "baseVariant": "",
+        "clientVariant": "shogi",
         "captureToHand": True,
         "promotionType": "shogi",
         "promotionRoles": ("p", "n", "b", "r"),
@@ -629,7 +687,7 @@ FSF_CATALOGUED_BUILTIN_VARIANTS: Mapping[str, Mapping[str, Any]] = {
         # Runtime engine/client paths must continue to use the canonical
         # Fairy-Stockfish built-in name and the empty ``ini`` field.
         "rulesIni": """\
-[yarishogi:shogi]
+[yarishogi]
 maxRank = 9
 maxFile = 7
 startFen = rnnkbbr/7/ppppppp/7/7/7/PPPPPPP/7/RBBKNNR[-] w 0 1
@@ -684,7 +742,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS_CANDIDATES: Mapping[str, Mapping[str, Any]] = {
         "references": _fsf_builtin_references(
             "https://en.wikipedia.org/wiki/Game_of_the_Amazons",
         ),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "reviewNotes": "Non-chess placement/blocking game; needs move-input and rules review.",
     },
     "armageddon": {
@@ -702,7 +761,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS_CANDIDATES: Mapping[str, Mapping[str, Any]] = {
         "references": _fsf_builtin_references(
             "https://en.wikipedia.org/wiki/Breakthrough_(board_game)",
         ),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "reviewNotes": "Non-checkmate objective; verify result handling and notation.",
     },
     "caparandom": {
@@ -720,20 +780,36 @@ FSF_CATALOGUED_BUILTIN_VARIANTS_CANDIDATES: Mapping[str, Mapping[str, Any]] = {
         "baseVariant": "shogi",
         "reviewNotes": "Shogi-family check-counting variant; review byo/check-counter UI.",
     },
+    "chigorin": {
+        "displayName": "Chigorin Chess",
+        "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
+        "references": _fsf_builtin_references(
+            "https://www.chessvariants.com/diffsetup.dir/chigorin.html",
+        ),
+        "baseVariant": "",
+        "clientVariant": "chess",
+        "reviewNotes": (
+            "Fairy-Stockfish has side-specific promotion targets (White: c/r/n; "
+            "Black: q/r/b). Keep out of the allowlist until catalogued promotion "
+            "UI can model that explicitly."
+        ),
+    },
     "chessgi": {
         "displayName": "Chessgi",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references(
             "https://en.wikipedia.org/wiki/Crazyhouse#Variations",
         ),
-        "baseVariant": "crazyhouse",
+        "baseVariant": "loop",
+        "clientVariant": "crazyhouse",
         "reviewNotes": "Drop variant with changed pawn-drop rules; review pocket/drop UI.",
     },
     "clobber": {
         "displayName": "Clobber",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://en.wikipedia.org/wiki/Clobber"),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "reviewNotes": "Non-chess game; verify pass/stalemate/objective handling.",
     },
     "clobber10": {
@@ -747,13 +823,15 @@ FSF_CATALOGUED_BUILTIN_VARIANTS_CANDIDATES: Mapping[str, Mapping[str, Any]] = {
         "displayName": "EuroShogi",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://en.wikipedia.org/wiki/EuroShogi"),
-        "baseVariant": "shogi",
+        "baseVariant": "",
+        "clientVariant": "shogi",
         "reviewNotes": "Shogi-family drops/promotions; review piece assets and byo UI.",
     },
     "fairy": {
         "displayName": "Fairy",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "reviewNotes": "Internal helper used by Fairy-Stockfish endgame initialization; do not expose.",
     },
     "fischerandom": {
@@ -785,7 +863,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS_CANDIDATES: Mapping[str, Mapping[str, Any]] = {
         "displayName": "Flipersi",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://en.wikipedia.org/wiki/Reversi"),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "reviewNotes": "Reversi-like placement game; verify pass/drop-like move flow.",
     },
     "fox-and-hounds": {
@@ -794,7 +873,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS_CANDIDATES: Mapping[str, Mapping[str, Any]] = {
         "references": _fsf_builtin_references(
             "https://boardgamegeek.com/boardgame/148180/fox-and-hounds",
         ),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "reviewNotes": "Asymmetric non-capturing game; verify result handling and pieces.",
     },
     "gorogoro": {
@@ -803,7 +883,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS_CANDIDATES: Mapping[str, Mapping[str, Any]] = {
         "references": _fsf_builtin_references(
             "https://en.wikipedia.org/wiki/D%C5%8Dbutsu_sh%C5%8Dgi#Variation",
         ),
-        "baseVariant": "shogi",
+        "baseVariant": "",
+        "clientVariant": "shogi",
         "reviewNotes": "Pychess exposes Gorogoro+ separately; compare rule differences first.",
     },
     "isolation": {
@@ -812,7 +893,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS_CANDIDATES: Mapping[str, Mapping[str, Any]] = {
         "references": _fsf_builtin_references(
             "https://boardgamegeek.com/boardgame/1875/isolation",
         ),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "reviewNotes": "Non-chess blocking game; verify move encoding and result handling.",
     },
     "isolation7x7": {
@@ -846,7 +928,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS_CANDIDATES: Mapping[str, Mapping[str, Any]] = {
         "displayName": "Jeson Mor",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://en.wikipedia.org/wiki/Jeson_Mor"),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "reviewNotes": "Asymmetric goal variant; review result handling and piece identities.",
     },
     "joust": {
@@ -855,14 +938,16 @@ FSF_CATALOGUED_BUILTIN_VARIANTS_CANDIDATES: Mapping[str, Mapping[str, Any]] = {
         "references": _fsf_builtin_references(
             "https://www.chessvariants.com/programs.dir/joust.html",
         ),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "reviewNotes": "Non-capturing knight game; verify objective and move display.",
     },
     "judkins": {
         "displayName": "Judkins Shogi",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://en.wikipedia.org/wiki/Judkins_shogi"),
-        "baseVariant": "shogi",
+        "baseVariant": "",
+        "clientVariant": "shogi",
         "reviewNotes": "Shogi-family drops/promotions; review piece assets and byo UI.",
     },
     "karouk": {
@@ -896,27 +981,30 @@ FSF_CATALOGUED_BUILTIN_VARIANTS_CANDIDATES: Mapping[str, Mapping[str, Any]] = {
         "displayName": "Micro Shogi",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://en.wikipedia.org/wiki/Micro_shogi"),
-        "baseVariant": "shogi",
+        "baseVariant": "kyotoshogi",
         "reviewNotes": "Kyoto-style flipping/demotion mechanics; review move encoding/UI.",
     },
     "mini": {
         "displayName": "Mini Shogi",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
-        "baseVariant": "minishogi",
+        "baseVariant": "",
+        "clientVariant": "minishogi",
         "reviewNotes": "Alias of Minishogi; pychess already exposes Minishogi.",
     },
     "normal": {
         "displayName": "Normal Chess",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://en.wikipedia.org/wiki/Chess"),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "reviewNotes": "Alias of standard chess; pychess already exposes Chess.",
     },
     "okisakishogi": {
         "displayName": "Okisaki Shogi",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://en.wikipedia.org/wiki/Okisaki_shogi"),
-        "baseVariant": "shogi",
+        "baseVariant": "",
+        "clientVariant": "shogi",
         "reviewNotes": "Shogi-family drops/promotions; review piece assets and byo UI.",
     },
     "paradigm": {
@@ -925,7 +1013,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS_CANDIDATES: Mapping[str, Mapping[str, Any]] = {
         "references": _fsf_builtin_references(
             "https://www.chessvariants.com/rules/paradigm-chess30",
         ),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "reviewNotes": "Uses non-standard bishop/horse hybrid pieces; review identities/assets.",
     },
     "snailtrail": {
@@ -934,7 +1023,8 @@ FSF_CATALOGUED_BUILTIN_VARIANTS_CANDIDATES: Mapping[str, Mapping[str, Any]] = {
         "references": _fsf_builtin_references(
             "https://boardgamegeek.com/boardgame/37135/snailtrail",
         ),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "reviewNotes": "Non-chess blocking game; verify move encoding and result handling.",
     },
     "sortofalmost": {
@@ -950,10 +1040,17 @@ FSF_CATALOGUED_BUILTIN_VARIANTS_CANDIDATES: Mapping[str, Mapping[str, Any]] = {
         "displayName": "Wolf Chess",
         "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
         "references": _fsf_builtin_references("https://en.wikipedia.org/wiki/Wolf_chess"),
-        "baseVariant": "chess",
+        "baseVariant": "",
+        "clientVariant": "chess",
         "reviewNotes": "10x8 fairy-piece variant; review piece identities and promotion UI.",
     },
 }
+
+# Built-ins that were seeded in production before a later audit found that the
+# generic catalogued client cannot represent their rules safely. Keep this
+# explicit instead of silently leaving an old MongoDB document enabled after
+# moving the metadata back to the candidate list.
+FSF_CATALOGUED_RETIRED_BUILTIN_VARIANTS = frozenset({"chigorin"})
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -1009,12 +1106,14 @@ class CataloguedVariantDocument(TypedDict):
     _id: str
     name: str
     displayName: str
-    description: str
+    description: NotRequired[str]
     pieceNames: NotRequired[dict[str, str]]
     author: str
     ini: str
     rulesIni: NotRequired[str]
     baseVariant: str
+    clientVariant: NotRequired[str]
+    premoveVariant: NotRequired[str]
     enabled: bool
     archived: bool
     startFen: str
@@ -1033,7 +1132,6 @@ class CataloguedVariantDocument(TypedDict):
     legalMovesNeedHistory: bool
     nFoldIsDraw: bool
     showCheckCounters: bool
-    icon: str
     category: str
     visibility: str
     source: NotRequired[str]
@@ -1053,6 +1151,7 @@ class CataloguedVariantDocument(TypedDict):
     aiDisabledUntil: NotRequired[datetime]
     aiDisabledReason: NotRequired[str]
     gameCount: int
+    gameCountEffectIds: NotRequired[list[str]]
     createdAt: datetime
     updatedAt: datetime
 
@@ -1065,6 +1164,8 @@ class CataloguedVariantClientDocument(TypedDict):
     betzaPieces: NotRequired[dict[str, str]]
     ini: str
     baseVariant: str
+    clientVariant: NotRequired[str]
+    premoveVariant: NotRequired[str]
     startFen: str
     width: int
     height: int
@@ -1079,7 +1180,6 @@ class CataloguedVariantClientDocument(TypedDict):
     rulesGate: bool
     rulesPass: bool
     showCheckCounters: bool
-    icon: str
     category: str
     author: NotRequired[str]
     source: NotRequired[str]
@@ -1172,12 +1272,25 @@ def _catalogued_piece_family_override(doc: Mapping[str, Any]) -> str:
         return ""
 
 
+def _catalogued_client_variant_name(doc: Mapping[str, Any]) -> str:
+    """Return the pychess client fallback profile for a catalogued variant.
+
+    ``baseVariant`` is rule inheritance and must stay faithful to
+    Fairy-Stockfish. ``clientVariant`` is deliberately separate: it is only a
+    pychess compatibility hint for client-side defaults. Ordinary uploaded
+    variants normally omit it, in which case their real INI base is also the
+    natural client fallback.
+    """
+
+    return str(doc.get("clientVariant") or doc.get("baseVariant") or "").strip().lower()
+
+
 def _catalogued_piece_set_is_directional(doc: Mapping[str, Any]) -> bool:
     """Whether custom pieces must keep pointing toward the opponent."""
     if bool(doc.get("pieceSetDirectional", False)):
         return True
-    base_variant = str(doc.get("baseVariant") or "").strip().lower()
-    if base_variant in CATALOGUED_DIRECTIONAL_PIECE_BASE_VARIANTS:
+    client_variant = _catalogued_client_variant_name(doc)
+    if client_variant in CATALOGUED_DIRECTIONAL_PIECE_BASE_VARIANTS:
         return True
     return _catalogued_piece_family_override(doc) in CATALOGUED_DIRECTIONAL_PIECE_FAMILIES
 
@@ -1221,6 +1334,15 @@ def _ensure_board_family_dimensions(board_family: str, width: int, height: int) 
 
 def _is_fsf_builtin_catalogued_doc(doc: Mapping[str, Any]) -> bool:
     return _catalogued_source(doc) == CATALOGUED_SOURCE_FSF_BUILTIN
+
+
+def _catalogued_description(doc: Mapping[str, Any]) -> str:
+    description = str(doc.get("description") or "")
+    if description or not _is_fsf_builtin_catalogued_doc(doc):
+        return description
+    name = str(doc.get("fsfBuiltinVariant") or doc.get("name") or doc.get("_id") or "")
+    metadata = FSF_CATALOGUED_BUILTIN_VARIANTS.get(name, {})
+    return str(metadata.get("description") or FSF_CATALOGUED_BUILTIN_DESCRIPTION)
 
 
 def _fsf_builtin_variant_name(doc: Mapping[str, Any]) -> str:
@@ -2684,7 +2806,7 @@ def _client_doc(
     game_count: int | None = None,
     favorite_names: set[str] | None = None,
 ) -> CataloguedVariantClientDocument:
-    description = str(doc.get("description") or "")
+    description = _catalogued_description(doc)
     tooltip = description or "Catalogued variant"
     ini = str(doc.get("ini") or "")
     start_fen = str(doc["startFen"])
@@ -2729,7 +2851,6 @@ def _client_doc(
         "rulesGate": rules_gate,
         "rulesPass": rules_pass,
         "showCheckCounters": show_check_counters,
-        "icon": str(doc.get("icon") or CATALOGUED_ICON),
         "category": CATALOGUED_CATEGORY,
         "author": str(doc.get("author") or ""),
         "source": _catalogued_source(doc),
@@ -2742,6 +2863,12 @@ def _client_doc(
         "archived": bool(doc.get("archived", False)),
         "enabled": bool(doc.get("enabled", True)),
     }
+    client_variant = str(doc.get("clientVariant") or "").strip()
+    if client_variant:
+        client_doc["clientVariant"] = client_variant
+    premove_variant = str(doc.get("premoveVariant") or "").strip()
+    if premove_variant:
+        client_doc["premoveVariant"] = premove_variant
     piece_names = parse_catalogued_piece_names(doc.get("pieceNames"))
     if piece_names:
         client_doc["pieceNames"] = piece_names
@@ -2997,7 +3124,7 @@ def catalogued_variant_rule_context(doc: Mapping[str, Any]) -> dict[str, Any]:
         "displayName": str(
             doc.get("displayName") or doc.get("name") or doc.get("_id") or "Catalogued variant"
         ),
-        "description": str(doc.get("description") or ""),
+        "description": _catalogued_description(doc),
         "author": str(doc.get("author") or ""),
         "references": _catalogued_references_for_display(doc),
         "ini": ini,
@@ -3068,7 +3195,6 @@ def register_catalogued_variant_doc(
     register_catalogued_server_variant(
         name,
         str(doc.get("displayName") or name),
-        str(doc.get("icon") or CATALOGUED_ICON),
         grand=_catalogued_grand_from_dimensions(width, height),
         extended_move_codec=_catalogued_extended_move_codec_from_dimensions(width, height),
         show_promoted=bool(doc.get("showPromoted", catalogued_show_promoted(ini, start_fen))),
@@ -3120,7 +3246,6 @@ def ensure_catalogued_variant_from_game_doc(app_state: Any, doc: Mapping[str, An
             "legalMovesNeedHistory": validated.legal_moves_need_history,
             "nFoldIsDraw": validated.n_fold_is_draw,
             "showCheckCounters": validated.show_check_counters,
-            "icon": CATALOGUED_ICON,
             "category": CATALOGUED_CATEGORY,
             "visibility": CATALOGUED_VISIBILITY_PRIVATE,
             "createdAt": now,
@@ -3130,6 +3255,32 @@ def ensure_catalogued_variant_from_game_doc(app_state: Any, doc: Mapping[str, An
     )
 
 
+async def _remove_legacy_catalogued_icon_fields(collection: Any) -> None:
+    """Drop the old persisted copy of the code-defined catalogue icon."""
+    result = await collection.update_many(
+        {"icon": {"$exists": True}},
+        {"$unset": {"icon": ""}},
+    )
+    if result.modified_count:
+        log.info("Removed legacy icon field from %d catalogued variants", result.modified_count)
+
+
+async def _remove_legacy_fsf_builtin_description_fields(collection: Any) -> None:
+    """Drop the persisted copy of the code-defined built-in description."""
+    result = await collection.update_many(
+        {
+            "source": CATALOGUED_SOURCE_FSF_BUILTIN,
+            "description": FSF_CATALOGUED_BUILTIN_DESCRIPTION,
+        },
+        {"$unset": {"description": ""}},
+    )
+    if result.modified_count:
+        log.info(
+            "Removed legacy default description from %d Fairy-Stockfish built-ins",
+            result.modified_count,
+        )
+
+
 async def init_catalogued_variants(app_state: Any, db_collections: list[str]) -> None:
     app_state.catalogued_variants = {}
 
@@ -3137,6 +3288,8 @@ async def init_catalogued_variants(app_state: Any, db_collections: list[str]) ->
         await app_state.db.create_collection(CATALOGUED_VARIANT_COLLECTION)
 
     collection = app_state.db[CATALOGUED_VARIANT_COLLECTION]
+    await _remove_legacy_catalogued_icon_fields(collection)
+    await _remove_legacy_fsf_builtin_description_fields(collection)
     await collection.create_index("name", unique=True)
     await collection.create_index("enabled")
     await collection.create_index("archived")
@@ -3260,21 +3413,59 @@ async def increment_catalogued_variant_game_count(app_state: Any, name: str) -> 
         doc["gameCount"] = int(doc.get("gameCount") or 0) + 1
 
 
-async def _catalogued_variant_count_for_user(app_state: Any, username: str) -> int:
+async def increment_catalogued_variant_game_count_once(
+    app_state: Any, name: str, game_id: str
+) -> None:
+    """Count a tournament game exactly once across restart recovery."""
+
+    if app_state.db is None or not _is_valid_variant_name(name):
+        return
+
+    result = await app_state.db[CATALOGUED_VARIANT_COLLECTION].update_one(
+        {
+            "_id": name,
+            "gameCountEffectIds": {"$ne": game_id},
+        },
+        {
+            "$inc": {"gameCount": 1},
+            "$push": {
+                "gameCountEffectIds": {
+                    "$each": [game_id],
+                    "$slice": -64,
+                }
+            },
+        },
+    )
+    if not result.modified_count:
+        return
+
+    doc = getattr(app_state, "catalogued_variants", {}).get(name)
+    if doc is not None:
+        doc["gameCount"] = int(doc.get("gameCount") or 0) + 1
+
+
+async def _catalogued_variant_slot_count_for_user(app_state: Any, username: str) -> int:
     if app_state.db is None:
         return 0
-    return await app_state.db[CATALOGUED_VARIANT_COLLECTION].count_documents({"author": username})
+    # Archived variants are historical records, not active variant slots. In
+    # particular, variants with saved public games may need to be archived
+    # instead of deleted, so counting them here could permanently exhaust a
+    # user's quota.
+    return await app_state.db[CATALOGUED_VARIANT_COLLECTION].count_documents(
+        {"author": username, "archived": {"$ne": True}}
+    )
 
 
 async def _ensure_catalogued_variant_quota(app_state: Any, username: str) -> None:
     if _is_admin_username(username):
         return
-    count = await _catalogued_variant_count_for_user(app_state, username)
+    count = await _catalogued_variant_slot_count_for_user(app_state, username)
     if count >= MAX_CATALOGUED_VARIANTS_PER_USER:
         raise web.HTTPConflict(
             text=(
                 f"You can have at most {MAX_CATALOGUED_VARIANTS_PER_USER} user-defined variants. "
-                "Delete an unused variant before uploading or cloning another one."
+                "Archive or delete an active variant before uploading, cloning, or restoring "
+                "another one."
             )
         )
 
@@ -3396,7 +3587,7 @@ async def community_catalogued_variants_page(
             {
                 "name": name,
                 "displayName": str(doc.get("displayName") or name),
-                "description": str(doc.get("description") or ""),
+                "description": _catalogued_description(doc),
                 "author": str(doc.get("author") or ""),
                 "system": _is_fsf_builtin_catalogued_doc(doc),
                 "references": _catalogued_references_for_display(doc),
@@ -3553,6 +3744,78 @@ async def check_catalogued_variant_rules(request: web.Request) -> web.Response:
     return json_response({"ok": True, "name": name, "startFen": start_fen})
 
 
+def _catalogued_display_name_key(display_name: str) -> str:
+    """Return a locale-independent key for exact canonical-name comparisons.
+
+    User-entered display names are normalized separately by
+    ``normalize_catalogued_display_name``.  This helper intentionally accepts
+    canonical site names too, including punctuation that community display
+    names may not permit (for example ``Khan's Chess``).
+    """
+
+    return unicodedata.normalize("NFKC", display_name).strip().casefold()
+
+
+def _reserved_catalogued_display_names() -> dict[str, str]:
+    """Canonical display names that community variants may not impersonate.
+
+    First-class site variants and the active curated Fairy-Stockfish catalogue
+    entries own their public names.  Candidates are deliberately excluded until
+    they are actually exposed by pychess.  Ordinary community variants do not
+    reserve names against one another.
+    """
+
+    reserved = {
+        _catalogued_display_name_key(variant.translated_name): variant.translated_name
+        for variant in ServerVariants
+    }
+    reserved.update(
+        {
+            _catalogued_display_name_key(str(metadata["displayName"])): str(metadata["displayName"])
+            for metadata in FSF_CATALOGUED_BUILTIN_VARIANTS.values()
+            if metadata.get("displayName")
+        }
+    )
+    return reserved
+
+
+def ensure_catalogued_display_name_available(
+    display_name: str,
+    *,
+    variant_name: str,
+    current_display_name: str | None = None,
+    current_variant_name: str | None = None,
+) -> None:
+    """Reject community display names owned by canonical pychess variants.
+
+    ``variant_name`` is used when the user leaves the optional display name
+    blank, matching ``_build_doc``.  Existing legacy collisions are grandfathered
+    only while both their display name and internal variant key remain unchanged;
+    this lets authors edit descriptions/visibility without perpetuating the
+    collision through a rename.
+    """
+
+    effective_name = _clean_display_name(display_name, variant_name)
+    if current_display_name is not None and current_variant_name == variant_name:
+        current_effective_name = _clean_display_name(current_display_name, variant_name)
+        if effective_name == current_effective_name:
+            return
+
+    canonical_name = _reserved_catalogued_display_names().get(
+        _catalogued_display_name_key(effective_name)
+    )
+    if canonical_name is None:
+        return
+
+    raise web.HTTPConflict(
+        text=(
+            f'"{effective_name}" is reserved for the official PyChess variant '
+            f'"{canonical_name}". Please choose a distinct display name, such as '
+            f'"{canonical_name} Custom" or "{canonical_name} Modified".'
+        )
+    )
+
+
 def normalize_catalogued_display_name(display_name: str) -> str:
     """Validate and normalize a user-editable catalogue display name."""
     cleaned = unicodedata.normalize("NFKC", display_name).strip()
@@ -3692,6 +3955,8 @@ def _build_doc(
     game_count: int = 0,
     source: str = CATALOGUED_SOURCE_USER,
     fsf_builtin_variant: str | None = None,
+    client_variant: str = "",
+    premove_variant: str = "",
 ) -> CataloguedVariantDocument:
     doc: CataloguedVariantDocument = {
         "_id": name,
@@ -3719,7 +3984,6 @@ def _build_doc(
         "legalMovesNeedHistory": legal_moves_need_history,
         "nFoldIsDraw": n_fold_is_draw,
         "showCheckCounters": show_check_counters,
-        "icon": CATALOGUED_ICON,
         "category": CATALOGUED_CATEGORY,
         "visibility": _clean_visibility(visibility),
         "pieceSetDirectional": piece_set_directional,
@@ -3739,6 +4003,10 @@ def _build_doc(
         doc["boardFamilyOverride"] = cleaned_board_family
     if fsf_builtin_variant:
         doc["fsfBuiltinVariant"] = fsf_builtin_variant
+    if client_variant:
+        doc["clientVariant"] = client_variant
+    if premove_variant:
+        doc["premoveVariant"] = premove_variant
     return doc
 
 
@@ -3832,10 +4100,9 @@ def _fsf_builtin_description_for_doc(
     existing: Mapping[str, Any] | None,
     references: list[CataloguedVariantReference],
 ) -> str:
-    metadata_description = str(metadata.get("description") or FSF_CATALOGUED_BUILTIN_DESCRIPTION)
     existing_description = str((existing or {}).get("description") or "")
     if _fsf_builtin_description_is_auto(existing_description, metadata, references):
-        return metadata_description
+        return ""
     return existing_description
 
 
@@ -3874,13 +4141,14 @@ def _build_fsf_builtin_doc(
     ) or catalogued_promotion_order("", promotion_type)
     references = _clean_catalogued_references(metadata.get("references"))
 
+    description = _fsf_builtin_description_for_doc(metadata, existing, references)
     doc = _build_doc(
         name=name,
         base_variant=str(metadata.get("baseVariant") or ""),
         display_name=str(
             (existing or {}).get("displayName") or metadata.get("displayName") or name
         ),
-        description=_fsf_builtin_description_for_doc(metadata, existing, references),
+        description=description,
         piece_names=(existing or {}).get("pieceNames") or metadata.get("pieceNames"),
         username=CATALOGUED_FSF_BUILTIN_AUTHOR,
         ini="",
@@ -3908,9 +4176,13 @@ def _build_fsf_builtin_doc(
         game_count=int((existing or {}).get("gameCount") or 0),
         source=CATALOGUED_SOURCE_FSF_BUILTIN,
         fsf_builtin_variant=name,
+        client_variant=str(metadata.get("clientVariant") or ""),
+        premove_variant=str(metadata.get("premoveVariant") or ""),
     )
     doc["references"] = references
     doc["rulesIni"] = str(metadata.get("rulesIni") or "").strip()
+    if not description:
+        doc.pop("description", None)
     return doc
 
 
@@ -3928,6 +4200,8 @@ def _fsf_builtin_synced_fields(doc: Mapping[str, Any]) -> dict[str, Any]:
         "ini",
         "rulesIni",
         "baseVariant",
+        "clientVariant",
+        "premoveVariant",
         "enabled",
         "startFen",
         "width",
@@ -3945,7 +4219,6 @@ def _fsf_builtin_synced_fields(doc: Mapping[str, Any]) -> dict[str, Any]:
         "legalMovesNeedHistory",
         "nFoldIsDraw",
         "showCheckCounters",
-        "icon",
         "category",
         "source",
         "fsfBuiltinVariant",
@@ -3959,6 +4232,25 @@ async def ensure_fsf_catalogued_builtin_variants(app_state: Any) -> None:
         return
 
     collection = app_state.db[CATALOGUED_VARIANT_COLLECTION]
+    if FSF_CATALOGUED_RETIRED_BUILTIN_VARIANTS:
+        await collection.update_many(
+            {
+                "_id": {"$in": sorted(FSF_CATALOGUED_RETIRED_BUILTIN_VARIANTS)},
+                "source": CATALOGUED_SOURCE_FSF_BUILTIN,
+                "$or": [
+                    {"enabled": {"$ne": False}},
+                    {"archived": {"$ne": True}},
+                ],
+            },
+            {
+                "$set": {
+                    "enabled": False,
+                    "archived": True,
+                    "updatedAt": datetime.now(UTC),
+                }
+            },
+        )
+
     for name, metadata in FSF_CATALOGUED_BUILTIN_VARIANTS.items():
         if name not in BUILTIN_FSF_VARIANT_NAMES:
             log.warning(
@@ -3990,12 +4282,20 @@ async def ensure_fsf_catalogued_builtin_variants(app_state: Any) -> None:
         synced_fields = _fsf_builtin_synced_fields(doc)
         existing_description = str(existing.get("description") or "")
         references = _clean_catalogued_references(doc.get("references"))
-        if _fsf_builtin_description_is_auto(existing_description, metadata, references):
-            synced_fields["description"] = doc["description"]
 
+        update: dict[str, Any] = {"$set": synced_fields}
+        unset_fields = {
+            field: ""
+            for field in ("clientVariant", "premoveVariant")
+            if field in existing and field not in doc
+        }
+        if _fsf_builtin_description_is_auto(existing_description, metadata, references):
+            unset_fields["description"] = ""
+        if unset_fields:
+            update["$unset"] = unset_fields
         await collection.update_one(
             {"_id": name},
-            {"$set": synced_fields},
+            update,
         )
 
 
@@ -4021,6 +4321,7 @@ async def upload_catalogued_variant(request: web.Request) -> web.Response:
     # is intentionally global and should not be called for a duplicate upload.
     name = extract_variant_name(ini)
     await ensure_catalogued_variant_name_available(app_state, name)
+    ensure_catalogued_display_name_available(display_name, variant_name=name)
     await check_catalogued_ini_without_mutating_server(ini, name)
 
     validated = validate_catalogued_ini(ini)
@@ -4379,10 +4680,14 @@ async def get_my_catalogued_variants(request: web.Request) -> web.Response:
             variants.append(_client_doc(doc, game_count=count))
 
     max_variants = None if admin else MAX_CATALOGUED_VARIANTS_PER_USER
+    variant_slots_used = None
+    if not admin:
+        variant_slots_used = await _catalogued_variant_slot_count_for_user(app_state, username)
     return json_response(
         {
             "variants": variants,
             "maxVariants": max_variants,
+            "variantSlotsUsed": variant_slots_used,
             "q": q,
             "author": author,
             "sort": sort,
@@ -4416,6 +4721,7 @@ CATALOGUED_METADATA_OPTIONAL_FIELDS = (
     "pieceNames",
     "pieceFamilyOverride",
     "boardFamilyOverride",
+    "icon",
 )
 
 CATALOGUED_CONCURRENTLY_UPDATED_FIELDS = frozenset(
@@ -4534,16 +4840,22 @@ async def update_catalogued_variant(request: web.Request) -> web.Response:
         piece_set_directional = bool(existing.get("pieceSetDirectional", False))
     if _is_fsf_builtin_catalogued_doc(existing):
         now = datetime.now(UTC)
+        cleaned_description = _clean_description(description)
         update: dict[str, Any] = {
             "$set": {
                 "displayName": _clean_display_name(display_name, old_name),
-                "description": _clean_description(description),
                 "visibility": visibility,
                 "pieceSetDirectional": piece_set_directional,
                 "updatedAt": now,
             }
         }
         unset_fields: dict[str, str] = {}
+        metadata = FSF_CATALOGUED_BUILTIN_VARIANTS.get(_fsf_builtin_variant_name(existing), {})
+        references = _clean_catalogued_references(existing.get("references"))
+        if _fsf_builtin_description_is_auto(cleaned_description, metadata, references):
+            unset_fields["description"] = ""
+        else:
+            update["$set"]["description"] = cleaned_description
         if piece_names:
             update["$set"]["pieceNames"] = piece_names
         else:
@@ -4577,6 +4889,12 @@ async def update_catalogued_variant(request: web.Request) -> web.Response:
         raise web.HTTPBadRequest(text="Missing INI content.")
 
     new_name = extract_variant_name(ini)
+    ensure_catalogued_display_name_available(
+        display_name,
+        variant_name=new_name,
+        current_display_name=str(existing.get("displayName") or ""),
+        current_variant_name=old_name,
+    )
     existing_ini = str(existing.get("ini") or "")
     fsf_rules_changed = _strip_pychess_pieces_metadata(ini) != _strip_pychess_pieces_metadata(
         existing_ini
@@ -4735,7 +5053,9 @@ async def archive_catalogued_variant(request: web.Request) -> web.Response:
 
 
 async def restore_catalogued_variant(request: web.Request) -> web.Response:
-    app_state, _username, name, doc = await _load_owned_doc(request)
+    app_state, username, name, doc = await _load_owned_doc(request)
+    if bool(doc.get("archived", False)):
+        await _ensure_catalogued_variant_quota(app_state, username)
     now = datetime.now(UTC)
     restored = dict(doc)
     restored["archived"] = False

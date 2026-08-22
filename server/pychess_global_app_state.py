@@ -4,7 +4,7 @@ import asyncio
 import collections
 import gettext
 import os
-from collections.abc import Coroutine
+from collections.abc import Coroutine, Iterable, Mapping
 from datetime import UTC, date, datetime, timedelta
 from operator import neg
 from time import monotonic
@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 import aiohttp_jinja2
 from aiohttp import web
 from aiohttp.web_ws import WebSocketResponse
+from pymongo import UpdateOne
 from pythongettext.msgfmt import Msgfmt, PoSyntaxError
 from sortedcollections import ValueSortedDict
 from tenacity import (
@@ -40,12 +41,12 @@ from const import (
     GAME_CATEGORIES,
     HTTP_ANON_USER,
     LANGUAGES,
-    MAX_CHAT_LINES,
     MONTHLY,
     NONE_USER,
     SCHEDULE_MAX_DAYS,
     SHIELD,
     STARTED,
+    SYSTEM_USER,
     T_CREATED,
     T_STARTED,
     TEST_PREFIX,
@@ -81,6 +82,7 @@ from settings import (
 from simul.simul import Simul
 from simul.simuls import load_active_simuls
 from startup_timer import StartupTimer
+from timeline import TIMELINE_RETENTION_SECONDS, Timeline
 from tournament.scheduler import (
     MONTHLY_VARIANTS,
     NEW_MONTHLY_VARIANTS,
@@ -115,17 +117,97 @@ TOURNAMENT_KEEP_TIME = 5 * 60  # retain an idle finished tournament after its la
 TOURNAMENT_ACTIVE_RECHECK_INTERVAL = 60  # never evict while a viewer socket is active
 REGISTERED_USER_CACHE_TTL = 30 * 60
 REGISTERED_USER_CACHE_SWEEP_INTERVAL = 5 * 60
+TOURNAMENT_EFFECT_RECOVERY_DELAY = 60
+TEAM_UPDATE_RETENTION_SECONDS = 90 * 24 * 60 * 60
 T = TypeVar("T")
 USERNAME_LOWER_FIELD = "username_lower"
 
+_TEST_TRANSLATIONS_CACHE: dict[str, gettext.NullTranslations] | None = None
+_TEST_TOURNEYNAMES_CACHE: dict[str, dict[Any, str]] | None = None
 
-def _is_test_run() -> bool:
+
+def is_test_run() -> bool:
     return any("pytest" in arg for arg in sys.argv) or any("unittest" in arg for arg in sys.argv)
+
+
+async def _upsert_static_docs(collection: Any, docs: Iterable[Mapping[str, Any]]) -> int:
+    static_docs = [doc for doc in docs if doc.get("_id") is not None]
+    if not static_docs:
+        return 0
+
+    if is_test_run():
+        # mongomock 4.3.0 is not compatible with modern PyMongo UpdateOne
+        # bulk writes. Keep test startup semantics equivalent without exercising
+        # that third-party incompatibility; the bulk path has a focused unit test.
+        for doc in static_docs:
+            doc_id = doc["_id"]
+            update = {key: value for key, value in doc.items() if key != "_id"}
+            await collection.update_one({"_id": doc_id}, {"$set": update}, upsert=True)
+        return len(static_docs)
+
+    operations = []
+    for doc in static_docs:
+        doc_id = doc["_id"]
+        update = {key: value for key, value in doc.items() if key != "_id"}
+        operations.append(UpdateOne({"_id": doc_id}, {"$set": update}, upsert=True))
+
+    await collection.bulk_write(operations, ordered=False)
+    return len(static_docs)
+
+
+async def recover_pending_tournament_game_side_effects(
+    app_state: PychessGlobalAppState,
+    *,
+    users_only: bool,
+    tournament_ids: list[str] | None = None,
+) -> int:
+    """Replay durable tournament result side effects left pending by a restart.
+
+    ``fx=1`` is written in the same authoritative game update as the final
+    result.  The first startup pass repairs user ratings/counters before active
+    tournaments can resume pairing.  A second pass, after highscore/crosstable
+    caches exist, completes the remaining idempotent effects and flips ``fx``
+    to 2.
+    """
+    if app_state.db is None:
+        return 0
+    if tournament_ids == []:
+        return 0
+
+    recovered = 0
+    query: dict[str, object] = {
+        "tid": {"$exists": True} if tournament_ids is None else {"$in": tournament_ids},
+        "fx": 1,
+        "s": {"$gt": STARTED},
+    }
+    cursor = app_state.db.game.find(query).sort([("d", 1), ("_id", 1)])
+    if tournament_ids is not None:
+        # Startup recovery must use the existing tournament-game index. Without
+        # the hint MongoDB may choose a collection scan for the new, sparse ``fx``
+        # field before its background index has been built.
+        cursor.hint("tid_1")
+    async for doc in cursor:
+        game = await load_game_from_doc(app_state, doc, cache_finished=False)
+        if not isinstance(game, Game):
+            continue
+        await game.complete_tournament_final_side_effects(doc, users_only=users_only)
+        recovered += 1
+    return recovered
+
+
+async def ensure_tournament_effect_recovery_index(game_collection: Any) -> None:
+    indexes = await game_collection.index_information()
+    has_fx_index = any(index.get("key") == [("fx", 1)] for index in indexes.values())
+    if not has_fx_index:
+        # Delay only the first build: it may scan the large game collection and
+        # must not compete with Heroku startup for database resources.
+        await asyncio.sleep(TOURNAMENT_EFFECT_RECOVERY_DELAY)
+    await game_collection.create_index("fx", sparse=True)
 
 
 # Local test cache retention; keep this small for test runs, but use the
 # production-like TTL for interactive localhost usage.
-LOCALHOST_CACHE_KEEP_TIME = 1 if _is_test_run() else TOURNAMENT_KEEP_TIME
+LOCALHOST_CACHE_KEEP_TIME = 1 if is_test_run() else TOURNAMENT_KEEP_TIME
 
 
 class PychessGlobalAppState:
@@ -150,6 +232,7 @@ class PychessGlobalAppState:
             self.public_users = PublicUsers(self)
             self.disable_new_anons = False
             self.lobby = Lobby(self)
+            self.timeline = Timeline(self)
             self.catalogued_variants: dict[str, dict[str, Any]] = {}
             self.chat_flood = ChatFlood()
             # one dict per tournament! {tournamentId: {user.username: user.tournament_sockets, ...}, ...}
@@ -182,10 +265,6 @@ class PychessGlobalAppState:
             self.invites: dict[str, Seek] = {}
             self.game_channels: set[asyncio.Queue[str]] = set()
             self.invite_channels: dict[str, set[asyncio.Queue[str]]] = {}
-            # Signalled by subscribe_invites() as soon as the SSE channel for a
-            # given gameId is ready. challenge_accept/decline wait on this instead
-            # of busy-polling invite_channels.
-            self.invite_events: dict[str, asyncio.Event] = {}
             self.highscore = {variant: ValueSortedDict(neg) for variant in RATED_VARIANTS}
             self.lobby_leaderboard: list[LobbyLeaderboardEntry] = []
             self.lobby_tournament_winners: list[TournamentWinnerEntry] = []
@@ -254,20 +333,59 @@ class PychessGlobalAppState:
 
         startup.log_summary()
 
+    async def _restore_persisted_seeks(self) -> None:
+        if self.db is None:
+            return
+
+        async for doc in self.db.seek.find():
+            user = await self.users.get(doc["user"])
+            if user is None:
+                continue
+
+            game_id = doc.get("gameId") or None
+            player2_name = doc.get("player2") or ""
+            player2 = None if player2_name == "" else await self.users.get(str(player2_name))
+            seek = Seek(
+                doc["_id"],
+                user,
+                doc["variant"],
+                fen=doc["fen"],
+                color=doc["color"],
+                base=doc.get("base", 5),
+                inc=doc.get("inc", 5),
+                byoyomi_period=doc.get("byoyomi", 0),
+                day=doc["day"],
+                rated=doc["rated"],
+                rrmin=doc.get("rrmin"),
+                rrmax=doc.get("rrmax"),
+                chess960=doc["chess960"],
+                target=doc.get("target"),
+                game_id=game_id,
+                player1=user,
+                player2=player2,
+                tournament_id=doc.get("tournamentId"),
+                rr_arrangement_id=doc.get("rrArrangementId"),
+                expire_at=doc.get("expireAt"),
+                challenge_status=doc.get("challengeStatus"),
+                challenge_decline_reason=doc.get("challengeDeclineReason"),
+                bot_challenge_status=doc.get("botChallengeStatus"),
+                bot_challenge_decline_reason=doc.get("botChallengeDeclineReason"),
+            )
+            if not should_restore_persisted_seek(seek):
+                log.debug("Skipping non-restorable seek from database: %s", seek.id)
+                continue
+            log.debug("Loading seek from database: %s", seek)
+            self.seeks[seek.id] = seek
+            user.seeks[seek.id] = seek
+            if game_id is not None:
+                self.invites[game_id] = seek
+
     async def init_from_db(self):
         startup = StartupTimer(log, "PychessGlobalAppState.init_from_db")
         if self.db is None:
             log.debug("[startup] PychessGlobalAppState.init_from_db skipped: no database")
             startup.log_summary()
             return
-
-        async def upsert_static_docs(collection, docs):
-            for doc in docs:
-                doc_id = doc.get("_id")
-                if doc_id is None:
-                    continue
-                update = {key: value for key, value in doc.items() if key != "_id"}
-                await collection.update_one({"_id": doc_id}, {"$set": update}, upsert=True)
 
         # Read tournaments, users and highscore from db
         try:
@@ -282,21 +400,83 @@ class PychessGlobalAppState:
                 if "tournament_chat" not in db_collections:
                     await self.db.create_collection("tournament_chat")
                 await self.db.tournament_chat.create_index("tid")
+                await self.db.tournament_chat.create_index("user")
 
                 if "simul_chat" not in db_collections:
                     await self.db.create_collection("simul_chat")
                 await self.db.simul_chat.create_index("sid")
+                await self.db.simul_chat.create_index("user")
+
+                if "lobbychat" in db_collections:
+                    await self.db.lobbychat.create_index("user")
 
                 await self.db.tournament.create_index("startsAt")
                 await self.db.tournament.create_index("status")
+                await self.db.tournament.create_index("teamId")
+                await self.db.tournament.create_index("createdBy")
+                await self.db.tournament.create_index("winner")
                 await self.db.tournament_player.create_index("tid")
+                await self.db.tournament_player.create_index("uid")
                 await self.db.tournament_pairing.create_index("tid")
+                await self.db.tournament_pairing.create_index("u")
+                await self.db.tournament_arrangement.create_index("tid")
+                await self.db.tournament_arrangement.create_index("u")
+                await self.db.tournament_arrangement.create_index("ch")
                 await self.db.relation.create_index([("u1", 1), ("r", 1)], name="u1_r")
+                await self.db.relation.create_index([("u2", 1), ("r", 1)], name="u2_r")
+
+                if "timeline_entry" not in db_collections:
+                    await self.db.create_collection("timeline_entry")
+                await self.db.timeline_entry.create_index(
+                    [("users", 1), ("date", -1)], name="users_date"
+                )
+                await self.db.timeline_entry.create_index(
+                    [("type", 1), ("date", -1)], name="type_date"
+                )
+                await self.db.timeline_entry.create_index("data.actor", sparse=True)
+                await self.db.timeline_entry.create_index(
+                    "date",
+                    name="date_ttl",
+                    expireAfterSeconds=TIMELINE_RETENTION_SECONDS,
+                )
+                if "timeline_unsub" not in db_collections:
+                    await self.db.create_collection("timeline_unsub")
+                await self.db.timeline_unsub.create_index(
+                    [("user", 1), ("channel", 1)],
+                    name="user_channel",
+                    unique=True,
+                )
 
             with startup.phase("load catalogued casual variants"):
-                from catalogued_variants import init_catalogued_variants
+                if is_test_run():
+                    self.catalogued_variants = {}
+                else:
+                    from catalogued_variants import init_catalogued_variants
 
-                await init_catalogued_variants(self, db_collections)
+                    await init_catalogued_variants(self, db_collections)
+
+            # RR arrangement documents refer to challenge invite ids. Restore persisted
+            # seeks first so tournament load can distinguish a live graceful-restart
+            # challenge from a genuinely stale crash-left arrangement.
+            with startup.phase("restore persisted seeks"):
+                await self._restore_persisted_seeks()
+
+            with startup.phase("recover tournament user result side effects"):
+                active_tournament_ids = [
+                    doc["_id"]
+                    async for doc in self.db.tournament.find(
+                        {"status": T_STARTED}, projection={"_id": 1}
+                    )
+                ]
+                recovered = await recover_pending_tournament_game_side_effects(
+                    self,
+                    users_only=True,
+                    tournament_ids=active_tournament_ids,
+                )
+                if recovered:
+                    log.warning(
+                        "Recovered user result side effects for %s tournament games", recovered
+                    )
 
             with startup.phase("restore tournaments"):
                 cursor = self.db.tournament.find(
@@ -312,9 +492,10 @@ class PychessGlobalAppState:
                 self.tournaments_loaded.set()
 
             with startup.phase("create missing scheduled tournaments"):
-                already_scheduled = await get_scheduled_tournaments(self)
-                new_tournaments_data = new_scheduled_tournaments(already_scheduled)
-                await create_scheduled_tournaments(self, new_tournaments_data)
+                if not is_test_run():
+                    already_scheduled = await get_scheduled_tournaments(self)
+                    new_tournaments_data = new_scheduled_tournaments(already_scheduled)
+                    await create_scheduled_tournaments(self, new_tournaments_data)
 
             with startup.phase("restore highscore + lobby caches"):
                 self.create_background_task(generate_shield(self), name="generate-shield")
@@ -325,11 +506,12 @@ class PychessGlobalAppState:
                 async for doc in cursor:
                     if doc["_id"] in self.highscore:
                         self.highscore[doc["_id"]] = ValueSortedDict(neg, doc["scores"])
-                await refresh_lobby_leaderboard_cache(self)
-                await refresh_lobby_tournament_winners_cache(self)
 
                 if "crosstable" not in db_collections:
                     await generate_crosstable(self)
+
+                await refresh_lobby_leaderboard_cache(self)
+                await refresh_lobby_tournament_winners_cache(self)
 
             with startup.phase("bootstrap collections + indexes"):
                 if "dailypuzzle" not in db_collections:
@@ -348,27 +530,6 @@ class PychessGlobalAppState:
                     docs = await cursor.to_list(length=365 * len(GAME_CATEGORIES))
                     self.daily_puzzle_ids = {doc["_id"]: doc["puzzleId"] for doc in docs}
 
-                if "lobbychat" not in db_collections:
-                    try:
-                        await self.db.create_collection(
-                            "lobbychat", capped=True, size=100000, max=MAX_CHAT_LINES
-                        )
-                    except NotImplementedError:
-                        await self.db.create_collection("lobbychat")
-                else:
-                    cursor = self.db.lobbychat.find(
-                        projection={
-                            "_id": 0,
-                            "type": 1,
-                            "user": 1,
-                            "message": 1,
-                            "room": 1,
-                            "time": 1,
-                        }
-                    )
-                    docs = await cursor.to_list(length=MAX_CHAT_LINES)
-                    self.lobby.lobbychat = collections.deque(docs, MAX_CHAT_LINES)
-
                 await self.db.game.create_index("us")
                 await self.db.game.create_index("r")
                 await self.db.game.create_index("v")
@@ -376,6 +537,10 @@ class PychessGlobalAppState:
                 await self.db.game.create_index("by")
                 await self.db.game.create_index("c")
                 await self.db.game.create_index("tid")
+                # Only simul games have sid, so keep this index sparse. It avoids a full
+                # game-collection scan when restoring a started simul after restart.
+                await self.db.game.create_index("sid", sparse=True)
+                await self.db.game.create_index("aid", sparse=True)
 
                 # Advanced search needs some indexes to be able to respond in reasonable times
                 await self.db.game.create_index([("d", -1), ("_id", -1)], name="d_id_desc")
@@ -398,6 +563,7 @@ class PychessGlobalAppState:
                     await self.db.create_collection("notify")
                 await self.db.notify.create_index("notifies")
                 await self.db.notify.create_index("expireAt", expireAfterSeconds=0)
+                await self.db.notify.create_index("content.arr", sparse=True)
 
                 if PUSH_SUBSCRIPTION_COLLECTION not in db_collections:
                     await self.db.create_collection(PUSH_SUBSCRIPTION_COLLECTION)
@@ -417,6 +583,40 @@ class PychessGlobalAppState:
                 if "inbox_msg" not in db_collections:
                     await self.db.create_collection("inbox_msg")
                 await self.db.inbox_msg.create_index([("tid", 1), ("createdAt", 1)])
+                await self.db.inbox_msg.create_index("from")
+
+                if "team" not in db_collections:
+                    await self.db.create_collection("team")
+                await self.db.team.create_index(
+                    [("enabled", 1), ("memberCount", -1), ("createdAt", -1)]
+                )
+                await self.db.team.create_index([("createdBy", 1), ("createdAt", -1)])
+
+                if "team_member" not in db_collections:
+                    await self.db.create_collection("team_member")
+                await self.db.team_member.create_index("team")
+                await self.db.team_member.create_index("user")
+                await self.db.team_member.create_index([("user", 1), ("permissions", 1)])
+
+                if "team_update" not in db_collections:
+                    await self.db.create_collection("team_update")
+                await self.db.team_update.create_index([("team", 1), ("createdAt", -1)])
+                await self.db.team_update.create_index("sender")
+                await self.db.team_update.create_index(
+                    "createdAt",
+                    name="team_update_ttl",
+                    expireAfterSeconds=TEAM_UPDATE_RETENTION_SECONDS,
+                )
+
+                if "team_request" not in db_collections:
+                    await self.db.create_collection("team_request")
+                await self.db.team_request.create_index(
+                    [("team", 1), ("declined", 1), ("createdAt", 1)]
+                )
+                await self.db.team_request.create_index(
+                    [("team", 1), ("declined", 1), ("processedAt", -1)]
+                )
+                await self.db.team_request.create_index("user")
 
                 if "forum_categ" not in db_collections:
                     await self.db.create_collection("forum_categ")
@@ -432,11 +632,13 @@ class PychessGlobalAppState:
                     unique=True,
                     name="forum_topic_categ_slug",
                 )
+                await self.db.forum_topic.create_index("user")
 
                 if "forum_post" not in db_collections:
                     await self.db.create_collection("forum_post")
                 await self.db.forum_post.create_index([("topicId", 1), ("createdAt", 1)])
                 await self.db.forum_post.create_index([("categId", 1), ("createdAt", -1)])
+                await self.db.forum_post.create_index("user")
                 await self.db.forum_post.create_index([("text", "text")])
 
                 if "user_report" not in db_collections:
@@ -446,15 +648,26 @@ class PychessGlobalAppState:
                 await self.db.user_report.create_index("reporter")
                 await self.db.user_report.create_index("suspect")
 
+                if "mod_log" not in db_collections:
+                    await self.db.create_collection("mod_log")
+                await self.db.mod_log.create_index("createdAt")
+                await self.db.mod_log.create_index("mod")
+                await self.db.mod_log.create_index("user")
+
                 if "seek" not in db_collections:
                     await self.db.create_collection("seek")
                 await self.db.seek.create_index("expireAt", expireAfterSeconds=0)
+                await self.db.seek.create_index("user")
+                await self.db.seek.create_index("rrArrangementId", sparse=True)
+
+                await self.db.bot_token.create_index("user")
+                await self.db.account_reopen_token.create_index("username")
 
                 if "security_ban_signal" not in db_collections:
                     await self.db.create_collection("security_ban_signal")
                 await self.db.security_ban_signal.create_index("expireAt", expireAfterSeconds=0)
 
-            with startup.phase("restore autopairings + seeks"):
+            with startup.phase("restore autopairings"):
                 # Load auto pairings from database
                 async for doc in self.db.autopairing.find():
                     variant_tc = tuple(doc["variant_tc"])
@@ -466,48 +679,6 @@ class PychessGlobalAppState:
                         self.auto_pairings[variant_tc].add(user)
                         if user not in self.auto_pairing_users:
                             self.auto_pairing_users[user] = rrange
-
-                # Load seeks from database
-                async for doc in self.db.seek.find():
-                    user = await self.users.get(doc["user"])
-                    if user is not None:
-                        game_id = doc.get("gameId") or None
-                        player2_name = doc.get("player2") or ""
-                        player2 = (
-                            None if player2_name == "" else await self.users.get(str(player2_name))
-                        )
-                        seek = Seek(
-                            doc["_id"],
-                            user,
-                            doc["variant"],
-                            fen=doc["fen"],
-                            color=doc["color"],
-                            base=doc.get("base", 5),
-                            inc=doc.get("inc", 5),
-                            byoyomi_period=doc.get("byoyomi", 0),
-                            day=doc["day"],
-                            rated=doc["rated"],
-                            rrmin=doc.get("rrmin"),
-                            rrmax=doc.get("rrmax"),
-                            chess960=doc["chess960"],
-                            target=doc.get("target"),
-                            game_id=game_id,
-                            player1=user,
-                            player2=player2,
-                            expire_at=doc.get("expireAt"),
-                            challenge_status=doc.get("challengeStatus"),
-                            challenge_decline_reason=doc.get("challengeDeclineReason"),
-                            bot_challenge_status=doc.get("botChallengeStatus"),
-                            bot_challenge_decline_reason=doc.get("botChallengeDeclineReason"),
-                        )
-                        if not should_restore_persisted_seek(seek):
-                            log.debug("Skipping non-restorable seek from database: %s", seek.id)
-                            continue
-                        log.debug("Loading seek from database: %s" % seek)
-                        self.seeks[seek.id] = seek
-                        user.seeks[seek.id] = seek
-                        if game_id is not None:
-                            self.invites[game_id] = seek
 
             # Read games in play and start their clocks.
             #
@@ -530,11 +701,11 @@ class PychessGlobalAppState:
 
                 self.games[game_id] = game
                 if not corr:
-                    try:
-                        if TYPE_CHECKING:
-                            assert isinstance(game, Game)
-                        game.stopwatch.restart()
-                    except AttributeError:
+                    if isinstance(game, Game):
+                        # load_game_from_doc() already restored the stopwatch
+                        # from the persisted position and wall-clock downtime.
+                        pass
+                    else:
                         if TYPE_CHECKING:
                             assert isinstance(game, GameBug)
                         game.gameClocks.restart("a")
@@ -613,9 +784,13 @@ class PychessGlobalAppState:
             with startup.phase("restore simuls + static content"):
                 await load_active_simuls(self)
 
-                await upsert_static_docs(self.db.video, VIDEOS)
+                if not is_test_run():
+                    video_count = await _upsert_static_docs(self.db.video, VIDEOS)
+                    log.debug("[startup] synced %s static video documents", video_count)
+
                 if "ublog_post" not in db_collections:
                     await self.db.create_collection("ublog_post")
+
                 await self.db.ublog_post.create_index(
                     [("author", 1), ("live", 1), ("publishedAt", -1)]
                 )
@@ -629,23 +804,30 @@ class PychessGlobalAppState:
                 await self.db.ublog_post.create_index("legacyBlogId")
                 await self.db.ublog_post.create_index("topics")
 
-                if os.getenv("LEGACY_BLOG_BOOTSTRAP", "1") == "1":
+                if not is_test_run() and os.getenv("LEGACY_BLOG_BOOTSTRAP", "1") == "1":
                     # Run legacy bootstrap only for an empty target collection.
-                    # This keeps first deploy fully automatic while preventing rewrites
-                    # of migrated posts on every subsequent restart.
+                    # This keeps first deploy fully automatic while preventing
+                    # rewrites of migrated posts on every subsequent restart.
                     ublog_post_count = await self.db.ublog_post.count_documents({}, limit=1)
                     if ublog_post_count == 0:
                         from legacy_blog_migration import build_legacy_ublog_docs
 
                         legacy_blog_author_policy = os.getenv("LEGACY_BLOG_AUTHOR_POLICY", "keep")
-                        if legacy_blog_author_policy not in ("keep", "official-as-pychess"):
+                        if legacy_blog_author_policy not in (
+                            "keep",
+                            "official-as-pychess",
+                        ):
                             legacy_blog_author_policy = "keep"
-                        await upsert_static_docs(
+                        legacy_count = await _upsert_static_docs(
                             self.db.ublog_post,
                             build_legacy_ublog_docs(
                                 author_policy=legacy_blog_author_policy,
                                 strip_preamble=True,
                             ),
+                        )
+                        log.info(
+                            "[startup] bootstrapped %s legacy blog documents",
+                            legacy_count,
                         )
 
             with startup.phase("restore fishnet + config + user migrations"):
@@ -709,6 +891,26 @@ class PychessGlobalAppState:
                     name="load-correspondence-games",
                 )
 
+            async def finish_tournament_effect_recovery() -> None:
+                # ``fx`` was introduced with durable tournament result recovery. Building
+                # its first index can scan the large game collection, so never make that
+                # one-time operation part of Heroku's boot deadline.
+                await ensure_tournament_effect_recovery_index(self.db.game)
+                recovered = await recover_pending_tournament_game_side_effects(
+                    self, users_only=False
+                )
+                if recovered:
+                    log.warning(
+                        "Completed result side effects for %s recovered tournament games",
+                        recovered,
+                    )
+
+            with startup.phase("schedule remaining tournament effect recovery"):
+                self.create_background_task(
+                    finish_tournament_effect_recovery(),
+                    name="finish-tournament-effect-recovery",
+                )
+
         except Exception:
             log.error("init_from_db() Exception")
             raise
@@ -716,47 +918,68 @@ class PychessGlobalAppState:
             startup.log_summary()
 
     def __init_translations(self):
-        base = os.path.dirname(__file__)
-        for lang in LANGUAGES:
-            # Generate compiled mo file
-            folder = os.path.join(base, "../lang/", lang, "LC_MESSAGES")
-            poname = os.path.join(folder, "server.po")
-            moname = os.path.join(folder, "server.mo")
-            try:
-                with open(poname, "rb") as po_file:
-                    po_lines = [line for line in po_file if line[:8] != b"#, fuzzy"]
-                    mo = Msgfmt(po_lines).get()
-                    with open(moname, "wb") as mo_file:
-                        mo_file.write(mo)
-            except PoSyntaxError:
-                log.error("PoSyntaxError in %s", poname)
+        global _TEST_TOURNEYNAMES_CACHE, _TEST_TRANSLATIONS_CACHE
 
-            # Create translation class
-            try:
-                translation = gettext.translation("server", localedir="lang", languages=[lang])
-            except FileNotFoundError:
-                log.warning("Missing translations file for lang %s", lang)
-                translation = gettext.NullTranslations()
+        use_test_cache = is_test_run()
+        if (
+            not use_test_cache
+            or _TEST_TRANSLATIONS_CACHE is None
+            or _TEST_TOURNEYNAMES_CACHE is None
+        ):
+            translations: dict[str, gettext.NullTranslations] = {}
+            tourney_names: dict[str, dict[Any, str]] = {lang: {} for lang in LANGUAGES}
+            base = os.path.dirname(__file__)
+            for lang in LANGUAGES:
+                # Generate compiled mo file once per process. Rebuilding every
+                # aiohttp test application dominated Python test startup time.
+                folder = os.path.join(base, "../lang/", lang, "LC_MESSAGES")
+                poname = os.path.join(folder, "server.po")
+                moname = os.path.join(folder, "server.mo")
+                try:
+                    with open(poname, "rb") as po_file:
+                        po_lines = [line for line in po_file if line[:8] != b"#, fuzzy"]
+                        mo = Msgfmt(po_lines).get()
+                        with open(moname, "wb") as mo_file:
+                            mo_file.write(mo)
+                except PoSyntaxError:
+                    log.error("PoSyntaxError in %s", poname)
 
-            self.translations[lang] = translation
+                try:
+                    translation = gettext.translation("server", localedir="lang", languages=[lang])
+                except FileNotFoundError:
+                    log.warning("Missing translations file for lang %s", lang)
+                    translation = gettext.NullTranslations()
 
-            translation.install()
+                translations[lang] = translation
+                translation.install()
 
-            for variant in tuple(VARIANTS.keys()) + PAUSED_MONTHLY_VARIANTS:
-                if (
-                    variant in MONTHLY_VARIANTS
-                    or variant in NEW_MONTHLY_VARIANTS
-                    or variant in SEATURDAY
-                    or variant in PAUSED_MONTHLY_VARIANTS
-                ):
-                    tname = translated_tournament_name(variant, MONTHLY, ARENA, translation)
-                    self.tourneynames[lang][(variant, MONTHLY, ARENA)] = tname
-                if variant in SEATURDAY or variant in WEEKLY_VARIANTS:
-                    tname = translated_tournament_name(variant, WEEKLY, ARENA, translation)
-                    self.tourneynames[lang][(variant, WEEKLY, ARENA)] = tname
-                if variant in SHIELDS:
-                    tname = translated_tournament_name(variant, SHIELD, ARENA, translation)
-                    self.tourneynames[lang][(variant, SHIELD, ARENA)] = tname
+                for variant in tuple(VARIANTS.keys()) + PAUSED_MONTHLY_VARIANTS:
+                    if (
+                        variant in MONTHLY_VARIANTS
+                        or variant in NEW_MONTHLY_VARIANTS
+                        or variant in SEATURDAY
+                        or variant in PAUSED_MONTHLY_VARIANTS
+                    ):
+                        tname = translated_tournament_name(variant, MONTHLY, ARENA, translation)
+                        tourney_names[lang][(variant, MONTHLY, ARENA)] = tname
+                    if variant in SEATURDAY or variant in WEEKLY_VARIANTS:
+                        tname = translated_tournament_name(variant, WEEKLY, ARENA, translation)
+                        tourney_names[lang][(variant, WEEKLY, ARENA)] = tname
+                    if variant in SHIELDS:
+                        tname = translated_tournament_name(variant, SHIELD, ARENA, translation)
+                        tourney_names[lang][(variant, SHIELD, ARENA)] = tname
+
+            if use_test_cache:
+                _TEST_TRANSLATIONS_CACHE = translations
+                _TEST_TOURNEYNAMES_CACHE = tourney_names
+        else:
+            translations = _TEST_TRANSLATIONS_CACHE
+            tourney_names = _TEST_TOURNEYNAMES_CACHE
+
+        self.translations = translations
+        # Tournament ids are added dynamically to this mapping, so each app
+        # gets its own copy while test apps share the immutable base translations.
+        self.tourneynames = {lang: names.copy() for lang, names in tourney_names.items()}
 
         # https://github.com/aio-libs/aiohttp-jinja2/issues/187#issuecomment-2519831516
         class _Translations:
@@ -1016,10 +1239,9 @@ class PychessGlobalAppState:
 
     def __init_users(self) -> Users:
         result = Users(self)
-        result["PyChess"] = User(self, bot=True, username="PyChess")
+        result[SYSTEM_USER] = User(self, username=SYSTEM_USER, perfs={})
         result["Random-Mover"] = User(self, bot=True, username="Random-Mover")
         result["Fairy-Stockfish"] = User(self, bot=True, username="Fairy-Stockfish")
-        result["Discord-Relay"] = User(self, anon=True, username="Discord-Relay")
         # Shared, stateless identity for ordinary anonymous HTTP page views.
         # It is reserved, so User.__init__ does not create a cleanup task.
         result[HTTP_ANON_USER] = User(self, anon=True, username=HTTP_ANON_USER)
