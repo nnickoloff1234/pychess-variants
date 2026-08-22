@@ -31,7 +31,24 @@ import { Variant } from '../../variants';
 // so queueing a click for later delivery would be machinery for a case that
 // cannot occur — but discarding is a decision, not an oversight.
 export class ChatPresetsView {
-    private readonly vnode: VNode;
+    // TWO PARTS, each holding TWO SETS of five buttons.
+    //
+    // The four sets are the four rows the single grid always drew: what to ask
+    // for, what not to give, and the tells in two halves. Splitting them lets the
+    // layout place each part where there is room for it, one at a time, instead of
+    // moving all twenty buttons or none.
+    //
+    // The two sets inside a part are laid out so they sit side by side when the
+    // part is wide enough for both and stack when it is not — so a part that has
+    // dropped into the width under the board shows its ten buttons on one row,
+    // and the same part beside the board shows them as two rows of five, which is
+    // what they have always looked like. Nothing forces the fit: the wrap decides,
+    // so there is no width that has to be computed and kept true.
+    //
+    // A set is never broken up. Five buttons on one row is the unit, because the
+    // ask/don't-give pair is piece-aligned — column i is piece i, so "need a
+    // knight" sits above "don't give a knight" whenever the two sets are stacked.
+    private readonly vnodes: VNode[];
 
     // set by wire(); until then a click is discarded
     private send: ((message: string) => void) | undefined;
@@ -56,12 +73,25 @@ export class ChatPresetsView {
             this.button('nice', _('Nice')),
         ];
 
-        // --rolesCount drives the grid's column count in the stylesheet
-        this.vnode = h('div#chatpresets', { style: { '--rolesCount': String(roles.length) } }, [
-            ...need,
-            ...dontGive,
-            ...tells,
-        ]);
+        // The tells split in half rather than by meaning: the two halves are the
+        // two rows they already occupied, so nothing moves relative to today.
+        const half = Math.ceil(tells.length / 2);
+
+        this.vnodes = [
+            this.part(roles.length, [need, dontGive]),
+            this.part(half, [tells.slice(0, half), tells.slice(half)]),
+        ];
+    }
+
+    // One part: two sets that wrap against each other. --setColumns drives each
+    // set's column count in the stylesheet, and is the role count for the piece
+    // sets so that they stay piece-aligned.
+    private part(setColumns: number, sets: VNode[][]): VNode {
+        return h(
+            'div.chatpresets',
+            { style: { '--setColumns': String(setColumns) } },
+            sets.map(set => h('div.chatpresets-set', set)),
+        );
     }
 
     // The message a preset sends is its own name with the `!bug!` marker, which is
@@ -74,8 +104,10 @@ export class ChatPresetsView {
         );
     }
 
-    view(): VNode {
-        return this.vnode;
+    // The parts, in the order they are meant to be mounted. The caller decides
+    // where each one goes; this only says which are which.
+    parts(): VNode[] {
+        return this.vnodes;
     }
 
     // Step two. The function handed in MUST be the one chat itself uses, so that a

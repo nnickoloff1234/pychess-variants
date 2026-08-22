@@ -17,6 +17,8 @@ import {
     MsgUserPresent,
     MsgDrawOffer,
     MsgDrawRejected,
+    MsgResignOffer,
+    MsgResignCancelled,
     MsgRematchOffer,
     MsgRematchRejected,
     MsgUpdateTV,
@@ -26,22 +28,27 @@ import {
 import { BoardName, BugBoardName, JSONObject, PyChessModel } from '../../types';
 import { GameControllerBughouse } from '../common/gameCtrl';
 import { BLACK, WHITE, getTurnColor, uci2LastMove } from '../../chess';
+import { result } from '../../result';
 import { sound, soundThemeSettings } from '../../sound';
 import { notify } from '../../notification';
 import { chatMessageBug, resetChat } from '@/two-board/round/chat';
-import { confirmDialog } from '@/confirmDialog';
-import { TwoBoardController, initBoardSettings, switchBoardElements, redrawBoards } from '../twoBoardCtrl';
+import { TwoBoardController, initBoardSettings, redrawBoards } from '../twoBoardCtrl';
 import {
+    OfferState,
     RoundControlsView,
     renderRoundChat,
     resetMovelistDom,
     clearExtensionChoice,
     clearAbortIndicator,
-    insertRematchButton,
+    markGameOver,
     swapSeatBlocksForFlip,
-    swapSeatStripAreasForSwitch,
+    swapSeatStripsForSwitch,
+    swapBoardsForSwitch,
     markRoles,
 } from './roundControls';
+import { trackToolsPlacement } from './toolsPlacement';
+import { trackSeatNamePlacement } from './seatNamePlacement';
+import { trackPartsWidth } from './partsWidth';
 
 // live remaining time of a clock, whether or not it is currently running (mirrors Clock's own tick math)
 const liveTime = (clock: Clock) => (clock.running ? clock.duration - (Date.now() - clock.startTime) : clock.duration);
@@ -99,7 +106,10 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
             this.focus = true;
         });
         //
-        this.finishedGame = this.status >= 0;
+        // The same question isGameOver() asks. Kept because the base controller
+        // maintains this field too and several places read it; the predicate is
+        // what new code should use.
+        this.finishedGame = this.isGameOver();
         this.tv = model['tv'];
         this.profileid = model['profileid'];
         this.level = model['level'];
@@ -141,6 +151,7 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
             this.spectator,
             () => this.draw(),
             () => this.resign(),
+            () => this.acceptDraw(),
         );
 
         //////////////
@@ -194,6 +205,13 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
         // ran — a board-A player, a spectator, and simul, where the viewer holds a
         // seat on board A as well and so is never switched.
         markRoles(this.seatViews);
+        // After the boards and the parts exist, so the first measurement is of the
+        // real page; it keeps itself in step from then on.
+        // First: it publishes the width the preset buttons are sized from, so the parts
+        // are already their real height when the placement below measures them.
+        trackPartsWidth();
+        trackToolsPlacement();
+        trackSeatNamePlacement();
 
         initBoardSettings(this.boardA, this.boardB, this.variant);
 
@@ -259,6 +277,27 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
      * updates the clock times with the new values,
      * starts the clock of the player whose turn is now
      * */
+    /**
+     * Whether a game status means the game has finished.
+     *
+     * The numbers come from `GameStatus` in `server/const.py`: CREATED is -2 and
+     * STARTED is -1, so anything below zero is a game still being played. ABORTED
+     * is 0 and every real result — mate, resign, timeout, draw, flag — is above it.
+     * So "finished" is `>= 0`, and an aborted game counts as finished.
+     *
+     * Takes the status rather than reading `this.status`, because several callers
+     * are asking about a status that has just arrived from the server and has not
+     * been stored yet, and asking the wrong one of those two is a real bug rather
+     * than a style question.
+     *
+     * An aborted game counts as over, including for the notice that chat has become
+     * visible to everyone — that site tested `> 0` and so said nothing on an aborted
+     * game; it asks this now, deliberately.
+     */
+    isGameOver(status: number = this.status): boolean {
+        return status >= 0;
+    }
+
     updateClocks(boardName: BoardName, turnColor: cg.Color, msgClocks: Clocks, status: number) {
         const board = boardName as BugBoardName;
         const whiteClock = this.seats.byBoardAndColor(board, 'white').clock!;
@@ -272,7 +311,7 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
         whiteClock.setTime(msgClocks[WHITE]);
         blackClock.setTime(msgClocks[BLACK]);
 
-        if (status < 0) {
+        if (!this.isGameOver(status)) {
             nextClock.start();
         }
     }
@@ -291,15 +330,21 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
     // which is right for a page that places pockets on their own. Here a pocket
     // travels inside its seat's strip, so moving it again would undo the switch.
     switchBoards(): void {
-        switchBoardElements();
-        swapSeatStripAreasForSwitch(this.seatViews);
+        swapBoardsForSwitch();
+        swapSeatStripsForSwitch(this.seatViews);
         markRoles(this.seatViews);
         redrawBoards(this);
     }
 
     sendMove = (b: GameControllerBughouse, move: string) => {
         console.log(b, move);
-        this.clearDialog();
+        // Nothing about offers here any more. Playing on still answers them — a move
+        // declines the other team's draw and cancels this team's pending resignation —
+        // but the SERVER does it, on the move it receives, and broadcasts the result. That
+        // holds however the move arrived and leaves all four windows agreeing, where a
+        // client deciding for itself left each of them guessing. See
+        // cancel_team_offers_on_move() in server/bug/utils_bug.py.
+
 
         //moveColor is "my color" on that board
         const moveColor = this.seats.myColor(b.boardName as BugBoardName) === 'black' ? 'black' : 'white';
@@ -344,53 +389,45 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
             .clock!.start();
     };
 
-    private draw = async () => {
-        // console.log("Draw");
-        const confirmed = await confirmDialog({
-            text: _('Are you sure you want to draw?'),
-            confirmText: _('Offer draw'),
-            cancelText: _('Cancel'),
-        });
-        if (!confirmed) return;
+    // Is this username on the viewer's own team? That is the whole of what the two offer
+    // states turn on: an offer made by my team is one I am waiting on, an offer made by
+    // theirs is one I may answer.
+    private onMyTeam = (username: string): boolean =>
+        this.seats.myTeam().seats.some(seat => seat.player.username === username);
+
+    // ONE PRESS OFFERS. No confirmation: an offer decides nothing, the opponents may
+    // decline it simply by playing on, and asking the same person the same question twice
+    // is what this page is getting rid of. The button's own state is the feedback.
+    //
+    // No local state change either — the server broadcasts the offer back to all four
+    // players including this one, and letting that one message paint every window keeps
+    // the four of them from disagreeing about who is waiting on whom.
+    private draw = () => {
         this.socket.doSend({ type: 'draw', gameId: this.gameId });
-        this.setDialog(_('Draw offer sent'));
     };
     //
-    private rejectDrawOffer = () => {
-        this.socket.doSend({ type: 'reject_draw', gameId: this.gameId });
-        this.clearDialog();
-    };
-    //
-    private renderDrawOffer = () => {
-        this.controlsView.renderDrawOffer(
-            () => this.rejectDrawOffer(),
-            () => this.draw(),
-        );
-    };
-    //
-    private setDialog = (message: string) => {
-        this.controlsView.setDialogMessage(message);
-    };
-    //
-    private clearDialog = () => {
-        this.controlsView.clearDialog();
+    // Accepting sends the same message; the server knows it is an acceptance because it
+    // comes from the team that did not offer. Deliberately a separate method from draw()
+    // all the same, so neither can grow a step that belongs to the other.
+    private acceptDraw = () => {
+        this.socket.doSend({ type: 'draw', gameId: this.gameId });
     };
 
     //
-    private resign = async () => {
-        // console.log("Resign");
-        const confirmed = await confirmDialog({
-            text: _('Are you sure you want to resign?'),
-            confirmText: _('Resign'),
-            cancelText: _('Cancel'),
-            danger: true,
-        });
-        if (!confirmed) return;
+    // ONE PRESS ASKS. This no longer ends the game: the server records it and asks this
+    // player's partner, whose own resign control turns red. The confirmation that used to
+    // be a modal is now a second person, which is a better guard for a decision that ends
+    // the game for both of them.
+    //
+    // The same message serves for confirming, and the server decides which it is — see
+    // handle_resign_request_bughouse(). The client is deliberately not told there are two
+    // steps, so it cannot get them out of order.
+    private resign = () => {
         this.socket.doSend({ type: 'resign', gameId: this.gameId });
     };
 
     private notifyMsg = (msg: string) => {
-        if (this.status >= 0) return;
+        if (this.isGameOver()) return;
 
         // todo: assumes the viewer plays board A — for a board-B player this names the wrong opponent (preserved quirk)
         const wplayerA = this.seats.byBoardAndColor('a', 'white').player.username;
@@ -414,24 +451,28 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
     };
 
     onMsgViewRematch = (msg: MsgViewRematch) => {
-        insertRematchButton(() => window.location.assign(this.home + '/' + msg['gameId']));
+        this.controlsView.setViewRematch(() => window.location.assign(this.home + '/' + msg['gameId']));
     };
     //
     private rematch = () => {
         this.socket.doSend({ type: 'rematch', gameId: this.gameId, handicap: this.handicap });
-        this.setDialog(_('Rematch offer sent'));
+        this.controlsView.setRematchOffer('offering');
     };
     //
-    private rejectRematchOffer = () => {
+    // Accepting is offering in return — the server pairs the two — so this sends the
+    // same message and leaves the button showing an offer outstanding until the new
+    // game arrives as a VIEW REMATCH link.
+    private acceptRematch = () => {
+        this.socket.doSend({ type: 'rematch', gameId: this.gameId, handicap: this.handicap });
+        this.controlsView.setRematchOffer('offering');
+    };
+    //
+    // Withdrawing MY OWN offer. `reject_rematch` now means exactly this in bughouse —
+    // there is no decline control any more, because declining a rematch is not pressing
+    // accept. The server clears this player from the offer set and tells everyone, so
+    // the withdrawal also stops counting towards the all-four total.
+    private cancelRematch = () => {
         this.socket.doSend({ type: 'reject_rematch', gameId: this.gameId });
-        this.clearDialog();
-    };
-    //
-    private renderRematchOffer = () => {
-        this.controlsView.renderRematchOffer(
-            () => this.rejectRematchOffer(),
-            () => this.rematch(),
-        );
     };
     //
     private newOpponent = (home: string) => {
@@ -443,10 +484,50 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
         window.location.assign(home + '/' + this.gameId + '?ply=' + this.ply.toString());
     };
 
+    // THE RESULT, in words, as a chat line — how the game ended and who won it.
+    //
+    // The movelist already shows this, but only to whoever is looking at the Moves tab,
+    // and the tab that is open by default is Chat. So the one place every player is
+    // certainly looking said nothing about the result and went straight to housekeeping
+    // about who can now read what.
+    //
+    // Emitted before those notices, and once: gameOver() can run twice, from the board
+    // message and from gameEnd, which is the same reason updateResult() guards itself.
+    private resultAnnounced = false;
+    private announceResult = () => {
+        if (this.resultAnnounced || this.status < 0) return;
+        this.resultAnnounced = true;
+        const teams = this.seats.teams;
+        // `result()` already composes the whole sentence — the reason, then " • X won" or
+        // " • Draw" — which is exactly what this line needs to say. It is reused rather
+        // than rebuilt so the chat and the movelist can never word the same result
+        // differently, and so a new ending only has to be described in one place.
+        //
+        // Composing it here was tried and was wrong twice over: it duplicated the winner
+        // that result() already names, and `_()` in this codebase substitutes only ONE
+        // placeholder — `i18n.gettext(msgid, vars)` receives the vars ARRAY, so a second
+        // `%2` came out as the literal `undefined` and `%1` as the array joined by a
+        // comma. One placeholder per string is the rule here.
+        // PREFIXED, because `result()` alone is not always a sentence. For a resignation
+        // it reads "A+B resigned • C+D won", which is unmistakable; for a draw it is the
+        // single word "Draw", which lands in a column of chat lines and reads as somebody
+        // having typed it. The prefix makes every ending announce itself as an ending.
+        //
+        // Concatenated rather than interpolated: `_()` here substitutes ONE placeholder,
+        // because `i18n.gettext(msgid, vars)` takes the vars as an array — a second `%2`
+        // comes out as the literal `undefined`.
+        const reason = result(this.boardA.variant, this.status, this.result, teams[0].name(), teams[1].name());
+        chatMessage('', `${_('Game over')} — ${reason}`, 'bugroundchat');
+    };
+
     private gameOver = () => {
+        this.announceResult();
+        markGameOver();
         this.controlsView.renderGameOverControls(
             this.spectator,
             () => this.rematch(),
+            () => this.acceptRematch(),
+            () => this.cancelRematch(),
             () => this.newOpponent(this.home),
             () => this.analysis(this.home),
         );
@@ -455,7 +536,7 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
     checkStatus = (msg: MsgBoard | MsgGameEnd) => {
         console.log(msg);
         if (msg.gameId !== this.gameId) return;
-        if (msg.status >= 0) {
+        if (this.isGameOver(msg.status)) {
             // game over
             this.status = msg.status;
             this.result = msg.result;
@@ -478,7 +559,11 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
                 }, 2000);
             }
 
-            this.clearDialog();
+            // The game is over, so a draw offer outstanding across the result has
+            // nothing left to answer. The rematch offer is NOT reset here: this is the
+            // moment it becomes possible, and gameOver() above has just drawn the
+            // button that carries it.
+            this.controlsView.setDrawOffer('rest');
         }
     };
 
@@ -505,9 +590,9 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
                 }
                 if (step.chat) {
                     step.chat.forEach(c => {
-                        // Check if status < 0 and filter only partners messages
                         const myTeam = this.seats.myTeam();
-                        if (this.status < 0) {
+                        // while the game is on, a partner's messages are filtered
+                        if (!this.isGameOver()) {
                             if (
                                 c.username === myTeam.seats[0].player.username ||
                                 c.username === myTeam.seats[1].player.username
@@ -519,7 +604,7 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
                         }
                     });
                 }
-                if (idx === steps.length - 1 && this.status > 0) {
+                if (idx === steps.length - 1 && this.isGameOver()) {
                     chatMessage(
                         '',
                         'Game over. All messages visible to all.',
@@ -631,7 +716,7 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
         this.boardB.setState(fenB, getTurnColor(fenB), uci2LastMove(lastStepB?.moveB));
         this.boardB.renderState();
 
-        if (this.status < 0) {
+        if (!this.isGameOver()) {
             this.updateClocks('a', this.boardA.turnColor, clocksA, this.status);
             this.updateClocks('b', this.boardB.turnColor, clocksB, this.status);
         } else {
@@ -859,7 +944,7 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
         board.setState(fen!, getTurnColor(fen!), move);
         board.renderState();
 
-        if (this.status >= 0 || ply !== this.steps.length - 1) {
+        if (this.isGameOver() || ply !== this.steps.length - 1) {
             board.chessground.set({ movable: { color: undefined, dests: undefined } });
             board.partnerCC.chessground.set({ movable: { color: undefined, dests: undefined } });
         } else if (ply === this.steps.length - 1) {
@@ -936,22 +1021,68 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
 
     onMsgDrawOffer = (msg: MsgDrawOffer) => {
         chatMessage('', msg.message, 'bugroundchat');
-        if (!this.spectator && msg.username !== this.username) this.renderDrawOffer();
+        // By TEAM, not by sender. Both members of the offering team wait — including the
+        // player who pressed the button, who is simply the one who pressed it — and both
+        // members of the other team may answer.
+        if (this.spectator) return;
+        this.controlsView.setDrawOffer(this.onMyTeam(msg.username) ? 'offering' : 'offered');
+    };
+
+    onMsgResignOffer = (msg: MsgResignOffer) => {
+        chatMessage('', msg.message, 'bugroundchat');
+        if (this.spectator) return;
+        // Only ever delivered to the two players on the resigning team, so there is no
+        // opposing case to handle here: either this is my own request, or it is my
+        // partner's and I am the one who confirms it.
+        this.controlsView.setResignOffer(msg.username === this.username ? 'offering' : 'offered');
+    };
+
+    onMsgResignCancelled = (msg: MsgResignCancelled) => {
+        chatMessage('', msg.message, 'bugroundchat');
+        if (this.spectator) return;
+        this.controlsView.setResignOffer('rest');
     };
 
     onMsgDrawRejected = (msg: MsgDrawRejected) => {
         chatMessage('', msg.message, 'bugroundchat');
-        // this.clearDialog();
+        // Load-bearing, not tidying: a button IS the record that an offer is outstanding,
+        // so this is the only thing that returns it to rest. Broadcast to all four, so
+        // every window clears together rather than each deciding for itself.
+        this.controlsView.setDrawOffer('rest');
     };
 
     onMsgRematchOffer = (msg: MsgRematchOffer) => {
         chatMessage('', msg.message, 'bugroundchat');
-        if (!this.spectator && msg.username !== this.username) this.renderRematchOffer();
+        if (this.spectator) return;
+        this.controlsView.setRematchOffer(this.rematchStateFrom(msg.offers));
     };
 
     onMsgRematchRejected = (msg: MsgRematchRejected) => {
         chatMessage('', msg.message, 'bugroundchat');
-        // this.clearDialog();
+        if (this.spectator) return;
+        this.controlsView.setRematchOffer(this.rematchStateFrom(msg.offers));
+    };
+
+    // A rematch is not one player offering and the others answering — it begins when ALL
+    // FOUR have signed up, so every press is a sign-up and the only real question is
+    // whether THIS player is already in. That is what the server sends, and reading it
+    // is what keeps the four controls consistent:
+    //
+    //   in the list      -> `offering`, and the control withdraws
+    //   not in, list set -> `offered`, and the control signs up
+    //   list empty       -> `rest`
+    //
+    // Inferring it from `msg.username` was wrong in both directions. Someone else
+    // accepting flipped the original offerer's CANCEL to ACCEPT — offering to accept
+    // their own rematch — and a withdrawal reset everybody rather than only the player
+    // who withdrew.
+    //
+    // `offers` is optional because the single-board server does not send it; absent, this
+    // falls back to the old all-or-nothing reading rather than throwing.
+    private rematchStateFrom = (offers?: string[]): OfferState => {
+        if (offers === undefined) return 'rest';
+        if (offers.includes(this.username)) return 'offering';
+        return offers.length > 0 ? 'offered' : 'rest';
     };
 
     // private onMsgFullChat = (msg: MsgFullChat) => {

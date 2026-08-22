@@ -8,6 +8,7 @@ import { RoundControllerBughouse } from './roundCtrl';
 import { MovelistView } from '../common/movelist';
 import { RoundSeatView, RoundSeatViews } from './roundSeatView';
 import { trackSquareUnit } from '../squareUnit';
+import { boardZoom } from '@/boardSettings';
 import { TabbedPanels } from '../common/tabs';
 import { ChatPresetsView } from './chatPresets';
 import { twoBoardSeats } from '../common/seatConfiguration';
@@ -50,7 +51,15 @@ export function roundView(model: PyChessModel): VNode[] {
     // chessgroundx memoizes its hit-test bounds when a board is constructed, and
     // nothing observes a board that merely moves — so a board built against a
     // grid that changes afterwards keeps stale bounds and mis-resolves clicks.
-    trackSquareUnit();
+    //
+    // The zoom is passed in rather than read there, because the unit is quantised
+    // at the scale the board will draw at and squareUnit.ts must not depend on
+    // boardSettings — boardSettings calls back into it when a slider moves, and the
+    // two importing each other is a module-evaluation cycle. Read from the setting
+    // rather than from `--zoom-a`, which nothing has written this early: the
+    // stylesheet default is 100 while the board is about to be drawn at 80.
+    const boardFamily = variant.boardFamily;
+    trackSquareUnit({ a: boardZoom(boardFamily, 'a'), b: boardZoom(boardFamily, 'b') });
 
     renderTimeago();
 
@@ -110,9 +119,17 @@ export function roundView(model: PyChessModel): VNode[] {
             // of the chat view in the first place.
             {
                 label: _('Chat'),
-                parts: chatPresetsView
-                    ? [{ content: [h('div#bugroundchat')] }, { panelClass: 'chatpresets-panel', content: [chatPresetsView.view()] }]
-                    : [{ content: [h('div#bugroundchat')] }],
+                parts: [
+                    { content: [h('div#bugroundchat')] },
+                    // One part per preset group, so each can be placed on its own
+                    // and they flow into the space under the board one at a time.
+                    ...(chatPresetsView
+                        ? chatPresetsView.parts().map((part, i) => ({
+                              panelClass: `chatpresets-panel.chatpresets-panel-${i + 1}`,
+                              content: [part],
+                          }))
+                        : []),
+                ],
             },
             {
                 label: _('Moves'),
@@ -150,20 +167,32 @@ export function roundView(model: PyChessModel): VNode[] {
                 },
             },
             [
-                h(`selection#mainboard.${variant.boardFamily}.${variant.pieceFamily}.${variant.ui.boardMark}`, [
-                    h('div.cg-wrap.' + variant.board.cg, {
-                        hook: { insert: vnode => (mainboardVNode = vnode) /*runGround(vnode, model)*/ },
-                    }),
+                // The viewer's own board and its two strips as one unit, exactly as the
+                // partner's are grouped in `.bug-right-column`. They used to be three
+                // separate items of the app's grid, stacked by three named rows —
+                // which is a grid doing, for one board, what a container already does
+                // for the other. The asymmetry cost more than the rows: anything a
+                // stack needs, from the room a board's coordinates want to the height
+                // a name takes when it leaves its strip, had to be expressed twice,
+                // once as tracks here and once inside the group there. Now both boards
+                // are the same kind of thing and each carries its own arrangement.
+                //
+                // Order is the arrangement: strip, board, strip, in block flow.
+                h('div.bug-own-stack', [
+                    seatViews.a[0].view(pocketA0),
+                    h(`selection#mainboard.${variant.boardFamily}.${variant.pieceFamily}.${variant.ui.boardMark}`, [
+                        h('div.cg-wrap.' + variant.board.cg, {
+                            hook: { insert: vnode => (mainboardVNode = vnode) /*runGround(vnode, model)*/ },
+                        }),
+                    ]),
+                    seatViews.a[1].view(pocketA1),
                 ]),
-                h(`selection#bugboard.${variant.boardFamily}.${variant.pieceFamily}.${variant.ui.boardMark}`, [
-                    h('div.cg-wrap.' + variant.board.cg, {
-                        hook: { insert: vnode => (bugboardVNode = vnode) /*runGround(vnode, model)*/ },
-                    }),
-                ]),
-                // h('div.material.material-top.' + variant.piece + '.disabled'),
-                seatViews.a[0].view(pocketA0),
-                seatViews.b[0].view(pocketB0),
-                h('div.bug-round-tools-part', [h('div#offer-dialog')]),
+                // The draw/rematch prompt used to be here, as `.bug-offer-dialog`
+                // holding `#offer-dialog` in its own full-width `toolsB` row below
+                // both boards. An offer is now a look on the control that made it —
+                // the draw button turns green to be accepted, the rematch button is
+                // replaced in place by an accept/decline pair — so there is nothing
+                // left for a strip to hold, and the row went with the element.
                 // The tools column is this page's own element, carrying its
                 // `grid-area: tools` and the `min-width: 0` that makes the column
                 // yield before a board is pushed off screen; the widget supplies
@@ -182,15 +211,60 @@ export function roundView(model: PyChessModel): VNode[] {
                 // groups nothing. All of them land here for the moment, so the
                 // column looks exactly as it did; a later change is free to mount
                 // one of them somewhere else entirely.
-                h('div.bug-round-tools', [
-                    roundTabs.panel(0, 0),
-                    ...(chatPresetsView ? [roundTabs.panel(0, 1)] : []),
-                    roundTabs.panel(1, 0),
-                    roundTabs.panel(2, 0),
-                    h('div.bug-round-tools-bar', [roundTabs.tabList(), h('div#game-controls')]),
+                // The second column, as one element rather than as two separately
+                // placed ones. A grid track is sized by its widest item, never by
+                // two items side by side, so a column that is "the right board plus
+                // the tools" has to be a single item holding both. It is also what
+                // the tools need in order to flow under the board later: floating
+                // happens among siblings in one container, not across grid items.
+                //
+                // The cost is that the two boards are no longer siblings in the
+                // app's grid, so switching them cannot be a grid-area swap — see
+                // switchBoardElements() and markRoles(), which both assumed it.
+                h('div.bug-right-column', [
+                    // The board and its two strips are grouped; the tab parts are
+                    // not. That is the whole arrangement in one line.
+                    //
+                    // These three are one unit — they move together on a switch and
+                    // size together — and three siblings cannot be floated as one
+                    // thing, so the group has to exist for the board to be the
+                    // fixed shape the parts arrange themselves around.
+                    h('div.bug-partner-stack', [
+                        seatViews.b[0].view(pocketB0),
+                        h(
+                            `selection#bugboard.${variant.boardFamily}.${variant.pieceFamily}.${variant.ui.boardMark}`,
+                            [
+                                h('div.cg-wrap.' + variant.board.cg, {
+                                    hook: { insert: vnode => (bugboardVNode = vnode) /*runGround(vnode, model)*/ },
+                                }),
+                            ],
+                        ),
+                        seatViews.b[1].view(pocketB1),
+                    ]),
+                    // The parts. Grouped only so that portrait has something to
+                    // place: there the tools are one block in their own grid area,
+                    // and free-standing parts auto-placed into the partner board's
+                    // rows, which left the chat 20.7px tall.
+                    //
+                    // The landscape modes make this element `display: contents`, so
+                    // it forms no box and each part is placed individually by the
+                    // column — which is what lets one of them take the space under a
+                    // shrunken board. Each mode dissolves whichever container it
+                    // does not want: landscape this one, portrait the two around it.
+                    h('div.bug-parts', [
+                        roundTabs.panel(0, 0),
+                        ...(chatPresetsView ? [roundTabs.panel(0, 1), roundTabs.panel(0, 2)] : []),
+                        roundTabs.panel(1, 0),
+                        roundTabs.panel(2, 0),
+                        // Where the end-of-game controls are rendered, empty until
+                        // there is a result. It belongs to no tab — it must show
+                        // whichever tab is selected — so it is a sibling of the
+                        // parts rather than one of them, and it takes the place the
+                        // presets vacate at the same moment.
+                        h('div.bug-gameover'),
+                        h('div.bug-round-tools-bar', [roundTabs.tabList(), h('div#game-controls')]),
+                    ]),
                 ]),
-                seatViews.a[1].view(pocketA1),
-                seatViews.b[1].view(pocketB1),
                 // h('div.material.material-bottom.' + variant.pieceFamily + '.disabled'),
             ],
         ),
