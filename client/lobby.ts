@@ -28,6 +28,7 @@ import { PyChessModel } from './types';
 import { model } from './main';
 import { MsgBoard, MsgChat, MsgFullChat } from './messages';
 import { variantPanels } from './lobby/layer1';
+import { shouldShowRatingRange } from './lobby/ratingRange';
 import {
     Post,
     Stream,
@@ -243,6 +244,7 @@ export class LobbyController implements ChatController {
             } else if (this.profileid === 'Invite-friend') this.createMode = 'playFriend';
             document.getElementById('game-mode')!.style.display =
                 this.anon || this.title === 'BOT' ? 'none' : 'inline-flex';
+            this.updateRatingRangeVisibility();
             this.renderDialogHeader(_('Challenge %1 to a game', this.profileid));
             document.getElementById('ailevel')!.style.display = this.createMode === 'playAI' ? 'block' : 'none';
             document.getElementById('rmplay-block')!.style.display = this.createMode === 'playAI' ? 'block' : 'none';
@@ -1050,8 +1052,7 @@ export class LobbyController implements ChatController {
         const selectedElement = document.getElementById('variant') as HTMLSelectElement;
         const selectedVariantAfterRender = selectedElement?.value || selectedVariant;
         const selectedTwoBoards = !!VARIANTS[selectedVariantAfterRender]?.twoBoards;
-        const selectedCatalogued = isCataloguedVariant(selectedVariantAfterRender);
-        document.getElementById('rating-range-setting')!.style.display = selectedCatalogued ? 'none' : 'block';
+        this.updateRatingRangeVisibility(selectedVariantAfterRender);
         document.getElementById('ailevel')!.style.display = 'none';
         document.getElementById('rmplay-block')!.style.display = 'none';
         (document.getElementById('id01') as HTMLDialogElement).showModal();
@@ -1068,7 +1069,7 @@ export class LobbyController implements ChatController {
         );
         this.renderDialogHeader(createModeStr(this.createMode));
         document.getElementById('game-mode')!.style.display = this.anon ? 'none' : 'inline-flex';
-        document.getElementById('rating-range-setting')!.style.display = 'none';
+        this.updateRatingRangeVisibility();
         document.getElementById('ailevel')!.style.display = 'none';
         document.getElementById('rmplay-block')!.style.display = 'none';
         (document.getElementById('id01') as HTMLDialogElement).showModal();
@@ -1085,7 +1086,7 @@ export class LobbyController implements ChatController {
         );
         this.renderDialogHeader(createModeStr(this.createMode));
         document.getElementById('game-mode')!.style.display = 'none';
-        document.getElementById('rating-range-setting')!.style.display = 'none';
+        this.updateRatingRangeVisibility();
         const e = document.getElementById('rmplay') as HTMLInputElement;
         document.getElementById('ailevel')!.style.display = e.checked ? 'none' : 'inline-block';
         document.getElementById('rmplay-block')!.style.display = 'block';
@@ -1103,13 +1104,24 @@ export class LobbyController implements ChatController {
         );
         this.renderDialogHeader(createModeStr(this.createMode));
         document.getElementById('game-mode')!.style.display = this.anon ? 'none' : 'inline-flex';
-        document.getElementById('rating-range-setting')!.style.display = 'none';
+        this.updateRatingRangeVisibility();
         document.getElementById('ailevel')!.style.display = 'none';
         document.getElementById('rmplay-block')!.style.display = 'none';
         (document.getElementById('id01') as HTMLDialogElement).showModal();
         document.getElementById('color-button-group')!.style.display = 'none';
         document.getElementById('create-button')!.style.display = 'block';
         disableCorr(true);
+    }
+
+    private updateRatingRangeVisibility(variantName?: string) {
+        const selectedVariant =
+            variantName ?? (document.getElementById('variant') as HTMLSelectElement | null)?.value;
+        const visible = shouldShowRatingRange(
+            this.createMode,
+            this.profileid !== '',
+            isCataloguedVariant(selectedVariant),
+        );
+        document.getElementById('rating-range-setting')!.style.display = visible ? 'block' : 'none';
     }
 
     private setVariant() {
@@ -1120,6 +1132,7 @@ export class LobbyController implements ChatController {
         if (!variant) return;
         const byoyomi = variant.rules.defaultTimeControl === 'byoyomi';
         const catalogued = isCataloguedVariant(variant.name);
+        this.updateRatingRangeVisibility(variant.name);
         if (variant.twoBoards) {
             const select = document.getElementById('tc') as HTMLSelectElement;
             select.selectedIndex = 0;
@@ -1288,24 +1301,42 @@ export class LobbyController implements ChatController {
 
     renderSeeks(seeks: Seek[]) {
         seeks.sort((a, b) => (a.bot && !b.bot ? 1 : -1));
-        const rows = seeks.map(seek => this.seekView(seek));
+        const rows = seeks.flatMap(seek => this.seekView(seek));
         return [seekHeader(), h('tbody', rows)];
     }
 
-    private seekViewRegular(seek: Seek) {
+    private seekViewRegular(seek: Seek): VNode[] {
         const variant = VARIANTS[seek.variant];
         const chess960 = seek.chess960;
+        const catalogued = isCataloguedVariant(seek.variant);
+        const displayName = variant.displayName(chess960);
+        const icon = variant.icon(chess960);
+        const row = h(
+            'tr',
+            {
+                class: { 'catalogued-seek-main': catalogued },
+                on: { click: () => this.onClickSeek(seek) },
+            },
+            [
+                h('td', [this.colorIcon(seek.color)]),
+                h('td', [this.challengeIcon(seek), this.seekTitle(seek), this.user(seek)]),
+                h('td', seek.rating),
+                h('td', timeControlStr(seek.base, seek.inc, seek.byoyomi, seek.day)),
+                h('td.icon', { attrs: { 'data-icon': icon } }, [h('variant-name', ' ' + displayName)]),
+                h('td', { class: { tooltip: seek.fen !== '' } }, [this.tooltip(seek, variant), this.mode(seek)]),
+            ],
+        );
 
-        return h('tr', { on: { click: () => this.onClickSeek(seek) } }, [
-            h('td', [this.colorIcon(seek.color)]),
-            h('td', [this.challengeIcon(seek), this.seekTitle(seek), this.user(seek)]),
-            h('td', seek.rating),
-            h('td', timeControlStr(seek.base, seek.inc, seek.byoyomi, seek.day)),
-            h('td.icon', { attrs: { 'data-icon': variant.icon(chess960) } }, [
-                h('variant-name', ' ' + variant.displayName(chess960)),
+        if (!catalogued) return [row];
+
+        return [
+            row,
+            h('tr.catalogued-seek-name', { on: { click: () => this.onClickSeek(seek) } }, [
+                h('td', { attrs: { colspan: '6' } }, [
+                    h('span.mobile-catalogued-variant', { attrs: { title: displayName } }, displayName),
+                ]),
             ]),
-            h('td', { class: { tooltip: seek.fen !== '' } }, [this.tooltip(seek, variant), this.mode(seek)]),
-        ]);
+        ];
     }
 
     private seekViewUnknown(seek: Seek) {
@@ -1319,10 +1350,11 @@ export class LobbyController implements ChatController {
         ]);
     }
 
-    private seekView(seek: Seek) {
+    private seekView(seek: Seek): VNode[] {
+        if (this.hide(seek)) return [];
         const variant = VARIANTS[seek.variant];
-        if (!variant) return this.hide(seek) ? '' : this.seekViewUnknown(seek);
-        return this.hide(seek) ? '' : variant.twoBoards ? seekViewBughouse(this, seek) : this.seekViewRegular(seek);
+        if (!variant) return [this.seekViewUnknown(seek)];
+        return variant.twoBoards ? [seekViewBughouse(this, seek)] : this.seekViewRegular(seek);
     }
 
     private onClickSeek(seek: Seek) {
@@ -1390,6 +1422,7 @@ export class LobbyController implements ChatController {
                                 coordinates: false,
                                 fen: seek.fen,
                                 dimensions: variant.board.dimensions,
+                                viewOnly: true,
                             });
                         },
                     },

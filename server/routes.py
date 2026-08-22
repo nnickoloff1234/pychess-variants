@@ -118,6 +118,7 @@ from login import (
     check_username_availability,
     confirm_username,
     login,
+    login_choice,
     logout,
     oauth,
     select_username,
@@ -160,6 +161,7 @@ from views import (
     analysis,
     api_docs,
     arena_new,
+    authors,
     blog,
     blogs,
     calendar,
@@ -226,6 +228,7 @@ RouteDef: TypeAlias = tuple[str, Handler]
 
 
 get_routes: tuple[RouteDef, ...] = (
+    ("/login", login_choice),
     ("/login/{provider}", login),
     ("/oauth/{provider}", oauth),
     ("/logout", logout),
@@ -241,6 +244,7 @@ get_routes: tuple[RouteDef, ...] = (
     ("/select-username", select_username),
     ("/", lobby.lobby),
     ("/about", about.about),
+    ("/authors", authors.authors),
     ("/api", api_docs.api_docs),
     ("/contact", contact.contact),
     ("/client-reset", client_reset_page),

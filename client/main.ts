@@ -57,6 +57,8 @@ import { initPushSubscription } from './push';
 import { initCommunityVariantFavorites } from './communityVariants';
 import { gameSearchView, initGameSearch } from './gameSearch';
 import { initProfileActionOverflow } from './profileActionOverflow';
+import { initVariantAuthors } from './variantAuthors';
+import { initSearchBarDismissal } from './searchBar';
 
 // redirect to correct URL except Heroku preview/dev apps
 if (
@@ -301,6 +303,8 @@ function start() {
             setTimeout(() => searchInput.focus(), 200);
     };
 
+    initSearchBarDismissal(searchBar);
+
     function showResults(val: string) {
         const acResult = document.getElementById('ac-result') as HTMLElement;
         if (val.length < 4) {
@@ -353,6 +357,7 @@ function start() {
 
     maybeShowGameCategoryIntro();
     initCommunityVariantFavorites();
+    initVariantAuthors();
 
     patch(document.getElementById('zen-button') as HTMLElement, zenButtonView());
 }
@@ -410,6 +415,21 @@ function initLoginDropdown() {
             }
         }
     });
+
+    // Provider-neutral /login redirects here so all callers can use the same chooser.
+    if (window.location.hash === '#login') {
+        const loginDropdown = document.querySelector('.login-dropdown') as HTMLElement;
+        if (loginDropdown) {
+            loginDropdown.classList.add('open');
+            const loginBtn = loginDropdown.querySelector('.login-btn') as HTMLButtonElement;
+            if (loginBtn) {
+                loginBtn.setAttribute('aria-expanded', 'true');
+                loginBtn.focus();
+            }
+        }
+
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
 }
 
 const el = document.getElementById('pychess-variants');

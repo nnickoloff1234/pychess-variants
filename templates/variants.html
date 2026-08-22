@@ -10,6 +10,9 @@
     <li>
         <a class="icon" data-icon="◇" href="{{ home }}/variants/community">Community variants</a>
     </li>
+    <li>
+        <a class="icon" data-icon="♙" href="{{ home }}/authors">Variant authors</a>
+    </li>
     {% for key in variants %}
     <li>
         <a class="icon {{ groups[key] }}" data-icon="{{ icons[key] }}" href="{{ home }}/variants/{{ key }}">{{ variant_display_name(key) }}</a>
@@ -53,11 +56,10 @@
         <button type="submit" class="button">Search</button>
     </form>
 
+    {% if community_variants.variants %}
     <p class="community-variants-count">
         {{ community_variants.total }} public variant{% if community_variants.total != 1 %}s{% endif %}
     </p>
-
-    {% if community_variants.variants %}
     <div class="community-variants-list">
         {% for item in community_variants.variants %}
         <section class="community-variant-card{% if item.startBoardPreview %} community-variant-card--with-preview{% endif %}{% if item.favorite %} community-variant-card--favorite{% endif %}" data-variant="{{ item.name }}">
