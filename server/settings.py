@@ -12,9 +12,8 @@ URI = os.getenv("URI", LOCALHOST)
 PROD = os.getenv("PROD") == "true"
 DEV = not PROD
 
-# Simul remains disabled on production, but should be available on any DEV deployment,
-# including non-local hosts such as the Render dev server.
-SIMULING = DEV
+# Simuls are available on both production and DEV deployments.
+SIMULING = True
 
 # lichess.org API token created by the pychess-monitor BOT user
 PYCHESS_MONITOR_TOKEN = os.getenv("PYCHESS_MONITOR_TOKEN")
@@ -39,6 +38,7 @@ ADMINS = os.getenv("ADMINS", "").split(",")
 TOURNAMENT_DIRECTORS = os.getenv("TOURNAMENT_DIRECTORS", "").split(",")
 
 STATIC_ROOT = os.getenv("STATIC_ROOT", "/static")
+NNUE_DOWNLOAD_ROOT = os.getenv("NNUE_DOWNLOAD_ROOT", "").rstrip("/")
 
 TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID", "")
 TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET", "")
@@ -61,3 +61,8 @@ if SOURCE_VERSION != "":
 
 def static_url(static_file_path):
     return "%s/%s" % (STATIC_ROOT, static_file_path)
+
+
+# Build-generated assets such as ffish.wasm are served by the app, not STATIC_ROOT/CDN.
+def local_static_url(static_file_path):
+    return "/static/%s%s" % (static_file_path, SOURCE_VERSION)

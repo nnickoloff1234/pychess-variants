@@ -845,6 +845,10 @@ ul.guide li {
     color: var(--font-color);
     background-color: var(--bg-color0);
   }
+  .topnav a.donate-link.navbar-show:hover,
+  .topnav a.donate-link.navbar-show:active {
+    background-color: color-mix(in srgb, var(--gold) 15%, var(--bg-color0));
+  }
   .site-buttons {
     margin-left: 0;
   }
@@ -929,6 +933,34 @@ ul.guide li {
     visibility: visible;
   }
 }
+
+.topnav a.donate-link,
+.topnav a.donate-link:link,
+.topnav a.donate-link:visited,
+.topnav a.donate-link:hover,
+.topnav a.donate-link:active {
+  color: var(--gold);
+}
+.topnav a.donate-link {
+  display: flex;
+  align-items: center;
+  height: calc(var(--site-header-height) - 11px);
+  line-height: calc(var(--site-header-height) - 11px);
+  margin: 6px 0 5px;
+  padding: 0 0.8rem;
+  border-radius: 50px;
+  text-transform: uppercase;
+}
+.topnav a.donate-link::before {
+  position: relative;
+  top: -1px;
+  margin-right: 0.3em;
+  font-size: 1.2em;
+}
+.topnav a.donate-link:hover {
+  background-color: color-mix(in srgb, var(--gold) 15%, transparent);
+}
+
 /* Site buttons */
 
 .site-buttons {
@@ -1253,6 +1285,9 @@ span.notification.empty span.text {
 #settings-board {
   width: 300px;
 }
+#settings-variant {
+  min-width: 0;
+}
 #settings-board div {
   margin: 5px;
 }
@@ -1292,6 +1327,52 @@ span.notification.empty span.text {
 }
 .analysis-settings label {
   padding-left: 0;
+}
+.nnue-toggle-settings {
+  margin-bottom: .75rem;
+}
+.nnue-toggle-settings .nnue-toggle-help {
+  display: block;
+  margin-top: .25rem;
+  opacity: .7;
+  line-height: 1.3;
+}
+.nnue-file-settings {
+  margin-bottom: 1rem;
+}
+.nnue-file-settings .nnue-network-status {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+  margin-bottom: .5rem;
+}
+.nnue-file-settings .nnue-network-detail {
+  font-size: .85em;
+  opacity: .75;
+  overflow-wrap: anywhere;
+}
+.nnue-file-settings .nnue-network-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+.nnue-file-settings .nnue-download-feedback {
+  display: flex;
+  flex-direction: column;
+  gap: .2rem;
+  margin: .4rem 0;
+}
+.nnue-file-settings .nnue-download-progress {
+  width: 100%;
+}
+.nnue-file-settings .nnue-download-status {
+  min-height: 1.2em;
+  font-size: .85em;
+  opacity: .8;
+}
+.nnue-file-settings .nnue-manual-file {
+  margin-top: .5rem;
 }
 div.labelled input[type="range"] {
   margin-right: 1ch;
@@ -1723,6 +1804,19 @@ i-side {
   color: LightGray;
   margin-right: 0.4em;
 }
+
+.icon-patron-wing::before {
+  margin-right: 0.3em;
+  font-size: 1em;
+}
+.online.icon-patron-wing::before {
+  color: var(--good);
+  opacity: 1;
+}
+.offline.icon-patron-wing::before {
+  color: currentColor;
+  opacity: 0.7;
+}
 .icon-left:before {
   color: var(--green-hover);
   margin-right: 0.4em;
@@ -1809,6 +1903,30 @@ table.seeks {
   font-size: 14px;
   width: 100%;
 }
+@media (min-width: 800px) {
+  table.seeks {
+    table-layout: fixed;
+  }
+  .seeks th:first-child {
+    width: 2.5em;
+  }
+  .seeks th:nth-child(2) {
+    width: 24%;
+  }
+  .seeks th:nth-child(3) {
+    width: 4.5em;
+  }
+  .seeks th:nth-child(4),
+  .seeks th:nth-child(6) {
+    width: 5em;
+  }
+  .seeks td:nth-child(2),
+  .seeks td:nth-child(5) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
 .seeks-table {
   box-shadow: var(--base-shadow);
   background-position: center;
@@ -3290,6 +3408,24 @@ div.ctable-container {
 .umw-status.offline {
   background: #888;
 }
+.umw-status.patron {
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  flex: 0 0 auto;
+  background: transparent;
+  color: #888;
+}
+.umw-status.patron::before {
+  margin-right: 0;
+}
+.umw-status.patron.online {
+  background: transparent;
+  color: #629924;
+}
+.umw-status.patron.offline {
+  background: transparent;
+}
 .umw-perfs {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -3484,6 +3620,9 @@ div#spotlights > div {
   font-size: 50px;
   margin: 0 5px 0 0;
   text-shadow: 1px 1px 2px #1b78d0;
+}
+.tour-spotlight.little i.icon::before {
+  font-size: 40px;
 }
 .tour-spotlight .name {
   margin-top: 1px;
@@ -4078,6 +4217,98 @@ img.logo {
 
 .alert-dialog-actions .button:hover {
   filter: brightness(1.04);
+}
+
+.keyboard-help {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
+  background-color: rgba(0, 0, 0, 0.45);
+  z-index: 1300;
+}
+.keyboard-help__content {
+  width: min(720px, calc(100vw - 2rem));
+  max-height: min(80vh, 640px);
+  overflow: auto;
+  background: var(--modal-bg);
+  color: var(--text-color);
+  border-radius: 12px;
+  border: 1px solid var(--bg-color2);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
+}
+.keyboard-help__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border-color);
+}
+.keyboard-help__header h2 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+.keyboard-help__close {
+  border: 0;
+  background: transparent;
+  color: var(--text-color);
+  font-size: 2rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+.keyboard-help__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+  padding: 1.25rem;
+}
+.keyboard-help__section h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+.keyboard-help__section--wide {
+  grid-column: 1 / -1;
+}
+.keyboard-help__section table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.keyboard-help__section td {
+  padding: 0.45rem 0;
+  vertical-align: top;
+}
+.keyboard-help__section td.keys-cell {
+  width: 40%;
+  padding-right: 1rem;
+}
+.keyboard-help__section .keys {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+.keyboard-help__section kbd {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.8rem;
+  padding: 0 0.45rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-color1);
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.12);
+  font: inherit;
+  font-weight: 600;
+}
+.keyboard-help__section .sep {
+  color: var(--text-dim-color);
+  font-size: 0.9rem;
+}
+.keyboard-help__section .description-cell {
+  color: var(--text-color);
 }
 
 /* Game Category Intro Dialog */

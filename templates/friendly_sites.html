@@ -1,0 +1,36 @@
+{% extends "template.html" %}
+{% block content %}
+<div id="main-wrap">
+    <main class="friendly-sites-page box">
+        <header class="friendly-sites-hero">
+            <h1>Friendly sites</h1>
+            <p>
+                There are many great chess variant sites, clubs, and projects around the world.
+                We humbly list some here.
+            </p>
+            <p>
+                Would you like your site listed here?
+                Open a <a href="https://github.com/gbtami/pychess-variants/issues">GitHub issue</a>
+                or use the <a href="/contact">contact</a> page.
+            </p>
+        </header>
+
+        <section class="friendly-sites-grid" aria-label="Friendly sites">
+            {% for site in friendly_sites %}
+            <a class="friendly-site-card" href="{{ site.url }}" target="_blank" rel="noopener noreferrer">
+                <span class="friendly-site-logo" aria-hidden="true">
+                    <img src="{{ site.icon_url }}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">
+                </span>
+                <span class="friendly-site-copy">
+                    <span class="friendly-site-title">{{ site.name }}</span>
+                    <span class="friendly-site-description">{{ site.description }}</span>
+                </span>
+            </a>
+            {% endfor %}
+        </section>
+    </main>
+</div>
+{% endblock %}
+{% block js %}
+    <script src="{{ js }}"></script>
+{% endblock %}

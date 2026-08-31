@@ -6,11 +6,14 @@ from unittest import TestCase
 from unittest.mock import AsyncMock, patch
 
 from catalogued_variants import (
+    CATALOGUED_CHESS_PROMOTION_ORDER,
     CATALOGUED_SOURCE_FSF_BUILTIN,
     FSF_CATALOGUED_BUILTIN_DESCRIPTION,
     FSF_CATALOGUED_BUILTIN_VARIANTS,
     FSF_CATALOGUED_BUILTIN_VARIANTS_CANDIDATES,
     FSF_CATALOGUED_RETIRED_BUILTIN_VARIANTS,
+    _build_fsf_builtin_doc,
+    _fsf_builtin_synced_fields,
     _remove_legacy_fsf_builtin_description_fields,
     ensure_fsf_catalogued_builtin_variants,
 )
@@ -19,6 +22,7 @@ from catalogued_variants import (
 class FsfBuiltinMetadataTestCase(TestCase):
     def test_engine_and_client_variant_relationships_are_separate(self) -> None:
         expected = {
+            "amazons": ("", "chess"),
             "atomar": ("nocheckatomic", "atomic"),
             "centaur": ("", "capablanca"),
             "chancellor": ("", "capablanca"),
@@ -38,6 +42,7 @@ class FsfBuiltinMetadataTestCase(TestCase):
             "almost": ("", "chess"),
             "gustav3": ("", "chess"),
             "omicron": ("", "chess"),
+            "paradigm": ("", "chess"),
             "troitzky": ("", "chess"),
         }
 
@@ -74,6 +79,15 @@ class FsfBuiltinMetadataTestCase(TestCase):
             "chess",
         )
 
+    def test_amazons_is_seeded_with_arrowing_input(self) -> None:
+        metadata = FSF_CATALOGUED_BUILTIN_VARIANTS["amazons"]
+        self.assertTrue(metadata["rulesArrowing"])
+        self.assertEqual(metadata["pieceFamilyOverride"], "amazons")
+        doc = _build_fsf_builtin_doc("amazons", metadata)
+        self.assertEqual(doc["pieceFamilyOverride"], "amazons")
+        self.assertEqual(_fsf_builtin_synced_fields(doc)["pieceFamilyOverride"], "amazons")
+        self.assertNotIn("amazons", FSF_CATALOGUED_BUILTIN_VARIANTS_CANDIDATES)
+
     def test_chigorin_is_not_seeded_until_side_specific_promotions_are_supported(self) -> None:
         self.assertNotIn("chigorin", FSF_CATALOGUED_BUILTIN_VARIANTS)
         self.assertIn("chigorin", FSF_CATALOGUED_BUILTIN_VARIANTS_CANDIDATES)
@@ -84,6 +98,13 @@ class FsfBuiltinMetadataTestCase(TestCase):
             metadata = FSF_CATALOGUED_BUILTIN_VARIANTS[name]
             self.assertEqual(metadata["clientVariant"], "chess")
             self.assertEqual(metadata["premoveVariant"], "grand")
+
+    def test_paradigm_is_seeded_with_dragon_bishop_promotions(self) -> None:
+        metadata = FSF_CATALOGUED_BUILTIN_VARIANTS["paradigm"]
+        self.assertEqual(metadata["pieceNames"], {"b": "Dragon Bishop"})
+        self.assertEqual(metadata["promotionRoles"], ("p",))
+        self.assertEqual(metadata["promotionOrder"], CATALOGUED_CHESS_PROMOTION_ORDER)
+        self.assertNotIn("paradigm", FSF_CATALOGUED_BUILTIN_VARIANTS_CANDIDATES)
 
     def test_gustav_and_omicron_promotion_targets_include_fairy_pieces(self) -> None:
         gustav = FSF_CATALOGUED_BUILTIN_VARIANTS["gustav3"]

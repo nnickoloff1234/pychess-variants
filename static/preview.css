@@ -63,6 +63,22 @@ label.piece.piece3.ataxx {
     background-image: url('images/pieces/ataxx/cat-dog/dog.svg');
 }
 
+label.piece.piece0.paradigm {
+    background-image: url('images/pieces/paradigm/cburnett/wD.svg');
+}
+label.piece.piece1.paradigm {
+    background-image: url('images/pieces/green/wD.svg');
+}
+label.piece.piece2.paradigm {
+    background-image: url('images/pieces/paradigm/wD.svg');
+}
+label.piece.piece3.paradigm {
+    background-image: url('images/pieces/merida/wD.svg');
+}
+label.piece.piece4.paradigm {
+    background-image: url('images/pieces/disguised/w.svg');
+}
+
 label.piece.piece0.standard {
     background-image: url('images/pieces/merida/wN.svg');
 }
@@ -132,6 +148,16 @@ label.piece.piece1.centaur {
     background-image: url('images/pieces/shogun/cburnett/mono/wG.svg');
 }
 label.piece.piece2.centaur {
+    background-image: url('images/pieces/disguised/w.svg');
+}
+
+label.piece.piece0.amazons {
+    background-image: url('images/pieces/merida/wQ.svg');
+}
+label.piece.piece1.amazons {
+    background-image: url('images/pieces/amazons/arrow/wQ.svg');
+}
+label.piece.piece2.amazons {
     background-image: url('images/pieces/disguised/w.svg');
 }
 
@@ -488,6 +514,9 @@ label.piece.piece5.shogun {
     background-image: url('images/pieces/shogun/cburnett/mono/wC.svg');
 }
 label.piece.piece6.shogun {
+    background-image: url('images/pieces/shogun/medival/w+P.svg')
+}
+label.piece.piece7.shogun {
     background-image: url('images/pieces/disguised/w.svg');
 }
 

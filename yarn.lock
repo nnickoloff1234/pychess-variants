@@ -1840,10 +1840,10 @@ expect@30.4.1:
     jest-mock "30.4.1"
     jest-util "30.4.1"
 
-fairy-stockfish-nnue.wasm@^1.1.11:
-  version "1.1.11"
-  resolved "https://registry.yarnpkg.com/fairy-stockfish-nnue.wasm/-/fairy-stockfish-nnue.wasm-1.1.11.tgz#e47d563956bbc9a47817823a60800d2b9dc95bc1"
-  integrity sha512-D5pocLErreRW+S1EPhprfeKo7iVWzLBIgWp5e8oRySDuNXopill2fRamUBRW4syWLAo4GMRr4noiE5b5F2sRkQ==
+fairy-stockfish-nnue.wasm@^1.1.12:
+  version "1.1.12"
+  resolved "https://registry.yarnpkg.com/fairy-stockfish-nnue.wasm/-/fairy-stockfish-nnue.wasm-1.1.12.tgz#6215e1649336b0109f3a42dfc75b41ed8ab417fc"
+  integrity sha512-E0z5fvgZgIK0NoLmI6krWt5g362G4mZguANy8obTXL7EFPzyOyQn9A8OmBcjRe/s4see2s9okfULTGVnCu+1XQ==
 
 fast-json-stable-stringify@2.x, fast-json-stable-stringify@^2.1.0:
   version "2.1.0"
@@ -1862,10 +1862,10 @@ ffish-alice-es6@^0.0.1:
   resolved "https://registry.yarnpkg.com/ffish-alice-es6/-/ffish-alice-es6-0.0.1.tgz#eea3b7282546595d8e3bc9720d7f65f0041dd29a"
   integrity sha512-KGToKP0PatG60r2qR+Djb+9q8mBiO4YoOMONKWfoisDPxtGXxjAWn2DICsPu+jFMOM3Ql29tLjAFTg8tZKMHCQ==
 
-ffish-es6@^0.7.9:
-  version "0.7.9"
-  resolved "https://registry.yarnpkg.com/ffish-es6/-/ffish-es6-0.7.9.tgz#654b007ef681b9681bbbea60e43af58c64a617e7"
-  integrity sha512-UcXkfJUkbJrDI6NzQ9eorcPQ+qMw01bsaDXkW7J68ekDECGyinbZsAryzfx/iwK6oSAUSzgkbwBfEm2PNLT7Hw==
+ffish-es6@^0.7.10:
+  version "0.7.10"
+  resolved "https://registry.yarnpkg.com/ffish-es6/-/ffish-es6-0.7.10.tgz#5b9707638adce63cca0b855515aa6bdb01b4bb0c"
+  integrity sha512-SxQspEQNB6Fu5GEtf6Pb1V1ZZHi1PHgq/p0gp9Y/6zHD7MqqjTmSFFzzBhZMJSFg+1XPF+xYgDF77TAUe6Jy2g==
 
 fill-range@^7.1.1:
   version "7.1.1"

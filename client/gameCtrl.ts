@@ -14,6 +14,7 @@ import { InputType } from '@/input/input';
 import { GatingInput } from './input/gating';
 import { PromotionInput } from './input/promotion';
 import { DuckInput } from './input/duck';
+import { ArrowingInput } from './input/arrowing';
 import { ChessgroundController } from './cgCtrl';
 import { BoardName, JSONObject, PyChessModel } from './types';
 import { updateCount, updatePoint } from './info';
@@ -26,6 +27,12 @@ import type { Config } from 'chessgroundx/config';
 import { fogFen, Variant } from './variants';
 import { isAnonUsername } from './user';
 import { animatePassMove } from './passMove';
+import {
+    buildGameKeyboardHelpSections,
+    hideGameKeyboardHelp,
+    isKeyboardHelpShortcut,
+    showGameKeyboardHelp,
+} from './gameKeyboardHelp';
 import { boardSettings } from './boardSettings';
 import { aliceBoardFen } from './aliceBoard';
 import type { AliceBoardName } from './aliceBoard';
@@ -51,8 +58,11 @@ export abstract class GameController extends ChessgroundController implements Ch
     players: string[];
     titles: string[];
     ratings: string[];
+    patrons: boolean[];
     wtitle: string;
     btitle: string;
+    wpatron: boolean;
+    bpatron: boolean;
     wrating: string;
     brating: string;
 
@@ -60,6 +70,7 @@ export abstract class GameController extends ChessgroundController implements Ch
     gating: GatingInput;
     promotion: PromotionInput;
     duck: DuckInput;
+    arrowing: ArrowingInput;
 
     // Game state
     turnColor: cg.Color;
@@ -106,6 +117,15 @@ export abstract class GameController extends ChessgroundController implements Ch
 
     undo?: any;
 
+    keyboardHelpOpen: boolean;
+    private readonly onGameKeyboardHelpKeyDown: (event: KeyboardEvent) => void;
+
+    get pocketHotkeyRoles(): readonly cg.Role[] | undefined {
+        return !this.spectator && this.status < 0 && this.variant.pocket
+            ? this.variant.pocket.roles[this.mycolor]
+            : undefined;
+    }
+
     constructor(
         el: HTMLElement,
         model: PyChessModel,
@@ -131,6 +151,8 @@ export abstract class GameController extends ChessgroundController implements Ch
         this.ply = isNaN(model['ply']) ? 0 : model['ply'];
         this.wtitle = model['wtitle'];
         this.btitle = model['btitle'];
+        this.wpatron = model['wpatron'];
+        this.bpatron = model['bpatron'];
         this.wrating = model['wrating'];
         this.brating = model['brating'];
         this.rated = model['rated'];
@@ -143,6 +165,7 @@ export abstract class GameController extends ChessgroundController implements Ch
         this.gating = new GatingInput(this);
         this.promotion = new PromotionInput(this);
         this.duck = new DuckInput(this);
+        this.arrowing = new ArrowingInput(this);
 
         // orientation = this.mycolor
         if (this.spectator) {
@@ -165,6 +188,10 @@ export abstract class GameController extends ChessgroundController implements Ch
         this.ratings = [
             this.mycolor === 'white' ? this.brating : this.wrating,
             this.mycolor === 'white' ? this.wrating : this.brating,
+        ];
+        this.patrons = [
+            this.mycolor === 'white' ? this.bpatron : this.wpatron,
+            this.mycolor === 'white' ? this.wpatron : this.bpatron,
         ];
 
         this.result = '*';
@@ -190,6 +217,23 @@ export abstract class GameController extends ChessgroundController implements Ch
         });
 
         this.setDests();
+
+        this.keyboardHelpOpen = false;
+        this.onGameKeyboardHelpKeyDown = (event: KeyboardEvent) => {
+            if (!this.keyboardHelpOpen) return;
+
+            if (event.key === 'Escape' || isKeyboardHelpShortcut(event)) {
+                event.preventDefault();
+                event.stopPropagation();
+                this.closeKeyboardHelp();
+                return;
+            }
+
+            if (event.key === 'Tab') return;
+
+            event.preventDefault();
+            event.stopPropagation();
+        };
 
         Mousetrap.bind('left', () => selectMove(this, this.ply - 1, this.plyVari));
         Mousetrap.bind('right', () => selectMove(this, this.ply + 1, this.plyVari));
@@ -310,7 +354,24 @@ export abstract class GameController extends ChessgroundController implements Ch
     }
 
     helpDialog() {
-        console.log('HELP!');
+        if (this.keyboardHelpOpen) {
+            this.closeKeyboardHelp();
+        } else {
+            this.openKeyboardHelp();
+        }
+    }
+
+    openKeyboardHelp() {
+        this.keyboardHelpOpen = true;
+        document.addEventListener('keydown', this.onGameKeyboardHelpKeyDown, true);
+        showGameKeyboardHelp(this, buildGameKeyboardHelpSections(this));
+    }
+
+    closeKeyboardHelp() {
+        if (!this.keyboardHelpOpen) return;
+        this.keyboardHelpOpen = false;
+        document.removeEventListener('keydown', this.onGameKeyboardHelpKeyDown, true);
+        hideGameKeyboardHelp();
     }
 
     toggleOrientation(): void {
@@ -373,9 +434,11 @@ export abstract class GameController extends ChessgroundController implements Ch
 
     abstract doSendMove(move: string): void;
 
-    // RoundController uses this hook to disambiguate Duck's local cancel action
-    // from a takeback of moves already accepted by the server.
+    // RoundController uses these hooks to disambiguate a local compound-move
+    // cancel action from a takeback of moves already accepted by the server.
     onDuckInputStateChange(_active: boolean): void {}
+
+    onArrowingInputStateChange(_active: boolean): void {}
 
     processInput(
         piece: cg.Piece,
@@ -403,6 +466,10 @@ export abstract class GameController extends ChessgroundController implements Ch
                 this.duck.start(piece, orig, dest, meta);
                 break;
             case 'duck':
+                this.suffix += lastSuffix;
+                this.arrowing.start(piece, orig, dest, meta);
+                break;
+            case 'arrowing':
                 this.suffix += lastSuffix;
                 this.sendMove(orig, dest, this.suffix);
                 break;
@@ -487,6 +554,7 @@ export abstract class GameController extends ChessgroundController implements Ch
         this.fullfen = step.fen;
         this.suffix = '';
         this.duck.cancel();
+        this.arrowing.cancel();
 
         if (this.variant.ui.counting) {
             [this.vmiscInfoW, this.vmiscInfoB] = updateCount(
@@ -519,8 +587,14 @@ export abstract class GameController extends ChessgroundController implements Ch
     };
 
     protected onMove = () => {
-        return (_orig: cg.Key, _dest: cg.Key, capturedPiece: cg.Piece) => {
-            sound.moveSound(this.variant, !!capturedPiece);
+        return (orig: cg.Key, dest: cg.Key, capturedPiece?: cg.Piece) => {
+            const isEnPassant =
+                capturedPiece === undefined &&
+                this.chessground.state.boardState.pieces.get(dest)?.role === 'p-piece' &&
+                orig[0] !== dest[0] &&
+                this.variant.rules.enPassant;
+
+            sound.moveSound(this.variant, capturedPiece !== undefined || isEnPassant);
         };
     };
 
@@ -534,6 +608,10 @@ export abstract class GameController extends ChessgroundController implements Ch
         let lastTime = performance.now();
         let lastKey: cg.Key | undefined;
         return (key: cg.Key) => {
+            if (this.arrowing.inputState === 'move') {
+                this.arrowing.onSelect(key);
+                return;
+            }
             if (this.chessground.state.movable.dests === undefined) return;
 
             const curTime = performance.now();
@@ -605,6 +683,10 @@ export abstract class GameController extends ChessgroundController implements Ch
     protected onUserMove(orig: cg.Key, dest: cg.Key, meta: cg.MoveMetadata) {
         if (this.duck.inputState === 'move') {
             this.duck.finish(dest);
+            return;
+        }
+        if (this.arrowing.inputState === 'move') {
+            this.arrowing.finish(dest);
             return;
         }
         if (this.variant.name === 'ataxx' && adjacent(orig, dest)) {

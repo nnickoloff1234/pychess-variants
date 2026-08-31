@@ -9,6 +9,7 @@ from fairy.fairy_board import (
     NOTATION_SAN,
     NOTATION_SHOGI_HODGES_NUMBER,
     NOTATION_XIANGQI_WXF,
+    RANDOM_START_VARIANTS,
     STANDARD_FEN,
     WHITE,
     FairyBoard,
@@ -18,7 +19,7 @@ from fairy.fairy_board import (
     validate_fen,
 )
 
-__all__ = [  # pyright: ignore[reportUnsupportedDunderAll]
+__all__ = [
     WHITE,
     BLACK,
     STANDARD_FEN,
@@ -32,6 +33,7 @@ __all__ = [  # pyright: ignore[reportUnsupportedDunderAll]
     NOTATION_JANGGI,
     NOTATION_XIANGQI_WXF,
     NOTATION_SHOGI_HODGES_NUMBER,
+    RANDOM_START_VARIANTS,
     get_fog_fen,
     get_san_moves,
     modded_variant,

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from typing import Any
 
 import aiohttp_jinja2
@@ -48,8 +49,12 @@ async def _find_user_doc(app_state: Any, raw_username: str) -> UserDocument | No
         {
             "$or": [
                 {"_id": candidate},
-                {"username_lower": candidate.lower()},
-                {"_id": {"$regex": f"^{re.escape(candidate)}$", "$options": "i"}},
+                {
+                    "username_lower": {
+                        "$eq": candidate.lower(),
+                        "$type": "string",
+                    }
+                },
             ]
         }
     )
@@ -158,15 +163,25 @@ async def _user_status(app_state: Any, user_doc: UserDocument) -> dict[str, obje
     count = raw_count if isinstance(raw_count, Mapping) else {}
     raw_security = user_doc.get("security", {})
     security = raw_security if isinstance(raw_security, dict) else {}
+    timeout_until = user_doc.get("chatTimeoutUntil")
+    if isinstance(timeout_until, datetime):
+        if timeout_until.tzinfo is None:
+            timeout_until = timeout_until.replace(tzinfo=UTC)
+        timed_out = timeout_until > datetime.now(UTC)
+    else:
+        timed_out = False
+    if live_user is not None:
+        timed_out = timed_out or live_user.silence > 0
 
     return {
         "username": username,
         "title": str(user_doc.get("title") or ""),
         "enabled": bool(user_doc.get("enabled", True)),
         "shadowban": bool(user_doc.get("shadowban", False)),
+        "patron": bool(user_doc.get("patron", False)),
         "protected": is_protected_username(username),
         "online": bool(live_user is not None and live_user.online),
-        "timed_out": bool(live_user is not None and live_user.silence > 0),
+        "timed_out": timed_out,
         "created_at": user_doc.get("createdAt"),
         "games": int(count.get("game", 0) or 0),
         "wins": int(count.get("win", 0) or 0),

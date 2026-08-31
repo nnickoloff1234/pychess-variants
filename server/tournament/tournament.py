@@ -6,7 +6,7 @@ import logging
 import random
 import traceback
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from operator import neg
@@ -62,12 +62,11 @@ from typing_defs import (
     TournamentPlayersResponse,
     TournamentPlayerUpdate,
     TournamentPoint,
-    TournamentSpotlightsResponse,
     TournamentStatusResponse,
     TournamentTopGameResponse,
     TournamentUpdateData,
 )
-from websocket_utils import ws_send_json_many
+from websocket_utils import ws_send_json_many, ws_send_json_many_ordered
 
 if TYPE_CHECKING:
     from typing import Literal
@@ -75,13 +74,12 @@ if TYPE_CHECKING:
     from bug.game_bug import GameBug
     from pychess_global_app_state import PychessGlobalAppState
     from ws_types import ChatLine, SpectatorsMessage
+from lobby_spotlights import broadcast_lobby_spotlights
 from settings import URI
 from spectators import spectators
 from user import User
 from utils import insert_game_to_db
 from variants import get_server_variant, is_catalogued_variant
-
-from tournament.tournament_spotlights import tournament_spotlights
 
 log = logging.getLogger(__name__)
 
@@ -1402,9 +1400,73 @@ class Tournament(ABC):
         self.app_state.schedule_tournament_cache_removal(self)
 
     async def broadcast_spotlight(self) -> None:
-        spotlights = tournament_spotlights(self.app_state)
-        response: TournamentSpotlightsResponse = {"type": "spotlights", "items": spotlights}
-        await self.app_state.lobby.lobby_broadcast(response)
+        await broadcast_lobby_spotlights(self.app_state)
+
+    async def has_pairing_history(self) -> bool:
+        """Return whether a real pairing/game was ever created for this tournament."""
+        if self.app_state.db is None:
+            return self.nb_games_finished > 0 or bool(self.ongoing_games)
+
+        pairing = await self.app_state.db.tournament_pairing.find_one({"tid": self.id}, {"_id": 1})
+        if pairing is not None:
+            return True
+
+        # Game documents are written before pairing documents. Treat one as pairing
+        # history too, so a partial MongoDB write can never make cleanup erase a game.
+        game = await self.app_state.db.game.find_one({"tid": self.id}, {"_id": 1})
+        return game is not None
+
+    async def destroy(self) -> None:
+        """Permanently remove a tournament and its tournament-owned metadata."""
+        if self.app_state.db is not None:
+            await self.app_state.db.tournament.delete_many({"_id": self.id})
+            await self.app_state.db.tournament_pairing.delete_many({"tid": self.id})
+            await self.app_state.db.tournament_player.delete_many({"tid": self.id})
+            await self.app_state.db.tournament_arrangement.delete_many({"tid": self.id})
+            await self.app_state.db.tournament_chat.delete_many({"tid": self.id})
+
+        current_task = asyncio.current_task()
+        clock_task = self.clock_task
+        if clock_task is not None and clock_task is not current_task and not clock_task.done():
+            clock_task.cancel()
+            try:
+                await clock_task
+            except asyncio.CancelledError:
+                pass
+
+        remove_task = self.app_state.tournament_remove_tasks.pop(self.id, None)
+        if remove_task is not None and remove_task is not current_task and not remove_task.done():
+            remove_task.cancel()
+            try:
+                await remove_task
+            except asyncio.CancelledError:
+                pass
+
+        referenced_users = set(self.players)
+        referenced_users.update(self.player_keys_by_name.values())
+        referenced_users.update(self.bye_players)
+        referenced_users.update(self.spectators)
+
+        sockets = set()
+        socket_map = self.app_state.tourneysockets.pop(self.id, {})
+        for ws_set in socket_map.values():
+            sockets.update(ws for ws in ws_set if ws is not None)
+        for user in referenced_users:
+            ws_set = user.tournament_sockets.pop(self.id, ())
+            sockets.update(ws for ws in ws_set if ws is not None)
+            user.update_online()
+
+        for ws in sockets:
+            try:
+                await ws.close()
+            except Exception:
+                log.debug("Failed to close tournament socket for deleted tournament %s", self.id)
+
+        self.app_state.tournaments.pop(self.id, None)
+        self.app_state.tournament_cache_access.pop(self.id, None)
+        player_json.cache_clear()
+        log.info("Deleted tournament %s", self.id)
+        await self.broadcast_spotlight()
 
     async def abort(self) -> None:
         self.finish_reason = None
@@ -2086,27 +2148,28 @@ class Tournament(ABC):
             else:
                 await self.set_next_round_starts_at(now + timedelta(seconds=interval_seconds))
 
-        await self.broadcast(self.duels_json)
-
-        self.app_state.create_background_task(self.delayed_free(live_game), name="t-delayed-free")
-
-        await self.broadcast(
+        responses: list[Mapping[str, object]] = [
+            self.duels_json,
             {
                 "type": "game_update",
                 "wname": game.wplayer.username,
                 "bname": game.bplayer.username,
-            }
-        )
-        await self.broadcast(self.live_status(now))
+            },
+            self.live_status(now),
+        ]
 
         if self.top_game is not None and self.top_game.id == game.id:
-            response = {
-                "type": "gameEnd",
-                "status": game.status,
-                "result": game.result,
-                "gameId": game.id,
-            }
-            await self.broadcast(response)
+            responses.append(
+                {
+                    "type": "gameEnd",
+                    "status": game.status,
+                    "result": game.result,
+                    "gameId": game.id,
+                }
+            )
+
+        self.app_state.create_background_task(self.delayed_free(live_game), name="t-delayed-free")
+        await self.broadcast_many(responses)
 
     def _player_game_index(self, player_data: PlayerData, game_id: str) -> int | None:
         for index, player_game in enumerate(player_data.games):
@@ -2253,7 +2316,7 @@ class Tournament(ABC):
             wplayer.free = True
             bplayer.free = True
 
-    async def broadcast(self, response: Mapping[str, object]) -> None:
+    def _broadcast_sockets(self) -> list[Any]:
         sockets = []
         for spectator in self.spectators:
             try:
@@ -2262,7 +2325,13 @@ class Tournament(ABC):
                 log.error("tournament broadcast() spectator socket was removed")
             except Exception:
                 log.error("Exception in tournament broadcast()")
-        await ws_send_json_many(sockets, response)
+        return sockets
+
+    async def broadcast_many(self, responses: Iterable[Mapping[str, object]]) -> None:
+        await ws_send_json_many_ordered(self._broadcast_sockets(), responses)
+
+    async def broadcast(self, response: Mapping[str, object]) -> None:
+        await self.broadcast_many((response,))
 
     async def db_insert_pairing(self, games: list[Game]) -> None:
         if self.app_state.db is None:
@@ -2805,6 +2874,13 @@ async def upsert_tournament_to_db(tournament: Tournament, app_state: PychessGlob
         "startsAt": tournament.starts_at,
         "status": tournament.status,
     }
+    if is_catalogued_variant(tournament.variant):
+        catalogued_doc = getattr(app_state, "catalogued_variants", {}).get(tournament.variant, {})
+        if catalogued_doc.get("ini"):
+            new_data["vini"] = str(catalogued_doc["ini"])
+            new_data["vd"] = str(catalogued_doc.get("displayName") or tournament.variant)
+            new_data["vby"] = str(catalogued_doc.get("author") or "")
+
     if tournament.finish_reason is not None:
         new_data["finishReason"] = tournament.finish_reason
     if tournament.pairing_in_progress_round is not None:

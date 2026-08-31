@@ -1,0 +1,67 @@
+.shogun piece.p-piece.black {
+    background-image: url('../../images/pieces/shogun/medival/bP.svg');
+}
+.shogun piece.b-piece.black {
+    background-image: url('../../images/pieces/shogun/medival/bB.svg');
+}
+.shogun piece.n-piece.black {
+    background-image: url('../../images/pieces/shogun/medival/bN.svg');
+}
+.shogun piece.r-piece.black {
+    background-image: url('../../images/pieces/shogun/medival/bR.svg');
+}
+.shogun piece.f-piece.black {
+    background-image: url('../../images/pieces/shogun/medival/bF.svg');
+}
+.shogun piece.k-piece.black {
+    background-image: url('../../images/pieces/shogun/medival/bK.svg');
+}
+.shogun piece.pf-piece.black {
+    background-image: url('../../images/pieces/shogun/medival/b+F.svg');
+}
+.shogun piece.pn-piece.black {
+    background-image: url('../../images/pieces/shogun/medival/b+N.svg');
+}
+.shogun piece.pr-piece.black {
+    background-image: url('../../images/pieces/shogun/medival/b+R.svg');
+}
+.shogun piece.pb-piece.black {
+    background-image: url('../../images/pieces/shogun/medival/b+B.svg');
+}
+.shogun piece.pp-piece.black {
+    background-image: url('../../images/pieces/shogun/medival/b+P.svg');
+}
+
+.shogun piece.p-piece.white {
+    background-image: url('../../images/pieces/shogun/medival/wP.svg');
+}
+.shogun piece.b-piece.white {
+    background-image: url('../../images/pieces/shogun/medival/wB.svg');
+}
+.shogun piece.n-piece.white {
+    background-image: url('../../images/pieces/shogun/medival/wN.svg');
+}
+.shogun piece.r-piece.white {
+    background-image: url('../../images/pieces/shogun/medival/wR.svg');
+}
+.shogun piece.f-piece.white {
+    background-image: url('../../images/pieces/shogun/medival/wF.svg');
+}
+.shogun piece.k-piece.white {
+    background-image: url('../../images/pieces/shogun/medival/wK.svg');
+}
+.shogun piece.pf-piece.white {
+    background-image: url('../../images/pieces/shogun/medival/w+F.svg');
+}
+.shogun piece.pn-piece.white {
+    background-image: url('../../images/pieces/shogun/medival/w+N.svg');
+}
+.shogun piece.pr-piece.white {
+    background-image: url('../../images/pieces/shogun/medival/w+R.svg');
+}
+.shogun piece.pb-piece.white {
+    background-image: url('../../images/pieces/shogun/medival/w+B.svg');
+}
+.shogun piece.pp-piece.white {
+    background-image: url('../../images/pieces/shogun/medival/w+P.svg');
+}

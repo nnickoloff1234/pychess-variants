@@ -27,6 +27,7 @@ from tournament.rr import (
     ARR_STATUS_FINISHED,
     ARR_STATUS_PENDING,
     ARR_STATUS_STARTED,
+    RRTournament,
 )
 from tournament.tournament import (
     SCORE_SHIFT,
@@ -41,11 +42,16 @@ from tournament.tournament import (
 from tournament.tournaments import (
     create_or_update_tournament,
     creator_can_manage_tournament,
+    get_latest_tournaments,
     load_tournament,
 )
 from tournament_test_base import TournamentTestCase
 from user import User
-from variants import VARIANTS
+from variants import (
+    VARIANTS,
+    register_catalogued_server_variant,
+    unregister_catalogued_server_variant,
+)
 
 
 def make_test_perfs():
@@ -115,6 +121,147 @@ class TournamentPersistenceTestCase(TournamentTestCase):
         }
         form.update(overrides)
         return form
+
+    async def test_catalogued_tournament_persists_variant_snapshot(self):
+        app_state = get_app_state(self.app)
+        name = f"tournament_snapshot_{id8().lower()}"
+        ini = f"[{name}:chess]\n"
+        register_catalogued_server_variant(name, "Tournament snapshot")
+        self.addCleanup(unregister_catalogued_server_variant, name)
+        app_state.catalogued_variants[name] = {
+            "_id": name,
+            "name": name,
+            "displayName": "Tournament snapshot",
+            "author": "author",
+            "ini": ini,
+            "visibility": "public",
+            "enabled": True,
+            "archived": False,
+        }
+
+        before_ids = set(app_state.tournaments)
+        await create_or_update_tournament(
+            app_state,
+            "author",
+            self._community_arena_form(variant=name, rated="0"),
+        )
+        tid = (set(app_state.tournaments) - before_ids).pop()
+        doc = await app_state.db.tournament.find_one({"_id": tid})
+
+        self.assertEqual(doc["v"], name)
+        self.assertEqual(doc["vini"], ini)
+        self.assertEqual(doc["vd"], "Tournament snapshot")
+        self.assertEqual(doc["vby"], "author")
+
+    async def test_latest_tournaments_skips_legacy_deleted_variant_orphan(self):
+        app_state = get_app_state(self.app)
+        before_ids = set(app_state.tournaments)
+        await create_or_update_tournament(
+            app_state,
+            "PyChess",
+            self._community_arena_form(),
+        )
+        tid = (set(app_state.tournaments) - before_ids).pop()
+        await app_state.db.tournament.update_one(
+            {"_id": tid},
+            {"$set": {"v": "deleted_catalogued_variant"}, "$unset": {"vini": ""}},
+        )
+        tournament = app_state.tournaments.pop(tid)
+        if tournament.clock_task is not None:
+            tournament.clock_task.cancel()
+
+        started, scheduled, completed = await get_latest_tournaments(app_state, "en")
+
+        self.assertNotIn(tid, {t.id for t in started + scheduled + completed})
+
+    async def test_legacy_archived_catalogued_tournament_uses_catalogue_fallback(self):
+        app_state = get_app_state(self.app)
+        name = f"tournament_archive_{id8().lower()}"
+        ini = f"[{name}:chess]\n"
+        register_catalogued_server_variant(name, "Tournament archive")
+        self.addCleanup(unregister_catalogued_server_variant, name)
+        app_state.catalogued_variants[name] = {
+            "_id": name,
+            "name": name,
+            "displayName": "Tournament archive",
+            "author": "author",
+            "ini": ini,
+            "visibility": "public",
+            "enabled": True,
+            "archived": False,
+        }
+
+        before_ids = set(app_state.tournaments)
+        await create_or_update_tournament(
+            app_state,
+            "author",
+            self._community_arena_form(variant=name, rated="0"),
+        )
+        tid = (set(app_state.tournaments) - before_ids).pop()
+        await app_state.db.tournament.update_one(
+            {"_id": tid},
+            {"$set": {"status": T_FINISHED}, "$unset": {"vini": "", "vd": "", "vby": ""}},
+        )
+        await app_state.db.catalogued_variant.insert_one(
+            {
+                "_id": name,
+                "name": name,
+                "displayName": "Tournament archive",
+                "author": "author",
+                "ini": ini,
+                "visibility": "public",
+                "enabled": False,
+                "archived": True,
+            }
+        )
+        tournament = app_state.tournaments.pop(tid)
+        if tournament.clock_task is not None:
+            tournament.clock_task.cancel()
+        app_state.catalogued_variants.pop(name, None)
+        unregister_catalogued_server_variant(name)
+
+        started, scheduled, completed = await get_latest_tournaments(app_state, "en")
+
+        self.assertIn(tid, {t.id for t in started + scheduled + completed})
+        self.assertNotIn(name, app_state.catalogued_variants)
+
+    async def test_finished_catalogued_tournament_restores_from_inline_snapshot(self):
+        app_state = get_app_state(self.app)
+        name = f"tournament_restore_{id8().lower()}"
+        ini = f"[{name}:chess]\n"
+        register_catalogued_server_variant(name, "Tournament restore")
+        self.addCleanup(unregister_catalogued_server_variant, name)
+        app_state.catalogued_variants[name] = {
+            "_id": name,
+            "name": name,
+            "displayName": "Tournament restore",
+            "author": "author",
+            "ini": ini,
+            "visibility": "public",
+            "enabled": True,
+            "archived": False,
+        }
+
+        before_ids = set(app_state.tournaments)
+        await create_or_update_tournament(
+            app_state,
+            "author",
+            self._community_arena_form(variant=name, rated="0"),
+        )
+        tid = (set(app_state.tournaments) - before_ids).pop()
+        await app_state.db.tournament.update_one({"_id": tid}, {"$set": {"status": T_FINISHED}})
+        tournament = app_state.tournaments.pop(tid)
+        if tournament.clock_task is not None:
+            tournament.clock_task.cancel()
+        app_state.catalogued_variants.pop(name, None)
+        unregister_catalogued_server_variant(name)
+
+        restored = await load_tournament(app_state, tid)
+
+        self.assertIsNotNone(restored)
+        assert restored is not None
+        self.assertEqual(restored.variant, name)
+        self.assertNotIn(name, app_state.catalogued_variants)
 
     async def test_regular_user_can_create_only_one_arena_per_24_hours(self):
         app_state = get_app_state(self.app)
@@ -2029,33 +2176,37 @@ class TournamentPersistenceTestCase(TournamentTestCase):
         self.assertEqual(arrangement.status, ARR_STATUS_STARTED)
         self.assertTrue(self.tournament.deadline_reached())
 
-        reloaded_app_state, reloaded_tournament = await self.reload_tournament(
-            app_state.db_client, tid
-        )
-        self.assertIsNotNone(reloaded_tournament)
-        assert reloaded_tournament is not None
-        self.assertEqual(reloaded_tournament.status, T_STARTED)
-        self.assertTrue(reloaded_tournament.deadline_reached())
-        self.assertEqual(len(reloaded_tournament.ongoing_games), 1)
-        reloaded_arrangement = reloaded_tournament.arrangement_by_id(arrangement.id)
-        self.assertIsNotNone(reloaded_arrangement)
-        assert reloaded_arrangement is not None
-        self.assertEqual(reloaded_arrangement.status, ARR_STATUS_STARTED)
+        # load_tournament() deliberately restores the production RR class. Keep
+        # this lifecycle test on the TestTournament cadence so it verifies the
+        # clock transition without waiting a real production second.
+        with patch.object(RRTournament, "clock_interval", RRTestTournament.clock_interval):
+            reloaded_app_state, reloaded_tournament = await self.reload_tournament(
+                app_state.db_client, tid
+            )
+            self.assertIsNotNone(reloaded_tournament)
+            assert reloaded_tournament is not None
+            self.assertEqual(reloaded_tournament.status, T_STARTED)
+            self.assertTrue(reloaded_tournament.deadline_reached())
+            self.assertEqual(len(reloaded_tournament.ongoing_games), 1)
+            reloaded_arrangement = reloaded_tournament.arrangement_by_id(arrangement.id)
+            self.assertIsNotNone(reloaded_arrangement)
+            assert reloaded_arrangement is not None
+            self.assertEqual(reloaded_arrangement.status, ARR_STATUS_STARTED)
 
-        # Let the restored RR clock observe the expired deadline. It must keep
-        # draining the live game instead of finishing the tournament.
-        await asyncio.sleep(reloaded_tournament.clock_interval + 0.1)
-        self.assertEqual(reloaded_tournament.status, T_STARTED)
-        self.assertEqual(len(reloaded_tournament.ongoing_games), 1)
+            # Let the restored RR clock observe the expired deadline. It must keep
+            # draining the live game instead of finishing the tournament.
+            await asyncio.sleep(reloaded_tournament.clock_interval + 0.01)
+            self.assertEqual(reloaded_tournament.status, T_STARTED)
+            self.assertEqual(len(reloaded_tournament.ongoing_games), 1)
 
-        # reload_tournament() reconstructs only the tournament fixture, not the
-        # full startup sequence that normally releases finished game callbacks.
-        reloaded_app_state.tournaments_loaded.set()
-        reloaded_game = reloaded_app_state.games[game.id]
-        reloaded_game.board.ply = 20
-        await reloaded_game.game_ended(reloaded_game.bplayer, "resign")
-        if reloaded_tournament.clock_task is not None:
-            await asyncio.wait_for(reloaded_tournament.clock_task, timeout=2)
+            # reload_tournament() reconstructs only the tournament fixture, not the
+            # full startup sequence that normally releases finished game callbacks.
+            reloaded_app_state.tournaments_loaded.set()
+            reloaded_game = reloaded_app_state.games[game.id]
+            reloaded_game.board.ply = 20
+            await reloaded_game.game_ended(reloaded_game.bplayer, "resign")
+            if reloaded_tournament.clock_task is not None:
+                await asyncio.wait_for(reloaded_tournament.clock_task, timeout=2)
 
         self.assertEqual(reloaded_tournament.status, T_FINISHED)
         self.assertEqual(reloaded_tournament.nb_games_finished, 1)

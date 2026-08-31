@@ -27,7 +27,7 @@
         {% if view in ["round", "tv", "analysis", "puzzle", "editor", "embed", "paste"] %}
         <link
             rel="preload"
-            href={{ static("ffish-alice.wasm" if variant == "alice" else "ffish.wasm") }}
+            href={{ local_static("ffish-alice.wasm" if variant == "alice" else "ffish.wasm") }}
             as="fetch"
             type="application/wasm"
             crossorigin="anonymous"
@@ -35,7 +35,7 @@
         {% elif prefetch_ffish|default(false) %}
         <link
             rel="prefetch"
-            href={{ static("ffish-alice.wasm" if variant == "alice" else "ffish.wasm") }}
+            href={{ local_static("ffish-alice.wasm" if variant == "alice" else "ffish.wasm") }}
             as="fetch"
             type="application/wasm"
             crossorigin="anonymous"
@@ -47,6 +47,7 @@
                                 data-dev="{{ dev }}"
                                 data-view="{{ view }}"
                                 data-asset-url="{{ asseturl }}"
+                                data-nnue-download-root="{{ nnue_download_root }}"
                                 data-lang="{{ lang }}"
                                 data-theme="{{ theme }}"
                                 data-game-category="{{ game_category }}"
@@ -89,11 +90,13 @@
                                 data-level="{{ level }}"
                                 data-wplayer="{{ wplayer }}"
                                 data-wtitle="{{ wtitle }}"
+                                data-wpatron="{{ wpatron }}"
                                 data-wrating="{{ wrating }}"
                                 data-wrdiff="{{ wrdiff }}"
                                 data-wberserk="{{ wberserk }}"
                                 data-bplayer="{{ bplayer }}"
                                 data-btitle="{{ btitle }}"
+                                data-bpatron="{{ bpatron }}"
                                 data-brating="{{ brating }}"
                                 data-brdiff="{{ brdiff }}"
                                 data-bberserk="{{ bberserk }}"
@@ -124,9 +127,11 @@
 
                                 data-wplayer-b="{{ wplayerB }}"
                                 data-wtitle-b="{{ wtitleB }}"
+                                data-wpatron-b="{{ wpatronB }}"
                                 data-wrating-b="{{ wratingB }}"
                                 data-bplayer-b="{{ bplayerB }}"
                                 data-btitle-b="{{ btitleB }}"
+                                data-bpatron-b="{{ bpatronB }}"
                                 data-brating-b="{{ bratingB }}"
                                 data-vapid="{{ vapid_public_key }}"
     >

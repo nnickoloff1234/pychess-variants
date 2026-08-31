@@ -1,6 +1,5 @@
 import { h, VNode } from 'snabbdom';
 
-import * as idb from 'idb-keyval';
 import * as Mousetrap from 'mousetrap';
 
 import * as cg from 'chessgroundx/types';
@@ -20,6 +19,12 @@ import { movetimeChart } from './movetimeChart';
 import { renderClocks } from './analysisClock';
 import { copyBoardToPNG } from '../png';
 import { boardSettings } from '../boardSettings';
+import { nnueLookupContextForVariant, officialNnueNetwork } from '../nnueManifest';
+import {
+    loadNnueFile,
+    loadOfficialNnueFile,
+    removeObsoleteOfficialNnue,
+} from '../nnueStorage';
 import { patch, downloadPgnText } from '../document';
 import { variantsIni } from '../variantsIni';
 import { Chart } from 'highcharts';
@@ -32,7 +37,7 @@ import { setAriaTabClick } from '../view';
 import { createWebsocket } from '@/socket/webSocketUtils';
 import { setPocketRowCssVars } from '../pocketRow';
 import { updateCount, updatePoint } from '../info';
-import { allVariantsIni, fogFen } from '../variants';
+import { fogFen, variantConfigIni } from '../variants';
 import { hideKeyboardHelp, isKeyboardHelpShortcut, showKeyboardHelp } from './keyboardHelp';
 import { PvHoverPreview } from './pvHoverPreview';
 import { alertDialog } from '../alertDialog';
@@ -115,6 +120,7 @@ export class AnalysisController extends GameController {
     threads: number;
     hash: number;
     nnue: boolean;
+    readonly nnueDownloadRoot: string;
     evalFile: string;
     uciOk: boolean;
     nnueOk: boolean;
@@ -143,6 +149,7 @@ export class AnalysisController extends GameController {
     private pendingGoAfterStopReadyok: boolean;
     private fsfOriginalPrompt?: typeof window.prompt;
     private fsfInputQueue: string[];
+    private loadedNnueFilename?: string;
 
     constructor(el: HTMLElement, model: PyChessModel) {
         super(
@@ -204,6 +211,7 @@ export class AnalysisController extends GameController {
         this.threads = localStorage.threads === undefined ? 1 : parseInt(localStorage.threads);
         this.hash = localStorage.hash === undefined ? 16 : parseInt(localStorage.hash);
         this.nnue = localStorage.nnue === undefined ? true : localStorage.nnue === 'true';
+        this.nnueDownloadRoot = model.nnueDownloadRoot;
         this.fsfDebug = localStorage.fsfDebug === undefined ? false : localStorage.fsfDebug === 'true';
         this.inlineNotation = localStorage.inlineNotation === 'true';
         this.disclosureMode = localStorage.disclosureMode === 'true';
@@ -737,11 +745,88 @@ export class AnalysisController extends GameController {
         }
     }
 
-    nnueIni() {
-        if (this.localAnalysis && this.nnueOk) {
-            this.engineStop();
-            this.engineGo();
+    nnueIni(data?: Uint8Array) {
+        if (!this.evalFile || !this.localEngine || !window.fsf) {
+            this.nnueOk = false;
+            return;
         }
+        this.nnueOk = false;
+        this.refreshNnueIndicator();
+        void this.loadNnueIntoEngine(this.evalFile, data).catch(error =>
+            console.error('Failed to load NNUE file:', error),
+        );
+    }
+
+    nnueClear() {
+        const restartAnalysis = this.localAnalysis && this.isEngineReady;
+        if (restartAnalysis) this.engineStop();
+
+        if (this.loadedNnueFilename && window.fsf) {
+            try {
+                window.fsf.FS.unlink('/' + this.loadedNnueFilename);
+            } catch {
+                // The in-memory file may already have been removed.
+            }
+        }
+
+        this.loadedNnueFilename = undefined;
+        this.nnueOk = false;
+        this.refreshNnueIndicator();
+        if (restartAnalysis) this.engineGo();
+    }
+
+    refreshNnueIndicator() {
+        const nnueEl = document.querySelector('.nnue') as HTMLElement | null;
+        if (!nnueEl) return;
+
+        const active = this.nnue && this.nnueOk && this.evalFile !== '';
+        const title = active
+            ? _('Multi-threaded WebAssembly (with NNUE evaluation)')
+            : _('Multi-threaded WebAssembly (classical evaluation)');
+        patch(nnueEl, h('span.nnue', { props: { title: title } }, active ? 'NNUE' : 'HCE'));
+    }
+
+    private async loadNnueIntoEngine(filename: string, data?: Uint8Array): Promise<void> {
+        const network = officialNnueNetwork(this.variant.name, nnueLookupContextForVariant(this.variant));
+        if ((await removeObsoleteOfficialNnue(this.variant.name, network)) === filename) {
+            localStorage[`${this.variant.name}-nnue`] = '';
+            this.evalFile = '';
+            this.nnueOk = false;
+            this.refreshNnueIndicator();
+            return;
+        }
+
+        const nnueData =
+            data ??
+            (network?.file === filename
+                ? await loadOfficialNnueFile(this.variant.name, network)
+                : await loadNnueFile(this.variant.name, filename));
+        if (!nnueData) {
+            this.nnueOk = false;
+            this.refreshNnueIndicator();
+            return;
+        }
+
+        const restartAnalysis = this.localAnalysis && this.isEngineReady;
+        if (restartAnalysis) this.engineStop();
+
+        if (this.loadedNnueFilename && this.loadedNnueFilename !== filename) {
+            try {
+                window.fsf.FS.unlink('/' + this.loadedNnueFilename);
+            } catch {
+                // The old in-memory file may already have been removed.
+            }
+        }
+
+        const fsFilename = '/' + filename;
+        window.fsf.FS.writeFile(fsFilename, nnueData);
+        console.log('Loaded to fsf.FS:', fsFilename);
+        this.loadedNnueFilename = filename;
+        this.nnueOk = true;
+
+        this.refreshNnueIndicator();
+
+        if (restartAnalysis) this.engineGo();
     }
 
     pvboxIni() {
@@ -1068,26 +1153,7 @@ export class AnalysisController extends GameController {
             this.fsfEngineBoard = new this.ffish.Board(this.engineVariant, this.fullfen, this.chess960);
             this.fsfPostMessage('isready');
 
-            if (this.evalFile) {
-                idb.get(`${this.variant.name}--nnue-file`).then(nnuefile => {
-                    if (nnuefile === this.evalFile) {
-                        idb.get(`${this.variant.name}--nnue-data`).then(data => {
-                            const array = new Uint8Array(data);
-                            const filename = '/' + this.evalFile;
-                            window.fsf.FS.writeFile(filename, array);
-                            console.log('Loaded to fsf.FS:', filename);
-                            this.nnueOk = true;
-                            const nnueEl = document.querySelector('.nnue') as HTMLElement;
-                            const title = _('Multi-threaded WebAssembly (with NNUE evaluation)');
-                            patch(nnueEl, h('span.nnue', { props: { title: title } }, 'NNUE'));
-                            if (this.localAnalysis) {
-                                this.engineStop();
-                                this.engineGo();
-                            }
-                        });
-                    }
-                });
-            }
+            if (this.evalFile) this.nnueIni();
 
             window.addEventListener('beforeunload', () => this.fsfEngineBoard.delete());
 
@@ -1184,8 +1250,8 @@ export class AnalysisController extends GameController {
                 { orig: o, dest: d, brush: 'paleGreen', piece: undefined, modifiers: { lineWidth: 14 - pv_idx * 2.5 } },
             ];
 
-            // duck
-            if (this.variant.rules.duck && pv_move.includes(',')) {
+            // duck / Amazons arrow blocker
+            if ((this.variant.rules.duck || this.variant.rules.arrowing) && pv_move.includes(',')) {
                 this.autoShapes[pv_idx].push({
                     orig: pv_move.slice(-2) as cg.Key,
                     brush: 'paleGreen',
@@ -1380,7 +1446,7 @@ export class AnalysisController extends GameController {
     }
 
     loadVariantsIntoFsfEngine() {
-        const config = allVariantsIni(variantsIni);
+        const config = variantConfigIni(variantsIni, this.variant.name);
         const marker = 'PYCHESS_VARIANTS_INI_EOF_' + Date.now();
         const lines = config.replace(/\r\n/g, '\n').split('\n');
 
@@ -1495,6 +1561,7 @@ export class AnalysisController extends GameController {
             this.fullfen = step.fen;
             this.suffix = '';
             this.duck.cancel();
+            this.arrowing.cancel();
 
             if (this.variant.ui.counting) {
                 [this.vmiscInfoW, this.vmiscInfoB] = updateCount(

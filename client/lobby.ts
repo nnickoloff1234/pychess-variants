@@ -19,6 +19,7 @@ import {
     unsupportedAiVariants,
     VARIANTS,
     selectVariant,
+    splitVariantKey,
     Variant,
     variantGroups,
 } from './variants';
@@ -485,7 +486,7 @@ export class LobbyController {
         e = document.getElementById('fen') as HTMLInputElement;
         let fen = e.value;
         // Prevent to create 'custom' games with standard startFen
-        if (variant.name !== 'ataxx' && fen.trim() === variant.startFen) fen = '';
+        if (!['ataxx', 'paradigm'].includes(variant.name) && fen.trim() === variant.startFen) fen = '';
 
         e = document.getElementById('min') as HTMLInputElement;
         const minutes = this.minutesValues[Number(e.value)];
@@ -1468,6 +1469,19 @@ export class LobbyController {
     }
 
     private spotlightView(spotlight: Spotlight) {
+        if (spotlight.kind === 'simul') {
+            const name = spotlight.name.toLowerCase().endsWith(' simul')
+                ? spotlight.name
+                : spotlight.name + ' simul';
+            return h('a.tour-spotlight.little.simul-spotlight', { attrs: { href: '/simul/' + spotlight.sid } }, [
+                h('i.icon.icon-fire'),
+                h('span.content', [
+                    h('span.name', name),
+                    h('span.more', ngettext('%1 player', '%1 players', spotlight.nbPlayers) + ' • ' + _('Join')),
+                ]),
+            ]);
+        }
+
         const variant = VARIANTS[spotlight.variant];
         const chess960 = spotlight.chess960;
         const dataIcon = variant.icon(chess960);
@@ -1484,6 +1498,14 @@ export class LobbyController {
                 ]),
             ]),
         ]);
+    }
+
+    private spotlightAllowed(spotlight: Spotlight): boolean {
+        if (!this.allowedVariants) return true;
+        if (spotlight.kind === 'simul') {
+            return spotlight.variants.some(variantKey => this.allowedVariants!.has(splitVariantKey(variantKey).base));
+        }
+        return this.allowedVariants.has(spotlight.variant);
     }
 
     private userWithTitle(username: string, title: string): (VNode | string)[] {
@@ -1932,9 +1954,7 @@ export class LobbyController {
     }
 
     private onMsgSpotlights(msg: MsgSpotlights) {
-        const items = this.allowedVariants
-            ? msg.items.filter(spotlight => this.allowedVariants!.has(spotlight.variant))
-            : msg.items;
+        const items = msg.items.filter(spotlight => this.spotlightAllowed(spotlight));
         this.spotlights = patch(
             this.spotlights,
             h('div#spotlights', [
@@ -2183,7 +2203,19 @@ export function lobbyView(model: PyChessModel): VNode[] {
             ]),
             h('div.seekdialog'),
         ]),
-        h('div.tv', [h('a#tv-game', { attrs: { href: '/tv' } })]),
+        h('div.tv', [
+            h('a.lobby-support-link', { attrs: { href: '/patron' } }, [
+                h(
+                    'span.lobby-support-link__icon.icon-patron-wing',
+                    { attrs: { 'aria-hidden': 'true' } },
+                ),
+                h('span.lobby-support-link__text', [
+                    h('strong', _('Donate')),
+                    h('span', _('Become a PyChess Patron')),
+                ]),
+            ]),
+            h('a#tv-game', { attrs: { href: '/tv' } }),
+        ]),
         h('under-lobby', [
             h(
                 'posts',
@@ -2243,10 +2275,10 @@ export function lobbyView(model: PyChessModel): VNode[] {
                     'YouTube',
                 ),
                 h('div.internalLinks', [
-                    h('a.reflist', { attrs: { href: '/patron' } }, _('Donate')),
                     h('a.reflist', { attrs: { href: '/faq' } }, _('FAQ')),
                     h('a.reflist', { attrs: { href: '/stats' } }, _('Stats')),
                     h('a.reflist', { attrs: { href: '/about' } }, _('About')),
+                    h('a.reflist', { attrs: { href: '/friendly-sites' } }, _('Friendly sites')),
                     h('a.reflist', { attrs: { href: '/contact' } }, _('Contact')),
                     h('a.reflist', { attrs: { href: '/terms' } }, _('Terms')),
                     h('a.reflist', { attrs: { href: '/privacy' } }, _('Privacy')),

@@ -41,7 +41,16 @@ from const import (
 )
 from convert import grand2zero, mirror5, mirror9, uci2usi
 from draw import reject_draw
-from fairy import BLACK, NOTATION_SAN, WHITE, FairyBoard, get_fog_fen, get_san_moves, modded_variant
+from fairy import (
+    BLACK,
+    NOTATION_SAN,
+    RANDOM_START_VARIANTS,
+    WHITE,
+    FairyBoard,
+    get_fog_fen,
+    get_san_moves,
+    modded_variant,
+)
 from glicko2.glicko2 import Rating, gl2
 from lobby_panels_cache import refresh_lobby_leaderboard_cache
 from rated_start import can_rate_start, can_rate_variant
@@ -342,8 +351,8 @@ class Game:
         # Old USI Shogi games saved using usi2uci() need special handling in create_steps()
         self.usi_format = False
 
-        # Ataxx is not default or 960, just random
-        self.random_only = self.variant == "ataxx"
+        # Some variants randomize their default start without using Chess960 rules.
+        self.random_only = self.variant in RANDOM_START_VARIANTS
 
         # Calculate the start of manual counting
         count_started = 0
@@ -634,18 +643,18 @@ class Game:
             if cur_player.bot and self.board.ply >= 2:
                 if self.byoyomi:
                     if self.overtime:
-                        clocks[cur_color] = self.inc * 1000  # pyright: ignore[reportIndexIssue]
+                        clocks[cur_color] = self.inc * 1000  # pyrefly: ignore[unsupported-operation]
                     else:
-                        clocks[cur_color] = max(0, self.clocks[cur_color] - movetime)  # pyright: ignore[reportIndexIssue]
+                        clocks[cur_color] = max(0, self.clocks[cur_color] - movetime)  # pyrefly: ignore[unsupported-operation]
                 else:
-                    clocks[cur_color] = max(  # pyright: ignore[reportIndexIssue]
+                    clocks[cur_color] = max(  # pyrefly: ignore[unsupported-operation]
                         0, self.clocks[cur_color] - movetime + (self.inc * 1000)
                     )
 
                 if clocks[cur_color] == 0:
                     if self.byoyomi and self.byoyomi_periods[cur_color] > 0:
                         self.overtime = True
-                        clocks[cur_color] = self.inc * 1000  # pyright: ignore[reportIndexIssue]
+                        clocks[cur_color] = self.inc * 1000  # pyrefly: ignore[unsupported-operation]
                         self.byoyomi_periods[cur_color] -= 1
                     else:
                         w, b = self.board.insufficient_material()
@@ -660,9 +669,9 @@ class Game:
             if (ply is not None) and ply <= 2 and self.tournamentId is not None:
                 # Just in case for move and berserk messages race
                 if self.wberserk:
-                    clocks[WHITE] = self.berserk_time  # pyright: ignore[reportIndexIssue]
+                    clocks[WHITE] = self.berserk_time  # pyrefly: ignore[unsupported-operation]
                 if self.bberserk:
-                    clocks[BLACK] = self.berserk_time  # pyright: ignore[reportIndexIssue]
+                    clocks[BLACK] = self.berserk_time  # pyrefly: ignore[unsupported-operation]
 
         self.last_server_clock = cur_time
         self.restart_elapsed_ms = 0
@@ -1391,26 +1400,22 @@ class Game:
         w_nb = self.wplayer.perfs[self.variant + ("960" if chess960 else "")]["nb"]
         if w_nb >= HIGHSCORE_MIN_GAMES:
             _id = "%s|%s" % (self.wplayer.username, self.wplayer.title)
-            should_rebuild_lobby_leaderboard = (
-                should_rebuild_lobby_leaderboard
-                or await self.set_highscore(
-                    self.variant,
-                    chess960,
-                    {_id: int(round(new_white_rating.mu, 0))},
-                )
+            changed_top = await self.set_highscore(
+                self.variant,
+                chess960,
+                {_id: int(round(new_white_rating.mu, 0))},
             )
+            should_rebuild_lobby_leaderboard = should_rebuild_lobby_leaderboard or changed_top
 
         b_nb = self.bplayer.perfs[self.variant + ("960" if chess960 else "")]["nb"]
         if b_nb >= HIGHSCORE_MIN_GAMES:
             _id = "%s|%s" % (self.bplayer.username, self.bplayer.title)
-            should_rebuild_lobby_leaderboard = (
-                should_rebuild_lobby_leaderboard
-                or await self.set_highscore(
-                    self.variant,
-                    chess960,
-                    {_id: int(round(new_black_rating.mu, 0))},
-                )
+            changed_top = await self.set_highscore(
+                self.variant,
+                chess960,
+                {_id: int(round(new_black_rating.mu, 0))},
             )
+            should_rebuild_lobby_leaderboard = should_rebuild_lobby_leaderboard or changed_top
 
         if should_rebuild_lobby_leaderboard:
             await refresh_lobby_leaderboard_cache(self.app_state)

@@ -9,11 +9,13 @@ from catalogued_variants import (
     archive_catalogued_variant,
     catalogued_variant_client_doc_for_game,
     catalogued_variant_games_are_persisted,
+    delete_catalogued_variant,
     ensure_catalogued_variant_from_game_doc,
     find_catalogued_variant_doc,
     restore_catalogued_variant,
 )
 from const import ABORTED, STARTED
+from mongomock_motor import AsyncMongoMockClient
 from variants import (
     CATALOGUED_VARIANT_ICON,
     is_catalogued_variant,
@@ -185,6 +187,151 @@ class CataloguedVariantGameClientDocumentTest(unittest.IsolatedAsyncioTestCase):
 
 
 class CataloguedVariantArchiveActiveGameTest(unittest.IsolatedAsyncioTestCase):
+    async def test_delete_removes_live_and_persisted_seeks_for_variant(self) -> None:
+        class DbStub(dict):
+            seek: object
+
+        name = "deleted_seek_variant_test"
+        doc = {"_id": name, "name": name, "author": "author"}
+        variant_collection = SimpleNamespace(delete_one=AsyncMock())
+        name_collection = SimpleNamespace(insert_one=AsyncMock())
+        seek_collection = SimpleNamespace(delete_many=AsyncMock())
+        db = DbStub(
+            {
+                "catalogued_variant": variant_collection,
+                "catalogued_variant_name": name_collection,
+            }
+        )
+        db.seek = seek_collection
+
+        creator = SimpleNamespace(seeks={})
+        seek = SimpleNamespace(
+            id="seek-id",
+            variant=name,
+            creator=creator,
+            game_id="invite-game-id",
+        )
+        creator.seeks[seek.id] = seek
+        lobby = SimpleNamespace(lobby_broadcast_seeks=AsyncMock())
+        app_state = SimpleNamespace(
+            db=db,
+            games={},
+            catalogued_variants={name: doc},
+            seeks={seek.id: seek},
+            invites={seek.game_id: seek},
+            lobby=lobby,
+        )
+        request = SimpleNamespace()
+
+        register_catalogued_server_variant(name, "Deleted seek variant test")
+        self.addCleanup(unregister_catalogued_server_variant, name)
+
+        with (
+            patch(
+                "catalogued_variants._load_owned_doc",
+                AsyncMock(return_value=(app_state, "author", name, doc)),
+            ),
+            patch("catalogued_variants._has_games", AsyncMock(return_value=False)),
+        ):
+            response = await delete_catalogued_variant(request)
+
+        self.assertEqual(response.status, 200)
+        self.assertNotIn(seek.id, app_state.seeks)
+        self.assertNotIn(seek.id, creator.seeks)
+        self.assertNotIn(seek.game_id, app_state.invites)
+        seek_collection.delete_many.assert_awaited_once_with({"variant": name})
+        lobby.lobby_broadcast_seeks.assert_awaited_once()
+
+    async def test_delete_removes_empty_tournament_for_variant(self) -> None:
+        name = "deleted_empty_tournament_variant_test"
+        doc = {"_id": name, "name": name, "author": "author"}
+        db = AsyncMongoMockClient(tz_aware=True).db
+        await db.tournament.insert_one(
+            {"_id": "empty-tournament-id", "v": name, "nbPlayers": 0, "nbGames": 0}
+        )
+        app_state = SimpleNamespace(
+            db=db,
+            games={},
+            catalogued_variants={name: doc},
+            seeks={},
+            invites={},
+            tournaments={},
+        )
+        request = SimpleNamespace()
+
+        with (
+            patch(
+                "catalogued_variants._load_owned_doc",
+                AsyncMock(return_value=(app_state, "author", name, doc)),
+            ),
+            patch("catalogued_variants._has_games", AsyncMock(return_value=False)),
+        ):
+            response = await delete_catalogued_variant(request)
+
+        self.assertEqual(response.status, 200)
+        self.assertIsNone(await db.tournament.find_one({"_id": "empty-tournament-id"}))
+
+    async def test_delete_rejects_variant_used_by_nonempty_tournament(self) -> None:
+        name = "deleted_tournament_variant_test"
+        doc = {"_id": name, "name": name, "author": "author"}
+        db = AsyncMongoMockClient(tz_aware=True).db
+        await db.tournament.insert_one(
+            {"_id": "tournament-id", "v": name, "nbPlayers": 1, "nbGames": 0}
+        )
+        app_state = SimpleNamespace(
+            db=db,
+            games={},
+            catalogued_variants={name: doc},
+            seeks={},
+            invites={},
+        )
+        request = SimpleNamespace()
+
+        with (
+            patch(
+                "catalogued_variants._load_owned_doc",
+                AsyncMock(return_value=(app_state, "author", name, doc)),
+            ),
+            patch("catalogued_variants._has_games", AsyncMock(return_value=False)),
+            self.assertRaises(Exception) as raised,
+        ):
+            await delete_catalogued_variant(request)
+
+        self.assertIn("Archive it instead", getattr(raised.exception, "text", ""))
+        self.assertIsNone(await db.catalogued_variant_name.find_one({"_id": name}))
+        self.assertIsNotNone(await db.tournament.find_one({"_id": "tournament-id"}))
+
+    async def test_delete_permanently_reserves_internal_name(self) -> None:
+        name = "deleted_name_test"
+        doc = {"_id": name, "name": name, "author": "author"}
+        variant_collection = SimpleNamespace(delete_one=AsyncMock())
+        name_collection = SimpleNamespace(insert_one=AsyncMock())
+        app_state = SimpleNamespace(
+            db={
+                "catalogued_variant": variant_collection,
+                "catalogued_variant_name": name_collection,
+            },
+            games={},
+            catalogued_variants={name: doc},
+        )
+        request = SimpleNamespace()
+
+        with (
+            patch(
+                "catalogued_variants._load_owned_doc",
+                AsyncMock(return_value=(app_state, "author", name, doc)),
+            ),
+            patch("catalogued_variants._has_games", AsyncMock(return_value=False)),
+        ):
+            response = await delete_catalogued_variant(request)
+
+        self.assertEqual(response.status, 200)
+        name_collection.insert_one.assert_awaited_once()
+        reservation = name_collection.insert_one.await_args.args[0]
+        self.assertEqual(reservation["_id"], name)
+        self.assertEqual(reservation["author"], "author")
+        variant_collection.delete_one.assert_awaited_once_with({"_id": name})
+
     async def test_archive_keeps_active_game_but_unregisters_new_game_entry(self) -> None:
         name = "archive_active_game_test"
         active_game = SimpleNamespace(variant=name, status=STARTED)
@@ -213,6 +360,43 @@ class CataloguedVariantArchiveActiveGameTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(active_game.status, STARTED)
         self.assertNotIn(name, app_state.catalogued_variants)
         self.assertFalse(is_catalogued_variant(name))
+
+    async def test_archive_snapshots_tournament_variant_rules(self) -> None:
+        name = "archive_tournament_snapshot_test"
+        ini = f"[{name}:chess]\n"
+        doc = {
+            "_id": name,
+            "name": name,
+            "displayName": "Archive tournament snapshot",
+            "author": "author",
+            "ini": ini,
+            "visibility": "public",
+        }
+        db = AsyncMongoMockClient(tz_aware=True).db
+        await db.tournament.insert_one({"_id": "tournament-id", "v": name})
+        app_state = SimpleNamespace(
+            db=db,
+            games={},
+            catalogued_variants={name: doc},
+            seeks={},
+            invites={},
+        )
+        request = SimpleNamespace()
+
+        register_catalogued_server_variant(name, "Archive tournament snapshot")
+        self.addCleanup(unregister_catalogued_server_variant, name)
+
+        with patch(
+            "catalogued_variants._load_owned_doc",
+            AsyncMock(return_value=(app_state, "author", name, doc)),
+        ):
+            response = await archive_catalogued_variant(request)
+
+        self.assertEqual(response.status, 200)
+        tournament_doc = await db.tournament.find_one({"_id": "tournament-id"})
+        self.assertEqual(tournament_doc["vini"], ini)
+        self.assertEqual(tournament_doc["vd"], "Archive tournament snapshot")
+        self.assertEqual(tournament_doc["vby"], "author")
 
     async def test_restore_checks_quota_before_reactivating_archived_variant(self) -> None:
         name = "restore_quota_test"

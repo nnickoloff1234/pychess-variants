@@ -46,9 +46,16 @@ import {
     swapBoardsForSwitch,
     markRoles,
 } from './roundControls';
+import {
+    buildGameKeyboardHelpSections,
+    hideGameKeyboardHelp,
+    isKeyboardHelpShortcut,
+    showGameKeyboardHelp,
+} from '../../gameKeyboardHelp';
 import { ROUND_DROPPABLE, trackToolsPlacement } from '../common/toolsPlacement';
 import { trackSeatNamePlacement } from './seatNamePlacement';
 import { trackPartsWidth } from './partsWidth';
+import { bindPocketHotkeys } from '../../pocketHotkeys';
 
 // live remaining time of a clock, whether or not it is currently running (mirrors Clock's own tick math)
 const liveTime = (clock: Clock) => (clock.running ? clock.duration - (Date.now() - clock.startTime) : clock.duration);
@@ -93,6 +100,19 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
     spectator: boolean;
 
     controlsView: RoundControlsView;
+
+    keyboardHelpOpen: boolean;
+    private readonly onKeyboardHelpKeyDown: (event: KeyboardEvent) => void;
+
+    get pocketHotkeyRoles(): readonly cg.Role[] | undefined {
+        if (this.spectator || this.finishedGame || !this.variant.pocket) return undefined;
+
+        const myBoards = (['a', 'b'] as const).filter(board => this.seats.myColor(board) !== undefined);
+        if (myBoards.length !== 1) return undefined;
+
+        const color = this.seats.myColor(myBoards[0])!;
+        return this.variant.pocket.roles[color];
+    }
 
     constructor(
         el1: HTMLElement,
@@ -234,6 +254,23 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
         // last so when it receive initial messages on connect all dom is ready to be updated
         this.socket = new RoundControllerBughouseSocket(this);
 
+        this.keyboardHelpOpen = false;
+        this.onKeyboardHelpKeyDown = (event: KeyboardEvent) => {
+            if (!this.keyboardHelpOpen) return;
+
+            if (event.key === 'Escape' || isKeyboardHelpShortcut(event)) {
+                event.preventDefault();
+                event.stopPropagation();
+                this.closeKeyboardHelp();
+                return;
+            }
+
+            if (event.key === 'Tab') return;
+
+            event.preventDefault();
+            event.stopPropagation();
+        };
+
         Mousetrap.bind('left', () => selectMove(this, this.ply - 1));
         Mousetrap.bind('right', () => selectMove(this, this.ply + 1));
         Mousetrap.bind('up', () => selectMove(this, 0));
@@ -241,11 +278,41 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
         Mousetrap.bind('f', () => this.flipBoards());
         Mousetrap.bind('?', () => this.helpDialog());
 
+        if (!this.spectator && !this.finishedGame && this.variant.pocket) {
+            const myBoards = (['a', 'b'] as const).filter(board => this.seats.myColor(board) !== undefined);
+            if (myBoards.length === 1) {
+                const boardName = myBoards[0];
+                const color = this.seats.myColor(boardName)!;
+                const board = boardName === 'a' ? this.boardA : this.boardB;
+                bindPocketHotkeys(board.chessground, color, this.variant.pocket.roles[color]);
+            }
+        }
+
         soundThemeSettings.buildBugChatSounds();
     }
 
     helpDialog() {
-        console.log('HELP!');
+        if (this.keyboardHelpOpen) {
+            this.closeKeyboardHelp();
+        } else {
+            this.openKeyboardHelp();
+        }
+    }
+
+    openKeyboardHelp() {
+        this.keyboardHelpOpen = true;
+        document.addEventListener('keydown', this.onKeyboardHelpKeyDown, true);
+        showGameKeyboardHelp(
+            this,
+            buildGameKeyboardHelpSections(this, { flipDescription: _('Flip boards') }),
+        );
+    }
+
+    closeKeyboardHelp() {
+        if (!this.keyboardHelpOpen) return;
+        this.keyboardHelpOpen = false;
+        document.removeEventListener('keydown', this.onKeyboardHelpKeyDown, true);
+        hideGameKeyboardHelp();
     }
 
     private viewAt(position: 0 | 1, board: BugBoardName): RoundSeatView {

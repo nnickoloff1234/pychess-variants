@@ -2,7 +2,6 @@ import { h, VNode } from 'snabbdom';
 
 import { predrop } from 'chessgroundx/predrop';
 import * as cg from 'chessgroundx/types';
-import { Api } from 'chessgroundx/api';
 import * as util from 'chessgroundx/util';
 import { read as fenRead } from 'chessgroundx/fen';
 
@@ -43,10 +42,10 @@ import {
 } from './roundType';
 import { PyChessModel } from './types';
 import { GameController } from './gameCtrl';
-import { handleOngoingGameEvents, Game, gameViewPlaying, compareGames } from './nowPlaying';
 import { createWebsocket } from '@/socket/webSocketUtils';
 import { setPocketRowCssVars } from './pocketRow';
-import { SimulRoundHostController } from './simul/simulRoundHost';
+import { bindPocketHotkeys } from './pocketHotkeys';
+import { OngoingRoundGamesController } from './ongoingRoundGames';
 import { confirmDialog } from './confirmDialog';
 import { animatePassMove } from './passMove';
 import { premoveForVariant } from './cataloguedPremove';
@@ -119,7 +118,7 @@ export class RoundController extends GameController {
     // - resend is gated by strict ply relation checks
     // - server also validates ply and ignores duplicates/stale moves
     lastMaybeSentMsgMove: MsgMove | undefined;
-    simulRoundHost?: SimulRoundHostController;
+    ongoingRoundGames?: OngoingRoundGamesController;
 
     constructor(el: HTMLElement, model: PyChessModel, aliceBoardEl?: HTMLElement) {
         super(
@@ -178,10 +177,7 @@ export class RoundController extends GameController {
             console.log('Reconnecting in round...');
 
             const container = document.getElementById('player1') as HTMLElement;
-            patch(
-                container,
-                h('i-side.online#player1', { class: { icon: true, 'icon-online': false, 'icon-offline': true } }),
-            );
+            this.renderPresenceIcon(container, 'player1', false);
         };
 
         this.sock = createWebsocket(
@@ -273,6 +269,9 @@ export class RoundController extends GameController {
 
         if (this.hasPockets) {
             setPocketRowCssVars(this);
+            if (!this.spectator && !this.finishedGame && this.variant.pocket) {
+                bindPocketHotkeys(this.chessground, this.mycolor, this.variant.pocket.roles[this.mycolor]);
+            }
         }
 
         if (this.isCevalDetectionEligible()) {
@@ -284,8 +283,32 @@ export class RoundController extends GameController {
         // initialize users
         const player0 = document.getElementById('rplayer0') as HTMLElement;
         const player1 = document.getElementById('rplayer1') as HTMLElement;
-        this.vplayer0 = patch(player0, player('player0', this.titles[0], this.players[0], this.ratings[0], this.level));
-        this.vplayer1 = patch(player1, player('player1', this.titles[1], this.players[1], this.ratings[1], this.level));
+        this.vplayer0 = patch(
+            player0,
+            player(
+                'player0',
+                this.titles[0],
+                this.players[0],
+                this.ratings[0],
+                this.level,
+                false,
+                undefined,
+                this.patrons[0],
+            ),
+        );
+        this.vplayer1 = patch(
+            player1,
+            player(
+                'player1',
+                this.titles[1],
+                this.players[1],
+                this.ratings[1],
+                this.level,
+                false,
+                undefined,
+                this.patrons[1],
+            ),
+        );
 
         if (this.variant.material.showDiff) {
             const materialTop = document.querySelector('.material-top') as HTMLElement;
@@ -454,7 +477,7 @@ export class RoundController extends GameController {
         const container = document.getElementById('game-controls') as HTMLElement;
         if (!this.spectator) {
             let buttons = [];
-            if (this.variant.rules.duck) {
+            if (this.variant.rules.duck || this.variant.rules.arrowing) {
                 buttons.push(h('div#undo'));
             }
             if (!this.tournamentGame) {
@@ -501,26 +524,23 @@ export class RoundController extends GameController {
         boardSettings.assetURL = this.assetURL;
 
         if (model.simulHost === true && model.simulGames.length > 0) {
-            this.simulRoundHost = new SimulRoundHostController(this.username, this.gameId, this.home, model.simulGames);
-            this.simulRoundHost.init();
-        } else if (this.corr && model.corrGames.length > 0) {
-            const corrGames = JSON.parse(model.corrGames).sort(compareGames(this.username));
-            const cgMap: { [gameId: string]: [Api, string] } = {};
-            handleOngoingGameEvents(this.username, cgMap);
-
-            patch(
-                document.querySelector('.games-container') as HTMLElement,
-                h(
-                    'games-grid#games',
-                    corrGames.flatMap((game: Game) => {
-                        if (game.gameId === this.gameId) {
-                            return [];
-                        } else {
-                            return [gameViewPlaying(cgMap, game, this.username)];
-                        }
-                    }),
-                ),
+            this.ongoingRoundGames = new OngoingRoundGamesController(
+                this.username,
+                this.gameId,
+                this.home,
+                model.simulGames,
+                'simul',
             );
+            this.ongoingRoundGames.init();
+        } else if (this.corr && model.corrGames.length > 0) {
+            this.ongoingRoundGames = new OngoingRoundGamesController(
+                this.username,
+                this.gameId,
+                this.home,
+                model.corrGames,
+                'corr',
+            );
+            this.ongoingRoundGames.init();
         }
 
         this.onMsgBoard(model['board'] as MsgBoard);
@@ -581,12 +601,20 @@ export class RoundController extends GameController {
 
     toggleSettings() {}
 
-    onDuckInputStateChange(active: boolean): void {
-        // During duck placement the reply icon means "Cancel piece move" and
-        // rewinds only the unsent first leg. Hide the server takeback action so
-        // two controls with different rewind scopes cannot appear together.
+    private onCompoundInputStateChange(active: boolean): void {
+        // During the second leg of a compound move the reply icon means
+        // "Cancel piece move" and rewinds only the unsent first leg. Hide the
+        // server takeback action so two different rewind scopes cannot coexist.
         const takeback = document.getElementById('takeback') as HTMLElement | null;
         if (takeback) takeback.hidden = active;
+    }
+
+    onDuckInputStateChange(active: boolean): void {
+        this.onCompoundInputStateChange(active);
+    }
+
+    onArrowingInputStateChange(active: boolean): void {
+        this.onCompoundInputStateChange(active);
     }
 
     buttonAbort() {
@@ -631,6 +659,9 @@ export class RoundController extends GameController {
                 this.players[this.flipped() ? 1 : 0],
                 this.ratings[this.flipped() ? 1 : 0],
                 this.level,
+                false,
+                undefined,
+                this.patrons[this.flipped() ? 1 : 0],
             ),
         );
         this.vplayer1 = patch(
@@ -641,6 +672,9 @@ export class RoundController extends GameController {
                 this.players[this.flipped() ? 0 : 1],
                 this.ratings[this.flipped() ? 0 : 1],
                 this.level,
+                false,
+                undefined,
+                this.patrons[this.flipped() ? 0 : 1],
             ),
         );
 
@@ -1116,7 +1150,7 @@ export class RoundController extends GameController {
         // Terminal state: any resend intent is invalid after game end.
         // Clear eagerly to avoid carrying stale move cache into post-game reload/reconnect.
         this.clearPendingMoveCache();
-        this.simulRoundHost?.onGameEnd();
+        this.ongoingRoundGames?.onGameEnd();
         this.finishedGame = true;
         this.checkStatus(msg);
 
@@ -1434,7 +1468,7 @@ export class RoundController extends GameController {
         }
 
         this.maybeAutoClaimDraw();
-        this.simulRoundHost?.onBoard(msg);
+        this.ongoingRoundGames?.onBoard(msg);
     }
 
     goPly(ply: number, plyVari = 0) {
@@ -1512,7 +1546,7 @@ export class RoundController extends GameController {
             } as MsgMove;
             this.persistPendingMove(moveMsg);
             this.doSend(moveMsg as JSONObject);
-            this.simulRoundHost?.onMoveSubmitted(this.ply + 1);
+            this.ongoingRoundGames?.onMoveSubmitted(this.ply + 1);
 
             if (this.preaction) {
                 this.clocks[myclock].setTime(this.clocktimes[this.mycolor === 'white' ? WHITE : BLACK] + increment);
@@ -1775,6 +1809,24 @@ export class RoundController extends GameController {
         setTimeout(this.showExpiration, 250);
     };
 
+    private renderPresenceIcon(container: HTMLElement, id: 'player0' | 'player1', online: boolean): VNode {
+        const patron = container.classList.contains('icon-patron-wing');
+        return patch(
+            container,
+            h(`i-side#${id}`, {
+                class: {
+                    icon: true,
+                    online,
+                    offline: !online,
+                    'icon-online': online && !patron,
+                    'icon-offline': !online && !patron,
+                    'icon-patron-wing': patron,
+                },
+                attrs: patron ? { title: _('PyChess Patron') } : {},
+            }),
+        );
+    }
+
     private onMsgUserConnected = (msg: MsgUserConnected) => {
         this.username = msg['username'];
         if (this.spectator) {
@@ -1787,10 +1839,7 @@ export class RoundController extends GameController {
             this.doSend({ type: 'is_user_present', username: opp_name, gameId: this.gameId });
 
             const container = document.getElementById('player1') as HTMLElement;
-            patch(
-                container,
-                h('i-side.online#player1', { class: { icon: true, 'icon-online': true, 'icon-offline': false } }),
-            );
+            this.renderPresenceIcon(container, 'player1', true);
 
             // prevent sending gameStart message when user just reconnecting
             if (msg.ply === 0) {
@@ -1809,16 +1858,10 @@ export class RoundController extends GameController {
         // console.log(msg);
         if (msg.username === this.players[0]) {
             const container = document.getElementById('player0') as HTMLElement;
-            patch(
-                container,
-                h('i-side.online#player0', { class: { icon: true, 'icon-online': true, 'icon-offline': false } }),
-            );
+            this.renderPresenceIcon(container, 'player0', true);
         } else {
             const container = document.getElementById('player1') as HTMLElement;
-            patch(
-                container,
-                h('i-side.online#player1', { class: { icon: true, 'icon-online': true, 'icon-offline': false } }),
-            );
+            this.renderPresenceIcon(container, 'player1', true);
         }
     };
 
@@ -1826,16 +1869,10 @@ export class RoundController extends GameController {
         // console.log(msg);
         if (msg.username === this.players[0]) {
             const container = document.getElementById('player0') as HTMLElement;
-            patch(
-                container,
-                h('i-side.online#player0', { class: { icon: true, 'icon-online': false, 'icon-offline': true } }),
-            );
+            this.renderPresenceIcon(container, 'player0', false);
         } else {
             const container = document.getElementById('player1') as HTMLElement;
-            patch(
-                container,
-                h('i-side.online#player1', { class: { icon: true, 'icon-online': false, 'icon-offline': true } }),
-            );
+            this.renderPresenceIcon(container, 'player1', false);
         }
     };
 

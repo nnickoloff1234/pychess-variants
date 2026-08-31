@@ -42,11 +42,13 @@ class UserDocument(TypedDict, total=False):
     title: str
     enabled: bool
     shadowban: bool
+    patron: bool
     createdAt: datetime
     count: UserCount
     swissBanUntil: datetime
     swissBanHours: int
     swissBanGameId: str
+    chatTimeoutUntil: datetime
     tournamentGameEffectIds: list[str]
     lastArenaCreatedAt: datetime
     arenaCreationHistory: list[ArenaCreationHistoryEntry]
@@ -88,6 +90,7 @@ class UserJson(TypedDict):
 class FollowingUserRow(TypedDict):
     username: str
     title: str
+    patron: bool
     games: int
     rating: str
     variant: str
@@ -97,6 +100,7 @@ class FollowingUserRow(TypedDict):
 class UserStatusJson(TypedDict):
     id: str
     online: bool
+    patron: NotRequired[bool]
 
 
 class UserBlocksResponse(TypedDict):
@@ -454,6 +458,7 @@ class ViewContext(TypedDict, total=False):
     simul_teams: Sequence[Mapping[str, object]]
     community_arena_max_creations_per_24h: int
     fixed_round_max_creations_per_24h: int
+    tournament_delete_allowed: bool
     tournament_teams: Sequence[Mapping[str, object]]
     selected_tournament_team_id: str
     pm_friends_only: bool
@@ -589,6 +594,8 @@ class ViewContext(TypedDict, total=False):
     finished_simuls: Sequence[object]
     gameId: str
     highscore: object
+    highscore_patrons: set[str]
+    highscore_online: set[str]
     inviter: str
     bot_challenge_status: str
     bot_challenge_decline_reason: str
@@ -610,6 +617,8 @@ class ViewContext(TypedDict, total=False):
     profile_teams: Sequence[Mapping[str, object]]
     profile_simul_count: int
     profile_title: str
+    profile_patron: bool
+    profile_online: bool
     profile_restricted: bool
     ublog_posts: list[object]
     ublog_post_count: int
@@ -819,6 +828,9 @@ class TournamentDoc(TypedDict):
     fr: str
     minutes: int
     v: str
+    vini: NotRequired[str]
+    vd: NotRequired[str]
+    vby: NotRequired[str]
     b: float
     i: int
     bp: int
@@ -864,6 +876,9 @@ class TournamentUpdateData(TypedDict, total=False):
     fr: str
     minutes: int
     v: str
+    vini: str
+    vd: str
+    vby: str
     b: float
     i: int
     bp: int
@@ -1137,6 +1152,7 @@ class TournamentStatusResponse(TypedDict):
 
 
 class TournamentSpotlightItem(TypedDict):
+    kind: Literal["tournament"]
     tid: str
     names: dict[str, str]
     variant: str
@@ -1145,9 +1161,15 @@ class TournamentSpotlightItem(TypedDict):
     startsAt: str
 
 
-class TournamentSpotlightsResponse(TypedDict):
-    type: Literal["spotlights"]
-    items: list[TournamentSpotlightItem]
+class SimulSpotlightItem(TypedDict):
+    kind: Literal["simul"]
+    sid: str
+    name: str
+    variants: list[str]
+    nbPlayers: int
+
+
+SpotlightItem = TournamentSpotlightItem | SimulSpotlightItem
 
 
 class TournamentCalendarEvent(TypedDict):

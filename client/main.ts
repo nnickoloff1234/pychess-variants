@@ -40,6 +40,7 @@ import { roundView as bugRoundView } from './two-board/round/round';
 import { analysisView as bugAnalysisView } from './two-board/analysis/analysis';
 import {
     allVariantsIni,
+    variantConfigIni,
     devVariants,
     loadCataloguedVariantsFromJson,
     splitVariantKey,
@@ -129,22 +130,26 @@ function initModel(el: HTMLElement) {
 
         wplayer: el.getAttribute('data-wplayer') ?? '',
         wtitle: el.getAttribute('data-wtitle') ?? '',
+        wpatron: el.getAttribute('data-wpatron') === 'True',
         wrating: el.getAttribute('data-wrating') ?? '',
         wrdiff: parseInt('' + el.getAttribute('data-wrdiff')),
         wberserk: el.getAttribute('data-wberserk') ?? '',
 
         bplayer: el.getAttribute('data-bplayer') ?? '',
         btitle: el.getAttribute('data-btitle') ?? '',
+        bpatron: el.getAttribute('data-bpatron') === 'True',
         brating: el.getAttribute('data-brating') ?? '',
         brdiff: parseInt('' + el.getAttribute('data-brdiff')),
         bberserk: el.getAttribute('data-bberserk') ?? '',
 
         wplayerB: el.getAttribute('data-wplayer-b') ?? '',
         wtitleB: el.getAttribute('data-wtitle-b') ?? '',
+        wpatronB: el.getAttribute('data-wpatron-b') === 'True',
         wratingB: el.getAttribute('data-wrating-b') ?? '',
 
         bplayerB: el.getAttribute('data-bplayer-b') ?? '',
         btitleB: el.getAttribute('data-btitle-b') ?? '',
+        bpatronB: el.getAttribute('data-bpatron-b') === 'True',
         bratingB: el.getAttribute('data-brating-b') ?? '',
 
         fen: el.getAttribute('data-fen') ?? '',
@@ -162,6 +167,7 @@ function initModel(el: HTMLElement) {
         seekEmpty: el.getAttribute('data-seekempty') === 'True',
         tournamentDirector: el.getAttribute('data-tournamentdirector') === 'True',
         assetURL: el.getAttribute('data-asset-url') ?? '',
+        nnueDownloadRoot: el.getAttribute('data-nnue-download-root') ?? '',
         puzzle: el.getAttribute('data-puzzle') ?? '',
         blogs: el.getAttribute('data-blogs') ?? '',
         timeline: el.getAttribute('data-timeline') ?? '[]',
@@ -247,6 +253,18 @@ export function view(el: HTMLElement, model: PyChessModel): VNode {
     }
 }
 
+function ffishModuleOptions(printErr?: (text: string) => void) {
+    // Keep the generated WASM binary in lockstep with the cache-busted JS bundle.
+    const script = document.querySelector<HTMLScriptElement>('script[src*="/static/pychess-variants.js"]');
+    const version = script ? new URL(script.src, window.location.href).search : '';
+
+    return {
+        ...(printErr ? { printErr } : {}),
+        locateFile: (path: string, prefix: string) =>
+            path.endsWith('.wasm') ? `/static/${path}${version}` : prefix + path,
+    };
+}
+
 function start() {
     const placeholder = document.getElementById('placeholder');
     if (placeholder && el) {
@@ -264,21 +282,27 @@ function start() {
 
         if (['round', 'analysis', 'puzzle', 'editor', 'tv', 'embed', 'paste'].includes(dataView)) {
             console.time('load ffish');
+            const variantIni =
+                dataView === 'paste'
+                    ? allVariantsIni(variantsIni)
+                    : variantConfigIni(variantsIni, model.variant);
             if (model['variant'] === 'alice') {
-                const loadModule =
-                    dataView === 'paste' ? ffishAliceModule({ printErr: recordImportFfishError }) : ffishAliceModule();
+                const loadModule = ffishAliceModule(
+                    dataView === 'paste' ? ffishModuleOptions(recordImportFfishError) : ffishModuleOptions(),
+                );
                 loadModule.then((loadedModule: any) => {
                     console.timeEnd('load ffish_alice');
-                    loadedModule.loadVariantConfig(allVariantsIni(variantsIni));
+                    loadedModule.loadVariantConfig(variantIni);
                     model.ffish = loadedModule;
                     patch(placeholder, view(el, model));
                 });
             } else {
-                const loadModule =
-                    dataView === 'paste' ? ffishModule({ printErr: recordImportFfishError }) : ffishModule();
+                const loadModule = ffishModule(
+                    dataView === 'paste' ? ffishModuleOptions(recordImportFfishError) : ffishModuleOptions(),
+                );
                 loadModule.then((loadedModule: any) => {
                     console.timeEnd('load ffish');
-                    loadedModule.loadVariantConfig(allVariantsIni(variantsIni));
+                    loadedModule.loadVariantConfig(variantIni);
                     model.ffish = loadedModule;
                     patch(placeholder, view(el, model));
                 });

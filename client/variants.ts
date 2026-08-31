@@ -31,6 +31,9 @@ export interface PieceFamily {
     // without changing the piece element's chessground-owned transform. Applying
     // the missing-piece background to the element would show both images at once.
     readonly imageLayerCSS?: string[];
+    // Styles that provide their own artwork for the role used by wall squares.
+    // Catalogued variants otherwise receive the shared brick fallback.
+    readonly wallCSS?: string[];
 }
 
 export type HiddenInfoMode = 'none' | 'fog' | 'covered_pieces';
@@ -177,10 +180,12 @@ export const BOARD_FAMILIES: Record<string, BoardFamily> = {
         dimensions: { width: 8, height: 8 },
         cg: 'cg-512',
         boardCSS: [
-            'ShogunPlain.svg',
+            'ShogunRed.svg',
+            'ShogunRedShadow.svg',
             'ShogunMaple.png',
             'ShogunMaple2.png',
             'ShogunBlue.svg',
+            'ShogunBlueShadow.svg',
             '8x8brown.svg',
             '8x8maple.jpg',
         ],
@@ -217,6 +222,8 @@ export const BOARD_FAMILIES: Record<string, BoardFamily> = {
 };
 
 export const PIECE_FAMILIES: Record<string, PieceFamily> = {
+    amazons: { pieceCSS: ['classic', 'arrow', 'disguised'], wallCSS: ['classic', 'arrow'] },
+    paradigm: { pieceCSS: ["paradigm0", "paradigm1", "paradigm2", "paradigm3", "disguised"] },
     ataxx: { pieceCSS: ['disguised', 'virus', 'zombie', 'cat-dog'] },
     standard: {
         pieceCSS: [
@@ -317,7 +324,7 @@ export const PIECE_FAMILIES: Record<string, PieceFamily> = {
     courier: { pieceCSS: ['courier', 'disguised'] },
     shako: { pieceCSS: ['shako0', 'shako1', 'shako2', 'disguised'] },
     pemba: { pieceCSS: ['alfaerie', 'disguised'] },
-    shogun: { pieceCSS: ['shogun0', 'shogun1', 'shogun2', 'shogun3', 'shogun4', 'shogun5', 'disguised'] },
+    shogun: { pieceCSS: ['shogun0', 'shogun1', 'shogun2', 'shogun3', 'shogun4', 'shogun5', 'shogun6', 'disguised'] },
     orda: { pieceCSS: ['orda0', 'orda1', 'disguised'] },
     khans: { pieceCSS: ['khans0', 'khans1', 'disguised'] },
     synochess: {
@@ -431,6 +438,7 @@ export interface Variant {
         readonly enPassant: boolean;
         readonly gate: boolean;
         readonly duck: boolean;
+        readonly arrowing: boolean;
         readonly pass: boolean;
         readonly setup: boolean;
         readonly noDrawOffer: boolean;
@@ -449,6 +457,8 @@ export interface Variant {
         readonly showCheckCounters: boolean;
     };
     readonly alternateStart?: Record<string, AlternateStart>;
+    readonly cataloguedSource?: 'user' | 'fairy-stockfish-builtin';
+    readonly nnueFingerprint?: string;
 }
 
 const pieceFamiliesWithMaterialDifferenceSupported = [
@@ -548,6 +558,7 @@ export function variant(config: VariantConfig): Variant {
             enPassant: !!config.rules?.enPassant,
             gate: !!config.rules?.gate,
             duck: !!config.rules?.duck,
+            arrowing: !!config.rules?.arrowing,
             pass: !!config.rules?.pass,
             setup: !!config.rules?.setup,
             noDrawOffer: !!config.rules?.noDrawOffer,
@@ -576,6 +587,8 @@ export function variant(config: VariantConfig): Variant {
             showCheckCounters: config.ui?.showCheckCounters ?? false,
         },
         alternateStart: alternateStarts(config.alternateStart),
+        cataloguedSource: config.cataloguedSource,
+        nnueFingerprint: config.nnueFingerprint,
     };
 }
 
@@ -594,6 +607,9 @@ interface VariantConfig {
     chess960?: boolean;
     // Whether Fairy-Stockfish AI is temporarily disabled for this catalogued variant
     aiDisabled?: boolean;
+    // Identity metadata used to gate automatic NNUE for user-defined variants.
+    cataloguedSource?: 'user' | 'fairy-stockfish-builtin';
+    nnueFingerprint?: string;
     // Pocket pieces are added from an external source, usually from a second board (e.g., bughouse)
     twoBoards?: boolean;
     // Whether games contribute to user ratings and site leaderboards (default: true)
@@ -666,6 +682,8 @@ interface VariantConfig {
         gate?: boolean;
         // Duck Chess moving
         duck?: boolean;
+        // Amazons-style arrow placement after moving a piece
+        arrowing?: boolean;
         // Passing without moving a piece on board
         pass?: boolean;
         // Setup phase
@@ -2069,11 +2087,13 @@ export interface CataloguedVariantClientDocument {
     readonly showPromoted?: boolean;
     readonly rulesGate?: boolean;
     readonly rulesPass?: boolean;
+    readonly rulesArrowing?: boolean;
     readonly showCheckCounters?: boolean;
     readonly category?: string;
     readonly author?: string;
     readonly source?: 'user' | 'fairy-stockfish-builtin';
     readonly system?: boolean;
+    readonly nnueFingerprint?: string;
     readonly fsfBuiltinVariant?: string;
     readonly pieceFamilyOverride?: keyof typeof PIECE_FAMILIES;
     readonly boardFamilyOverride?: keyof typeof BOARD_FAMILIES;
@@ -2095,11 +2115,35 @@ export interface CataloguedVariantClientDocument {
 }
 
 const cataloguedVariantInis: Record<string, string> = {};
+const cataloguedVariantBaseNames: Record<string, string> = {};
 const cataloguedVariantNames = new Set<string>();
 const favoriteCataloguedVariantNames = new Set<string>();
 
 export function allVariantsIni(baseIni: string): string {
     return [baseIni, ...Object.values(cataloguedVariantInis)].filter(Boolean).join('\n');
+}
+
+export function variantConfigIni(baseIni: string, variantName: string): string {
+    const requiredInis: string[] = [];
+    const seen = new Set<string>();
+    let name = variantName;
+
+    while (name) {
+        if (seen.has(name)) {
+            console.error(`Cyclic catalogued variant inheritance involving ${name}`);
+            break;
+        }
+        seen.add(name);
+
+        const ini = cataloguedVariantInis[name];
+        if (!ini) break;
+
+        requiredInis.push(ini);
+        name = cataloguedVariantBaseNames[name] ?? '';
+    }
+
+    requiredInis.reverse();
+    return [baseIni, ...requiredInis].filter(Boolean).join('\n');
 }
 
 export function isCataloguedVariant(name: string | undefined | null): boolean {
@@ -2744,6 +2788,8 @@ export function registerCataloguedVariant(meta: CataloguedVariantClientDocument)
         displayName: meta.displayName || meta.name,
         tooltip: meta.tooltip || 'Catalogued variant',
         aiDisabled: !!meta.aiDisabled,
+        cataloguedSource: meta.source,
+        nnueFingerprint: meta.nnueFingerprint,
         ratingEnabled: false,
         startFen: meta.startFen,
         icon: CATALOGUED_VARIANT_ICON,
@@ -2761,6 +2807,7 @@ export function registerCataloguedVariant(meta: CataloguedVariantClientDocument)
             enPassant: !!clientVariant?.rules.enPassant,
             gate: !!meta.rulesGate || !!clientVariant?.rules.gate,
             duck: !!clientVariant?.rules.duck,
+            arrowing: !!meta.rulesArrowing || !!clientVariant?.rules.arrowing,
             pass: !!meta.rulesPass || !!clientVariant?.rules.pass,
             setup: !!clientVariant?.rules.setup,
             noDrawOffer: !!clientVariant?.rules.noDrawOffer,
@@ -2777,7 +2824,10 @@ export function registerCataloguedVariant(meta: CataloguedVariantClientDocument)
     cataloguedVariantNames.add(meta.name);
     if (meta.favorite) favoriteCataloguedVariantNames.add(meta.name);
     else favoriteCataloguedVariantNames.delete(meta.name);
-    if (meta.ini) cataloguedVariantInis[meta.name] = meta.ini;
+    if (meta.ini) {
+        cataloguedVariantInis[meta.name] = meta.ini;
+        cataloguedVariantBaseNames[meta.name] = meta.baseVariant ?? '';
+    }
     registerCataloguedPremove(meta);
 }
 
@@ -2786,6 +2836,7 @@ export function unregisterCataloguedVariant(name: string | undefined | null): vo
     delete VARIANTS[name];
     delete PIECE_FAMILIES[`catalogued-${name}`];
     delete cataloguedVariantInis[name];
+    delete cataloguedVariantBaseNames[name];
     unregisterCataloguedPremove(name);
     cataloguedVariantNames.delete(name);
     favoriteCataloguedVariantNames.delete(name);

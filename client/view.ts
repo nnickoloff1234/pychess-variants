@@ -1,12 +1,12 @@
 import { h, VNode } from 'snabbdom';
 
-import * as idb from 'idb-keyval';
-
 import { Settings } from './settings';
 import { _, ngettext } from './i18n';
 import { alertDialog } from './alertDialog';
 import { Variant } from './variants';
 import { notifyChessgroundResize } from './document';
+import { nnueNetworkIdForEngineVariant } from './nnueManifest';
+import { saveNnueFile } from './nnueStorage';
 
 export function radioList(
     settings: Settings<string>,
@@ -95,65 +95,47 @@ export function toggleSwitch(settings: Settings<boolean>, name: string, text: st
     ];
 }
 
-export function nnueFile(settings: Settings<string>, name: string, text: string, variant: string) {
+export function nnueFile(
+    settings: Settings<string>,
+    name: string,
+    text: string,
+    variant: string,
+    onSaved?: (file: File) => void,
+) {
     const id = name;
     return [
         h('label', { attrs: { for: id } }, text),
         h(`input#${id}`, {
-            props: { name: name, type: 'file', accept: '*.nnue', title: _('Page reload required after change') },
-            hook: { insert: vnode => setInputFileName(vnode, settings.value) },
+            props: { name: name, type: 'file', accept: '*.nnue' },
             on: {
-                change: evt => {
-                    const files = (evt.target as HTMLInputElement).files;
-                    if (files && files.length > 0) {
-                        const fileName = files[0].name;
-                        if (possibleNnueFile(fileName, variant)) {
-                            settings.value = '';
-                            console.log('Selected file:', fileName);
+                change: async evt => {
+                    const input = evt.target as HTMLInputElement;
+                    const files = input.files;
+                    if (!files?.length) return;
 
-                            idb.get(`${variant}--nnue-file`).then(nnuefile => {
-                                if (nnuefile === undefined) {
-                                    // First time .nnue file selection ever for this variant
-                                    saveNnueFileToIdb(settings, variant, files[0]);
-                                } else {
-                                    if (nnuefile === fileName) {
-                                        console.log(variant, 'is already in idb.');
-                                    } else {
-                                        // Delete old file name version info
-                                        idb.del(`${variant}--nnue-file`);
-                                        // Update idb with new .nnue file
-                                        saveNnueFileToIdb(settings, variant, files[0]);
-                                    }
-                                }
-                            });
-                        }
+                    const file = files[0];
+                    if (!possibleNnueFile(file.name, variant)) {
+                        input.value = '';
+                        return;
+                    }
+
+                    console.log('Selected file:', file.name);
+                    input.disabled = true;
+                    try {
+                        await saveNnueFile(variant, file);
+                        settings.value = file.name;
+                        onSaved?.(file);
+                        console.log(`${file.name} saved!`);
+                    } catch (error) {
+                        void alertDialog({ text: String(error) });
+                    } finally {
+                        input.value = '';
+                        input.disabled = false;
                     }
                 },
             },
         }),
     ];
-}
-
-function saveNnueFileToIdb(settings: Settings<string>, variant: string, file: File) {
-    const fileName = file.name;
-    var fileReader = new FileReader();
-    fileReader.onload = function (event) {
-        idb.set(`${variant}--nnue-data`, event.target!.result)
-            .then(() => {
-                idb.set(`${variant}--nnue-file`, fileName)
-                    .then(nnuefile => {
-                        settings.value = fileName;
-                        console.log(`${nnuefile} saved!`);
-                    })
-                    .catch(err => {
-                        void alertDialog({ text: String(err) });
-                    });
-            })
-            .catch(err => {
-                void alertDialog({ text: String(err) });
-            });
-    };
-    fileReader.readAsArrayBuffer(file);
 }
 
 export function timeControlStr(minutes: number | string, increment = 0, byoyomiPeriod = 0, day = 0): string {
@@ -209,45 +191,12 @@ export function spinner(): VNode {
 }
 
 function possibleNnueFile(fileName: string, variant: string) {
-    let possible: boolean;
-    let prefix: string;
-
-    switch (variant) {
-        case 'chess':
-        case 'placement':
-            prefix = 'nn';
-            break;
-        case 'cambodian':
-            prefix = 'makruk';
-            break;
-        default:
-            prefix = variant;
-    }
-
-    possible = fileName.startsWith(`${prefix}-`);
+    const prefix = nnueNetworkIdForEngineVariant(variant) ?? variant;
+    const possible = fileName.startsWith(`${prefix}-`);
     if (!possible) {
         void alertDialog({ text: `.nnue file name required to start with ${prefix}-` });
     }
     return possible;
-}
-
-// Code borrowed from https://pqina.nl/blog/set-value-to-file-input/
-function setInputFileName(vnode: VNode, name: string) {
-    const fileInput = vnode.elm as HTMLInputElement;
-    // Create a new File object
-    const myFile = new File(['nnue file'], name, {
-        type: 'text/plain',
-    });
-
-    // Now let's create a FileList
-    const dataTransfer = new DataTransfer();
-    dataTransfer.items.add(myFile);
-    fileInput.files = dataTransfer.files;
-
-    // Help Safari out
-    if (fileInput.webkitEntries && fileInput.webkitEntries.length) {
-        fileInput.dataset.file = `${dataTransfer.files[0].name}`;
-    }
 }
 
 export function setAriaTabClick(setting: string) {

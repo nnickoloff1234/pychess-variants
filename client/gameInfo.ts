@@ -45,11 +45,11 @@ export function gameInfo(model: PyChessModel): VNode {
             ]),
             h('div.player-data', [
                 h('i-side.icon', { class: { [colorIcon(model.variant, variant.colors.first)]: true } }),
-                h('player', playerInfo(model, 'w')),
+                h('player', [playerInfo(model, 'w')]),
             ]),
             h('div.player-data', [
                 h('i-side.icon', { class: { [colorIcon(model.variant, variant.colors.second)]: true } }),
-                h('player', playerInfo(model, 'b')),
+                h('player', [playerInfo(model, 'b')]),
             ]),
         ]),
     ];

@@ -370,18 +370,18 @@ def _extract_form_values(data: Any, defaults: dict[str, Any]) -> dict[str, Any]:
 def _validate_content(values: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     if len(values["title"]) < 3:
-        errors.append("Title must have at least 3 characters.")
+        errors.append("title_too_short")
     if len(values["intro"]) < 3:
-        errors.append("Intro must have at least 3 characters.")
+        errors.append("intro_too_short")
     if len(values["markdown"]) < 3:
-        errors.append("Post body must have at least 3 characters.")
+        errors.append("body_too_short")
     return errors
 
 
 def _validate_media(values: dict[str, Any]) -> list[str]:
     image = sanitize_image_url(values["image"])
     if values["image"] != "" and image is None:
-        return ["Image URL must be absolute http(s) or start with /."]
+        return ["invalid_image_url"]
     return []
 
 
@@ -699,9 +699,11 @@ async def post(request: web.Request) -> ViewContext:
     post_card["likes"] = len(likes)
     post_card["liked"] = (not user.anon) and (user.username in likes)
 
+    author_profile = await app_state.public_users.get_profile(profile_id, include_blocked=False)
     context["profile"] = profile_id
     context["ublog_is_owner"] = owner
     context["ublog_author_online"] = profile_id in app_state.users
+    context["ublog_author_patron"] = bool(author_profile is not None and author_profile.patron)
     context["ublog_post"] = post_card
     context["ublog_related"] = related_cards
     context["title"] = f"{post_card['title']} • PyChess"
