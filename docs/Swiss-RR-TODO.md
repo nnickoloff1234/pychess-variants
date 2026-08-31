@@ -265,27 +265,27 @@ the asynchronous arrangement model.
   opt-in extension because PyChess currently exposes a push preference only for correspondence
   moves; this first parity step does not silently reuse that unrelated preference.
 
-- [ ] **Additional Swiss entry/chat conditions only if Teams need them.** Lichess Swiss also
-  offers titled-only and explicit allow-list entry conditions plus configurable chat scope
-  (leaders/members/all/none). PyChess already has Team membership, password, rating, rated
-  games, account age, and no-show enforcement, which is sufficient for initial rollout.
-  Add allow-list/titled/chat-scope controls only if real Team organizers request them.
-
 ## Round-Robin
 
-- [ ] **Organizer annul/replay control.** Lishogi lets the organizer annul a mistaken RR game
-  result and replay that arrangement, retaining previous game ids as history. PyChess only
-  reopens games that end with `ABORTED`; once a normal result is recorded it is final. Add a
-  creator/site-moderator annul action for a still-active RR, reverse the tournament score
-  idempotently, reset the arrangement to pending, and retain prior game ids so the original
-  game remains auditable instead of disappearing from the arrangement history.
+- [x] **Organizer annul/replay control.** Active RR results can now be annulled by the current
+  Team tournament organizer or a site tournament director before the RR deadline. Annulment
+  reverses both players' tournament points and derived RR performance/win/berserk aggregates,
+  decrements tournament summary counters, and reopens the arrangement for replay. The old game
+  and pairing documents are retained for auditability, while the pairing is marked annulled so
+  restart recovery cannot score or reattach it. Each arrangement retains the ten most recent
+  previous game ids and exposes them in the organizer modal. Repeated/stale annul requests are
+  idempotently rejected. Restart recovery also completes a crash after the durable annul marker
+  by repairing stale player score documents, and the annul action disappears at the RR deadline.
 
-- [ ] **Offline usefulness of RR reminders.** RR appointment confirmations and 24-hour
-  reminders currently create PyChess notification-bell entries and live SSE updates. That is
-  useful when the site is open but much less useful for a correspondence-style appointment
-  days later. After the core RR lifecycle is stable, consider Web Push for agreed-time and
-  24-hour reminder notifications, controlled by user notification preferences. Do not make
-  push delivery a prerequisite for starting the actual game.
+- [x] **Offline usefulness of RR reminders.** RR appointment confirmations and approximately
+  24-hour reminders now keep their normal notification-bell/SSE delivery and additionally queue
+  best-effort Web Push for users who explicitly enable **Round-robin appointment push
+  notifications**. The preference is independent from correspondence-move push; a browser push
+  subscription is retained while either feature is enabled. RR push is skipped when the user has
+  a live notification SSE channel, so it is primarily an offline aid rather than duplicate noise.
+  Offline preference checks read the compact user document directly instead of materializing the
+  user into the global cache. Missing subscriptions, provider failures, or a full push queue never
+  block scheduling, reminders, challenge creation, or the actual RR game.
 
 # Final rollout / verification
 
@@ -297,11 +297,21 @@ the asynchronous arrangement model.
   terminal standings/history pages. This catches integration/UX assumptions that unit tests
   cannot reproduce.
 
-- [ ] **Final desktop/mobile comparison.** After the lifecycle fixes above settle the UI,
-  compare Swiss against current Lichess and RR against current lishogi at desktop and phone
-  widths. Focus on fixed-round controls, long Team/variant names, Swiss standings/player
-  sheets, the RR matrix/list fallback, appointment modal, and organizer management controls.
-  Do not add tests for CSS-only polish unless a concrete regression needs protection.
+- [x] **Final desktop/mobile comparison.** Compared the current PyChess fixed-round DOM/CSS
+  against the supplied current lila Swiss and lishogi Robin/arrangement implementations and
+  rendered representative 15-round Swiss / 16-player RR layouts at desktop and phone widths.
+  The pass fixed three structural responsive failures: the tournament layout now has the
+  Lichess/Lishogi-style middle two-column breakpoint instead of jumping directly from one to
+  three columns at 800px; Swiss round sheets no longer wrap each player's rounds into
+  multi-line/tall standings rows (the standings now scroll as one table); and the RR split
+  matrix now lets only its arrangement grid scroll instead of widening the whole page. RR cells
+  grow to touch-friendly phone targets while names/scores stay visible.
+  The RR games/challenges fallback lists keep their own horizontal overflow, organizer controls
+  wrap on narrow screens, long Team/variant/title metadata wraps safely, and the appointment
+  modal is height-bounded/scrollable with ellipsized long player names. The shared tournament
+  creation form also drops its desktop 60px padding on phones, makes the name field full width,
+  and stacks split fields. No CSS-only regression tests were added; final live-device checking
+  remains part of the staging exercise below.
 
 - [ ] **Enable for Team leaders.** Keep standalone RR/Swiss restricted to site administration
   / development as appropriate, and expose normal creation through the Team tournament

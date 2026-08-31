@@ -58,6 +58,7 @@ class UserDocument(TypedDict, total=False):
     ct: str
     pmf: bool
     cps: bool
+    rps: bool
     cvf: list[str]
     oauth_id: str
     oauth_provider: str
@@ -457,6 +458,7 @@ class ViewContext(TypedDict, total=False):
     selected_tournament_team_id: str
     pm_friends_only: bool
     corr_push_enabled: bool
+    rr_push_enabled: bool
     menu_variant: str
     title: str
     view: str
@@ -952,6 +954,7 @@ class TournamentPairingDoc(TypedDict):
     p: NotRequired[int]
     rn: NotRequired[int]
     bt: NotRequired[str]
+    an: NotRequired[bool]
 
 
 class TournamentPairingUpdate(TypedDict, total=False):
@@ -969,6 +972,7 @@ class TournamentPairingUpdate(TypedDict, total=False):
     p: int | None
     rn: int
     bt: str
+    an: bool
 
 
 class TournamentArrangementDoc(TypedDict, total=False):
@@ -986,6 +990,7 @@ class TournamentArrangementDoc(TypedDict, total=False):
     d2: datetime
     sa: datetime
     ln: datetime
+    pg: list[str]
 
 
 class TournamentArrangementUpdate(TypedDict, total=False):
@@ -1002,6 +1007,7 @@ class TournamentArrangementUpdate(TypedDict, total=False):
     d2: datetime | None
     sa: datetime | None
     ln: datetime | None
+    pg: list[str]
 
 
 class TournamentPlayerJson(TypedDict):
