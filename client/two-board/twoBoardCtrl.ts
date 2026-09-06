@@ -164,6 +164,31 @@ export function redrawBoards(ctrl: TwoBoardController) {
     ctrl.boardB.chessground.redrawAll();
 }
 
+/**
+ * Forget both boards' memoised rects, so the next read measures the page as it now is.
+ *
+ * chessgroundx maps every click through a memoised `getBoundingClientRect()` and refreshes it on
+ * exactly two signals: its own `ResizeObserver`, which fires when a board CHANGES SIZE, and
+ * `window.resize` / `scroll`, which clear the memo. A board that MOVES without resizing sends
+ * neither — and this layout moves boards for reasons of its own: zooming the other column
+ * narrows the first grid track, a username takes a line of its own and pushes the board down
+ * inside its stack, a tools part drops into a zone and the rows shift. Measured on a live game:
+ * board B sitting at y=80.7 against a memo saying 100.3, a 19.6px error on a 20.7px square, and a
+ * right-click one square below the top edge produced no shape at all because the pixel mapped
+ * outside the board chessground believed in.
+ *
+ * CLEARING, NOT RE-MEASURING, and that is what makes this safe. It writes nothing, touches no
+ * element and cannot wake an observer, so it starts no cascade — where `updateBounds()` sets the
+ * container's size and could. It also needs no ordering: the rect is recomputed at the next READ,
+ * which is the click, by which time the arrangement has certainly settled. An attempt to measure
+ * on the next frame instead had to guess when the placement passes were done, and could memoise
+ * the very geometry it was trying to replace.
+ */
+export function clearBoardBounds(ctrl: TwoBoardController): void {
+    ctrl.boardA.chessground.state.dom.bounds.clear();
+    ctrl.boardB.chessground.state.dom.bounds.clear();
+}
+
 export function switchBoards(ctrl: TwoBoardController) {
     switchBoardElements();
 

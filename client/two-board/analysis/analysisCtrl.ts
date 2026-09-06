@@ -10,7 +10,7 @@ import { sound } from '../../sound';
 import { AnalysisClockView, renderClocks } from './analysisClock';
 import { AnalysisSeatView, renderSeatNames } from './analysisSeatView';
 import { movetimeChart, MovetimeChartView } from './movetimeChart';
-import { TwoBoardController, initBoardSettings } from '@/two-board/twoBoardCtrl';
+import { TwoBoardController, initBoardSettings, clearBoardBounds } from '@/two-board/twoBoardCtrl';
 import { getPgn, PgnView, updateFENAndPGN } from './pgn';
 import { buildScoreStr, EngineController } from './engine';
 import { AnalysisTreeController } from './analysisTree';
@@ -90,7 +90,25 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
 
         this.pgnView.render(this, this.isAnalysisBoard ? getPgn(this) : this.pgn);
 
-        this.onMsgBoard(model['board'] as MsgBoard);
+        /* THE BLANK BOARD HAS NO BOARD MESSAGE, so it cannot be started by replaying one.
+           `data-board` is the empty string on `/analysis/<variant>` — there is no game to
+           describe — and `onMsgBoard('' as MsgBoard)` reads `undefined` for its `gameId`,
+           which does not equal this page's `''`, so the first line of that handler returned
+           and NOTHING was initialised. No tree, so `sendMove()`'s `consumeMove()` had no
+           tree to record into: every move played fine on the board and appeared nowhere.
+           The movelist stayed empty and FEN & PGN kept showing the start position.
+
+           So this build starts itself, from the one step the constructor just seeded from
+           `model.fen`. The game build still goes through `onMsgBoard`, which needs the real
+           message for its plies, its analysis scores and its clocks. */
+        if (this.isAnalysisBoard) {
+            this.recordedMainlinePly = this.steps.length - 1;
+            this.tree.initAnalysisTreeAtPly(this.ply);
+            updateMovelist(this);
+            updateFENAndPGN(this);
+        } else {
+            this.onMsgBoard(model['board'] as MsgBoard);
+        }
 
         initBoardSettings(this.boardA, this.boardB, this.variant);
         // Which board is in the main position — the same positional test the round page
@@ -101,7 +119,9 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
            the column pair when it does — the round page's arrangement, driven by the same file.
            One droppable part: the panel is this page's equivalent of that page's chat, the part
            that never moves. */
-        trackToolsPlacement([['[role="tablist"]', 'drop-tablist']], '.analysis-app.bug');
+        trackToolsPlacement([['[role="tablist"]', 'drop-tablist']], '.analysis-app.bug', () =>
+            clearBoardBounds(this),
+        );
         // The four player bars, keyed by which end of which board they sit at. Painted
         // here rather than by the view because the seat that is at a given end depends
         // on the orientation set a few lines above.

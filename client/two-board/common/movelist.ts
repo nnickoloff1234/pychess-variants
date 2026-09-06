@@ -447,7 +447,21 @@ function renderTreeContextMenu(ctrl: AnalysisControllerBughouse): VNode | undefi
 export function updateMovelist(ctrl: TwoBoardController, full = true, activate = true, needResult = true) {
     const treeCtrl = asTreeCtrl(ctrl);
     if (treeCtrl) {
-        if (ctrl.steps.length <= 1) {
+        const displayedMainline = treeCtrl.tree.analysisTree ? getDisplayedMainlineNodes(treeCtrl.tree.analysisTree) : [];
+        const rootChildren = treeCtrl.tree.analysisTree?.root.children[0]?.forceVariation
+            ? treeCtrl.tree.analysisTree.root.children
+            : (treeCtrl.tree.analysisTree?.root.children.slice(1) ?? []);
+
+        /* "IS THERE ANYTHING TO SHOW?" IS A QUESTION ABOUT THE TREE, not about `ctrl.steps`.
+           `steps` is the RECORDED game's mainline, and the blank analysis board has no recorded
+           game: its one seeded step is the start position and every move the reader explores is
+           a tree node, never a step. Asking `steps.length <= 1` there answered "nothing to show"
+           after any number of moves, so the movelist stayed empty on that page while the tree
+           behind it was correct — moves played, the board advanced, and nothing was listed.
+
+           The three tests together still say "empty" for the case this guard was written for: a
+           game not yet started, whose tree has no children either. */
+        if (ctrl.steps.length <= 1 && displayedMainline.length === 0 && rootChildren.length === 0) {
             ctrl.movelistView.update(h('div#movelist', { class: { 'bug-analysis-tree': true } }));
             return;
         }
@@ -456,10 +470,6 @@ export function updateMovelist(ctrl: TwoBoardController, full = true, activate =
         let lastColIdx = 0;
         let didWeRenderVariSectionAfterLastMove = false;
         let didWeRenderChatSectionAfterLastMove = false;
-        const displayedMainline = treeCtrl.tree.analysisTree ? getDisplayedMainlineNodes(treeCtrl.tree.analysisTree) : [];
-        const rootChildren = treeCtrl.tree.analysisTree?.root.children[0]?.forceVariation
-            ? treeCtrl.tree.analysisTree.root.children
-            : (treeCtrl.tree.analysisTree?.root.children.slice(1) ?? []);
 
         if (treeCtrl.tree.analysisTree && !treeCtrl.tree.analysisTree.root.collapsed) {
             moves.push(...renderTreeVariationRows(treeCtrl, rootChildren));

@@ -77,6 +77,14 @@ class GameBug:
         self.inc = inc
         self.level = level if level is not None else 0
         self.tournamentId = tournamentId
+        # Always None: a bughouse game is never a round-robin arrangement. Declared anyway
+        # because this class duck-types the common game interface rather than inheriting it,
+        # and the SHARED Clock reads this attribute — `first_move_timeout_reason()` in
+        # clock.py, which decides whether an unstarted game is aborted or flagged. Missing, it
+        # raised AttributeError inside `Clock.countdown()`, killing the clock task: the server
+        # then never timed the game out at all, and the only thing that ended it was a client
+        # sending its own `flag`. Same reason `simulId` below is declared.
+        self.tournamentArrangementId: str | None = None
         self.simulId: str | None = None
         self.chess960 = chess960
         self.create = create

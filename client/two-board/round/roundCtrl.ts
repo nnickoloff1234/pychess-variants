@@ -7,7 +7,12 @@ import { ChatPresetsView } from './chatPresets';
 import { Seat } from '../common/seat';
 import { Clock } from '../../clock';
 import { RoundControllerBughouseSocket } from '../socket/sockets';
-import { consumePendingMove, recordPendingMove } from '../socket/pendingMoves';
+import {
+    clearPendingMoves,
+    consumePendingMove,
+    recordPendingMove,
+    reconcilePendingMove,
+} from '../socket/pendingMoves';
 import { ChatController, chatMessage, chatSender } from '../../chat';
 import { updateMovelist, updateResult, selectMove, MovelistView } from '../common/movelist';
 import { GameInfoView } from '../common/gameInfo';
@@ -32,7 +37,7 @@ import { result } from '../../result';
 import { sound, soundThemeSettings } from '../../sound';
 import { notify } from '../../notification';
 import { chatMessageBug, resetChat } from '@/two-board/round/chat';
-import { TwoBoardController, initBoardSettings, redrawBoards } from '../twoBoardCtrl';
+import { TwoBoardController, initBoardSettings, redrawBoards, clearBoardBounds } from '../twoBoardCtrl';
 import {
     OfferState,
     RoundControlsView,
@@ -54,7 +59,6 @@ import {
 } from '../../gameKeyboardHelp';
 import { ROUND_DROPPABLE, trackToolsPlacement } from '../common/toolsPlacement';
 import { trackSeatNamePlacement } from './seatNamePlacement';
-import { trackPartsWidth } from './partsWidth';
 import { bindPocketHotkeys } from '../../pocketHotkeys';
 
 // live remaining time of a clock, whether or not it is currently running (mirrors Clock's own tick math)
@@ -245,9 +249,8 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
         // real page; it keeps itself in step from then on.
         // First: it publishes the width the preset buttons are sized from, so the parts
         // are already their real height when the placement below measures them.
-        trackPartsWidth();
-        trackToolsPlacement(ROUND_DROPPABLE);
-        trackSeatNamePlacement();
+        trackToolsPlacement(ROUND_DROPPABLE, undefined, () => clearBoardBounds(this));
+        trackSeatNamePlacement(() => clearBoardBounds(this));
 
         initBoardSettings(this.boardA, this.boardB, this.variant);
 
@@ -684,6 +687,11 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
             this.status = msg.status;
             this.result = msg.result;
             this.seats.all.forEach(s => s.clock!.pause(false));
+
+            // Nothing can be resent into a finished game, so whatever is still cached for it is
+            // dead — including an entry the server deduplicated silently. This is what bounds the
+            // cache: every game ends, and every game's key goes when it does.
+            clearPendingMoves(this.gameId);
             // this.dests = new Map();
 
             if (this.result !== '*' && !this.spectator && !this.finishedGame) {
@@ -860,6 +868,14 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
             delete this.unconfirmedMove['a'];
         if (lastStepB?.moveB !== undefined && lastStepB.moveB === this.unconfirmedMove['b'])
             delete this.unconfirmedMove['b'];
+
+        // The same question asked of the localStorage cache, which is a SEPARATE answer: that one
+        // survives a page reload and the field above does not, so after a refresh the field is
+        // empty while the cache still holds the move — and a move resent from it is answered by
+        // the server's duplicate branch, which sends nothing back for `consumePendingMove()` to
+        // act on. See `reconcilePendingMove()`.
+        reconcilePendingMove(this.gameId, 'a', lastStepA?.move);
+        reconcilePendingMove(this.gameId, 'b', lastStepB?.moveB);
 
         this.boardA.setState(fenA, getTurnColor(fenA), uci2LastMove(lastStepA?.move));
         this.boardA.renderState();
