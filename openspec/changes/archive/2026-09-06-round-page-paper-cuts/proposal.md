@@ -1,3 +1,16 @@
+> **CLOSED 2026-09-06, at Nikolay's direction.** "we have made many changes since then, still
+> things to improve but we dont need this anymore to track them."
+>
+> Archived with `--skip-specs`. Its delta MODIFIED "A board offers a resize handle only where
+> resizing works" and applying it would have done two wrong things at once: DROPPED the scenarios
+> "Portrait shows no handle" and "A narrow tall-landscape window keeps its handle", which the living
+> spec has gained since this was written, and ASSERTED "A board can always be resized back", which
+> is entry 1 below and was never built. The living spec is therefore untouched.
+>
+> **The four entries below were all still open when this closed.** They are not fixed and not
+> withdrawn — they are simply no longer tracked here. Anyone meeting one of them again is meeting a
+> known defect, not a new one.
+
 > **THIS IS A LEDGER, NOT A PLAN. IT IS NOT SCHEDULED AND NOBODY IS WORKING ON IT.**
 >
 > It exists so that small defects found while doing something else get written down instead of

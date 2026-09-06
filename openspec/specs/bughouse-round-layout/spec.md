@@ -4,9 +4,7 @@
 The layout of the two bughouse two-board pages — the round page and the analysis page —
 and the rules the two share about how a board, its pocket, its clocks and its usernames
 are placed and sized.
-
 ## Requirements
-
 ### Requirement: The two two-board pages SHALL share one layout
 
 The round page and the analysis page SHALL be laid out identically. Where both express the same
@@ -390,6 +388,27 @@ small, the answer is a wider panel — never fewer pairs on the row.
 - **THEN** the remedy SHALL be the width given to the movelist
 - **AND** the number of cells per row SHALL NOT be reduced to buy type size
 
+A cell is a PAIR — the move number and the move beside it — so a row is four pairs, and a pair SHALL
+NOT be split across two rows. The pair is expressed as a fixed part and the remainder of a quarter
+row, so that the four pairs sum to exactly the row: `counter + calc(25% - counter)`.
+
+Both halves of that subtraction SHALL be written in a unit that is identical in every cell of the
+row. A font-relative unit that depends on the FACE — `ch` — SHALL NOT be used for it: a cell's face
+is not always the counter's, since moves in a variation are italic, and the two then disagree about
+what the same expression means.
+
+#### Scenario: A row mixes recorded and variation moves
+
+- **WHEN** a row holds moves in different faces, such as an italic variation move beside an upright one
+- **THEN** each pair still measures exactly a quarter of the row
+- **AND** no move is pushed onto the next row while its move number stays behind
+
+#### Scenario: Four moves arrive in column order
+
+- **WHEN** the four seats move in the order that fills a row — board A white, board A black, board B
+  white, board B black
+- **THEN** all four appear on one row, each with its own move number
+
 ### Requirement: A two-board page SHALL NOT emit markup it never fills
 
 Neither two-board page SHALL render an element that nothing on that page populates. An element
@@ -494,8 +513,13 @@ The scoping SHALL be achieved with a selector on `body` carrying the page's own 
 - **WHEN** the bughouse round page is displayed in short landscape
 - **THEN** no page-level scrollbar is present, and the width available for layout equals the full viewport width
 
+#### Scenario: The analysis page makes the same bargain
+- **WHEN** the bughouse ANALYSIS page is displayed in short landscape
+- **THEN** it too produces no page-level scrollbar, by the same `body` scoping
+- **AND** content that does not fit the tools column is clipped rather than widening the document
+
 #### Scenario: Other pages are unaffected
-- **WHEN** any other view is displayed, including the bughouse analysis page and non-bughouse rounds
+- **WHEN** any non-bughouse view is displayed
 - **THEN** its scrolling behaviour is exactly as before
 
 #### Scenario: Viewport-positioned overlays still work
@@ -506,12 +530,37 @@ The scoping SHALL be achieved with a selector on `body` carrying the page's own 
 
 The responsive rules for the bughouse round page SHALL cover every combination of orientation and viewport size, so that `.round-app.bug` is never left to inherit the single-board layout, whose grid areas do not include the second board, the partner pockets, the partner clocks or the partner tools.
 
+THE THREE MODES SHALL FORM A PARTITION: every viewport SHALL match exactly one, never none and
+never two.
+
+    (aspect-ratio <= 9/16)                          PORTRAIT
+    (aspect-ratio >  9/16) and (height <  600px)    SHORT LANDSCAPE
+    (aspect-ratio >  9/16) and (height >= 600px)    TALL LANDSCAPE
+
+The boundaries SHALL be STRICT on one side. Both 9/16 and 600px are real viewport values — 360x640
+is a common Android size — and a pair of `min-`/`max-` queries match the boundary itself twice, so
+two templates apply at once and the winner is decided by source order. Stating the modes with range
+comparisons is what makes the partition total; the alternative is a nested negation, and either is
+acceptable, but a `min-`/`max-` pair sharing an endpoint is not.
+
+The partition SHALL NOT be expressed in terms of `orientation`. Orientation asks only whether the
+viewport is taller than it is wide, which is not the question either boundary is about: an upright
+tablet is `orientation: portrait` and cannot run the portrait layout, and a nearly square window is
+`orientation: landscape` while being the shape portrait was designed for.
+
 Placement alone SHALL NOT be treated as coverage. A layout in which an area is defined but resolves to zero size is not a layout that covers that viewport: the elements are present in the DOM and invisible on screen. Every area named by a mode's template SHALL therefore resolve to a usable size in that mode.
 
-#### Scenario: Wide portrait viewports are covered
+#### Scenario: An upright tablet is covered by the desktop layout
 
-- **WHEN** the round page is displayed in portrait orientation at a viewport width of 800px or more, such as a tablet held upright
-- **THEN** a bughouse layout applies, and both boards, both pairs of pockets, both clocks and the tools areas are placed in defined grid areas
+- **WHEN** the round page is displayed on a viewport that is taller than it is wide but wider than 9/16, such as a tablet held upright at 627x835
+- **THEN** the TALL LANDSCAPE layout applies, with the two boards side by side
+- **AND** the portrait layout does not apply
+- **AND** both boards, both pairs of pockets, both clocks and the tools areas are placed in defined grid areas at non-zero size
+
+#### Scenario: Exactly one mode matches
+
+- **WHEN** any viewport is evaluated, including one exactly at a boundary such as 360x640 or a height of exactly 600px
+- **THEN** exactly one of the three modes matches it
 
 #### Scenario: Phone portrait viewports are covered
 
@@ -965,6 +1014,10 @@ In portrait orientation the two boards SHALL be sized from the viewport, each re
 
 The player's own board SHALL occupy the full width available to the grid, so **its height always equals the width of the window**. The partner's board SHALL be at least **20% of the viewport height**, which makes it visibly smaller than the player's own board and places it above it.
 
+THAT THIS FITS IS GUARANTEED BY THE MODE BOUNDARY, not by the viewport being a phone — see "Portrait
+exists to give the own board the full width". Nothing in this requirement checks that the two stacks
+fit the height, and nothing needs to, because no viewport that reaches this mode can fail to.
+
 Squareness SHALL be expressed as an aspect ratio rather than by deriving one axis from `100vw`. `100vw` includes the scrollbar, so a page that overflows renders the board wider than its own container and offset outside it.
 
 #### Scenario: The player's board is full width and square
@@ -1164,9 +1217,10 @@ or not that part has left the strip beside the board. A part is one width beside
 another once it has dropped; the size SHALL NOT be taken from that width, or the same control is
 drawn at two sizes on one screen.
 
-The size SHALL be taken from the column the parts share, which is the same width in both states.
-That column SHALL be sized with a zero minimum, so that a button can never widen the column that
-decides the button.
+The size SHALL NOT be taken from any width at all — see "The preset buttons are sized from spare
+height, and then fixed", which supersedes the rule that once stood here that the size comes from the
+column the parts share. The invariant that paragraph existed to protect is unchanged and is now met
+another way: one size for every button on the page, taken from a quantity no button can alter.
 
 A mode SHALL raise the size above the floor to suit the room it has. The floor SHALL remain a
 floor: it exists for the minimum usable target size and SHALL NOT be the size wherever there is
@@ -1179,10 +1233,13 @@ the width a part is given once it has dropped below the board. A size that fills
 forbids that pairing at every width this layout produces, and SHALL NOT be used.
 
 **Every row of preset buttons SHALL step by the same pitch**, so that a row of ten and a row of five
-agree column by column. The pitch SHALL be set by the five-button row and taken by the ten-button
-row; a row SHALL NOT derive a spacing from the width it happens to have been given. Two rows that
-each spread across their own width step by different amounts and line up with nothing: measured on
-the desktop, 38.3 in the column against 53.5 below the board.
+agree column by column. Two rows that each spread across their own width step by different amounts
+and line up with nothing: measured on the desktop, 38.3 in the column against 53.5 below the board.
+
+WHICH row sets that pitch is settled in "One gap for every preset button, and it is the smallest any
+row can afford", and it is NOT the five-button row as this requirement used to state. The smallest
+of the values the rows would each choose alone wins, whichever row that is — measured on a 2495px
+window it was the row of TEN, at 25.5px against the 40.3px the rows of five wanted.
 
 **The pitch is a HORIZONTAL quantity and SHALL NOT be applied between rows.** It exists so that
 buttons on one row line up with buttons on another, and a row spacing taken from it makes the two
@@ -1262,12 +1319,28 @@ the board changes only which row its sets are on.
 
 A board SHALL render its resize handle only in a mode where dragging it changes the board's size.
 
-Where a mode derives its board size from something other than the zoom setting — as short
-landscape does, sizing from the height-derived square with no zoom factor in the track — the
-handle SHALL NOT be shown, and SHALL NOT be draggable.
+Where a mode derives its board size from something other than the zoom setting — the mobile
+layouts, which draw every board at its allowance — the handle SHALL NOT be shown, and SHALL NOT be
+draggable. That is now a consequence of one statement rather than a per-mode rule: zoom reaches the
+boards in tall landscape only, so the handle is shown exactly where that is true.
 
-This SHALL be decided per layout mode rather than per viewport width. The shared rule that shows
-the handle above a fixed viewport width is the reason a mode that ignores zoom still displays it.
+THE HANDLE SHALL WRITE THE ZOOM OF THE COLUMN ITS BOARD OCCUPIES, not of the board's identity —
+see "A board's zoom is keyed by the column it occupies".
+
+This SHALL be decided per layout mode rather than per viewport width, and the mode test SHALL both
+HIDE and SHOW — a width test is wrong in both directions, not merely permissive. The shared rule
+that shows the handle above a fixed viewport width is why a mode that ignores zoom displayed it; it
+is equally why a mode that HONOURS zoom lost it, measured at 682x647 — tall landscape, zoom fully
+live — where the handle vanished because the window had crossed the width threshold, leaving the
+mode that most needs the control as the only one without it.
+
+Every mode SHALL be stated. A mode that happens to be narrower than the shared width threshold is
+not thereby specified: portrait was never stated and escaped only by being 386px wide, so a portrait
+tablet would have shown a dead handle.
+
+Where the shared rule keeps the handle's POSITION, SIZE and GLYPH inside the same width query as its
+display, a mode that shows the handle below that width SHALL restate them. Setting only `display`
+leaves a static, zero-sized box in flow.
 
 #### Scenario: Short landscape shows no handle
 - **WHEN** the round page is displayed in short landscape
@@ -1276,6 +1349,15 @@ the handle above a fixed viewport width is the reason a mode that ignores zoom s
 #### Scenario: The handle stays where it works
 - **WHEN** the round page is displayed in tall landscape
 - **THEN** each board renders its resize handle, and dragging it changes that board's size
+
+#### Scenario: Portrait shows no handle
+- **WHEN** either two-board page is displayed in portrait, at any viewport width
+- **THEN** no board renders a resize handle
+
+#### Scenario: A narrow tall-landscape window keeps its handle
+- **WHEN** the page is in tall landscape but narrower than the shared width threshold that governs handles site-wide
+- **THEN** each board still renders its handle, positioned and drawn as it is at wider sizes
+- **AND** dragging it still changes that board's size
 
 #### Scenario: Hiding the handle does not disable zoom
 - **WHEN** a mode that hides the handle is displayed and the zoom setting is changed by other means
@@ -1410,6 +1492,24 @@ A board that comes out wrong at load SHALL be treated as a layout defect — som
 load that should not have — and SHALL be fixed there. It SHALL NOT be corrected afterwards by a
 listener that re-measures.
 
+A BOARD THAT HAS MOVED WITHOUT CHANGING SIZE SHALL HAVE ITS CACHED BOUNDS CLEARED, NEVER
+RE-MEASURED. The two are not interchangeable. Re-measuring WRITES — it sets the container's size and
+publishes the board's dimensions as custom properties — so it can wake the observers that would move
+the boards again, and it must run after the arrangement has settled, which is a moment that can only
+be guessed. Clearing writes nothing and touches no element, so it starts no cascade and needs no
+ordering: the rect is recomputed at the next READ, which is the click.
+
+Re-measuring SHALL be reserved for the board whose SIZE changed, because only a size change requires
+the container to be resized, the dimension properties to be republished, and the pieces to be
+re-translated from the new bounds. Clearing the cache fixes where a click MAPS TO; it does nothing
+about where a piece is DRAWN.
+
+Every event that can move a board without resizing it SHALL clear both boards' caches. Zooming one
+board moves the other sideways; a tools or seat-name placement pass changes a strip's height and
+slides the board within its stack. Neither changes the moved board's size, and neither is visible to
+the library's own observer, which watches `document.body` for these boards precisely so that a
+board's own resize cannot recurse.
+
 #### Scenario: The board is right the first time
 - **WHEN** the round page loads in any mode
 - **THEN** each board is drawn at the size of its container, without any later measurement correcting it
@@ -1421,6 +1521,17 @@ listener that re-measures.
 #### Scenario: A user zoom redraws the board
 - **WHEN** the user changes a board's zoom or resizes the window
 - **THEN** the board is redrawn at the new size, and this is the only path by which its size changes
+
+#### Scenario: Zooming one board leaves the other clickable
+- **WHEN** one board's zoom is changed and the other board moves sideways without changing size
+- **THEN** the moved board is not re-measured or redrawn
+- **AND** its cached bounds are cleared
+- **AND** a click on it maps to the square under the pointer
+
+#### Scenario: A placement pass slides a board within its stack
+- **WHEN** a tools or seat-name placement pass changes the height of a strip above or below a board
+- **THEN** both boards' cached bounds are cleared once the pass has settled
+- **AND** neither board is resized or redrawn
 
 ### Requirement: A board's container is a width the board can render exactly
 
@@ -1802,6 +1913,820 @@ and a switch exchanges top strips with top strips, so a strip never changes the 
 #### Scenario: The side survives a flip and a switch
 - **WHEN** the boards are flipped, or the two boards are switched between columns
 - **THEN** each strip is still laid out for the side it is on, with no class maintained by that logic
+
+### Requirement: The boards take priority over the tools
+
+Where the width cannot hold both boards beside the tools column, the BOARDS SHALL keep their size
+and the tools SHALL give way. A board is what the page is for; a panel is not.
+
+The tools SHALL be guaranteed `Wt` — their declared minimum usable width, counted in squares of the
+left board at full zoom — WHERE THEY OCCUPY A COLUMN AT ALL. Where they do not, that term SHALL
+leave the width equation entirely rather than being charged and then unused. The minimum is tied to
+full zoom, not to the current zoom, so that zooming a board down cannot shrink what the tools are
+owed.
+
+The tools SHALL NOT be given a column narrower than `Wt`. A column below that width is not a usable
+panel, and the arrangement that would produce one is the signal to move the tools elsewhere — see
+"The tools take the first home that fits". This replaces the half-square floor, which was never a
+usability measure: it produced 195 to 628px of panel on a normal desktop and then collapsed straight
+to 24-33px below about 1000px of width, with nothing in between.
+
+Every term being a multiple of the square keeps the width equation a single division, as it is
+today:
+
+    with a column:     L = (W - gaps) / (S(1+f) + Wt)
+    without one:       L = (W - gaps) / (S(1+f))
+
+and where the tools take a ROW, `T` joins the height divisor for the same reason:
+
+    tools below:       L <= H / (ROWS + T)      every other home:  L <= H / ROWS
+
+Where even that minimum does not fit, the RIGHT board — never the viewer's own, which is always
+the left one — SHALL take a smaller square, so that its full zoom means a smaller board rather than
+one that overlaps its neighbour or pushes the tools off the page.
+
+THE RIGHT BOARD SHALL NOT BE REDUCED BELOW HALF THE LEFT BOARD'S SQUARE. Below that point the LEFT
+board's square SHALL be capped by the width as well, and from there the two SHALL shrink together.
+Only above that point is the left board's square derived from the height alone. A right board with
+no floor is not a layout that always fits — measured at 682x648 the left board held its
+height-derived 58.67px square, the right was driven to 16.67px, a board four pawns wide, and the
+pair still overflowed the viewport by 29px.
+
+THAT FLOOR SHALL HOLD IN EVERY HOME, including those where the tools take no width at all. It does
+not exist to protect the right board from the tools; it exists because the left board is the
+viewer's own and does not yield to the partner's. A floor that lapsed once the tools stepped aside
+would shrink the viewer's own board to keep the partner's larger — measured at 627x835, an own board
+of 401px beside a partner of 201px becomes two boards of 301px.
+
+The cap SHALL be SOLVED, not searched. With `S` squares to a stack, `f` the right board's floor and
+`Wt` the tools' column, the width pays `S x L + S x (f x L) + Wt x L + gaps`, which has one unknown.
+Every term SHALL be expressed in squares of the left board, the tools' column included: charging the
+tools against a square the left board is not getting leaves the arithmetic unable to close.
+
+The eval gauge, where the page draws one, SHALL remain part of its board's stack in every home and
+SHALL therefore remain a term of the width formula. It SHALL be shown and hidden with its board, so
+that it never reports on a board that is not on screen.
+
+A BOARD TRACK SHALL BE SIZED BY A TRACK FUNCTION THAT ITS OCCUPANT'S `min-width` CANNOT REACH.
+A stack carries `min-width: 0` so that a shrinking board can never widen the page; that same
+declaration overrides the automatic minimum size an `auto` track floors on, so an `auto` board track
+is fully shrinkable while the tools' fixed maximum is satisfied ahead of it — this rule exactly
+backwards. Measured at 996x730: tracks of 455.9 | 282.6 | 199.2 against a stack whose own tracks
+summed to 554, the board overflowing its column by 98px and painting over its neighbour.
+
+This applies in BOTH landscape modes. Short landscape reaches the limit sooner, not later, because
+it pins both boards to the full height and has no zoom to give back.
+
+Where the tools column is DISSOLVED so that its parts become items of the app's own grid, each part
+SHALL carry the clipping the column used to provide. An element with `display: contents` has no box,
+so its `overflow` applies to nothing and its former children clip nothing on their own.
+
+A TAB STRIP SHALL SHRINK ITS TABS RATHER THAN LOSE ITS ENDS. Tabs share the bar by flexing from a
+zero basis, but a flex item's automatic minimum size is its min-content, so each tab holds its whole
+label and a centred row overflows at BOTH ends — cutting the first tab as well as the last, which
+reads as a rendering fault rather than as a narrow column. Every tab SHALL remain present and
+clickable with its label truncated.
+
+#### Scenario: The width cannot hold two boards and the tools
+- **WHEN** two boards at the height-derived square, plus the tools' `Wt`, exceed the width
+- **THEN** the left board keeps that square
+- **AND** the right board's square is reduced until the whole row fits
+- **AND** the tools column is at least `Wt` squares of the left board
+
+#### Scenario: The tools are given a column
+- **WHEN** the tools occupy a column
+- **THEN** that column is at least `Wt` squares wide
+- **AND** both boards are sized with `Wt` charged against the width
+
+#### Scenario: The tools occupy no column
+- **WHEN** the tools have been placed anywhere other than a column of their own
+- **THEN** no width is charged for them
+- **AND** both boards are sized from the full width less the gaps alone
+
+#### Scenario: The right board reaches its floor
+- **WHEN** reducing the right board to fit the width would take its square below half the left board's
+- **THEN** the right board stops at half the left board's square
+- **AND** the left board's square is capped by the width from that point on
+- **AND** both boards shrink together as the width falls further
+- **AND** the row still fits the viewport
+
+#### Scenario: A board track is not shrinkable by the tools
+- **WHEN** the three tracks' preferred widths exceed the viewport
+- **THEN** each board track keeps the width its own stack needs
+- **AND** the tools track takes what is left
+
+#### Scenario: The width is sufficient
+- **WHEN** the width holds both boards and the tools' preferred column
+- **THEN** both boards use the same square and neither is reduced
+
+#### Scenario: The tools are narrower than their content
+- **WHEN** the tools column is reduced below the width its content wants
+- **THEN** the content is clipped
+- **AND** the page does not gain a horizontal scrollbar
+
+#### Scenario: The tab strip is narrower than its tabs
+- **WHEN** the tools column is too narrow for the tab labels
+- **THEN** every tab is still present and inside the viewport
+- **AND** each label is truncated rather than the first and last tabs being cut off
+
+### Requirement: Spare room belongs to a board, not to the layout
+
+Decisions about whether a board's furniture — its coordinate labels, its username — sits INSIDE the
+board and strip or takes room outside them SHALL be made against that board's OWN ALLOWANCE: the
+size it may occupy at full zoom, after any width limit. They SHALL NOT be made against the height
+of the column or the app, which both boards share.
+
+A board at full zoom therefore has no spare room BY CONSTRUCTION, whatever its allowance turned out
+to be, and its labels and name stay inside. Room appears only as a board is zoomed BELOW full, and
+in proportion to how far.
+
+#### Scenario: A board is capped by width at full zoom
+- **WHEN** a board's square is reduced because the width could not hold two full-size boards
+- **THEN** it is still at full zoom, and reports no spare room
+- **AND** its coordinates stay inside its squares and its username stays inside its strip
+- **AND** the other board, at a larger square, is unaffected
+
+#### Scenario: A board is zoomed below full
+- **WHEN** a board's zoom is reduced
+- **THEN** the difference between its allowance and its current size is spare room
+- **AND** the gap for its labels, and its username's own line, become affordable in that order
+
+### Requirement: The blank analysis board declares only what it has
+
+The analysis page opened WITHOUT a game — `/analysis/<variant>`, a board to explore lines on — SHALL
+offer only the tools that mean something there, and SHALL NOT render an element whose content cannot
+exist.
+
+It SHALL carry a VARIANT tab holding the variant picker, in place of the Info and Chat tabs a real
+game has. It SHALL NOT offer a Move times tab: there are no recorded move times. It SHALL NOT mount
+the clock slots: there are no clocks to fill them. Everything that page does have SHALL live in the
+tools column with everything else, so nothing sits in the app's grid without an area of its own.
+
+Its movelist SHALL render the moves explored on it. That build has no recorded game, so the moves
+live in the analysis tree and nowhere else; a movelist that asks whether a RECORDED mainline exists
+answers "nothing to show" after any number of moves, which is not the same question.
+
+#### Scenario: The page is opened from the menu
+- **WHEN** the bughouse analysis page is opened with no game
+- **THEN** its tabs are Moves, Variant and FEN & PGN
+- **AND** no clock elements are rendered around either board
+
+#### Scenario: A line is explored
+- **WHEN** moves are played on the blank board
+- **THEN** each appears in the movelist, in the four-cell row of the seat that played it
+- **AND** the FEN and PGN follow the position shown
+
+#### Scenario: A real game is opened
+- **WHEN** the analysis page is opened for a played game
+- **THEN** it keeps its Info, Chat and Move times tabs and its four clocks
+
+### Requirement: A result line wraps rather than widening its column
+
+The end-of-game line rendered into the movelist SHALL wrap, including inside a single unbroken
+token. Team names are joined into one word, so a line breaker offered no break opportunity reports a
+minimum width no column can be relied on to satisfy, and the movelist grows a scrollbar instead of
+wrapping.
+
+#### Scenario: The teams' names are long
+- **WHEN** a game ends and the result names both teams
+- **THEN** the line wraps within the movelist's width
+- **AND** the movelist does not scroll horizontally
+
+### Requirement: Zoom scales a board's allowance, and stops at a shared size
+
+A zoom slider SHALL scale the board's OWN ALLOWANCE — the size it may take at full zoom, after any
+width limit — so that 100% means "as large as this board is allowed to be" on both sliders and the
+whole of each slider's range changes something.
+
+Zoom SHALL NOT be applied to a size the width limit then overrides. Scaling the height-derived
+square and capping it afterwards leaves the top of a capped board's range inert — measured at
+996x730 with the right board capped at 50.00 against a 66.67 height, 80% and 100% both drew 50.00 —
+and makes equal percentages mean unequal boards.
+
+A board SHALL NOT be zoomed below a minimum SIZE: a stack of FOUR canonical left-board squares,
+where the canonical square is the one the available height alone decides. The floor SHALL be
+converted back into a percentage per column, so the two sliders stop at different numbers and at the
+same board. The floor SHALL be recalculated whenever the viewport changes, and a zoom already set
+below a newly raised floor SHALL be lifted to it without rewriting the reader's stored preference.
+
+#### Scenario: The two boards are zoomed to their minimums
+- **WHEN** each board is taken to the lowest zoom its slider allows
+- **THEN** the two boards are the same size as each other
+- **AND** that size is four canonical left-board squares of stack
+
+#### Scenario: The boards are allowed different maximums
+- **WHEN** the right board's allowance is smaller than the left board's because of the width
+- **THEN** each board at 100% fills its own allowance
+- **AND** the minimum percentages differ between the sliders
+
+#### Scenario: The window is resized under a zoomed-out board
+- **WHEN** the viewport changes so that the floor rises above a board's current zoom
+- **THEN** that board is drawn at the new floor
+- **AND** the stored zoom preference is unchanged
+
+### Requirement: Both two-board pages share one set of zones
+
+The round page and the analysis page SHALL use the SAME area names, the same set of arrangements,
+and the same drop classes in every mode where both are laid out as one flat grid. A page SHALL NOT
+declare a shorter or private vocabulary because it has fewer parts; it SHALL leave the rows it has
+no part for empty, and an empty row collapses.
+
+The arrangements SHALL have ONE source. Written twice, the two copies drift — and drift here is not
+cosmetic, because the placement code chooses a class and the stylesheet decides what that class
+means. The analysis page spelled `drop-tablist` and meant by it what the round page means by
+`drop-tablist-b`.
+
+A DROP CLASS SHALL NAME THE ZONE WHOSE TEST DECIDED IT. `drop-tablist` is chosen by zone A's test
+and `drop-tablist-b` by zone B's, so a page that routes the first name to a zone-B row asks one
+zone's question and answers it in the other's space. Measured at 996x730 with the left board at full
+zoom: zone B correctly refused a 31.5px tab list into the 3.3px left under a 666.7px stack, zone A
+had the 266.9px the right board frees and dropped it anyway, and the row was drawn across the left
+board's pocket.
+
+WHERE A ZONE HOLDS A PART, THE PUBLISHED HEIGHTS SHALL SAY SO. The height the boards may occupy and
+the height the app takes are both the budget less what the zones hold; a part placed by a class
+whose zone was never charged makes both of them lie.
+
+The code that identifies "the part that drops first" SHALL do so by the drop order it was given,
+never by a selector naming one page's element. A hard-coded selector is how the two halves of one
+decision — what a zone COSTS and which part a zone has TAKEN — came to disagree.
+
+#### Scenario: The two pages declare the same grid
+- **WHEN** the round page and the analysis page are both laid out as one flat grid
+- **THEN** their area names and their set of arrangements are identical
+- **AND** the page with fewer parts differs only in which slots are occupied
+
+#### Scenario: A part lands in the zone that accepted it
+- **WHEN** zone B has no room for a part but zone A does
+- **THEN** the part is placed in zone A on either page
+- **AND** the class that places it is the one zone A's test sets
+
+#### Scenario: A zone that holds a part is charged for it
+- **WHEN** any part is placed in a zone under the boards
+- **THEN** the height published for the boards is the budget less that part's height
+- **AND** the height published for the app includes it
+
+### Requirement: Every item of a board grid has an area the template names
+
+An item placed into a grid SHALL be assigned a named area that the template in force actually
+declares. An item whose named area does not exist is AUTO-PLACED, and auto-placement past the last
+explicit column MINTS IMPLICIT ONES.
+
+The cost SHALL be understood as the GAPS, not the tracks. The implicit tracks are zero wide and
+invisible; their `column-gap`s are not. Measured at 997x750: five columns where three were declared,
+four gaps at 15px instead of two, and the extra 30px came off the only track that yields — leaving
+the tools 6.55px against the 34.3px half-square they are guaranteed. An empty, invisible element had
+spent the whole guarantee before either board was asked to give anything up.
+
+An element that a mode does not lay out SHALL be given `display: none` in that mode rather than left
+holding an area name the template dropped. Where the two pages hold the same element in different
+places in the DOM, they SHALL reach the SAME decision about it rather than each inventing a home.
+
+#### Scenario: An element outlives the area it names
+- **WHEN** a template stops declaring an area that some item still asks for
+- **THEN** that item is either given an area the template declares, or hidden in that mode
+- **AND** the app's declared column count equals its actual column count
+
+#### Scenario: The tools keep their guarantee
+- **WHEN** the boards are at full zoom and the width is only just sufficient
+- **THEN** the tools column is no narrower than half the left board's square
+
+### Requirement: Portrait exists to give the own board the full width
+
+Portrait's whole purpose SHALL be to draw the player's OWN board at the full viewport width along
+the bottom, with a usable partner board above it and a gap between them. Where that cannot be done,
+the mode has no purpose and SHALL NOT apply: two boards side by side in the landscape layout is a
+better answer than a full-width board with nothing legible above it.
+
+THE CUT-OFF RATIO AND THE PARTNER BOARD'S MINIMUM ARE ONE DECISION. The own stack is ten rows of
+`w/8`, so `1.25w`; a partner stack whose square is `f` times the own board's costs `1.25fw`; both
+plus a gap must fit `h`:
+
+    w/h  <=  (1 - gap) / (1.25 x (1 + f))
+
+Fixing either term fixes the other. The cut-off SHALL be **9/16**, at which the partner board is
+39% of the own board's square — 148px beside a 375px board on a 375x667 phone, against the 36% this
+shipped with. Widening the cut-off shrinks that fraction: 31% at 3/5, 26% at 16:10.
+
+9/16 also falls in the gap the device population leaves. The widest common PHONE is 16:9 = 0.5625
+and every newer shape is narrower — 18:9, 19.5:9, 20:9, 21:9. The narrowest TABLET is 16:10 = 0.625,
+then 0.70 for a modern iPad and 0.75 for a 4:3 one. No real device sits between.
+
+A PORTRAIT TABLET IS NOT PORTRAIT. Above the cut-off the own board's full-width height alone exceeds
+what the viewport has: measured at 627x835, the own stack wanted 780px of 835 and left 55px for a
+partner stack needing 207, so the own board was drawn over the partner board and over two of the
+three end-of-game buttons. Nothing scrolled, because the body is pinned — the layout failed
+silently, which is the failure mode this rule exists to make impossible.
+
+#### Scenario: A phone gets the portrait layout
+- **WHEN** the round page is displayed at a phone ratio such as 386x835
+- **THEN** the own board spans the full width and sits flush against the bottom of the viewport
+- **AND** the partner board is above it, at non-zero size
+- **AND** there is a gap between them holding the tools
+
+#### Scenario: A tablet does not
+- **WHEN** the round page is displayed at any ratio wider than 9/16, upright or not
+- **THEN** the portrait layout does not apply
+- **AND** no board is drawn over another
+
+#### Scenario: The partner board is worth having
+- **WHEN** the portrait layout applies at the widest ratio it admits
+- **THEN** the partner board's square is at least 39% of the own board's square
+
+### Requirement: A hidden element occupies no layout on a page that cannot scroll
+
+On a page pinned to the viewport, an element hidden from view SHALL also be removed from LAYOUT.
+Hiding by a transform SHALL NOT be relied on: a transform changes where a box is PAINTED, not where
+it is laid out, so the box keeps its full height and the document grows by it — invisibly, since
+there is nothing to see at the end of the scroll.
+
+Measured: `site.css` collapses the header nav into a burger menu below 799px and hides it with
+`transform: translateX(-100%)`. Its 1380px column stayed in flow, and the page scrolled 603px at
+627x835 and 790px at 682x647 with nothing in that space.
+
+`position: absolute` SHALL NOT be treated as sufficient. Out of flow is only half of it: an
+absolutely positioned box still contributes SCROLLABLE OVERFLOW where it extends past the viewport,
+which left 65px of that 603 behind. `position: fixed` contributes none.
+
+Where such an element is made fixed, it SHALL be given its own scrolling — a bounded height and
+`overflow-y: auto` — because the page scroll that used to reach its far end no longer exists.
+
+AND THE RULE SHALL BE SCOPED TO THE MODE IT WAS WRITTEN FOR. Unscoped, these declarations reach the
+same element where it is NOT collapsed: `position: fixed` shrinks it to fit — measured 4px narrower
+than its own content — and naming one overflow axis makes the other compute to `auto` as well, so a
+20px scrollbar was drawn across the top of a page for 4px of overflow.
+
+#### Scenario: A collapsed menu costs no height
+- **WHEN** a two-board page is displayed narrow enough for the site nav to collapse
+- **THEN** the document's scroll height does not exceed the viewport height
+
+#### Scenario: The menu still opens
+- **WHEN** the collapsed menu is opened on such a page
+- **THEN** its entries are reachable, scrolling within the menu if it is taller than the viewport
+
+### Requirement: No layout decision is made from a quantity that the decision changes
+
+A placement or sizing decision SHALL NOT read a value that the decision itself alters. Where a
+quantity must be measured, it SHALL be measured from something the measured thing cannot affect.
+
+THE CHECK IS ON BOTH AXES. A source may be safe in one and not the other, and the second is where
+this has always bitten: a preset button was sized from the width of the box it sat in, which no
+button could widen — but the button's size set the part's HEIGHT, the part's height decided where
+the part was placed, and the placement decided which box it was in. Measured at 2495x733: 52px tall
+beside the board so it fitted and moved, 67px once moved so it no longer fitted and came back,
+flipping every frame; and in the same session a published width that read 1112 while its element
+was 499 and 499 while it was 1112.
+
+A HYSTERESIS BAND IS NOT A FIX. Two thresholds stop the flapping and leave the contradiction in
+place — the layout still has a state in which its own two answers disagree, and it has merely
+stopped asking. Where one appears, the loop SHALL be removed instead: pick a source the decision
+cannot reach.
+
+#### Scenario: The same viewport always resolves to one arrangement
+- **WHEN** any viewport is left untouched for a number of frames
+- **THEN** the arrangement, the published sizes and the drop classes are identical in every frame
+
+#### Scenario: A measured input is independent of what it decides
+- **WHEN** a value is measured in order to place or size something
+- **THEN** the placement or sizing that follows cannot change that value, in either axis
+
+### Requirement: The preset buttons are sized from spare height, and then fixed
+
+The preset buttons SHALL take their size from the HEIGHT the tools have to spare, chosen once and
+then held fixed while the parts are arranged.
+
+WIDTH SHALL NOT DECIDE THE SIZE. It cannot: the width of a part's box follows from where the part
+was placed, and where it is placed follows from its height, which would follow from its width. The
+height the tools have spare is a fact about the boards and the viewport, and no button changes it.
+
+The spare height SHALL be what the region holding the presets has left once the chat's minimum and
+the tab strip are paid for, so that buttons grow into genuinely spare room and never into the
+chat's. That figure SHALL be COMPUTED FROM WHAT THE CHAT STATES rather than restated here — see
+"The chat's minimum is a budget, stated in messages".
+
+THE SIZE SHALL BE THE LARGEST THAT FITS BOTH AXES, chosen across the arrangements the sets allow:
+five buttons to a row or ten. A tall narrow region therefore gets four rows of large buttons where
+a short wide one gets two rows of small ones — measured, 97.4px in a 499px column with height to
+spare against 40px in a short full-width row. Both figures predate the ceiling below, which now
+holds that same column to 67.6px.
+
+IT SHALL BE BOUNDED AT BOTH ENDS, and both bounds SHALL be stated in the viewer's own board square:
+a floor of 0.55 squares, and a ceiling of ONE square. A preset button is a picture of a piece the
+player is asking their partner for, so drawn larger than the piece on the board it stops referring
+to the board and starts competing with it — measured at 97.4px against a 67.6px square, 1.44 times
+the size, on the widest window. The ceiling is a consequence of sizing from spare height: a tall
+window has height the buttons have no use for. It SHALL bind only where that is true; on every
+narrower window the height runs out first or the floor wins.
+
+THE FLOOR SHALL BE APPLIED AFTER THE CEILING, so a window with no room for even the floor still
+draws the floor.
+
+EVERY MODE SHALL USE THIS RULE, PORTRAIT INCLUDED. No mode SHALL declare a button size of its own.
+Portrait kept `max(floor, (100vw - 32px) / 10)` — a tenth of the viewport, from a time before any
+size was published — and it was both redundant and wrong: the sizer already ran there and its value
+was being shadowed, and the premise that a preset row spans the screen stopped holding when
+portrait's parts were merged into the column. Measured at 274x830, the presets sit in a 106.7px
+column beside the partner stack; the viewport rule drew 133px sets that overflowed by 26.3px, where
+the published value filled the column exactly. At 387x830 it also draws LARGER buttons than the rule
+it replaced, 40.3px against 35.5px.
+
+ONCE CHOSEN, THE SIZE SHALL NOT CHANGE WITH PLACEMENT. A row that moves into zone A or zone B SHALL
+keep its buttons and re-wrap. This is what lets two sets in areas of DIFFERENT widths draw at one
+size — without it they diverged, measured at 47.2px against 89.9px, and their columns could not be
+aligned.
+
+#### Scenario: Portrait sizes its buttons like every other mode
+- **WHEN** the viewport is in portrait
+- **THEN** the buttons take the size published for the region they occupy
+- **AND** no per-mode declaration shadows it
+
+#### Scenario: A button never outgrows a board square
+- **WHEN** a region has so much spare height that the size chosen from it exceeds one board square
+- **THEN** the buttons are drawn at one board square and the region keeps the slack
+
+#### Scenario: A tall region gets larger buttons
+- **WHEN** the region holding the presets has height to spare beyond the chat's minimum
+- **THEN** the buttons are drawn as large as that height allows, in as many rows as that implies
+
+#### Scenario: Moving does not resize
+- **WHEN** a preset part moves between areas of different widths
+- **THEN** its buttons are the same size before and after
+- **AND** only the number of rows changes
+
+#### Scenario: Two sets in different areas agree
+- **WHEN** the two preset panels are placed in areas of different widths
+- **THEN** their buttons are the same size
+
+### Requirement: The chat's minimum is a budget, stated in messages
+
+The chat SHALL state what it is owed in MESSAGES, and every part that reserves room for the chat
+SHALL compute its figure from that statement rather than carry one of its own.
+
+THE UNIT SHALL BE MESSAGES, AND A MESSAGE IS NOT A `1lh` LINE. A chat is made of message items, and
+a minimum of four of them means the same thing at every board size, on every screen, in a way a count
+of squares does not. This is the one place in this capability where squares are the WRONG unit —
+the boards do not set how much conversation is legible — and it SHALL NOT be brought into line with
+`TOOLS_MIN_SQUARES` for the sake of uniformity.
+
+THE ADVANCE OF A MESSAGE SHALL BE DECLARED FROM ITS PARTS — font size, line height, the padding
+under the text, the margin to the next one — and the SAME declarations SHALL size the message
+itself, so the reservation and the rendering cannot drift apart. Reserving `1lh` instead measured
+the chat container's font, 15.96px, for an item whose box is 22px and whose advance is 27.2px.
+
+WHAT IS A REAL ELEMENT SHALL BE MEASURED, NOT RESTATED. The input below the list has a definite
+height of its own, so the budget SHALL be the stated messages at the stated advance PLUS that
+measurement; stating it as `2.5rem` reserved 40px for a 25px control. The two errors together
+reserved 135.7px that bought 5.05 lines and 15px of nothing — a total that looked right while
+neither term was.
+
+Before this rule this capability declared nothing and the chat took a SITE-WIDE `min-height: 15em`
+from `site.css .chat`, which measured 210px on one window; the preset sizer meanwhile reserved a
+figure derived from squares, measuring 200px on that same window and 150px on another. Two numbers,
+disagreeing by up to 60px, neither of them about this layout.
+
+THE MINIMUM SHALL BE A BUDGET, NOT A FLOOR ON THE BOX. It SHALL constrain how much spare height the
+presets may claim, and SHALL NOT be expressed as a `min-height` on the chat or its list. A minimum a
+grid row cannot grant does not shrink the row — it overflows it, and the overflow lands on whatever
+the layout put below: measured 192px of chat in a 133px row and 191px in a 129px row, the chat input
+covered by the preset buttons and unclickable in both. The site-wide 15em SHALL therefore be refused
+outright, and the row SHALL be the authority on the chat's height; the message list already
+scrolls.
+
+#### Scenario: The sizer honours the budget
+- **WHEN** the preset buttons are sized from the spare height of a region that also holds the chat
+- **THEN** the height withheld from them is the stated messages at the stated advance, plus the
+  input as drawn
+
+#### Scenario: The budget never forces a height
+- **WHEN** the chat's row is shorter than the budget
+- **THEN** the chat is as tall as its row and no taller
+- **AND** the message list scrolls
+
+#### Scenario: The chat input can always be used
+- **WHEN** the chat is drawn at any viewport this capability supports
+- **THEN** a hit test at the centre of the chat input returns the input
+
+#### Scenario: The minimum does not follow the board
+- **WHEN** the boards are zoomed
+- **THEN** the chat's budget is unchanged
+
+### Requirement: A block of presets is centred; a ragged one is right-aligned
+
+Where every laid-out row holds the SAME number of buttons, the preset rows SHALL be centred in
+their boxes: they read as one rectangle, and a rectangle that does not fill its box belongs in the
+middle of it.
+
+Where the rows hold DIFFERENT numbers — one part showing two rows of five while another shows a
+single row of ten — every row SHALL be pushed to its RIGHT edge instead. Every area a preset part
+can land in ends at the same right edge, so this and only this puts column `i` of the short rows
+under column `i` of the long one. Measured on a 2495px window: rows of five at
+x = 1536.2, 1625.2, 1714.3, 1803.3, 1892.3, which are exactly the last five columns of the row of
+ten, all three rows ending at 1959.9. Centring would leave the two straddling different columns.
+
+THE ALIGNMENT SHALL FOLLOW FROM THE ROW LENGTHS ALREADY COUNTED for the gap, not from a second
+measurement. A row only HAS a leftover when it lost the gap vote to a shorter row, which is exactly
+the case this rule is about.
+
+NO SET SHALL ALIGN ITSELF. A set is exactly as wide as its five buttons and four gaps — measured
+internal slack, 0.0px — so alignment declared on a set can do nothing. It belongs on the box that
+holds the leftover, which is the row.
+
+#### Scenario: One rectangle is centred
+- **WHEN** every laid-out preset row holds the same number of buttons
+- **THEN** each row is centred in its box
+
+#### Scenario: A ragged arrangement lines up its columns
+- **WHEN** one part shows two rows of five and another shows one row of ten
+- **THEN** every row is pushed to its right edge
+- **AND** the rows of five sit under the last five columns of the row of ten
+
+### Requirement: A part emptied for another part must not stretch over it
+
+Where two parts share an area because one takes the place the other vacates, hiding the CONTENT of
+the vacating part SHALL NOT be enough: the emptied part SHALL also stop stretching, or it keeps the
+height of whatever now occupies the row and covers it.
+
+A grid item stretches by default, and an area shared with a part that has content is exactly the
+case where "empty" and "zero tall" come apart. Measured at game over on a 2495px window: the first
+preset panel, its content hidden, drew 136px over the 128px end-of-game controls at the same
+origin, later in the DOM. It painted its background across Rematch, New opponent and Analysis
+board, and a hit test at the centre of the Rematch button returned the PANEL — the controls were
+not merely invisible, they could not be clicked. The second preset panel, which shares its area
+with nothing, collapsed correctly and hid the failure.
+
+#### Scenario: The end-of-game controls are visible and clickable
+- **WHEN** a game has a result
+- **THEN** the end-of-game controls are drawn in the area the presets vacated
+- **AND** a hit test at each control's centre returns that control
+
+### Requirement: One gap for every preset button, and it is the smallest any row can afford
+
+Every gap between two preset buttons SHALL be one value, and the gap BETWEEN two sets sharing a
+line SHALL be that same value — a row of ten is one row of ten, not two blocks of five that happen
+to be adjacent, and its nine gaps SHALL be indistinguishable.
+
+THE GAP SHALL BE THE ROW'S LEFTOVER, spread evenly: a row of `n` buttons in a box of width `W` has
+`W - n*B` to give to its `n - 1` gaps. Where every row holds the same count each row would reach
+this answer alone, and nothing has to be decided centrally.
+
+WHERE ROWS DIFFER, THE SMALLEST WINS, and every row SHALL use it. Rows of different lengths reach
+different answers — measured on a 2495px window, two rows of five in a 499px panel wanted 40.3px
+while a row of ten in a 905px panel wanted 25.5px — and two parts of one control cannot be spaced
+differently. The smallest is the only value every row can fit. A row with more to spare SHALL keep
+the remainder as slack rather than spreading it: 59.3px, in that measurement.
+
+THE ROW LENGTHS SHALL BE TAKEN AT THE FLOOR GAP, NEVER AT THE PUBLISHED ONE. Whether two sets share
+a line is a question about width, and the published gap is an answer to that same question; asking
+it of itself is the shape this capability forbids elsewhere as "no layout decision is made from a
+quantity that the decision changes". Deciding at the floor is safe in one direction only, which is
+the direction that matters: the gap that follows can only be larger, and that is room the line
+already has.
+
+A PART THAT IS NOT LAID OUT SHALL BE IGNORED. Its width reads as zero, which would drag every row
+on the page down to the floor.
+
+#### Scenario: A row of ten reads as one row
+- **WHEN** two sets share a line
+- **THEN** the gap between the two sets equals the gap between two buttons inside a set
+
+#### Scenario: Rows of different lengths agree
+- **WHEN** one part shows two rows of five and another shows one row of ten
+- **THEN** both draw the same gap
+- **AND** it is the smaller of the two the rows would have chosen alone
+- **AND** the roomier part keeps its remainder as slack
+
+#### Scenario: Uniform rows fill their box
+- **WHEN** every laid-out row holds the same number of buttons
+- **THEN** each row's buttons and gaps fill its box exactly
+
+### Requirement: A preset set is five buttons that stay together and stay aligned
+
+A set SHALL be five buttons that never break apart, piece-aligned, so that column `i` of one set
+sits under column `i` of another wherever the two are drawn. Sets SHALL wrap against each other by
+their natural width: two share a row where both fit and stack where they do not.
+
+WHICH SIDE THE SLACK GOES TO IS NOT DECIDED HERE, AND IT IS NOT DECIDED BY A SET. It belongs to the
+row — see "A block of presets is centred; a ragged one is right-aligned", which pushes every row to
+the shared right edge exactly when the rows have different lengths, and centres them otherwise. This
+requirement once said the slack goes to that edge in EVERY arrangement, and stated it of the sets;
+both are superseded. A set is exactly as wide as its five buttons and four gaps, so it has no slack
+of its own to place.
+
+The gap between two sets sharing a row SHALL equal the gap between the buttons within a set, so that
+a paired row reads as one row rather than two adjacent blocks. Its value is the row's, not the
+set's — see "One gap for every preset button".
+
+#### Scenario: Sets pair or stack by their own width
+- **WHEN** a region can hold two sets side by side at the chosen button size
+- **THEN** they share a row; otherwise they stack
+
+#### Scenario: A paired row reads as one row
+- **WHEN** two sets share a row
+- **THEN** every gap along that row is the same width
+
+### Requirement: Zone B exists in every arrangement, and zone A stops where it begins
+
+Every landscape arrangement SHALL declare zone B — the full width below BOTH boards — whether or not
+anything is placed in it. An empty zone B is a zero-height zone B, not an absent one.
+
+Zone A SHALL be bounded by zone B's top edge. Declaring the rows is not sufficient on its own: the
+app's height SHALL be the taller stack plus whatever zone B holds, or a flexible row inside zone A
+takes the slack and grows straight through the boundary — measured, a 290px panel where zone A was
+253px.
+
+WHERE THE TOOLS THEMSELVES OCCUPY THE SPACE BELOW THE BOARDS, the app SHALL instead be the whole
+budget, since that space is their region and the slack belongs to them. Measuring it there is
+circular: the panel is sized BY the app's height, so it measures zero, contributes zero, and stays
+zero — observed as a chat panel of exactly 0px.
+
+#### Scenario: An empty zone B still exists
+- **WHEN** an arrangement places nothing below the boards
+- **THEN** zone B's rows are declared and resolve to zero height
+
+#### Scenario: Zone A does not cross into zone B
+- **WHEN** a part occupies zone A and zone B is empty beneath it
+- **THEN** the part's bottom edge does not pass the taller stack's bottom edge
+
+### Requirement: Both landscape modes share one geometry
+
+The two landscape modes SHALL derive their board squares from one calculation. Neither SHALL keep a
+second copy of the formula.
+
+They were computed twice and the copies drifted: measured on a live page, the two left-board figures
+were IDENTICAL to the last decimal — 50.00390625px — because they are the same formula, while the
+right-board figures differed by 12px per square because only one copy had stopped charging the tools
+against the boards. Changing a shared constant then silently altered the mode that kept its own
+copy.
+
+ZOOM SHALL REACH THE BOARDS IN TALL LANDSCAPE ONLY. The mobile layouts draw every board at its
+allowance, so a board there always has ZERO spare room — which is what keeps its coordinates inside
+its squares and its username inside its strip — and there is nothing for a slider to change, which
+is why they show no resize handle.
+
+#### Scenario: One formula, two modes
+- **WHEN** the board squares are computed in either landscape mode
+- **THEN** the same functions produce them, and the modes differ only in the height they have to spend
+
+#### Scenario: A mobile layout ignores a stored zoom
+- **WHEN** a zoom preference set elsewhere is in effect and a mobile layout is displayed
+- **THEN** every board is drawn at its allowance
+- **AND** its coordinates are inside its squares and its username inside its strip
+
+### Requirement: A board's furniture follows that board's own square
+
+Every per-board parameter — a strip's height, a pocket's cell, the clock and name type — SHALL be
+declared where that board's square is in scope, and SHALL be keyed per seat.
+
+A custom property substitutes at the element that DECLARES it. A parameter written as a fraction of
+the square ON THE APP therefore resolves against the LEFT board and is inherited by both stacks; a
+stack that rebinds the square afterwards cannot change a value already computed. Measured with a
+50px left square and a 32.67px right one: the partner's strip was 50px tall on a 32.67px square,
+leaving slack that read as a gap between board and pocket and gave the username a line of its own,
+and its pocket was 200px on a 261px board.
+
+#### Scenario: Each stack wears its own furniture
+- **WHEN** the two boards are drawn at different squares
+- **THEN** each stack's strip is one of ITS board's squares tall, and each pocket is sized from ITS board's square
+
+### Requirement: A board's zoom is keyed by the column it occupies
+
+The zoom that sizes a column SHALL be the zoom of the board IN that column. Columns are keyed by
+ROLE — the viewer's own board and the partner's — so anything that writes a zoom SHALL resolve the
+role from the board's position, never from the board's identity.
+
+The two coincide for a player whose own board is board A and disagree for one whose own board is
+board B, where a resize handle keyed by identity drove the OTHER column: measured, the own board's
+handle wrote the partner's zoom, the own board did not move, and the partner's shrank to its floor.
+
+A DRAG'S ACTIVE STATE BELONGS TO THE HANDLE BEING DRAGGED. A class on the body matches every handle
+on the page, which is invisible with one board and wrong with two.
+
+#### Scenario: Each handle resizes its own board
+- **WHEN** a board's resize handle is dragged, whichever board identity occupies that column
+- **THEN** that board changes size and the other does not
+
+#### Scenario: Only the dragged handle is marked
+- **WHEN** a handle is being dragged on a two-board page
+- **THEN** it alone carries the dragging appearance
+
+### Requirement: What the tools need is counted in squares
+
+The tools' minimum usable WIDTH (`Wt`) and minimum usable HEIGHT (`T`) SHALL be declared as counts of
+the LEFT BOARD'S SQUARE — the unit every other length in this layout is already expressed in, and the
+one a reader can see. The question every placement asks is then the same question: are there enough
+spare squares here to put the tools in.
+
+Neither SHALL be obtained by measuring the tools. Their height depends on the width they are given,
+which depends on which home they were placed in, which is what the numbers are being used to decide;
+measuring closes that loop, and the loop is the circular sizing this specification forbids elsewhere.
+
+`Wt` SHALL be **2 squares** and `T` SHALL be **3 squares**. Both are derived from what the layout
+actually has to spend rather than chosen: 2 is the largest width that leaves every normal desktop
+the column it has today, the tightest being a viewport with 2.40 spare squares; 3 lies inside the
+band that separates a viewport with 0.74 squares beneath its boards, which must not qualify for a
+row, from one with 5.45, which must.
+
+`Wt` SHALL replace the half-square the tools are guaranteed today. Half a square is not a usability
+measure: measured across normal viewports the tools receive between 2.4 and 4.8 squares of column and
+then fall straight to that floor below about 1000px of width, with nothing in between.
+
+#### Scenario: The numbers are inputs, not observations
+- **WHEN** the tools' home is decided
+- **THEN** every term is viewport geometry or a declared constant, and no element is measured
+
+#### Scenario: A column narrower than the minimum is never given
+- **WHEN** a column of `Wt` squares could only be had by reducing the left board below its height-derived square
+- **THEN** the tools are not given a column at all, and the next home in the order is tried
+
+#### Scenario: One pair of numbers serves both pages
+- **WHEN** the round page and the analysis page are shown at the same viewport
+- **THEN** the same `Wt` and the same `T` decide both
+- **AND** the two may reach a home at slightly different viewports, the analysis page's stack being wider by its gauge, without either needing a constant of its own
+
+### Requirement: The tools take the first home that fits
+
+The tools SHALL be placed in the first of four homes that can hold them, tested in order, and the
+whole cascade SHALL be evaluated BEFORE either board is sized so that the boards may spend whatever
+width the tools do not take.
+
+1. **A COLUMN of their own**, to the right of both boards, where charging `Wt` against the width
+   COSTS THE BOARDS NOTHING — that is, where the left board's square is still the height-derived one
+   once the tools' squares are in the divisor. The right board absorbs the cost by shrinking, which
+   is what it is for; only when the LEFT board would have to give way as well does the column stop
+   being free, and that is when looking elsewhere becomes worthwhile.
+2. **THE FULL-WIDTH ROW beneath both boards** — zone B — where the height left under the boards is
+   at least `T`. Width is never in question there.
+3. **THE REGION THE RIGHT BOARD FREES** — zone A — where it is at least `Wt` squares wide and `T`
+   squares tall. Wherever the right board sits at its floor this region is exactly `S x f` squares
+   wide by `ROWS x (1 - f)` squares tall — 4 by 5 with the present constants — WHATEVER THE VIEWPORT,
+   so whether the tools fit it is a fixed question rather than a per-viewport one. Zone A costs the
+   boards nothing in either axis, being space the right board has already given up.
+4. **THE TAB STRIP ALONE, in zone A**, with the right board entered in that strip as a further tab,
+   so the panels may borrow the board's column when no region can hold them beside it.
+
+WHERE MORE THAN ONE HOME FITS, THE EARLIER ONE SHALL BE TAKEN. A column beside the boards therefore
+beats a row beneath them whenever both are affordable: the tools stay where they are read, and the
+slightly larger board a row would buy is not worth moving them for.
+
+THE CASCADE SHALL BE RE-EVALUATED ON ZOOM AS WELL AS ON RESIZE. Zone B's height is the height the
+boards do not use, so a reader zooming a board down creates it; these are the layout's two existing
+redraw points and no third is introduced.
+
+THE LAYOUT HAS THREE COLUMNS ONLY IN THE FIRST CASE. In every other the tools take no column and
+both boards SHALL be sized against the full width less the gaps.
+
+#### Scenario: The tools can afford a column
+- **WHEN** a column of at least `Wt` can be had
+- **THEN** the tools occupy it, and the layout has three columns
+
+#### Scenario: The width is scarce and the height is not
+- **WHEN** no column of `Wt` is available and the height left beneath the boards is at least `T`
+- **THEN** the tools occupy the full-width row beneath both boards
+- **AND** the layout has two columns
+- **AND** both boards are sized against the full width less the gaps
+
+#### Scenario: The height beneath the boards is scarce but the right board has freed room
+- **WHEN** neither a column nor the row beneath the boards can hold the tools, and the region the right board frees is at least `Wt` wide and `T` tall
+- **THEN** the tools occupy that region
+
+#### Scenario: No region can hold the tools
+- **WHEN** none of the first three homes fits
+- **THEN** only the tab strip is placed, in the region the right board frees
+- **AND** the right board is entered in that strip as a further tab
+- **AND** selecting another tab shows that panel in the board's place, and selecting the board's own tab shows the board again
+
+### Requirement: The partner board is a standing tab panel that is not listed
+
+The right board's stack SHALL be a tab panel from page load, in every home. Its tab SHALL NOT appear
+in the strip, and it SHALL NOT be hidden by a tab change, EXCEPT in the last resort.
+
+Entering it in the strip SHALL therefore be the only thing the last resort does to it. No element
+SHALL be created, reparented or destroyed in either direction, because the arrangement is chosen
+from the viewport and changes while the window is being dragged.
+
+THIS SHALL USE THE WIDGET'S DETACHED-TAB CAPABILITY rather than any arrangement private to this
+page. The board is a tab that is detached at construction and attached only in the last resort; the
+behaviour that a detached tab is absent from the strip, always displayed and ungoverned by selection
+belongs to the widget and is specified there.
+
+In the last resort the tools panels SHALL occupy the same area as the board panel — the right
+board's own column — since the strip guarantees only one of them is displayed at a time. The last
+resort SHALL NOT need an area that no other home declares.
+
+When the tab is added, the BOARD's tab SHALL be the selected one, so that nothing visibly changes at
+the moment the arrangement flips.
+
+A board hidden and shown again by a tab change SHALL have its cached bounds cleared. It has moved
+without changing size, which is a clearing event and not a re-measure.
+
+#### Scenario: The arrangement changes back
+- **WHEN** the viewport grows so that the tools regain a home of their own
+- **THEN** the board's tab leaves the strip and the board is shown unconditionally again
+- **AND** no element was reparented in either direction
+
+#### Scenario: A reshown board is still clickable
+- **WHEN** the board is shown again after another tab had replaced it
+- **THEN** a click on it maps to the square under the pointer
 
 ## Deferred — revisit when next working on desktop mode
 

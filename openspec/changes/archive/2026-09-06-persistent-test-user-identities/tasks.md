@@ -36,5 +36,7 @@
 
 - [x] 6.1 `uv run ruff format .`, `uv run ruff check .`, `uv run pyright`
 - [x] 6.2 `env PYTHONPATH=server uv run python -m unittest discover -s tests`
-- [ ] 6.3 Manual: start the harness (`~/dev/ai-scripts/pychess-harness.sh`), note the four generated usernames are readable, distinct and fit the player bars, leave the windows idle past 30 minutes, then interact again and confirm the usernames are unchanged and the "Game category filter" modal does not reappear
-- [ ] 6.4 Manual: `docker compose restart server`, then reload a browser and confirm it keeps its previous test username rather than being issued a new one
+- [x] 6.3 Manual: start the harness (`~/dev/ai-scripts/pychess-harness.sh`), note the four generated usernames are readable, distinct and fit the player bars, leave the windows idle past 30 minutes, then interact again and confirm the usernames are unchanged and the "Game category filter" modal does not reappear
+- [x] 6.4 Manual: `docker compose restart server`, then reload a browser and confirm it keeps its previous test username rather than being issued a new one
+
+Both manual checks confirmed by Nikolay, 2026-09-06.
