@@ -7,12 +7,7 @@ import { ChatPresetsView } from './chatPresets';
 import { Seat } from '../common/seat';
 import { Clock } from '../../clock';
 import { RoundControllerBughouseSocket } from '../socket/sockets';
-import {
-    clearPendingMoves,
-    consumePendingMove,
-    recordPendingMove,
-    reconcilePendingMove,
-} from '../socket/pendingMoves';
+import { ReconnectController } from '../socket/reconnectController';
 import { ChatController, chatMessage, chatSender } from '../../chat';
 import { updateMovelist, updateResult, selectMove, MovelistView } from '../common/movelist';
 import { GameInfoView } from '../common/gameInfo';
@@ -71,21 +66,16 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
 
     autoPromote: boolean;
 
-    // MOVES WE HAVE SENT THAT THE SERVER HAS NOT ANSWERED FOR YET, per board.
-    //
-    // In memory only, and deliberately not the localStorage resend cache: that one is keyed by
-    // board and never cleared, so its contents say nothing about whether we are waiting on
-    // anything. This does — it is set when a move goes out and cleared the moment any message
-    // shows the server has dealt with it.
-    //
-    // What it is for: between sending a move and hearing back, the client's own picture is AHEAD
-    // of the server's, and `turnColor` does not know it (nothing advances it on our own move —
-    // see `gameCtrl.ts:138`, only `setState` writes it). So the client still believes it is our
-    // turn, and a full board message arriving in that window — a reconnect always sends one — is
-    // taken as an invitation to move. Measured: the board is left fully playable, and a premove
-    // fires by itself; both send a move for a ply the server has already passed, which ends the
-    // game as INVALIDMOVE against the player who reconnected.
-    private unconfirmedMove: Partial<Record<BugBoardName, string>> = {};
+    /* RECONNECTION AND RESYNCHRONISATION, WHICH IS ITS OWN SUBJECT AND NOW HAS ITS OWN OWNER.
+     *
+     * It holds both records — the durable queue of moves to resend, and the in-memory set of boards
+     * this page is ahead of — because they answer the same question with different lifetimes and
+     * only make sense together. Everything below asks it rather than deciding: what to send when the
+     * socket opens, whether a board may be played on, whose clocks win, and when a queued move has
+     * been overtaken. See `reconnectController.ts` for the cases and the histories that reach them.
+     */
+    readonly reconnect: ReconnectController;
+
 
     private readonly seatViews: RoundSeatViews;
     // color rendered at the top (position 0) of each board. This represents only the
@@ -253,6 +243,9 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
         trackSeatNamePlacement(() => clearBoardBounds(this));
 
         initBoardSettings(this.boardA, this.boardB, this.variant);
+
+        // Before the socket, which asks it what to send the moment the connection opens.
+        this.reconnect = new ReconnectController(this.gameId);
 
         // last so when it receive initial messages on connect all dom is ready to be updated
         this.socket = new RoundControllerBughouseSocket(this);
@@ -525,9 +518,9 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
             board: b.boardName,
         } as MsgMove;
 
-        recordPendingMove(this.gameId, moveMsg);
-        // From here until the server answers, our board is ahead of the server's — see the field.
-        this.unconfirmedMove[b.boardName as BugBoardName] = move;
+        // Both records, written in one place: the durable one so the move survives this page, and
+        // the live one so this board stops inviting moves until the server answers.
+        this.reconnect.moveSent(moveMsg);
 
         this.socket.doSend(moveMsg as JSONObject);
         this.seats
@@ -691,7 +684,7 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
             // Nothing can be resent into a finished game, so whatever is still cached for it is
             // dead — including an entry the server deduplicated silently. This is what bounds the
             // cache: every game ends, and every game's key goes when it does.
-            clearPendingMoves(this.gameId);
+            this.reconnect.gameEnded();
             // this.dests = new Map();
 
             if (this.result !== '*' && !this.spectator && !this.finishedGame) {
@@ -862,20 +855,14 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
     ) => {
         console.log('updateBothBoardsAndClocksOnFullBoardMsg', lastStepA, lastStepB, clocksA, clocksB);
 
-        // Does this snapshot already account for the move we are waiting on? If its last step for
-        // that board IS our move, the server has it and we are in sync again.
-        if (lastStepA?.move !== undefined && lastStepA.move === this.unconfirmedMove['a'])
-            delete this.unconfirmedMove['a'];
-        if (lastStepB?.moveB !== undefined && lastStepB.moveB === this.unconfirmedMove['b'])
-            delete this.unconfirmedMove['b'];
-
-        // The same question asked of the localStorage cache, which is a SEPARATE answer: that one
-        // survives a page reload and the field above does not, so after a refresh the field is
-        // empty while the cache still holds the move — and a move resent from it is answered by
-        // the server's duplicate branch, which sends nothing back for `consumePendingMove()` to
-        // act on. See `reconcilePendingMove()`.
-        reconcilePendingMove(this.gameId, 'a', lastStepA?.move);
-        reconcilePendingMove(this.gameId, 'b', lastStepB?.moveB);
+        /* ONE CONSULTATION, TWO QUESTIONS: has our move been overtaken by this history, and may
+           each board be played on afterwards? Both are per board and both were decided here in
+           pieces before. The controller is given the whole HISTORY of each board rather than its
+           last move, which is what lets it recognise our move under the opponent's reply. */
+        const decision = this.reconnect.snapshot({
+            a: this.steps.filter(step => step.boardName === 'a').map(step => step.move!),
+            b: this.steps.filter(step => step.boardName === 'b').map(step => step.moveB!),
+        });
 
         this.boardA.setState(fenA, getTurnColor(fenA), uci2LastMove(lastStepA?.move));
         this.boardA.renderState();
@@ -895,8 +882,8 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
         //
         // The same condition gates the premove below: one rule, both routes, because a premove and
         // a finger reach the server through the same `canMove` -> `processInput` path.
-        const aheadOfServerA = this.unconfirmedMove['a'] !== undefined;
-        const aheadOfServerB = this.unconfirmedMove['b'] !== undefined;
+        const aheadOfServerA = !decision.a.playable;
+        const aheadOfServerB = !decision.b.playable;
         if (aheadOfServerA) this.boardA.chessground.set({ movable: { dests: new Map() } });
         if (aheadOfServerB) this.boardB.chessground.set({ movable: { dests: new Map() } });
 
@@ -998,8 +985,6 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
             }
         } else {
             //when message is about the move i just made
-            // The server has answered for it, so we are no longer ahead of it on this board.
-            delete this.unconfirmedMove[board.boardName as BugBoardName];
 
             // Was this move RESENT after a reconnect? Then the server replayed it with its own
             // clocks — it must, the queued copy carries `[-1, -1]` — and charged the stall to the
@@ -1010,11 +995,9 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
             // window invariant cannot see it (each window is internally consistent), so this is
             // the class of bug only a cross-window comparison catches.
             //
-            // `consumePendingMove()` also clears the cache entry, which is the reason it is called
-            // for EVERY confirmation and not only inside the branch below.
-            const replayed =
-                move !== undefined &&
-                consumePendingMove(this.gameId, board.boardName as BugBoardName, move);
+            // Asked for EVERY confirmation, not only when the answer is true: the same call is
+            // what clears both records for this board.
+            const replayed = this.reconnect.ownMoveConfirmed(board.boardName as BugBoardName, move);
 
             // if this clock is still running, sendMove() never got to pause it locally in this
             // session (e.g. this is confirming a move resent after a reconnect/refresh) - sync

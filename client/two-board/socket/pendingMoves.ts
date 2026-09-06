@@ -14,7 +14,11 @@ export function pendingMovesStorageKey(gameId: string): string {
 type StoredPendingMove = MsgMove & { resent?: boolean };
 type StoredPendingMoves = Partial<Record<BugBoardName, StoredPendingMove>>;
 
-/* EVERY STORAGE ACCESS IS GUARDED, and the reason is `recordPendingMove()`: it runs inside
+/* OWNED BY `ReconnectController`, WHICH IS ITS ONLY CALLER. These are storage primitives; every
+   decision about WHEN to record, consume, reconcile or clear belongs to the controller, because each
+   of those answers a different reconnect case and the cases only make sense beside each other.
+
+   EVERY STORAGE ACCESS IS GUARDED, and the reason is `recordPendingMove()`: it runs inside
    `sendMove()` on the line before the move is handed to the socket, so anything it throws takes
    the move with it and the player cannot move at all. localStorage throws for reasons that have
    nothing to do with this game — a browser set to block site data, a private window, a full quota,
@@ -122,6 +126,14 @@ export function reconcilePendingMove(gameId: string, board: BugBoardName, lastMo
  * itself goes with it. */
 export function clearPendingMoves(gameId: string): void {
     writeStoredPendingMoves(gameId, {});
+}
+
+/** Whether a move is queued for this board, without disturbing it.
+ *
+ * The other half of `ReconnectController.outstanding()`: the durable answer, which survives the page
+ * and which only the cache can give. */
+export function hasPendingMove(gameId: string, board: BugBoardName): boolean {
+    return readStoredPendingMoves(gameId)[board] !== undefined;
 }
 
 export function recordPendingMove(gameId: string, moveMsg: MsgMove): void {
