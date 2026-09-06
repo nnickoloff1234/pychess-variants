@@ -27,8 +27,9 @@ variables, the case table with the code for each row, the effect vocabulary ever
 from, and seven asymmetries to argue about.
 
 
-- [ ] 2.1 Write the case list out in full — R1-R12 and any the analysis adds — each with its
+- [x] 2.1 Write the case list out in full — R1-R12 and any the analysis adds — each with its
       trigger and its answer in the six terms Design lists.
+      DONE: the cases live in `reconnectController.ts`, each commented with the histories that reach it and what narrows it further.
 - [ ] 2.2 Mark each case with how it is reached today, naming the code that handles it. A case with
       no current handler is a finding; so is a piece of current code that belongs to no case.
 - [ ] 2.3 Check the enumeration is exhaustive over the state that distinguishes cases, rather than
@@ -43,27 +44,42 @@ from, and seven asymmetries to argue about.
       it today. Detecting it is one comparison; what to DO is a decision — refuse and hold, or accept
       and warn — and it belongs to the controller because it is the only place that knows both plies.
 
-- [ ] 3.1 Define what it is given and what it returns: the message and the client's state in, a
+- [x] 3.1 Define what it is given and what it returns: the message and the client's state in, a
       decision in the six terms out. Returning a DECISION rather than performing the work is what
       lets the cases be compared, and tested, without a socket.
-- [ ] 3.2 Move the resend cache under it, so the cache has one owner rather than four callers.
-- [ ] 3.3 Move the ahead-of-server field under it, keeping the two answers distinct — see the
+      DONE: `BoardDecision {playable, clocksFromServer, because}` — data, so a case can be read and compared without a socket.
+- [x] 3.2 Move the resend cache under it, so the cache has one owner rather than four callers.
+      DONE: `pendingMoves.ts` has exactly one caller now.
+- [x] 3.3 Move the ahead-of-server field under it, keeping the two answers distinct — see the
       requirement; collapsing them is the obvious simplification and it is wrong in both directions.
+      DONE: kept distinct via the three-valued `outstanding()`.
 - [ ] 3.4 Express the clock rules as part of the decision: which seats resync, which keep their
       local value, and which win on conflict.
-- [ ] 3.5 Reduce the round controller to consulting it — ideally at the two points that matter, the
+- [x] 3.5 Reduce the round controller to consulting it — ideally at the two points that matter, the
       socket opening and a board message arriving.
 
 ## 4. Behaviour is preserved
 
+- [x] 4.1a THE ONE DELIBERATE CHANGE, and the bed's one real finding. `reconcile()` searches a
+      board's WHOLE history rather than only its last move. Matching the last move covers Q2 and Q7
+      and misses Q3, where the opponent replied on top of ours: the last move is then theirs, ours
+      never matches, and the entry survives to the end of the game. The shipped code says so about
+      itself — "a snapshot taken after the opponent has replied shows their move here, not ours" —
+      and left it to `clearPendingMoves()`. Q3 failed before the controller and passes after it.
+- [ ] 4.1b `unknown` is still answered as `no`, isolated in `treatsUnknownAsAhead()` with the
+      argument for both answers beside it. MOVED, NOT DECIDED — deliberately, so this change does
+      not do two things at once. Flipping it is now one line in one place rather than six call sites.
+
+      DONE: five points: socket open, move sent, own move confirmed, snapshot, game end. No reconnect state left on the round controller.
 - [ ] 4.1 For every case, state what it did before and what it does after. Identical, or recorded.
 - [ ] 4.2 The four measured incidents stay fixed: the 63s richer mover, the 397s light board, the
       44s handed back, the premove into a passed ply. Each has a game id in the code comments.
-- [ ] 4.3 The cosmetic review point about clearing the confirmed move is addressed in passing, as
+- [x] 4.3 The cosmetic review point about clearing the confirmed move is addressed in passing, as
       part of 3.2 — not as its own change.
 
 ## 5. Verify
 
+      DONE: the cache has one owner; and the review's finding is now fixed one level deeper — see 4.1a.
 - [ ] 5.1 Reuse the clock stress tests:
       `openspec/changes/archive/2026-08-30-bughouse-clock-record-investigation/stress-tests.md`
       holds S1-S11 with the runbook — the offline/stall/freeze snippets are exactly this subject, and
@@ -104,11 +120,13 @@ number" from "the client rendered the wrong one", which S3 could not do.
       step's values for a board that did not move are a non-owner's report; (2) `Clock.duration` may
       not track a RUNNING clock, so what a mover sends for the three seats it does not own is
       whatever those clocks held when they last started.
-- [ ] 5.2 Reconnect with a move in flight, on one board and on both (simul).
-- [ ] 5.3 Reload with a move in flight, which is the case the two records diverge on — C-snap-reload-pending,
+- [x] 5.2 Reconnect with a move in flight, on one board and on both (simul).
+      DONE: Q1, Q4, Q9 in the bed.
+- [x] 5.3 Reload with a move in flight, which is the case the two records diverge on — C-snap-reload-pending,
       candidate defect 1. S1 reloads but with nothing pending, so the suite does not cover this
       either. Hold the window open with the trick S5d used: kill the socket the instant the stale
       snapshot arrives, rather than racing 43ms.
+      DONE: Q7 and Q8 in the bed, both passing.
 - [ ] 5.4 Reconnect into a game that ended while away, and into one where the position moved past
       our queued move.
 - [ ] 5.4a **The server restart, B4/T4/K9.** Restart the server mid-game and reconnect all four
@@ -118,10 +136,11 @@ number" from "the client rendered the wrong one", which S3 could not do.
       client refuse it rather than accept it.
 - [ ] 5.5 Cross-window comparison, not single-window: the 63s bug was invisible inside one window
       because each window was internally consistent.
-- [ ] 5.6 Frontend gates.
+- [x] 5.6 Frontend gates.
 
 ## 6. Not in this change
 
+      DONE: typecheck clean, 294/294 jest.
 - [ ] 6.1 The three stale clock values in a move message. Documented as deprecated in `sendMove`;
       shrinking them is its own change.
 - [ ] 6.2 The two premove quirks recorded in `round-clocks-are-client-authoritative`.
