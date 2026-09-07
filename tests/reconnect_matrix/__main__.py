@@ -118,7 +118,10 @@ async def run_one(browser, base_url, scenario, names, state) -> driver.Result:
                 await driver.stage(scenario.stage, cam, par, game_id, ctx)
                 ctx["server_applied"] = list(hold.applied)
 
-        elif scenario.stage == "move_in_flight_reload_move_again":
+        elif scenario.stage in (
+            "move_in_flight_reload_move_again",
+            "premove_over_unacknowledged_move",
+        ):
             # The server holds the first move inside the game lock, which is what makes the window
             # between "the move arrived" and "the client heard about it" wide enough to act in.
             async with hold_first_move() as hold:
@@ -133,6 +136,13 @@ async def run_one(browser, base_url, scenario, names, state) -> driver.Result:
         ctx["server_moves"] = moves
         ctx["server_last_on_our_board"] = per_board.get(
             "a" if ctx["our_board"] == "#mainboard" else "b"
+        )
+        # WHOSE TURN THE SERVER THINKS IT IS, per board. Read from the game object rather than
+        # inferred from the move list: this is the oracle `clock_runs_for_side_to_move` is measured
+        # against, and inferring it from moves would just be the client's own reasoning again.
+        live_game = state.games.get(game_id)
+        ctx["server_turn"] = (
+            {b: live_game.boards[b].color for b in ("a", "b")} if live_game is not None else None
         )
         ctx["playable"] = await driver.can_select(cam, "#mainboard", "d2")
         ctx["partner_clocks"] = await par.evaluate("() => window.PB ? PB.clocks() : null")

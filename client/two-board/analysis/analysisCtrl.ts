@@ -1,7 +1,6 @@
 import * as cg from 'chessgroundx/types';
 
 import { uci2LastMove } from '../../chess';
-import { updateMovelist, selectMove, showPly } from '../common/movelist';
 import { Chart } from 'highcharts';
 import { BugBoardName, PyChessModel } from '../../types';
 import { MsgBoard } from '../../messages';
@@ -21,7 +20,6 @@ import { trackToolsPlacement } from '../common/toolsPlacement';
 
 export default class AnalysisControllerBughouse extends TwoBoardController {
     pgn: string;
-    plyVari: number;
     recordedMainlinePly?: number;
 
     isAnalysisBoard: boolean;
@@ -64,11 +62,7 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
         this.isAnalysisBoard = model['gameId'] === '';
         this.chartFunctions = [movetimeChart];
 
-        // current interactive analysis variation ply
-        this.plyVari = 0;
-
         this.pgn = '';
-        this.ply = isNaN(model['ply']) ? 0 : model['ply'];
 
         this.engine = engine;
         this.engine.attachCtrl(this);
@@ -103,8 +97,8 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
            message for its plies, its analysis scores and its clocks. */
         if (this.isAnalysisBoard) {
             this.recordedMainlinePly = this.steps.length - 1;
-            this.tree.initAnalysisTreeAtPly(this.ply);
-            updateMovelist(this);
+            this.tree.initAnalysisTreeAtPly(this.openingPly());
+            this.movelistView.render(this);
             updateFENAndPGN(this);
         } else {
             this.onMsgBoard(model['board'] as MsgBoard);
@@ -119,9 +113,7 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
            the column pair when it does — the round page's arrangement, driven by the same file.
            One droppable part: the panel is this page's equivalent of that page's chat, the part
            that never moves. */
-        trackToolsPlacement([['[role="tablist"]', 'drop-tablist']], '.analysis-app.bug', () =>
-            clearBoardBounds(this),
-        );
+        trackToolsPlacement([['[role="tablist"]', 'drop-tablist']], '.analysis-app.bug', () => clearBoardBounds(this));
         // The four player bars, keyed by which end of which board they sit at. Painted
         // here rather than by the view because the seat that is at a given end depends
         // on the orientation set a few lines above.
@@ -152,8 +144,6 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
     private onMsgBoard = (msg: MsgBoard) => {
         if (msg.gameId !== this.gameId) return;
 
-        this.ply = msg.ply;
-
         this.result = msg.result;
         this.status = msg.status;
 
@@ -172,9 +162,8 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
                 this.stampStepPlys(step, idx);
             });
             this.recordedMainlinePly = this.steps.length - 1;
-            const initialPly = this.model['ply'] > 0 ? this.model['ply'] : this.ply;
-            this.tree.initAnalysisTreeAtPly(initialPly);
-            updateMovelist(this);
+            this.tree.initAnalysisTreeAtPly(this.openingPly());
+            this.movelistView.render(this);
 
             if (this.steps[0].analysis !== undefined) {
                 this.engine.clearInfo();
@@ -188,20 +177,38 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
 
         if (!this.tree.hasAnalysisTree() && this.steps.length >= 1) {
             this.recordedMainlinePly = this.steps.length - 1;
-            this.tree.initAnalysisTreeAtPly(this.ply);
-            updateMovelist(this);
+            this.tree.initAnalysisTreeAtPly(this.openingPly());
+            this.movelistView.render(this);
         }
 
         updateFENAndPGN(this);
 
         if (this.model['ply'] > 0) {
-            this.ply = this.model['ply'];
-            if (this.tree.hasAnalysisTree()) this.tree.activateTreeMainlinePly(this.ply, false);
-            else selectMove(this, this.ply);
+            if (this.tree.hasAnalysisTree()) this.tree.activateTreeMainlinePly(this.model['ply'], false);
+            else this.movelistView.selectMove(this, this.model['ply']);
         }
 
         this.syncBoardHitAreas();
     };
+
+    /** WHICH PLY THE ANALYSIS TREE OPENS AT — the end of the recorded game, or the ply named in
+     *  the URL.
+     *
+     *  NOT THE CURSOR, which is the move list's and is set from here downstream: this value picks
+     *  a tree path, `activateTreePath()` walks to its node and calls `goPly()`, and THAT moves the
+     *  cursor. Until 2026-09-07 the value was parked on `ctrl.ply` in between — assigned from
+     *  `msg.ply` at the top of `onMsgBoard()` and read back twenty lines later — so the cursor
+     *  briefly held something that was not a cursor, and the controller appeared to own a field
+     *  the move list owns.
+     *
+     *  `steps.length - 1` RATHER THAN `msg.ply`. They are the same number for a whole-game board
+     *  message, which is the only kind this page receives, but that identity is the server's and
+     *  is incidental here. The intent is "open at the last recorded move", and `steps` is what
+     *  records them — every call site assigns `recordedMainlinePly` this very expression on the
+     *  line above. */
+    private openingPly(): number {
+        return this.model['ply'] > 0 ? this.model['ply'] : this.steps.length - 1;
+    }
 
     /** One line, delegating to the move list, which owns the selection. See `twoBoardCtrl`.
      *
@@ -209,7 +216,7 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
      *  `redrawMovelist` flag, so this must NOT go through `selectMove` — that would redraw twice
      *  and override a decision the tree had deliberately made. `showPly` touches the cursor and
      *  the boards and nothing else, which is exactly what the tree wants. */
-    goPly = (ply: number) => showPly(this, ply);
+    goPly = (ply: number) => this.movelistView.showPly(this, ply);
 
     renderPly = (ply: number, steppedForward: boolean) => {
         if (this.tree.hasAnalysisTree()) {
@@ -232,7 +239,6 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
             if (steppedForward && step.boardName !== undefined) {
                 sound.moveSound(activeBoard.variant, capture);
             }
-            this.plyVari = 0;
 
             if (this.boardA.localAnalysis || this.boardB.localAnalysis) {
                 this.engine.engineStop();
@@ -272,7 +278,6 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
             // no sound if we are scrolling backwards
             sound.moveSound(board.variant, capture);
         }
-        this.plyVari = 0;
 
         ////////////// above is more or less copy/pasted from gameCtrl.ts->goPLy. other places just call super.goPly
 

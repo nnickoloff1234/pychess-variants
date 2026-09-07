@@ -99,23 +99,7 @@ export class GameControllerBughouse extends GameController {
         // increase partner's pocket count
         // important only during gap before we receive board message from server and reset whole FEN (see also onUserDrop)
         if (meta.captured) {
-            const role = meta.captured.promoted ? 'p-piece' : meta.captured.role;
-            const pocketPartner = this.partnerCC.chessground.state.boardState.pockets![meta.captured.color];
-            if (!pocketPartner.has(role)) {
-                pocketPartner.set(role, 0);
-            }
-            pocketPartner.set(role, pocketPartner.get(role)! + 1);
-            // update fen of partner board:
-            const partnerFenFromFFish = this.partnerCC.ffishBoard.fen();
-            // we updated pocket model, so now chessground returns correct new fen with updated pockets:
-            const partnerFenFromCG = this.partnerCC.chessground.getFen();
-            const partnerFenFromCGPocketsPart = partnerFenFromCG.match(/\[.*\]/)![0]; // how the pocket should look like
-            // todo: don't remember if there was any reason for not just using the fen from chessground directly instead
-            //       of replacing the pockets in the ffish fen
-            const partnerFenFromFFishNewPockets = partnerFenFromFFish.replace(/\[.*\]/, partnerFenFromCGPocketsPart);
-            this.partnerCC.setState(partnerFenFromFFishNewPockets, this.partnerCC.turnColor, this.partnerCC.lastmove);
-            this.partnerCC.chessground.state.dom.redraw();
-        } else {
+            this.feedPartnerPocket(meta.captured);
         }
         this.processInput(moved, orig, dest, meta);
         this.preaction = false;
@@ -141,6 +125,33 @@ export class GameControllerBughouse extends GameController {
         this.ffishBoard.setFen(this.fullfen);
         this.isCheck = this.ffishBoard.isCheck();
         this.setDests();
+    };
+
+    /** HAND A CAPTURED PIECE TO THE PARTNER'S POCKET, locally.
+     *
+     *  Only ever right during the gap before the server's board message resets the whole FEN — the
+     *  note this was extracted from says so, and it is still true. There are now TWO such gaps: the
+     *  ordinary one between a move and its confirmation, and the one a disconnect holds open, which
+     *  `roundCtrl.replayPendingMove()` closes by replaying the move on top of a snapshot.
+     *
+     *  A PROMOTED PIECE GOES BACK AS A PAWN, which is what `promoted` is asked for. */
+    feedPartnerPocket = (captured: cg.Piece) => {
+        const role = captured.promoted ? 'p-piece' : captured.role;
+        const pocketPartner = this.partnerCC.chessground.state.boardState.pockets![captured.color];
+        if (!pocketPartner.has(role)) {
+            pocketPartner.set(role, 0);
+        }
+        pocketPartner.set(role, pocketPartner.get(role)! + 1);
+        // update fen of partner board:
+        const partnerFenFromFFish = this.partnerCC.ffishBoard.fen();
+        // we updated pocket model, so now chessground returns correct new fen with updated pockets:
+        const partnerFenFromCG = this.partnerCC.chessground.getFen();
+        const partnerFenFromCGPocketsPart = partnerFenFromCG.match(/\[.*\]/)![0]; // how the pocket should look like
+        // todo: don't remember if there was any reason for not just using the fen from chessground directly instead
+        //       of replacing the pockets in the ffish fen
+        const partnerFenFromFFishNewPockets = partnerFenFromFFish.replace(/\[.*\]/, partnerFenFromCGPocketsPart);
+        this.partnerCC.setState(partnerFenFromFFishNewPockets, this.partnerCC.turnColor, this.partnerCC.lastmove);
+        this.partnerCC.chessground.state.dom.redraw();
     };
 
     pushMove = (move: string) => {

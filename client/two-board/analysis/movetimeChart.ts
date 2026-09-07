@@ -4,7 +4,6 @@ import type { Chart, Options } from 'highcharts';
 
 import * as cg from 'chessgroundx/types';
 
-import { selectMainlineMove } from '../common/movelist';
 import { Step } from '../../messages';
 import AnalysisControllerBughouse from '@/two-board/analysis/analysisCtrl';
 import { clockTimeAt } from '../common/seatConfiguration';
@@ -404,7 +403,7 @@ export function movetimeChart(ctrl: AnalysisControllerBughouse) {
             click: function (event: any) {
                 if (event.point) {
                     event.point.select();
-                    selectMainlineMove(ctrl, event.point.x);
+                    ctrl.movelistView.selectMainlineMove(ctrl, event.point.x);
                 }
             },
         },
@@ -466,7 +465,7 @@ export function movetimeChart(ctrl: AnalysisControllerBughouse) {
                     click: function (event) {
                         if (event.point) {
                             event.point.select();
-                            selectMainlineMove(ctrl, event.point.x);
+                            ctrl.movelistView.selectMainlineMove(ctrl, event.point.x);
                         }
                     },
                 },
