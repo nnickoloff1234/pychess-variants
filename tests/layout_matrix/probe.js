@@ -1,3 +1,9 @@
+/* oxlint-disable no-unused-expressions -- THE WHOLE FILE IS ONE EXPRESSION, BY DESIGN. It is read
+   as text (`probe.js` -> `PROBE` in driver.py) and handed to Playwright's `page.evaluate()`, which
+   takes an expression, not a module. Naming it or exporting it would put `const`/`export` in the
+   text and `evaluate()` would reject it. `yarn lint` runs oxlint with --deny-warnings, so without
+   this the whole build fails on a file that is correct. */
+
 /* What the page decided, and whether it holds together.
  *
  * Returned beside every screenshot: a picture says what it looked like, this says WHY, and why is
