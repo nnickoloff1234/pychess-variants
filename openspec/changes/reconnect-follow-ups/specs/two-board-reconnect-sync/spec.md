@@ -15,22 +15,42 @@ the caller and expressed nowhere.
 - **WHEN** a reader asks which clocks a message replaces
 - **THEN** the answer is stated in one place, whatever code applies it
 
-### Requirement: A move waiting for its confirmation is not silently repainted away
+### Requirement: A move waiting for its confirmation is not repainted away
 
-A player who has moved and reconnects before the server confirms SHALL NOT be left to discover, with
-no explanation, that their move has been undone on the board — or, if the repaint stands, its
-behaviour SHALL be covered by a test so it cannot change unnoticed.
+A player who has moved and reconnects before the server confirms SHALL go on seeing their move. The
+snapshot cannot carry it — the server never had it — so the client SHALL put it back on top of the
+position that arrived, and SHALL keep the board shut while it does, so the move cannot be played a
+second time into the overwrite race.
 
-WHAT HAPPENS TODAY: the full board message clears the steps and repaints both boards to the server's
-position, so the move disappears; it returns when the confirmation arrives. The board is held shut in
-between, precisely so the reader cannot play the move a second time and start the overwrite race.
+THE REPLAY SHALL REPRODUCE THE OPTIMISTIC STATE, NOT RECOMPUTE THE POSITION. On the round page a
+move the reader makes advances chessground alone; ffish, `turnColor`, `lastmove` and the clocks all
+still say it is our turn, because as far as the server knows it is. A replay that advances ffish
+instead flips `turnColor`, and the clock update that follows then starts the OPPONENT's clock while
+the server has the mover on the clock and their time running.
 
-WHAT IS NOT TESTED IS THE FRAME ITSELF. The round trip's endpoints are asserted and so is the shut
-board; nothing looks at the moment in between.
-
-#### Scenario: The intermediate frame is covered
+#### Scenario: The move survives the snapshot
 - **WHEN** a client reconnects holding a move the server has not yet confirmed
-- **THEN** what the board shows between the snapshot and the confirmation is asserted by a test
+- **THEN** the board shows that move, and refuses to accept another on that board
+
+#### Scenario: A refused move is not replayed
+- **WHEN** the position that arrives cannot accept the waiting move
+- **THEN** the move is dropped, nothing is replayed, and the board is returned to the reader
+
+### Requirement: A waiting move's legality is judged against the position that arrived
+
+The check that decides whether a waiting move can still be played (branch 1.2.2) SHALL be asked of
+the position the message carried, not of the one the client already held.
+
+WHY IT IS NOT AUTOMATIC: a round-page move is never pushed to ffish, so between a move and its
+confirmation ffish holds the position the move was GENERATED from — where it is legal by
+construction. A check asked before the repaint therefore answers "yes" whatever the server said, and
+branch 1.2.3.4 cannot self-heal: the invalid-move resync arrives on a still-open socket, so no
+reconnection follows and nothing resends the move. It stays pending, the board stays shut, and the
+server waits for a move it has thrown away.
+
+#### Scenario: The server refuses a move on a live socket
+- **WHEN** the server refuses a move and hands back its position without the connection breaking
+- **THEN** the move is dropped and the board becomes playable again, with no reconnection needed
 
 ### Requirement: An armed premove has a stated fate across a full board message
 
