@@ -7,7 +7,7 @@ import { Variant, VARIANTS } from '../variants';
 import { boardSettings } from '@/boardSettings';
 import { ChessgroundController } from '@/cgCtrl';
 import { GameControllerBughouse } from './common/gameCtrl';
-import { createMovelistButtons, MovelistView } from './common/movelist';
+import { MovelistView } from './common/movelist';
 import { GameInfoView } from './common/gameInfo';
 import { Seat } from './common/seat';
 import { SeatConfiguration, twoBoardSeats } from './common/seatConfiguration';
@@ -33,16 +33,19 @@ export abstract class TwoBoardController {
 
     steps: Step[];
 
-    /* THE READER'S CURSOR: which ply is being shown. Owned by the move list — `movelist.showPly()`
-     * is the only thing that moves it in response to navigation — and read by every view that
-     * follows the reader: the list's own active cell and scroll, the analysis clocks, the PGN, the
-     * engine's request tag, the analysis link.
+    /* NO READER'S CURSOR HERE. It is `MovelistView`'s private field — read with
+     * `movelistView.ply()`, moved with `movelistView.showPly()` / `selectMove()` / `setCursor()`.
      *
-     * INITIALISED, NOT LEFT UNDEFINED. It used to start `undefined` despite this type, and the
-     * round page read `ply === undefined` to mean "no board message yet" — a third meaning stacked
-     * on a field that already had one. That is gone: a message now says for itself whether it
-     * carries the whole game (`steps.length === ply + 1`), so nothing has to remember. */
-    ply: number = 0;
+     * It lived here until 2026-09-07, public, with a comment asking callers to assign it only
+     * through `setCursor()`. Two things went wrong that being private prevents. The analysis
+     * controller wrote it directly, using it as a scratch variable to carry "where should the tree
+     * open" from one end of `onMsgBoard()` to the other — a value that is not a cursor. And it
+     * started life `undefined` despite its `number` type, because the round page read
+     * `ply === undefined` to mean "no board message yet": a second meaning stacked on a field that
+     * already had one. Both are gone.
+     *
+     * `plyA`/`plyB` DO belong here: they are the two boards' move counts, stamped onto every step
+     * by `stampStepPlys`, and have nothing to do with what the reader is looking at. */
     plyA: number = 0;
     plyB: number = 0;
 
@@ -53,7 +56,7 @@ export abstract class TwoBoardController {
     /* "GO TO PLY N" IS ONE OPERATION AND IT BELONGS TO THE MOVE LIST, which is the only thing
      * that changes the selection — a click in the list, an arrow key, a click on a chat message,
      * a node in the analysis tree. Both pages' `goPly` are now one line delegating to
-     * `movelist.showPly()`, which owns the cursor and the stepped-forward test, and calls back
+     * `movelistView.showPly()`, which owns the cursor and the stepped-forward test, and calls back
      * into `renderPly` for the part only the page knows: WHICH boards to repaint, with what
      * playability, and what else to drive (the engine, the clocks, the PGN on analysis).
      *
@@ -61,7 +64,7 @@ export abstract class TwoBoardController {
      * must be able to say "show this ply" without knowing which page it is on. */
     abstract goPly: (ply: number) => void;
 
-    /** Repaint the boards for a ply. Page-specific; called only by `movelist.showPly()`.
+    /** Repaint the boards for a ply. Page-specific; called only by `movelistView.showPly()`.
      *  `steppedForward` is the move list's answer to "did we advance exactly one ply", which is
      *  what decides whether a move sound plays — it needs the cursor's OLD value, so the caller
      *  works it out rather than each page re-deriving it.
@@ -115,8 +118,8 @@ export abstract class TwoBoardController {
         this.boardA.parent = this;
         this.boardB.parent = this;
 
-        createMovelistButtons(this);
         this.movelistView = movelistView;
+        this.movelistView.createButtons(this);
 
         // not retained: the panel is rendered once from this controller's state and
         // never updated again, so nothing needs a reference to it afterwards

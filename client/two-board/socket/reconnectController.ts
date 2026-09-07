@@ -33,12 +33,25 @@ import {
  *   |   +-- 1.1.1  the game has finished
  *   |   |            show the result, stop all four clocks, forget the game
  *   |   |
+ *   |   |            no premove is released, whatever the last position says
+ *   |   |            about the turn: there is nothing left to play into
+ *   |   |
  *   |   +-- 1.1.2  nothing changed while we were away
  *   |   |            take all four clocks, the board stays ours to play
+ *   |   |
+ *   |   |            an armed premove goes if the position leaves it our turn.
+ *   |   |            REACHABLE, though it reads oddly: the opponent's move got to
+ *   |   |            us BEFORE the break, so nothing has changed since — and the
+ *   |   |            premove armed behind it has been waiting all along
  *   |   |
  *   |   +-- 1.1.3  moves happened while we were away
  *   |   |            take the position, the move list and all four clocks,
  *   |   |            jump to the newest move, the board stays ours to play
+ *   |   |
+ *   |   |            AND IF THE POSITION LEAVES IT OUR TURN, an armed premove
+ *   |   |            goes now. this is the case a premove is FOR: we were away,
+ *   |   |            the opponent replied, and the first thing we are told is
+ *   |   |            already our move
  *   |   |
  *   |   +-- 1.1.4  the position is OLDER than the one we hold
  *   |                a move we have already been shown is missing from it
@@ -57,21 +70,64 @@ import {
  *   |                silence, which is what every other branch under 1.1 would
  *   |                do with it
  *   |
+ *   |                AN ARMED PREMOVE IS HANDED BACK WITH THE BOARD, on the same
+ *   |                reasoning: nothing of ours is in flight, so there is nothing
+ *   |                for it to race. it goes if this position leaves it our turn
+ *   |
+ *   |                BUT IT WAS COMPOSED AGAINST A POSITION THAT NO LONGER EXISTS,
+ *   |                and this one is older. whether it still means anything is
+ *   |                chessground's to answer, and it discards the premove either
+ *   |                way — so a rollback can cost the reader their premove as well
+ *   |                as the move it was waiting behind. that is a consequence of
+ *   |                the rollback, not a second decision, and nothing here can
+ *   |                repair it
+ *   |
  *   +-- 1.2  a move was waiting to be sent
  *       |
  *       +-- 1.2.1  the new position already contains it
  *       |            forget the waiting move, take all four clocks,
  *       |            the board stays ours to play
  *       |
+ *       |            a premove goes only if the position leaves it OUR turn. our
+ *       |            move having landed does not make it ours — the opponent must
+ *       |            have replied on top of it. if they have not, the premove
+ *       |            stays armed and 2.1.1 releases it when they do
+ *       |
  *       +-- 1.2.2  the new position cannot accept it
  *       |            drop the waiting move — it can never be played, and keeping
  *       |            it would send it again on every reconnection for the rest of
  *       |            the game — then the board is ours to play again
  *       |
+ *       |            once it is dropped nothing of ours is in flight, so an armed
+ *       |            premove is released on the same terms as 1.1 — if this
+ *       |            position leaves it our turn
+ *       |
+ *       |            JUDGED AGAINST THE POSITION THAT ARRIVED, not the one we hold.
+ *       |            the caller must therefore apply the message BEFORE asking. a
+ *       |            round-page move is never pushed to ffish, so before the repaint
+ *       |            ffish still holds the position the move was composed in, where
+ *       |            it is legal by construction — the question then answers itself
+ *       |            "yes" whatever the server just said, and 1.2.3.4 cannot heal
+ *       |
  *       +-- 1.2.3  the new position does not contain it, but could accept it
- *           |        send the move again, and take that board's moves away
- *           |        (applying the position has just handed the turn back to us,
- *           |         so this undoes that rather than keeping anything shut)
+ *           |        send the move again, SHOW IT AGAIN, and take that board's
+ *           |        moves away (applying the position has just handed the turn
+ *           |         back to us, so this undoes that rather than keeping anything
+ *           |         shut)
+ *           |
+ *           |        SHOWN AGAIN because the snapshot cannot carry it — the server
+ *           |        never had it — so repainting to the server's position alone
+ *           |        takes the reader's own move off the board and puts it back when
+ *           |        the confirmation lands. the reader's own move is the worst
+ *           |        possible thing to blink
+ *           |
+ *           |        AND SHOWN THE WAY IT WAS MADE, which on this page means moving
+ *           |        the piece on the board and nothing else. a move here does not
+ *           |        advance ffish; the position, the turn and the clocks all still
+ *           |        say it is our turn, because as far as the server knows it is.
+ *           |        replaying through ffish instead flips the turn, and the clock
+ *           |        update that follows then starts the OPPONENT's clock while the
+ *           |        server has us on the clock and our time running
  *           |
  *           |        the board then accepts no move, and no premove is released
  *           |        into THIS position. A premove can still be ARMED, which is
@@ -100,6 +156,15 @@ import {
  *                          it holds and waits; we reset to it, and branch 1.2.2
  *                          drops the move the next time we look at it
  *
+ *                          AND THERE IS NO NEXT TIME TO WAIT FOR. this position
+ *                          arrives on a socket that never broke, so no reconnection
+ *                          follows and nothing resends. the drop has to happen on
+ *                          THIS message or the move is stranded: still waiting, the
+ *                          board still shut, the reader's clock still stopped, and
+ *                          the server still waiting for a move it has thrown away.
+ *                          that is what makes 1.2.2's ordering load-bearing rather
+ *                          than tidy
+ *
  *
  * AND THE SAME QUESTIONS FOR A SINGLE MOVE, which is the other way news arrives
  * ----------------------------------------------------------------------------
@@ -109,18 +174,26 @@ import {
  *   +-- 2.1  somebody else made it
  *   |   |
  *   |   +-- 2.1.1  it is the next move in the game
- *   |   |            show it, take that board's two clocks, let a move queued
- *   |   |            behind it go, leave the other board alone
+ *   |   |            show it, take that board's two clocks, release an armed
+ *   |   |            premove, leave the other board alone
+ *   |   |
+ *   |   |            NO TURN CHECK HERE, unlike every branch under 1. their move
+ *   |   |            IS the proof that it is our turn again: on our own board the
+ *   |   |            opponent could not have moved unless our move had been played.
+ *   |   |            a whole position can be stale, a single move never is
  *   |   |
  *   |   +-- 2.1.2  it is older than what we are already showing
  *   |   |            take that board's two clocks and nothing else — the position
- *   |   |            stays where the reader put it
+ *   |   |            stays where the reader put it, and no premove is released:
+ *   |   |            "nothing else" includes one
  *   |   |
  *   |   +-- 2.1.3  it is further ahead than the next move
  *   |                a move we were never told about is missing between us and it,
  *   |                so applying this one would skip a ply the reader never saw
  *   |
- *   |                take that board's two clocks, leave the position, and SAY SO
+ *   |                take that board's two clocks, leave the position, and SAY SO.
+ *   |                no premove is released either — a move is missing in front of
+ *   |                us, so we do not know the position one would land in
  *   |
  *   |                the same treatment as 2.1.2 and for the opposite reason: there
  *   |                we are ahead of the message, here the message is ahead of us,
@@ -129,6 +202,9 @@ import {
  *   |                a hole, and the next one will
  *   |
  *   +-- 2.2  it is our own move coming back
+ *       |        NEITHER SUB-BRANCH RELEASES A PREMOVE. our own move landing does
+ *       |        not make it our turn — the opponent has still to reply, and 2.1.1
+ *       |        is what releases it when they do
  *       |
  *       +-- 2.2.1  we sent it once and waited
  *       |            show the position, keep every clock we have
@@ -163,6 +239,58 @@ import {
  * time since it started a second time, because the server has already deducted it. It never bites on
  * an ordinary move, where the clock being set is the one that was waiting; it bites on every
  * returning connection, which is exactly when both boards have a clock running.
+ *
+ *
+ * WHAT A PREMOVE IS, AND WHAT ENDS ONE
+ * ------------------------------------
+ * AN INTENTION, NOT A COPY OF ANYTHING THE SERVER HOLDS. Everything else this class weighs is state
+ * the server can restate — the position, the move list, the clocks — and a snapshot restates all of
+ * it. A premove is a statement about a position that has not arrived yet, so a snapshot has nothing
+ * to say about it and DOES NOT END IT. Decided 2026-09-07; it was open until then.
+ *
+ * IT IS RELEASED WHEN THE POSITION MAKES IT OUR TURN, and not before. Two facts have to agree and
+ * they are held by different objects: nothing of ours may still be waiting (the controller knows),
+ * and the position that just arrived must leave the turn with us (only a board knows). The caller
+ * passes the second in, and `BoardDecision.releasePremove` is the answer — it is not the caller's
+ * rule to compose, which is what it used to be.
+ *
+ * NEVER WHILE A MOVE OF OURS IS UNSENT (1.2.3), whatever the position says about the turn. A
+ * snapshot that predates our move says "your turn" quite truthfully, and releasing into it would
+ * put a second move in flight behind the first — the overwrite race the shut board exists to stop.
+ *
+ * WHAT ENDS ONE: firing, becoming impossible in the position it is finally tried against (which is
+ * chessground's own answer, and it discards the premove either way), and a page refresh.
+ *
+ * THE REFRESH IS PHYSICS, NOT POLICY. `premovable.current` lives in chessground's memory and dies
+ * with the page. The move waiting to be SENT survives a refresh because it is written to storage;
+ * nothing writes a premove anywhere, and this tree does not pretend it could.
+ *
+ *
+ * THE ORDERING TRAP, WHICH HAS BITTEN THREE TIMES
+ * -----------------------------------------------
+ * This class decides; the caller applies. Every fact the caller reads for a decision, or acts on
+ * after one, has to be read on the right side of that consultation — and three separate defects
+ * have come from reading it on the wrong side. They looked unrelated and are one mistake:
+ *
+ *   1. 1.2.2's legality question was asked BEFORE the message was applied, so it described the
+ *      position we already held. A round-page move is never pushed to ffish, so that position is
+ *      the one the move was composed in, where it is legal by construction — the answer was always
+ *      "yes" and 1.2.3.4 could not heal. A move was stranded on a socket that never broke.
+ *
+ *   2. A replay of our own unconfirmed move went through `pushMove()`, which advances ffish and
+ *      with it `turnColor` — and the clock update reads `turnColor` a few lines later. The client
+ *      started the OPPONENT's clock while the server had us on the clock.
+ *
+ *   3. `setState()` calls `setDests()`, which asks whether a move of ours is still waiting. It runs
+ *      before the consultation, so the map was computed against a gate `reconcile()` was about to
+ *      open, and nothing recomputed it. The board came back open and destless, and an armed premove
+ *      could not fire — `playPremove` reads `movable.dests`, and discards the premove either way,
+ *      so it was not delayed but LOST.
+ *
+ * THE RULE: apply the message, then consult, then act. Anything the consultation is about to change
+ * — the position, the turn, the gate — is stale on the other side of it. None of the three was
+ * caught by a unit test, because each lived in the seam between this class and its caller; all
+ * three were caught by the scenario bed (Q11, Q1, N9).
  *
  *
  * WHAT IS NOT IN THE TREE, AND WHY
@@ -202,8 +330,10 @@ import {
  * is making, and a fresh page makes no claim. It exists beside the durable record so that a browser
  * refusing to store anything is still careful for as long as the page lives.
  *
- * The first two answer what sounds like one question, and they disagree in exactly one situation,
- * which is the defect described above.
+ * The first two answer what sounds like one question, and they used to disagree in one situation —
+ * a reloaded page kept the stored move but not the note that we were waiting on it. That is no
+ * longer a defect: a move waiting in EITHER record keeps the board shut, so the durable record
+ * alone is enough to be careful and the in-memory one only adds care when storage is refused.
  *
  * THE LAST MOVE WE HAVE BEEN SHOWN on each board — in memory, because it records what THIS page has
  * witnessed and a page that has just started has witnessed nothing. Branch 1.1.4 compares an
@@ -219,6 +349,47 @@ export interface BoardDecision {
     playable: boolean;
     /** Why, in one phrase, for the log and for the reader. */
     because: string;
+    /** May a premove armed on this board go now?
+     *
+     *  BRANCH 1'S PREMOVE RULE, AND IT WAS NOWHERE. Branch 2 has carried `MoveDecision.
+     *  releasePremove` since the controller took over single moves; the snapshot side was decided
+     *  in the caller as `decision.playable && board.premove && board.turnColor === myColor`, so the
+     *  rule existed only as an expression at a call site and no test could reach it.
+     *
+     *  TWO FACTS, AND THE CONTROLLER HOLDS ONLY ONE. That nothing of ours is waiting and the game
+     *  is live, it knows. Whose turn the arriving position leaves it, it cannot know — it has no
+     *  board — so the caller passes that in, the same way it already answers "can this move be
+     *  played" for 1.2.2.
+     *
+     *  A PREMOVE SURVIVES A SNAPSHOT. It is an intention about a position that has not arrived, not
+     *  a copy of anything the server holds, so there is nothing for a snapshot to restate. It is
+     *  simply not RELEASED until the position makes it our turn — which, after a break in which the
+     *  opponent replied, is the moment the snapshot itself arrives. The one thing that ends it is a
+     *  page refresh, and that is physics rather than policy: `premovable.current` lives in
+     *  chessground's memory and dies with the page. */
+    releasePremove: boolean;
+
+    /** Branch 1.2.3 — the move of ours this board is still waiting on, to be shown again on top of
+     *  the position that just arrived.
+     *
+     *  THE SNAPSHOT DOES NOT CONTAIN IT AND CANNOT: the server never had it. Repainting to the
+     *  server's position alone therefore takes the move off the board — the reader watches it
+     *  vanish and reappear when the confirmation lands, for as long as the round trip takes. That
+     *  is the flicker, and it is the reader's own move that flickers, which is the worst possible
+     *  choice of thing to blink.
+     *
+     *  SAFE BECAUSE `reconcile()` HAS ALREADY RUN. A move the server does hold was cleared by
+     *  1.2.1, and one the new position cannot accept was dropped by 1.2.2. What reaches here is a
+     *  move that is pending AND legal in the position just applied, so replaying it locally lands
+     *  somewhere the server can still be persuaded to go — which is exactly the state the board
+     *  was in before the connection broke.
+     *
+     *  AND IF THE SERVER ULTIMATELY REFUSES IT (1.2.3.4), the position it hands back has no room
+     *  for the move, 1.2.2 drops it, and no replay is asked for. The move disappears then — once,
+     *  at the moment it is actually known not to have happened, rather than twice for reasons the
+     *  reader cannot see. */
+    replay: string | undefined;
+
     /** Branch 1.1.4 — the position that arrived is OLDER than one we had already been shown.
      *
      *  Separate from `because` because it is the one thing here a caller must ACT on rather than
@@ -280,11 +451,16 @@ export class ReconnectController {
      * reload therefore cannot detect a rollback, which is honest — it has no earlier position of
      * its own to weigh the new one against.
      *
-     * FED FROM THE TWO PLACES THIS CLASS LEARNS A POSITION: a confirmation of our own move (2.2)
-     * and a snapshot (1). It is NOT fed from the opponent's single moves, because branch 2.1 is
-     * still decided in `updateSingleBoardAndClocks` and never reaches this class — so a rollback
-     * that loses only an opponent move we were told about separately goes undetected. That gap is
-     * exactly the width of 2.1's absence, and it closes when 2.1 moves here. */
+     * FED FROM ALL THREE WAYS A MOVE REACHES US: somebody else's move (2.1.1), a confirmation of
+     * our own (2.2) and a snapshot (1). The first of those is why branch 2.1 had to move into this
+     * class: while it was decided in `updateSingleBoardAndClocks`, an opponent's move never reached
+     * here, so a rollback that lost only an opponent move — one we had been told about separately —
+     * went undetected. The gap was exactly the width of 2.1's absence.
+     *
+     * A SKIPPED MOVE IS NOT REMEMBERED. Branch 2.1.3 declines to apply a move that is further ahead
+     * than the next one, and it must not record it either: `seen` is what this page has been SHOWN,
+     * and recording a move the reader never saw would make the next snapshot look like a rollback.
+     * `tests/reconnectController.test.ts` pins both halves of that. */
     private seen: Partial<Record<BugBoardName, string>> = {};
 
     /* Per-snapshot, not sticky: recomputed at the top of every `snapshot()` and read by `decide()`
@@ -442,6 +618,7 @@ export class ReconnectController {
     snapshot(
         history: Record<BugBoardName, string[]>,
         playableNow: (board: BugBoardName, move: string) => boolean,
+        ourTurnNow: (board: BugBoardName) => boolean = () => false,
     ): Record<BugBoardName, BoardDecision> {
         for (const board of BOARDS) {
             const moves = history[board] ?? [];
@@ -452,7 +629,7 @@ export class ReconnectController {
             const last = moves[moves.length - 1];
             if (last !== undefined) this.seen[board] = last;
         }
-        return { a: this.decide('a'), b: this.decide('b') };
+        return { a: this.decide('a', ourTurnNow('a')), b: this.decide('b', ourTurnNow('b')) };
     }
 
     /** Branch 1.1.4 — is this position missing a move we have already been shown?
@@ -534,11 +711,17 @@ export class ReconnectController {
         }
     }
 
-    private decide(board: BugBoardName): BoardDecision {
+    private decide(board: BugBoardName, ourTurn: boolean): BoardDecision {
         const rolledBack = this.rolledBack[board] === true;
 
         if (this.finished) {
-            return { playable: false, because: '1.1.1 the game has a result', rolledBack };
+            return {
+                playable: false,
+                because: '1.1.1 the game has a result',
+                rolledBack,
+                replay: undefined,
+                releasePremove: false,
+            };
         }
 
         /* A BOARD WITH A MOVE STILL WAITING MUST NOT INVITE ANOTHER.
@@ -560,6 +743,11 @@ export class ReconnectController {
                 playable: false,
                 because: '1.2.3 a move of ours is still waiting on this board',
                 rolledBack,
+                // Shown again on top of the snapshot, so the reader's own move does not blink.
+                replay: pendingMove(this.gameId, board),
+                // NOT while a move of ours is unsent, whatever the position says about the turn:
+                // releasing here would put a second move in flight behind the first.
+                releasePremove: false,
             };
         }
 
@@ -579,12 +767,23 @@ export class ReconnectController {
                 playable: true,
                 because: '1.1.4 the position is older than one we were shown; a move has been lost',
                 rolledBack,
+                replay: undefined,
+                // The board is the reader's again, so an armed premove is theirs to fire too.
+                releasePremove: ourTurn,
             };
         }
 
         /* 1.1.2, 1.1.3 and 1.2.1 all arrive here: nothing of ours is waiting, or the position
          * already contains the move that was. Either way the server's state is the truth and the
          * board is the reader's to play. */
-        return { playable: true, because: '1.1/1.2.1 in step with the server', rolledBack };
+        return {
+            playable: true,
+            because: '1.1/1.2.1 in step with the server',
+            rolledBack,
+            replay: undefined,
+            // THE CASE THIS EXISTS FOR: we were away, the opponent replied, and the snapshot that
+            // greets us is already our turn. The premove was armed for exactly this and goes now.
+            releasePremove: ourTurn,
+        };
     }
 }

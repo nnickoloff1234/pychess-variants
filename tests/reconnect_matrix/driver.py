@@ -257,6 +257,30 @@ def _check_our_move_played(before, after, ctx):
     return uci in record, f"our move {uci}; server record {record}"
 
 
+def _check_premove_fired(before, after, ctx):
+    """Did an armed premove survive the break AND get sent when the turn came back?
+
+    Asked of the SERVER, like `_check_our_move_played`: what is being tested is whether the move
+    left the client at all, and only the server can say. A premove that chessground discarded looks
+    identical from the DOM to one that was never armed.
+
+    THIS IS THE CHECK N6 WAS MISSING. The scenario armed a premove across a reconnection from the
+    start and asserted only the cache, the invariant and the opponent's move — so the premove could
+    have been silently dropped and every check would still have passed.
+    """
+    uci = ctx.get("premove")
+    if uci is None:
+        return None, "no premove was armed in this scenario"
+    record = ctx.get("server_moves", [])
+
+    # WHICH HALF FAILED. A premove that never armed and one that armed and was then discarded are
+    # the same absence in the server's record, and they have entirely different causes — so where
+    # the scenario bothered to look, say which it was.
+    armed = ctx.get("premove_armed")
+    where = "" if armed is None else f"; armed at the time={armed}"
+    return uci in record, f"premove {uci}; server record {record}{where}"
+
+
 def _check_invariant(before, after, ctx):
     inv = after.get("invariant")
     if inv is None:
@@ -293,6 +317,49 @@ def _check_opp_move_seen(before, after, ctx):
     ours_on_top = bool(last) and later is not None and later[:2] in last and later[2:4] in last
     return (theirs_is_last or ours_on_top), (
         f"their {uci} is in the record; our board shows {last}; server's last there is {later}"
+    )
+
+
+def _check_clock_runs_for_side_to_move(before, after, ctx):
+    """Is the clock that is TICKING the one the server has on the clock?
+
+    WHAT `invariant` CANNOT SEE, and why this exists. `PB.invariant()` asserts that each board has
+    exactly one clock running and that the two boards' totals agree. Start the WRONG seat's clock on
+    a board and every one of those still holds: one clock runs, the totals are untouched. The player
+    watches their opponent's time drain while their own sits still and the server charges them.
+
+    THE DEFECT THIS IS THE REGRESSION TEST FOR, 2026-09-07: replaying our own unconfirmed move
+    through `pushMove()` advanced ffish and with it `turnColor`, which `updateClocks()` reads a few
+    lines later. Q1 caught it, but through `playable` — "selection refused" — which is a symptom two
+    steps removed from the disease. Nothing named the clock, so a clock regression that did not also
+    shut the board would have gone straight through.
+
+    Skipped rather than failed once the game is over: no clock runs then, and an evicted game has no
+    turn to ask about.
+    """
+    turn = ctx.get("server_turn")
+    seats = (after.get("clocks") or {}).get("seats")
+    if turn is None or seats is None:
+        return None, "no live game to ask, or no clock reading"
+    if after.get("gameOver"):
+        return None, "the game is over; no clock should be running"
+
+    wrong = []
+    for board in ("a", "b"):
+        # `color` is the pyffish index: 0 white, 1 black.
+        to_move = f"{board}{'w' if turn[board] == 0 else 'b'}"
+        waiting = f"{board}{'b' if turn[board] == 0 else 'w'}"
+        if to_move not in seats or waiting not in seats:
+            return None, "clock reading is missing a seat"
+        if not seats[to_move]["run"]:
+            wrong.append(f"{to_move} should be running and is not")
+        if seats[waiting]["run"]:
+            wrong.append(f"{waiting} is running but is not on the clock")
+
+    shown = {k: ("run" if v["run"] else "stopped") for k, v in seats.items()}
+    expected = {b: ("white" if turn[b] == 0 else "black") for b in ("a", "b")}
+    return not wrong, (
+        f"server to move {expected}; clocks {shown}" + ("; " + "; ".join(wrong) if wrong else "")
     )
 
 
@@ -603,6 +670,8 @@ CHECKS = {
     "server_kept_the_game": _check_server_kept_the_game,
     "no_invalid_move": _check_no_invalid_move,
     "one_move_lost_at_most": _check_one_move_lost_at_most,
+    "premove_fired": _check_premove_fired,
+    "clock_runs_for_side_to_move": _check_clock_runs_for_side_to_move,
     "playable_gate_held": _check_playable_gate_held,
     "client_matches_server": _check_client_matches_server,
     "cache_empty": _check_cache_empty,
@@ -735,9 +804,79 @@ async def stage(name, cam, par, game_id, ctx):
         await go_offline(cam)
         await cam.wait_for_timeout(500)
         await live.play(cam, "#mainboard", "g1f3")  # not our turn: arms a premove
+        ctx["premove"] = "g1f3"
         await _opp_move_on_a(par, ctx, "e7e5")
         ctx.pop("our_move", None)
         await go_online(cam)
+        # The snapshot that greets us already contains the reply, so it is our turn the moment it
+        # lands: branch 1.1.3 releases the premove off that message, with no further move needed.
+        await cam.wait_for_timeout(2500)
+
+    elif name == "premove_scrolled_back":
+        """A premove armed, then the reader scrolls back to examine the game while they wait.
+
+        No break of any kind — this needs no disconnection at all, which is what makes it the most
+        ordinary of these scenarios and the easiest to hit. The opponent's move arrives while the
+        reader is looking at an earlier ply; the premove must still be sent, and the reader returned
+        to the live position to see it land.
+
+        Before 2026-09-07 it was silently destroyed: the board is not repainted under a scrolled-back
+        reader and `renderPly` has cleared its dests, so `playPremove` could not play it and
+        discarded it anyway.
+        """
+        await _our_move_on_a(cam, ctx, "e2e4")
+        await _opp_move_on_a(par, ctx, "e7e5")
+        await _our_move_on_a(cam, ctx, "d2d4")
+        # Not our turn now, so this arms rather than plays.
+        await live.play(cam, "#mainboard", "g1f3")
+        ctx["premove"] = "g1f3"
+        ctx["premove_armed"] = await cam.evaluate(
+            "() => document.querySelectorAll('#mainboard .current-premove').length > 0"
+        )
+        # Scroll away to examine the game, the thing a player does while waiting. Arrow keys, the
+        # way R2 does it — Mousetrap ignores keys typed into an input, so focus leaves the chat box
+        # first. NOT `PB.goPly`, which does not exist: a probe for it would have quietly done
+        # nothing and left the reader at the end, testing the case that already worked.
+        await cam.evaluate("() => { const a = document.activeElement; if (a && a.blur) a.blur(); }")
+        await cam.keyboard.press("ArrowLeft")
+        await cam.keyboard.press("ArrowLeft")
+        await cam.wait_for_timeout(400)
+        ctx["scrolled_back_to"] = await cam.evaluate(OCCUPIED, "#mainboard")
+
+        await _opp_move_on_a(par, ctx, "d7d5")
+        await cam.wait_for_timeout(2500)
+        ctx["showing_after"] = await cam.evaluate(OCCUPIED, "#mainboard")
+        ctx.pop("our_move", None)
+
+    elif name == "premove_over_unacknowledged_move":
+        """Branch 1.2.1 with a premove behind it — the harder of the two shapes.
+
+        Our move reaches the server but the confirmation never reaches US, so on reconnect the
+        snapshot contains our move AND the opponent's reply. The pending record has to be cleared by
+        the history rather than by a confirmation, and the premove has to fire off the same message.
+
+        The move is held server-side only long enough to arm the premove behind an unacknowledged
+        move, which is the state that cannot be reached once the confirmation has landed.
+        """
+        hold = ctx["hold"]
+        await _our_move_on_a(cam, ctx, "e2e4")
+        ctx["server_held_the_move"] = await hold.wait_until_holding()
+        # Armed while our own move is still unacknowledged: the board is shut, and whether a premove
+        # can be armed at all on a shut board is part of what this measures.
+        await live.play(cam, "#mainboard", "g1f3")
+        ctx["premove"] = "g1f3"
+        # READ FROM THE DOM, not from PB — there is no PB.premove, and a probe for one would have
+        # returned false for ever and quietly said "no premove was armed".  chessground marks the
+        # two squares of an armed premove with `current-premove`.
+        ctx["premove_armed"] = await cam.evaluate(
+            "() => document.querySelectorAll('#mainboard .current-premove').length > 0"
+        )
+        await go_offline(cam)
+        hold.release()
+        await _opp_move_on_a(par, ctx, "e7e5")
+        await cam.wait_for_timeout(500)
+        await go_online(cam)
+        await cam.wait_for_timeout(2500)
 
     elif name == "reload_after_opp_moves":
         await _our_move_on_a(cam, ctx, "e2e4")

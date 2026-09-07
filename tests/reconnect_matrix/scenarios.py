@@ -52,7 +52,7 @@ SCENARIOS = [
         "reconnect, nothing happened",
         "B1 . U0 . O0 . X0",
         "offline_then_online",
-        ("cache_empty", "invariant", "playable"),
+        ("cache_empty", "invariant", "clock_runs_for_side_to_move", "playable"),
     ),
     Scenario(
         "N2",
@@ -60,7 +60,7 @@ SCENARIOS = [
         "reconnect, the other board moved",
         "B1 . U0 . O0 . X1",
         "offline_other_board_moves_online",
-        ("cache_empty", "invariant", "ply_advanced"),
+        ("cache_empty", "invariant", "clock_runs_for_side_to_move", "ply_advanced"),
     ),
     Scenario(
         "N3",
@@ -68,7 +68,13 @@ SCENARIOS = [
         "reconnect, a capture on the other board fed our pocket",
         "B1 . U0 . O0 . X2",
         "offline_other_board_capture_online",
-        ("server_pocket_fed", "pocket_gained", "cache_empty", "invariant"),
+        (
+            "server_pocket_fed",
+            "pocket_gained",
+            "cache_empty",
+            "invariant",
+            "clock_runs_for_side_to_move",
+        ),
         params={"windows": 3},
         notes="unblocked 2026-09-06 with a THIRD window. Only our teammate can put a piece in our "
         "pocket, and the two-window seating puts our teammate in our own browser — so switching us "
@@ -86,6 +92,7 @@ SCENARIOS = [
         (
             "cache_empty",
             "invariant",
+            "clock_runs_for_side_to_move",
             "client_matches_server",
             "opp_move_seen",
             "playable",
@@ -99,7 +106,14 @@ SCENARIOS = [
         "as N4, and the other board moved too",
         "B1 . U0 . O3 . X1",
         "offline_opp_and_other_online",
-        ("cache_empty", "invariant", "client_matches_server", "opp_move_seen", "ply_advanced"),
+        (
+            "cache_empty",
+            "invariant",
+            "clock_runs_for_side_to_move",
+            "client_matches_server",
+            "opp_move_seen",
+            "ply_advanced",
+        ),
     ),
     Scenario(
         "N6",
@@ -107,8 +121,41 @@ SCENARIOS = [
         "as N4, with a premove armed",
         "B1 . U2 . O3 . X0",
         "offline_premove_opp_moves_online",
-        ("cache_empty", "invariant", "opp_move_seen"),
-        notes="S3's shape; S3 found a 222s clock error here and its cause was never established",
+        (
+            "cache_empty",
+            "invariant",
+            "clock_runs_for_side_to_move",
+            "opp_move_seen",
+            "premove_fired",
+        ),
+        notes="S3's shape; S3 found a 222s clock error here and its cause was never established. "
+        "`premove_fired` was added 2026-09-07: until then this scenario armed a premove across a "
+        "reconnection and asserted only the cache, the invariant and the opponent's move, so the "
+        "premove could have been silently discarded with every check still green. The snapshot "
+        "that greets the reconnection already holds the opponent's reply, so branch 1.1.3 releases "
+        "the premove off that one message.",
+    ),
+    Scenario(
+        "N9",
+        "N",
+        "a premove armed BEHIND a move the server has not acknowledged",
+        "B1 . U1 held . premove . O1 . X0",
+        "premove_over_unacknowledged_move",
+        (
+            "cache_empty",
+            "our_move_played",
+            "premove_fired",
+            "invariant",
+            "clock_runs_for_side_to_move",
+        ),
+        notes="the other shape of the same question, and the harder one: N6 arms its premove after "
+        "our move was acknowledged, this one arms it while our move is still in flight and the "
+        "board is therefore SHUT. On reconnect the snapshot carries our move and the reply "
+        "together, so the pending record is cleared by the history (1.2.1) rather than by a "
+        "confirmation, and the premove is released off the same message. Whether a premove can be "
+        "armed on a shut board at all is part of what this measures - `premove_armed` is recorded "
+        "either way, and if it comes back false the scenario is telling us the gate stops premoves "
+        "too, which is a finding rather than a failure.",
     ),
     Scenario(
         "N7",
@@ -126,7 +173,14 @@ SCENARIOS = [
         "as N4, but the page was reloaded",
         "B3 . — . O3 . X1",
         "reload_after_opp_moves",
-        ("cache_empty", "invariant", "client_matches_server", "opp_move_seen", "playable"),
+        (
+            "cache_empty",
+            "invariant",
+            "clock_runs_for_side_to_move",
+            "client_matches_server",
+            "opp_move_seen",
+            "playable",
+        ),
     ),
     # ---- Q: a move of ours was queued ---------------------------------------------------------
     Scenario(
@@ -135,7 +189,14 @@ SCENARIOS = [
         "queued a move offline, nothing else happened",
         "B1 . U1 . O0 . X0",
         "offline_move_online",
-        ("cache_empty", "our_move_played", "invariant", "client_matches_server", "playable"),
+        (
+            "cache_empty",
+            "our_move_played",
+            "invariant",
+            "clock_runs_for_side_to_move",
+            "client_matches_server",
+            "playable",
+        ),
     ),
     Scenario(
         "Q2",
@@ -143,7 +204,13 @@ SCENARIOS = [
         "our move arrived, the confirmation was lost",
         "B1 . U1 . O1 . X0",
         "move_lands_then_break",
-        ("cache_empty", "our_move_played", "invariant", "client_matches_server"),
+        (
+            "cache_empty",
+            "our_move_played",
+            "invariant",
+            "clock_runs_for_side_to_move",
+            "client_matches_server",
+        ),
         notes="the review's sequence, steps 1-9",
     ),
     Scenario(
@@ -152,7 +219,14 @@ SCENARIOS = [
         "our move arrived and the opponent replied",
         "B1 . U1 . O2 . X0",
         "move_lands_opp_replies_then_online",
-        ("cache_empty", "our_move_played", "opp_move_seen", "invariant", "client_matches_server"),
+        (
+            "cache_empty",
+            "our_move_played",
+            "opp_move_seen",
+            "invariant",
+            "clock_runs_for_side_to_move",
+            "client_matches_server",
+        ),
     ),
     Scenario(
         "Q4",
@@ -160,7 +234,14 @@ SCENARIOS = [
         "queued a move; the other board moved meanwhile",
         "B1 . U1 . O0 . X1",
         "offline_move_other_board_online",
-        ("cache_empty", "our_move_played", "invariant", "client_matches_server", "ply_advanced"),
+        (
+            "cache_empty",
+            "our_move_played",
+            "invariant",
+            "clock_runs_for_side_to_move",
+            "client_matches_server",
+            "ply_advanced",
+        ),
     ),
     Scenario(
         "Q6",
@@ -168,7 +249,13 @@ SCENARIOS = [
         "queued move, opponent replied, premove behind it",
         "B1 . U3 . O2 . X0",
         "offline_move_premove_online",
-        ("cache_empty", "our_move_played", "invariant", "client_matches_server"),
+        (
+            "cache_empty",
+            "our_move_played",
+            "invariant",
+            "clock_runs_for_side_to_move",
+            "client_matches_server",
+        ),
         notes="S5's shape; S5 found a severe bug here, since fixed",
     ),
     Scenario(
@@ -177,7 +264,13 @@ SCENARIOS = [
         "RELOAD holding a queued move the server already has",
         "B3 . queued before the break . O1 . X0",
         "move_lands_then_reload",
-        ("cache_empty", "our_move_played", "invariant", "client_matches_server"),
+        (
+            "cache_empty",
+            "our_move_played",
+            "invariant",
+            "clock_runs_for_side_to_move",
+            "client_matches_server",
+        ),
         notes="`unknown`, resolved: the reviewer's case. The cache must clear with no confirmation",
     ),
     Scenario(
@@ -186,7 +279,13 @@ SCENARIOS = [
         "RELOAD holding a queued move the server never got",
         "B3 . queued before the break . O0 . X0",
         "offline_move_then_reload",
-        ("cache_empty", "our_move_played", "invariant", "client_matches_server"),
+        (
+            "cache_empty",
+            "our_move_played",
+            "invariant",
+            "clock_runs_for_side_to_move",
+            "client_matches_server",
+        ),
         notes="`unknown`, unresolved: the resend is the only way the move survives",
     ),
     Scenario(
@@ -195,7 +294,7 @@ SCENARIOS = [
         "both of us queued, the opponent returns after us",
         "B1 . U1 . O0 . X0 . C2",
         "both_offline_we_return_first",
-        ("cache_empty", "invariant"),
+        ("cache_empty", "invariant", "clock_runs_for_side_to_move"),
         notes="S7 ran the premove orders; two queued moves on one board is impossible by rule 4",
     ),
     Scenario(
@@ -204,7 +303,7 @@ SCENARIOS = [
         "simul: a queued move on each board",
         "B1 . U1 both boards . O0 . X0",
         "simul_two_queued",
-        ("both_queued_moves_played", "cache_empty", "invariant"),
+        ("both_queued_moves_played", "cache_empty", "invariant", "clock_runs_for_side_to_move"),
         notes="unblocked 2026-09-06: the blocked note was wrong. The camera ALREADY holds both "
         "seats of team 1 (board A white, board B black), which is the simul seating this needs — "
         "board B just has to be handed its turn first. The only scenario where the cache holds two "
@@ -223,6 +322,22 @@ SCENARIOS = [
         "with a server-side delay so the window is deterministic rather than a coin toss.",
     ),
     # ---- T: terminal ---------------------------------------------------------------------------
+    Scenario(
+        "R4",
+        "R",
+        "a premove armed, then the reader scrolls back while waiting",
+        "no break . premove armed . the cursor moves . O1",
+        "premove_scrolled_back",
+        ("premove_fired", "invariant", "clock_runs_for_side_to_move"),
+        notes="NO BREAK OF ANY KIND, which is what makes this the most ordinary of these scenarios "
+        "and the easiest to hit: arm a premove, browse the game while you wait, and before "
+        "2026-09-07 the premove was silently destroyed. The board is not repainted under a "
+        "scrolled-back reader and `renderPly` has cleared its dests, so chessground's `playPremove` "
+        "could not play it - and `unsetPremove()` runs outside that `if`, so it was discarded "
+        "anyway. Nothing was sent and the reader's clock kept running. The reader is now returned "
+        "to the live position first, which is what arming a premove asks for; R2 and R3 still hold, "
+        "because they protect a reader who is NOT trying to move.",
+    ),
     Scenario(
         "R1",
         "R",
@@ -243,7 +358,7 @@ SCENARIOS = [
         "the reader scrolls back and a move arrives",
         "no break . the cursor moves . O1",
         "scroll_back_then_opponent_moves",
-        ("no_false_gap_warning", "reader_not_yanked", "invariant"),
+        ("no_false_gap_warning", "reader_not_yanked", "invariant", "clock_runs_for_side_to_move"),
         notes="`this.ply` is the reader's CURSOR — `goPly()` writes it — and `place` classifies "
         "arriving messages against it, so a reader looking at an earlier ply makes the next move "
         "look further ahead than it is. Not applying it is right; calling it a missing move is "
@@ -256,7 +371,7 @@ SCENARIOS = [
         "a SPECTATOR scrolls back and a move arrives",
         "no break . a watcher's cursor moves . O1",
         "spectator_scrolls_back_then_a_move_arrives",
-        ("spectator_not_yanked", "invariant"),
+        ("spectator_not_yanked", "invariant", "clock_runs_for_side_to_move"),
         params={"spectator": True},
         notes="R2's question asked of a spectator, who takes a different render path entirely — "
         "`updateBoardsAndClocksSpectors`, gated on a bare `latestPly`. The player path gained a "
@@ -293,6 +408,7 @@ SCENARIOS = [
             "no_silent_rollback",
             "client_matches_server",
             "invariant",
+            "clock_runs_for_side_to_move",
         ),
         notes="unblocked 2026-09-06: the players survive a restart (test-users-survive-restart) "
         "and so does the game (bughouse-persist-moves-as-played)",
@@ -303,7 +419,13 @@ SCENARIOS = [
         "the restart lost the ply it never wrote",
         "B4 . the accepted risk",
         "server_restart_loses_last_ply",
-        ("server_kept_the_game", "no_silent_rollback", "no_invalid_move", "invariant"),
+        (
+            "server_kept_the_game",
+            "no_silent_rollback",
+            "no_invalid_move",
+            "invariant",
+            "clock_runs_for_side_to_move",
+        ),
         params={"drop_writes_after": 2},
         notes="THE ACCEPTED RISK of per-ply persistence, staged by dropping the last write. The "
         "server comes back one ply BEHIND the clients — the shape branch 1 had no name for, since "
@@ -323,6 +445,7 @@ SCENARIOS = [
             "rollback_damage_is_bounded",
             "swallowed_move_is_recovered",
             "invariant",
+            "clock_runs_for_side_to_move",
         ),
         params={"drop_writes_after": 2},
         notes="T5 stops at the rollback. This asks what happens next, because `latestPly` is false "

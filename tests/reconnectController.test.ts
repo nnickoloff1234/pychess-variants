@@ -179,6 +179,211 @@ describe('a connection is established, a move was waiting to be sent', () => {
         const reloaded = new ReconnectController(GAME);
         expect(reloaded.socketOpened().movesQueued.map(m => m.move)).toEqual(['e2e4']);
     });
+
+    // 1.2.3 — the showing half. The snapshot cannot carry our move, so the decision names it and
+    // the caller puts it back; without this the reader watches their own move vanish and return.
+    test('1.2.3  the waiting move is named for replay, so it does not vanish', () => {
+        const ctrl = new ReconnectController(GAME);
+        ctrl.moveSent(move('a', 'e2e4'));
+        const decision = ctrl.snapshot({ a: [], b: [] }, anything);
+        expect(decision.a.replay).toBe('e2e4');
+        expect(decision.a.playable).toBe(false); // shown again, and still not ours to play into
+        expect(decision.b.replay).toBeUndefined();
+    });
+
+    // 1.2.3 from a reloaded page: the durable record is enough to show the move again, which is
+    // what makes a refresh mid-move look like nothing happened.
+    test('1.2.3  a reloaded page replays the move storage remembers', () => {
+        new ReconnectController(GAME).moveSent(move('a', 'e2e4'));
+        const reloaded = new ReconnectController(GAME);
+        expect(reloaded.snapshot({ a: [], b: [] }, anything).a.replay).toBe('e2e4');
+    });
+
+    // 1.2.2 — nothing is replayed for a move the position cannot take. This is the pairing that
+    // makes the replay safe: `replay` is only ever a move that is legal in the position that
+    // arrived, because `reconcile()` has already dropped the ones that are not.
+    test('1.2.2  a move the position cannot accept is not replayed', () => {
+        const ctrl = new ReconnectController(GAME);
+        ctrl.moveSent(move('a', 'e2e4'));
+        const decision = ctrl.snapshot({ a: ['d2d4'] }, nothing);
+        expect(decision.a.replay).toBeUndefined();
+        expect(decision.a.playable).toBe(true);
+    });
+
+    // 1.2.1 — nor for one the server already has: it is in the position that just arrived.
+    test('1.2.1  a move the server already holds is not replayed', () => {
+        const ctrl = new ReconnectController(GAME);
+        ctrl.moveSent(move('a', 'e2e4'));
+        expect(ctrl.snapshot({ a: ['e2e4'], b: [] }, anything).a.replay).toBeUndefined();
+    });
+
+    // 1.1.1 — and not into a finished game, where nothing of ours is waiting any more.
+    test('1.1.1  a finished game replays nothing', () => {
+        const ctrl = new ReconnectController(GAME);
+        ctrl.moveSent(move('a', 'e2e4'));
+        ctrl.gameEnded();
+        expect(ctrl.snapshot({ a: [], b: [] }, anything).a.replay).toBeUndefined();
+    });
+
+    /* 1.2.2's ORDERING, asserted as the contract it is.
+     *
+     * The controller cannot see a board, so it cannot enforce which position the caller consults —
+     * it can only be given the answer. What this pins is that the answer is USED: a callback that
+     * says "no" must drop the move and clear storage, because that is the whole of 1.2.3.4's
+     * recovery. The resync arrives on a socket that never broke, so there is no later reconnection
+     * to try again on; if this message does not drop the move, nothing ever will.
+     *
+     * The other half of the contract — that the caller applies the message before asking — lives in
+     * `roundCtrl.updateBothBoardsAndClocksOnFullBoardMsg`, and scenario Q11 is what holds it. */
+    test('1.2.3.4  a refusal seen on a live socket strands nothing', () => {
+        const ctrl = new ReconnectController(GAME);
+        ctrl.moveSent(move('a', 'e2e4'));
+
+        // The server has handed back a position our move does not fit. No reconnection follows.
+        const decision = ctrl.snapshot({ a: ['d2d4'] }, nothing);
+
+        expect(decision.a.replay).toBeUndefined(); // nothing is shown that cannot be played
+        expect(decision.a.playable).toBe(true); // the board comes back to the reader
+        expect(ctrl.waiting('a')).toBe(false); // and nothing is left waiting
+        expect(stored()).toBeNull(); // so no later reconnection resends it
+    });
+});
+
+describe('a premove waiting behind a reconnection', () => {
+    /* Decided 2026-09-07: a premove SURVIVES a full board message. It is an intention about a
+     * position that has not arrived, not a copy of anything the server holds, so a snapshot has
+     * nothing to restate about it. What a snapshot decides is only whether to RELEASE it.
+     *
+     * `ourTurn` is the fact the controller cannot hold — it has no board — so these pass it in the
+     * way `roundCtrl` does, reading the position the message just applied. */
+    const ourTurn = () => true;
+    const theirTurn = () => false;
+
+    // 1.1.3 — THE CASE A PREMOVE IS FOR. We were away, the opponent replied, and the first thing we
+    // are told is already our move.
+    test('1.1.3  away, the opponent replied: the premove goes as the snapshot lands', () => {
+        const ctrl = new ReconnectController(GAME);
+        const decision = ctrl.snapshot({ a: ['e2e4', 'e7e5'], b: [] }, anything, ourTurn);
+        expect(decision.a.releasePremove).toBe(true);
+        expect(decision.a.playable).toBe(true);
+    });
+
+    // 1.1.3 — the same snapshot when the opponent has NOT replied. Nothing fires, and nothing is
+    // thrown away either: 2.1.1 releases it when their move arrives.
+    test('1.1.3  away, nobody replied: the premove waits rather than fires', () => {
+        const ctrl = new ReconnectController(GAME);
+        const decision = ctrl.snapshot({ a: ['e2e4'], b: [] }, anything, theirTurn);
+        expect(decision.a.releasePremove).toBe(false);
+        expect(ctrl.moveArrived('a', 'e7e5', false, 'next').releasePremove).toBe(true);
+    });
+
+    // 1.2.1 — our move reached the server but we never heard; the opponent has since replied. The
+    // move is forgotten AND the premove goes, both off the one message.
+    test('1.2.1  our unacknowledged move landed and was answered: forget it, fire the premove', () => {
+        const ctrl = new ReconnectController(GAME);
+        ctrl.moveSent(move('a', 'e2e4'));
+        const decision = ctrl.snapshot({ a: ['e2e4', 'e7e5'], b: [] }, anything, ourTurn);
+        expect(ctrl.waiting('a')).toBe(false);
+        expect(decision.a.releasePremove).toBe(true);
+    });
+
+    // 1.2.1 — our move landed, nobody has replied. Our own move landing does not make it our turn.
+    test('1.2.1  our unacknowledged move landed and stands alone: the premove waits', () => {
+        const ctrl = new ReconnectController(GAME);
+        ctrl.moveSent(move('a', 'e2e4'));
+        const decision = ctrl.snapshot({ a: ['e2e4'], b: [] }, anything, theirTurn);
+        expect(ctrl.waiting('a')).toBe(false);
+        expect(decision.a.releasePremove).toBe(false);
+    });
+
+    /* 1.2.3 — THE ONE THAT MUST NOT FIRE, and the position lies about it.
+     *
+     * Our move never reached the server, so the snapshot predates it and says "your turn" quite
+     * truthfully. Releasing into that would put a second move in flight behind the first, which is
+     * the overwrite race the shut board exists to prevent. Only the controller knows. */
+    test('1.2.3  our move is still unsent: the premove is held even though the position says our turn', () => {
+        const ctrl = new ReconnectController(GAME);
+        ctrl.moveSent(move('a', 'e2e4'));
+        const decision = ctrl.snapshot({ a: [], b: [] }, anything, ourTurn);
+        expect(decision.a.releasePremove).toBe(false);
+        expect(decision.a.playable).toBe(false);
+        expect(decision.a.replay).toBe('e2e4'); // shown again, but not played into
+    });
+
+    // 1.2.3 then 2.2 then 2.1.1 — the whole journey for a move that had to be resent. The premove
+    // is not released by our own move coming back; it waits for the opponent's.
+    test('1.2.3 -> 2.2 -> 2.1.1  a resent move does not fire the premove; the reply does', () => {
+        const ctrl = new ReconnectController(GAME);
+        ctrl.moveSent(move('a', 'e2e4'));
+        expect(ctrl.snapshot({ a: [], b: [] }, anything, ourTurn).a.releasePremove).toBe(false);
+
+        // Our own move comes back from the server. Still not our turn.
+        expect(ctrl.ourMoveCameBack('a', 'e2e4').releasePremove).toBe(false);
+        // The opponent replies. Now it is.
+        expect(ctrl.moveArrived('a', 'e7e5', false, 'next').releasePremove).toBe(true);
+    });
+
+    /* 1.1.2 — nothing changed while we were away, and a premove still goes.
+     *
+     * It reads oddly until you place it: the opponent's move reached us BEFORE the break, so there
+     * is genuinely nothing new in the snapshot, and the premove armed behind that move has been
+     * waiting all along. The branch with the least happening in it still has an answer. */
+    test('1.1.2  nothing changed, but it is our turn: the waiting premove goes', () => {
+        const ctrl = new ReconnectController(GAME);
+        const decision = ctrl.snapshot({ a: ['e2e4', 'e7e5'], b: [] }, anything, ourTurn);
+        expect(decision.a.releasePremove).toBe(true);
+    });
+
+    // 1.2.2 — the move is dropped, so nothing of ours is in flight and the premove is released on
+    // the same terms as 1.1. The board coming back and the premove coming back are one decision.
+    test('1.2.2  the dropped move releases the board and the premove together', () => {
+        const ctrl = new ReconnectController(GAME);
+        ctrl.moveSent(move('a', 'e2e4'));
+        const decision = ctrl.snapshot({ a: ['d2d4'] }, nothing, ourTurn);
+        expect(ctrl.waiting('a')).toBe(false);
+        expect(decision.a.playable).toBe(true);
+        expect(decision.a.releasePremove).toBe(true);
+    });
+
+    // 2.1.1 — branch 2 asks no turn question, and that is not an oversight: their move IS the proof
+    // that it is our turn. Asserted so the asymmetry with branch 1 is deliberate rather than noticed.
+    test('2.1.1  a single move releases a premove with no turn check', () => {
+        const ctrl = new ReconnectController(GAME);
+        expect(ctrl.moveArrived('a', 'e7e5', false, 'next').releasePremove).toBe(true);
+    });
+
+    // 1.1.1 — a finished game releases nothing, whatever the turn says.
+    test('1.1.1  the game ended while we were away: no premove goes', () => {
+        const ctrl = new ReconnectController(GAME);
+        ctrl.gameEnded();
+        expect(ctrl.snapshot({ a: ['e2e4', 'e7e5'], b: [] }, anything, ourTurn).a.releasePremove).toBe(false);
+    });
+
+    // 1.1.4 — a rollback hands the board back, so it hands the premove back too.
+    test('1.1.4  a rolled-back position still releases a premove when it is our turn', () => {
+        const ctrl = new ReconnectController(GAME);
+        ctrl.snapshot({ a: ['e2e4', 'e7e5'], b: [] }, anything, theirTurn); // this is what we were shown
+        const decision = ctrl.snapshot({ a: ['e2e4'], b: [] }, anything, ourTurn); // the reply is gone
+        expect(decision.a.rolledBack).toBe(true);
+        expect(decision.a.playable).toBe(true);
+        expect(decision.a.releasePremove).toBe(true);
+    });
+
+    // The boards are independent here as everywhere: a premove on one is not released by the other.
+    test('the other board’s turn does not release this board’s premove', () => {
+        const ctrl = new ReconnectController(GAME);
+        const decision = ctrl.snapshot({ a: [], b: [] }, anything, board => board === 'b');
+        expect(decision.a.releasePremove).toBe(false);
+        expect(decision.b.releasePremove).toBe(true);
+    });
+
+    // 2.2.1 / 2.2.2 — our own move coming back is never a reason to fire. Asserted because the
+    // decision says so in one place and nothing was checking it.
+    test('2.2  our own move coming back never releases a premove', () => {
+        const ctrl = new ReconnectController(GAME);
+        ctrl.moveSent(move('a', 'e2e4'));
+        expect(ctrl.ourMoveCameBack('a', 'e2e4').releasePremove).toBe(false);
+    });
 });
 
 describe('the two boards are decided separately', () => {
@@ -229,6 +434,9 @@ describe('one move arrives', () => {
     test('2.1.3  further ahead than the next move: reported, and not applied', () => {
         const ctrl = new ReconnectController(GAME);
         const d = ctrl.moveArrived('a', 'g8f6', false, 'ahead');
+        // No premove either: a move is missing in front of us, so we do not know the position one
+        // would land in. The only branch under 2.1 that does release is 2.1.1.
+        expect(d.releasePremove).toBe(false);
         expect(d.movesMissing).toBe(true);
         // Applying it would skip a ply the reader was never shown.
         expect(d.applyPosition).toBe(false);

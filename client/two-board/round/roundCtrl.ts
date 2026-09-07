@@ -1,5 +1,6 @@
 import * as Mousetrap from 'mousetrap';
 import * as cg from 'chessgroundx/types';
+import * as util from 'chessgroundx/util';
 
 import { _ } from '../../i18n';
 import { RoundSeatView, RoundSeatViews } from './roundSeatView';
@@ -9,7 +10,7 @@ import { Clock } from '../../clock';
 import { RoundControllerBughouseSocket } from '../socket/sockets';
 import { MovePlace, ReconnectController } from '../socket/reconnectController';
 import { ChatController, chatMessage, chatSender } from '../../chat';
-import { updateMovelist, updateResult, selectMove, showPly, setCursor, isAtEnd, MovelistView } from '../common/movelist';
+import { MovelistView } from '../common/movelist';
 import { GameInfoView } from '../common/gameInfo';
 import { Clocks, MsgBoard, MsgGameEnd, MsgMove, MsgNewGame, MsgUserConnected, Step, StepChat } from '../../messages';
 import {
@@ -281,10 +282,10 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
             event.stopPropagation();
         };
 
-        Mousetrap.bind('left', () => selectMove(this, this.ply - 1));
-        Mousetrap.bind('right', () => selectMove(this, this.ply + 1));
-        Mousetrap.bind('up', () => selectMove(this, 0));
-        Mousetrap.bind('down', () => selectMove(this, this.steps.length - 1));
+        Mousetrap.bind('left', () => this.movelistView.selectMove(this, this.movelistView.ply() - 1));
+        Mousetrap.bind('right', () => this.movelistView.selectMove(this, this.movelistView.ply() + 1));
+        Mousetrap.bind('up', () => this.movelistView.selectMove(this, 0));
+        Mousetrap.bind('down', () => this.movelistView.selectMove(this, this.steps.length - 1));
         Mousetrap.bind('f', () => this.flipBoards());
         Mousetrap.bind('?', () => this.helpDialog());
 
@@ -528,8 +529,8 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
             move: move,
             clocks: msgClocks,
             clocksB: msgClocksB,
-            // THE GAME'S NEXT PLY, not the reader's cursor. `this.ply` is where the move list is
-            // pointing — `goPly()` writes it — and `steps.length` is how many plies we hold, so
+            // THE GAME'S NEXT PLY, not the reader's cursor. `movelistView.ply()` is where the
+            // list is pointing — `goPly()` moves it — and `steps.length` is how many plies we hold, so
             // the next one is `steps.length`. They agree only while the reader stays at the end,
             // and a move cannot be made from a scrolled-back position anyway, so this was never
             // observed wrong; it was still asking the wrong object, and one rollback left the
@@ -640,7 +641,7 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
     };
     //
     private analysis = (home: string) => {
-        window.location.assign(home + '/' + this.gameId + '?ply=' + this.ply.toString());
+        window.location.assign(home + '/' + this.gameId + '?ply=' + this.movelistView.ply().toString());
     };
 
     // THE RESULT, in words, as a chat line — how the game ended and who won it.
@@ -710,8 +711,8 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
             if (this.result !== '*' && !this.spectator && !this.finishedGame) {
                 sound.gameEndSoundBughouse(msg.result, this.seats.myTeam().teamNumber);
             }
-            selectMove(this, this.steps.length - 1); // show final position (also important to disable cg's movable)
-            updateResult(this);
+            this.movelistView.selectMove(this, this.steps.length - 1); // show final position (also important to disable cg's movable)
+            this.movelistView.renderResult(this);
             this.gameOver();
 
             // clean up gating/promotion widget left over the ground while game ended by time out
@@ -790,7 +791,7 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
                     );
                 }
             });
-            updateMovelist(this, true, true, false);
+            this.movelistView.render(this, true, true, false);
         } else {
             // single step message
             if (ply === this.steps.length) {
@@ -804,7 +805,7 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
                 // cannot disagree about whether this message was applied.
                 const activate = !this.spectator || follow;
                 const result = false;
-                updateMovelist(this, full, activate, result);
+                this.movelistView.render(this, full, activate, result);
                 if (this.steps.length === 5) {
                     chatMessage('', 'Chat visible only to your partner', 'bugroundchat');
                 }
@@ -898,39 +899,6 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
     ) => {
         console.log('updateBothBoardsAndClocksOnFullBoardMsg', lastStepA, lastStepB, clocksA, clocksB);
 
-        /* ONE CONSULTATION, TWO QUESTIONS: has our move been overtaken by this history, and may
-           each board be played on afterwards? Both are per board and both were decided here in
-           pieces before. The controller is given the whole HISTORY of each board rather than its
-           last move, which is what lets it recognise our move under the opponent's reply. */
-        const decision = this.reconnect.snapshot(
-            {
-                a: this.steps.filter(step => step.boardName === 'a').map(step => step.move!),
-                b: this.steps.filter(step => step.boardName === 'b').map(step => step.moveB!),
-            },
-            // Can a move we are still holding actually be played in the position that has just
-            // arrived? Answered here because this is where the boards are; the controller has none.
-            // A move that cannot be played is dropped rather than sent again for ever — the server
-            // now refuses such a move and resyncs instead of ending the game, so nothing else would
-            // ever stop it being resent.
-            (board, move) => {
-                const ground = board === 'a' ? this.boardA : this.boardB;
-                return ground.ffishBoard.legalMoves().split(' ').includes(move);
-            },
-        );
-
-        // BRANCH 1.1.4 — the server has sent us a position older than one it had already shown us,
-        // which means a move it acknowledged did not survive. Nothing here can undo that: the move
-        // is gone and this position is the only truth left. What this must not be is silent, so it
-        // is said once per board, loudly, and named by its branch.
-        for (const board of ['a', 'b'] as BugBoardName[]) {
-            if (decision[board].rolledBack) {
-                console.warn(
-                    `[reconnect] 1.1.4 board ${board}: the server's position went BACKWARDS — ` +
-                        `a move we had already been shown is missing from it. ${decision[board].because}`,
-                );
-            }
-        }
-
         // A BOARD WE ARE STILL AHEAD OF MUST NOT INVITE A MOVE.
         //
         // The snapshot has just been applied in full — the player sees the server's truth, nothing
@@ -952,6 +920,85 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
         this.boardB.setState(fenB, getTurnColor(fenB), uci2LastMove(lastStepB?.moveB));
         this.boardB.renderState();
 
+        /* ONE CONSULTATION, TWO QUESTIONS: has our move been overtaken by this history, and may
+           each board be played on afterwards? Both are per board and both were decided here in
+           pieces before. The controller is given the whole HISTORY of each board rather than its
+           last move, which is what lets it recognise our move under the opponent's reply. */
+        const decision = this.reconnect.snapshot(
+            {
+                a: this.steps.filter(step => step.boardName === 'a').map(step => step.move!),
+                b: this.steps.filter(step => step.boardName === 'b').map(step => step.moveB!),
+            },
+            // Can a move we are still holding actually be played in the position that has just
+            // arrived? Answered here because this is where the boards are; the controller has none.
+            //
+            // ASKED AFTER THE BOARDS ARE SET, AND THAT IS THE WHOLE POINT. `setState()` puts the
+            // arriving position into ffish, so this reads the position the SERVER just sent. Until
+            // 2026-09-07 the consultation ran at the top of this method, before the repaint, so it
+            // read the position we already held — and a round-page move is never pushed to ffish
+            // (only the analysis page calls `playMove()`), so ffish sat at the position the move
+            // was GENERATED from, where it is legal by construction. The answer was therefore
+            // always "yes", whatever the server had just said.
+            //
+            // What that cost: branch 1.2.3.4. The server refuses a move, hands back its position
+            // and waits; the tree says 1.2.2 then drops the move. It could not — the check could
+            // not see the refusal — so the move stayed pending and the board stayed shut. And the
+            // refusal arrives on an OPEN socket, so no reconnection follows and nothing resends it:
+            // the move sat on the reader's board, their clock stopped, while the server waited for
+            // a move it had already thrown away.
+            //
+            // With the order right, a move that cannot be played is dropped rather than sent again
+            // for ever, and 1.2.3.4 heals itself the way the tree says it does: the move goes, the
+            // board reopens, and the reader can play again.
+            (board, move) => {
+                const ground = board === 'a' ? this.boardA : this.boardB;
+                return ground.ffishBoard.legalMoves().split(' ').includes(move);
+            },
+            // Whose turn the arriving position leaves it — the other fact the controller cannot
+            // hold, and the one that decides whether an armed premove goes now. Read after the
+            // repaint for the same reason the legality question is: this must describe the
+            // position the server just sent.
+            board => (board === 'a' ? this.boardA : this.boardB).turnColor === this.seats.myColor(board),
+        );
+
+        // BRANCH 1.1.4 — the server has sent us a position older than one it had already shown us,
+        // which means a move it acknowledged did not survive. Nothing here can undo that: the move
+        // is gone and this position is the only truth left. What this must not be is silent, so it
+        // is said once per board, loudly, and named by its branch.
+        for (const board of ['a', 'b'] as BugBoardName[]) {
+            if (decision[board].rolledBack) {
+                console.warn(
+                    `[reconnect] 1.1.4 board ${board}: the server's position went BACKWARDS — ` +
+                        `a move we had already been shown is missing from it. ${decision[board].because}`,
+                );
+            }
+        }
+
+        /* THE GATE HAS JUST MOVED, SO THE DESTINATIONS ARE STALE — recompute them.
+         *
+         * `setState()` above calls `setDests()`, and it ran BEFORE the consultation: at that moment
+         * a move of ours could still be pending, `movesAllowed()` was false, and the map was set
+         * empty. `reconcile()` then cleared that move (1.2.1) and opened the board — but nothing
+         * recomputed what it may play, so the board came back open and destless.
+         *
+         * WHAT THAT COST, and it is not only cosmetic: chessground's `playPremove` asks
+         * `canMove()`, which reads `movable.dests`. An armed premove therefore could not fire after
+         * a reconnection that cleared a pending move — and `playPremove` discards the premove
+         * whether or not it plays it, so the move was not delayed, it was LOST. Scenario N9, with
+         * the premove armed behind a move the server had not yet acknowledged.
+         *
+         * The same ordering trap as 1.2.2's legality check twenty lines up: both read a gate the
+         * consultation is about to move. */
+        this.boardA.setDests();
+        this.boardB.setDests();
+
+        // BRANCH 1.2.3 — PUT OUR OWN UNCONFIRMED MOVE BACK ON TOP. See `BoardDecision.replay`.
+        // After the repaint, necessarily: `setState()` has just reset ffish to the server's
+        // position, so a replay pushed earlier would be thrown away by the very repaint it must
+        // survive. And after the consultation, which is what decided there is anything to replay.
+        this.replayPendingMove('a', decision.a.replay);
+        this.replayPendingMove('b', decision.b.replay);
+
         if (!this.isGameOver()) {
             this.updateClocks('a', this.boardA.turnColor, clocksA, this.status);
             this.updateClocks('b', this.boardB.turnColor, clocksB, this.status);
@@ -966,19 +1013,58 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
             // }
         }
 
-        // prevent sending premove/predrop when (auto)reconnecting websocked asks server to (re)sends the same board to us
-        // THE POSITION'S OWN TURN CANNOT ANSWER THIS. `turnColor` is written from the fen this
-        // message carried, so a position that predates our move says "your turn" and this check
-        // would pass. Only the decision knows we are still waiting on something.
+        // THE RULE IS THE DECISION'S NOW, not this call site's. It used to be spelled out here as
+        // `playable && premove && turnColor === myColor`, which put half of branch 1's premove rule
+        // in the caller and left it beyond the reach of any test — the same split that still holds
+        // for the clocks. `releasePremove` is the whole answer; all that is left here is whether a
+        // premove exists to release.
         //
-        // A single move arriving elsewhere releases a premove with no such check, and that is right
-        // rather than an oversight: a whole position can be stale, a single move never is. On our
-        // own board the opponent could not have moved unless our move had already been played, so
-        // their move is proof that it is our turn again.
-        if (decision.a.playable && this.boardA.premove && this.boardA.turnColor == this.seats.myColor('a'))
-            this.boardA.performPremove();
-        if (decision.b.playable && this.boardB.premove && this.boardB.turnColor == this.seats.myColor('b'))
-            this.boardB.performPremove();
+        // THE POSITION'S OWN TURN CANNOT ANSWER IT ALONE, which is why the decision AND-s the two:
+        // a position that predates our own move says "your turn" quite truthfully, and only the
+        // controller knows we are still waiting on something.
+        if (decision.a.releasePremove && this.boardA.premove) this.boardA.performPremove();
+        if (decision.b.releasePremove && this.boardB.premove) this.boardB.performPremove();
+    };
+
+    /** Show a move of ours again that the snapshot could not carry — branch 1.2.3's `replay`.
+     *
+     *  THIS REPRODUCES THE OPTIMISTIC STATE; IT DOES NOT RECOMPUTE THE POSITION. On the round page a
+     *  move the reader makes advances CHESSGROUND ONLY: `onUserMove` runs `processInput` ->
+     *  `doSendMove` -> `sendMove`, and none of them touches ffish. So between a move and its
+     *  confirmation the board is deliberately mixed — the piece has moved on screen, while ffish,
+     *  `turnColor`, `lastmove` and the clocks all still say it is our turn, because as far as the
+     *  server knows it is. That mixture IS the state a reader had before the connection broke, and
+     *  it is the state this restores.
+     *
+     *  WHICH IS WHY `pushMove()` IS NOT USED. It advances ffish and with it `turnColor`, and
+     *  `updateClocks()` reads `turnColor` a few lines below: the client would start the OPPONENT's
+     *  clock while the server still has us on the clock and our time running. It would also feed
+     *  the 1.2.2 legality check a position the server has never seen, undoing the ordering this
+     *  method now depends on.
+     *
+     *  LOCAL ONLY. Nothing is sent: the resend belongs to the reconnect payload and has already
+     *  been arranged. The move list is left alone too — `steps` is the server's record and this
+     *  move is not in it, which is exactly where an unconfirmed move has always stood.
+     */
+    private replayPendingMove = (boardName: BugBoardName, move: string | undefined) => {
+        if (move === undefined) return;
+        const board = boardName === 'a' ? this.boardA : this.boardB;
+        const dest = move.slice(-2) as cg.Key;
+
+        // A DROP TAKES NOTHING AND COMES OUT OF OUR OWN POCKET. `P@e4` has no origin square, so it
+        // is placed rather than moved, and the pocket the snapshot just restored has to give the
+        // piece back up again.
+        const at = move.indexOf('@');
+        if (at >= 0) {
+            const piece = { role: util.roleOf(move.slice(0, at) as cg.Letter), color: board.turnColor } as cg.Piece;
+            board.chessground.newPiece(piece, dest, true);
+            return;
+        }
+
+        // What this capture removes, read BEFORE the piece is moved over it.
+        const captured = board.chessground.state.boardState.pieces.get(dest);
+        board.chessground.move(move.slice(0, 2) as cg.Orig, dest);
+        if (captured) board.feedPartnerPocket(captured);
     };
 
     private updateSingleBoardAndClocks = (
@@ -1046,7 +1132,7 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
         if (decision.movesMissing) {
             console.warn(
                 `[reconnect] board ${board.boardName}: ${decision.because}. ` +
-                    `Showing ply ${this.ply}, message carries a later one.`,
+                    `Showing ply ${this.movelistView.ply()}, message carries a later one.`,
             );
         }
 
@@ -1094,7 +1180,31 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
             if (!myMove && !this.focus) this.notifyMsg(`Played ${step.san}\nYour turn.`);
         }
 
-        if (decision.releasePremove && board.premove) board.performPremove();
+        /* A PREMOVE IS RELEASED INTO THE LIVE POSITION, SO THE READER IS RETURNED TO IT FIRST.
+         *
+         * The reader may have armed a premove and then scrolled back to look at the game while they
+         * wait, which is an ordinary thing to do — especially here, where the other board is worth
+         * watching. Nothing about scrolling withdraws the intention, and the premove survives it:
+         * a fen change does not touch `premovable.current`.
+         *
+         * WHAT WENT WRONG WITHOUT THIS, and it was a lost move rather than a stray one.
+         * `renderPly` clears `movable.color`/`dests` for a reader who is not at the end, and the
+         * boards are not repainted under them either. `playPremove` then asks `canMove()`, which
+         * needs both — so it played nothing, and `unsetPremove()` runs OUTSIDE that `if` and
+         * discarded the premove regardless. The reader was left with no premove, nothing sent, and
+         * their clock running while they believed they had already moved.
+         *
+         * SNAPPING THEM FORWARD IS NOT THE YANK R2 AND R3 GUARD AGAINST. Those protect a reader who
+         * is NOT trying to move, from having the board repainted under them by somebody else's
+         * move. Arming a premove is the opposite: an explicit statement that you intend to move as
+         * soon as it is your turn, so arriving at the live position when that happens is the thing
+         * asked for.
+         *
+         * Only when a premove is actually armed — a reader browsing without one is left alone. */
+        if (decision.releasePremove && board.premove) {
+            if (!this.movelistView.isAtEnd(this)) this.movelistView.selectMove(this, this.steps.length - 1);
+            board.performPremove();
+        }
     };
 
     onMsgBoard = (msg: MsgBoard) => {
@@ -1110,10 +1220,11 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
          *
          * `steps.length > 1` was a heuristic for that, with one hole: a game with NO MOVES YET has
          * a whole-game message of a single step, so it read as a single move. `isInitialBoardMessage`
-         * — `this.ply === undefined` — existed to patch that hole, and cost more than it fixed: the
+         * — `ctrl.ply === undefined` — existed to patch that hole, and cost more than it fixed: the
          * cursor, declared `ply: number`, had to be undefined until the first message arrived, so
          * the field carried a third meaning ("have we loaded?") on top of "where the reader is
-         * looking" and could not move to the move list while that was true.
+         * looking", and could not move to the move list while that was true. It has since moved:
+         * the cursor is `MovelistView`'s private field.
          *
          * The ambiguous case cannot occur: a single-move broadcast follows a move, so its ply is at
          * least 1, and it can never look like the empty game's snapshot.
@@ -1128,15 +1239,15 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
 
         /* IS THE READER FOLLOWING THE GAME, or looking at something earlier?
          *
-         * The VIEW's question, and separate from `place` below, which is the GAME's. `this.ply` is
-         * the cursor and `steps.length - 1` is the last ply we hold; if they differ the reader has
-         * scrolled away and nothing may be repainted under them.
+         * The VIEW's question, and separate from `place` below, which is the GAME's. The move
+         * list holds the cursor and `steps.length - 1` is the last ply we hold; if they differ the
+         * reader has scrolled away and nothing may be repainted under them.
          *
          * `latestPly` USED TO LIVE HERE and answered three questions at once: is this the next ply,
          * is a snapshot a rollback, and — before task 2.5 — is the reader following. Its name
          * described only the last. Each reader now takes the one it means: `place` for the game,
          * this for the view, `full` for a snapshot. */
-        const readerAtEnd = isAtEnd(this);
+        const readerAtEnd = this.movelistView.isAtEnd(this);
 
         /* WHERE THIS MOVE SITS RELATIVE TO THE GAME WE HOLD — branch 2.1's three answers.
          *
@@ -1164,17 +1275,17 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
          * `latestPly` was doing this job and answers a different question: should the move list
          * SCROLL to this ply. For a rolled-back snapshot — a full message whose ply is LOWER than
          * ours, which `bughouse-persist-moves-as-played` made possible — it is correctly false, so
-         * a reader is not yanked backwards. But the boards were repainted anyway, and `this.ply`
+         * a reader is not yanked backwards. But the boards were repainted anyway, and the cursor
          * kept describing a game nobody was looking at any more.
          *
          * What that cost: the NEXT move was compared against the stale number, came out as "older
          * than what we are showing" (branch 2.1.2), and was never rendered — the reader simply did
          * not see it happen. It self-limited, because the move after that matched `ply + 1` again;
          * scenario T8 measures exactly one move lost. It also stamped the wrong ply on our own
-         * outgoing moves, `sendMove()` using `this.ply + 1`.
+         * outgoing moves, `sendMove()` using the cursor rather than `steps.length`.
          */
-        if (full) setCursor(this, msg.ply);
-        else if (readerAtEnd && place === 'next') setCursor(this, msg.ply);
+        if (full) this.movelistView.setCursor(msg.ply);
+        else if (readerAtEnd && place === 'next') this.movelistView.setCursor(msg.ply);
 
         this.result = msg.result;
         this.status = msg.status;
@@ -1262,7 +1373,7 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
     };
 
     /** One line, delegating to the move list, which owns the selection. See `twoBoardCtrl`. */
-    goPly = (ply: number) => showPly(this, ply);
+    goPly = (ply: number) => this.movelistView.showPly(this, ply);
 
     renderPly = (ply: number, steppedForward: boolean) => {
         console.log('RoundControllerBughouse.renderPly ' + ply);
@@ -1282,7 +1393,7 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
 
         // The cursor is already on `ply` — `showPly()` sets it before calling this — so "is the
         // ply being rendered the latest one" and "is the reader following" are the same question.
-        if (this.isGameOver() || !isAtEnd(this)) {
+        if (this.isGameOver() || !this.movelistView.isAtEnd(this)) {
             board.chessground.set({ movable: { color: undefined, dests: undefined } });
             board.partnerCC.chessground.set({ movable: { color: undefined, dests: undefined } });
         } else {
@@ -1459,7 +1570,7 @@ export class RoundControllerBughouse extends TwoBoardController implements ChatC
         ) {
             // THE LATEST MOVE, NOT THE CURSOR. This labels an arriving chat message with the move
             // that was on the board when it was said — `chat.ts` reads `ctrl.steps[ply].san` for
-            // that. `this.ply` is where the READER is looking, so a reader scrolled back to move 1
+            // that. The cursor is where the READER is looking, so a reader scrolled back to move 1
             // had their partner's messages labelled with move 1. Same confusion as R2, one field
             // further along.
             chatMessageBug(this.steps.length - 1, this, msg);
