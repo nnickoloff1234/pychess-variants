@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
+from inspect import isawaitable
 from typing import Any, Literal, cast
 
 from bson import BSON
@@ -32,9 +34,10 @@ from study.models import (
     study_search_query_tokens,
     study_search_tokens,
     study_topics,
+    study_user_selection,
     study_visibility,
 )
-from study.permissions import can_write_study
+from study.permissions import STUDY_FEATURE_KEYS, can_write_study
 
 
 class StudyStorageError(ValueError):
@@ -226,7 +229,9 @@ async def autocomplete_study_topics(
         {"$sort": {"count": -1, "_id": 1}},
         {"$limit": limit * 2},
     ]
-    docs = await app_state.db.study.aggregate(pipeline).to_list(length=limit * 2)
+    cursor_or_awaitable = app_state.db.study.aggregate(pipeline)
+    cursor = await cursor_or_awaitable if isawaitable(cursor_or_awaitable) else cursor_or_awaitable
+    docs = await cursor.to_list(length=limit * 2)
     for doc in docs:
         topic = doc.get("_id")
         if isinstance(topic, str) and topic not in suggestions:
@@ -246,7 +251,9 @@ async def popular_study_topics(app_state: Any, *, limit: int = 50) -> list[str]:
         {"$sort": {"count": -1, "_id": 1}},
         {"$limit": max(1, limit)},
     ]
-    docs = await app_state.db.study.aggregate(pipeline).to_list(length=max(1, limit))
+    cursor_or_awaitable = app_state.db.study.aggregate(pipeline)
+    cursor = await cursor_or_awaitable if isawaitable(cursor_or_awaitable) else cursor_or_awaitable
+    docs = await cursor.to_list(length=max(1, limit))
     return [str(doc["_id"]) for doc in docs if isinstance(doc.get("_id"), str)]
 
 
@@ -1158,6 +1165,34 @@ async def set_study_visibility(
         {"$set": {"visibility": clean, "updatedAt": now}, "$inc": {"revision": 1}},
     )
     return clean
+
+
+async def set_study_feature_settings(
+    app_state: Any,
+    study: Study,
+    values: Mapping[str, object],
+) -> dict[str, object]:
+    """Persist the known per-feature audience settings while preserving extensions."""
+
+    settings = dict(study.settings)
+    for feature in STUDY_FEATURE_KEYS:
+        if feature in values:
+            try:
+                settings[feature] = study_user_selection(values[feature])
+            except ValueError as exc:
+                raise StudyStorageError(f"Invalid Study {feature} permission") from exc
+
+    if settings == dict(study.settings):
+        return settings
+
+    now = datetime.now(UTC)
+    result = await app_state.db.study.update_one(
+        {"_id": study.id, "owner": study.owner},
+        {"$set": {"settings": settings, "updatedAt": now}, "$inc": {"revision": 1}},
+    )
+    if result.matched_count != 1:
+        raise StudyStorageError("Study disappeared while updating permissions")
+    return settings
 
 
 async def rename_chapter(app_state: Any, chapter: StudyChapter, name: object) -> str:
