@@ -324,7 +324,7 @@ export const PIECE_FAMILIES: Record<string, PieceFamily> = {
     courier: { pieceCSS: ['courier', 'disguised'] },
     shako: { pieceCSS: ['shako0', 'shako1', 'shako2', 'disguised'] },
     pemba: { pieceCSS: ['alfaerie', 'disguised'] },
-    shogun: { pieceCSS: ['shogun0', 'shogun1', 'shogun2', 'shogun3', 'shogun4', 'shogun5', 'shogun6', 'disguised'] },
+    shogun: { pieceCSS: ['shogun6', 'shogun0', 'shogun1', 'shogun2', 'shogun3', 'shogun4', 'shogun5', 'disguised'] },
     orda: { pieceCSS: ['orda0', 'orda1', 'disguised'] },
     khans: { pieceCSS: ['khans0', 'khans1', 'disguised'] },
     synochess: {
@@ -2100,6 +2100,7 @@ export interface CataloguedVariantClientDocument {
     readonly archived?: boolean;
     readonly enabled?: boolean;
     readonly gameCount?: number;
+    readonly favoriteCount?: number;
     readonly locked?: boolean;
     readonly visibility?: 'private' | 'unlisted' | 'public';
     readonly aiDisabled?: boolean;
@@ -3077,7 +3078,7 @@ export function fogFen(currentFen: string): string {
 }
 
 export function validVariant(variant: string): string {
-    return VARIANTS[variant] ? variant : 'chess'; // Default to "chess" if invalid
+    return Object.keys(VARIANTS).find(key => key === variant) ?? 'chess';
 }
 
 export function splitVariantKey(variantKey: string): { base: string; chess960: boolean } {

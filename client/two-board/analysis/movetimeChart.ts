@@ -29,15 +29,18 @@ export interface MovePoint {
 }
 
 // Owns the #chart-movetime container, built ctrl-free so analysis.ts can embed
-// it directly. `visible` bakes in the same isAnalysisBoard-derived initial
-// display style analysis.ts applied inline before. Highcharts owns its own
-// internal DOM subtree once mounted (it isn't a snabbdom-patched widget), so
-// this only hands it a real element reference instead of a string id.
+// it directly. Highcharts owns its own internal DOM subtree once mounted (it
+// isn't a snabbdom-patched widget), so this only hands it a real element
+// reference instead of a string id.
+//
+// It used to take a `visible` flag, hiding the container on the blank analysis
+// board. That page has no Move times tab at all now, so the container is simply
+// not mounted there and every mount that remains is a visible one.
 export class MovetimeChartView {
     private vnode: VNode;
 
-    constructor(visible: boolean) {
-        this.vnode = h('div#chart-movetime', visible ? { style: { display: 'block' } } : {});
+    constructor() {
+        this.vnode = h('div#chart-movetime', { style: { display: 'block' } });
     }
 
     placeholder(): VNode {

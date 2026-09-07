@@ -1461,6 +1461,14 @@ button.back {
   line-height: var(--site-header-height);
   font-size: 17px;
 }
+/* A username is one word however it is spelled. The line breaker disagrees: a hyphen or a
+   dash inside a name is a break opportunity, so `Test-CannonRookKnigh` wrapped in the header
+   and the tail dropped onto a second line the header has no room for — the header's height is
+   `--site-header-height` and its line-height matches, so the second line is simply clipped.
+   Names are not prose and there is nothing to gain from breaking one. */
+#username .user-link {
+  white-space: nowrap;
+}
 .site-buttons > div > button:hover {
   color: var(--blue-hover);
 }
@@ -2945,7 +2953,7 @@ vari-move {
 }
 
 #movelist.tview2.analysis-tree .tree-context-menu {
-  position: absolute;
+  position: fixed;
   z-index: 8;
   display: flex;
   flex-direction: column;
@@ -3039,20 +3047,11 @@ vari-move {
   font-weight: normal;
 }
 
+/* Annotation glyphs read as SAN suffixes, as in lila's move tree. */
 #movelist.tview2.analysis-tree glyph {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.15rem;
-  height: 1.1rem;
-  margin-left: 0.28rem;
-  padding: 0 0.28rem;
-  border-radius: 999px;
-  font-size: 0.7em;
+  display: inline;
+  font-size: inherit;
   font-style: normal;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  background: color-mix(in srgb, var(--bg-color2) 80%, transparent);
 }
 
 #movelist.tview2.analysis-tree glyph.good,
@@ -3164,7 +3163,7 @@ vari-move {
   display: flex;
   flex: 0 0 43.5%;
   align-items: center;
-  gap: 0.45em;
+  gap: 0;
   font-size: 1.185em;
   line-height: 1.75em;
   padding: 0 0.3em 0 0.5em;
@@ -4549,4 +4548,30 @@ div button.login-btn {
     overflow: auto;
     padding: 1rem;
     border-radius: 4px;
+}
+
+.study-add-dialog-form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.study-add-dialog-form label {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.study-add-dialog-form input,
+.study-add-dialog-form select {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  background: var(--bg-color2);
+  color: var(--font-color);
+  font: inherit;
+}
+
+.study-add-dialog-form input:disabled {
+  opacity: 0.55;
 }

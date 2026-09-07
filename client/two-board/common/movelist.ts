@@ -69,11 +69,55 @@ export class MovelistView {
     }
 }
 
+/** THE SELECTED PLY CHANGED — the cursor moves and the boards follow.
+ *
+ * Every way of navigating a game ends here: a click in the list, an arrow key, a click on a chat
+ * message, a node in the analysis tree. The cursor and the "did we step forward by one" test live
+ * here because they are properties of the SELECTION, not of either board; the repaint is handed
+ * back to the page through `renderPly`, because a round page and an analysis page show a ply very
+ * differently and only they know about engines, clocks and variations.
+ *
+ * SEPARATE FROM `selectMove` ON PURPOSE. This does not touch the list's own presentation. The
+ * analysis tree drives its redraw itself, behind a `redrawMovelist` flag it owns, so routing it
+ * through `selectMove` would redraw twice and override a decision it had deliberately made. */
+export function showPly(ctrl: TwoBoardController, ply: number): void {
+    const steppedForward = ply === ctrl.ply + 1;
+    setCursor(ctrl, ply);
+    ctrl.renderPly(ply, steppedForward);
+}
+
+/** IS THE READER FOLLOWING THE GAME, or looking at something earlier?
+ *
+ *  The move list's own question, answered from its own cursor and the controller's steps. Every
+ *  view that must not be repainted under a reader who has scrolled away asks this: the boards when
+ *  a move arrives, the scroll position, the playability of a board being rendered.
+ *
+ *  NOT THE SAME QUESTION AS "is this message the next ply", which is about the GAME and is answered
+ *  by comparing the message against `steps.length`. The two were one expression until 2026-09-07 —
+ *  the message was compared against the CURSOR, which answered both at once and neither by name —
+ *  and separating them is what scenarios R2 and T8 exist to hold apart. */
+export function isAtEnd(ctrl: TwoBoardController): boolean {
+    return ctrl.ply === ctrl.steps.length - 1;
+}
+
+/** MOVE THE CURSOR AND NOTHING ELSE.
+ *
+ *  Used when the boards have ALREADY been brought up to date by some other path — a move message
+ *  repaints the one board that moved and splices the partner's pocket, which is a different and
+ *  cheaper operation than `renderPly()`'s repaint of both boards from a step. Rendering twice for
+ *  one move would be wasteful; rendering the wrong way would be wrong.
+ *
+ *  It exists so that the cursor is ONLY ever assigned inside this file, which is what makes "the
+ *  move list owns the cursor" a fact rather than an intention. */
+export function setCursor(ctrl: TwoBoardController, ply: number): void {
+    ctrl.ply = ply;
+}
+
 export function selectMove(ctrl: TwoBoardController, ply: number): void {
     const treeCtrl = asTreeCtrl(ctrl);
     if (treeCtrl) {
         if (ply < 0) return;
-        ctrl.goPly(ply, 0);
+        showPly(ctrl, ply);
         updateMovelist(ctrl, true, false);
         scrollToPly(ctrl);
         return;
@@ -83,7 +127,7 @@ export function selectMove(ctrl: TwoBoardController, ply: number): void {
         return;
     }
 
-    ctrl.goPly(ply, 0);
+    showPly(ctrl, ply);
     activatePly(ctrl);
     scrollToPly(ctrl);
 }
@@ -120,7 +164,7 @@ function scrollToPly(ctrl: TwoBoardController) {
     let st: number | undefined = undefined;
 
     if (ctrl.ply === 0) st = 0;
-    else if (ctrl.ply === ctrl.steps.length - 1) st = 99999;
+    else if (isAtEnd(ctrl)) st = 99999;
     else if (plyEl) st = plyEl.offsetTop - movelistEl.offsetHeight / 2 + plyEl.offsetHeight / 2;
 
     if (st !== undefined) movelistEl.scrollTop = st;
@@ -447,7 +491,21 @@ function renderTreeContextMenu(ctrl: AnalysisControllerBughouse): VNode | undefi
 export function updateMovelist(ctrl: TwoBoardController, full = true, activate = true, needResult = true) {
     const treeCtrl = asTreeCtrl(ctrl);
     if (treeCtrl) {
-        if (ctrl.steps.length <= 1) {
+        const displayedMainline = treeCtrl.tree.analysisTree ? getDisplayedMainlineNodes(treeCtrl.tree.analysisTree) : [];
+        const rootChildren = treeCtrl.tree.analysisTree?.root.children[0]?.forceVariation
+            ? treeCtrl.tree.analysisTree.root.children
+            : (treeCtrl.tree.analysisTree?.root.children.slice(1) ?? []);
+
+        /* "IS THERE ANYTHING TO SHOW?" IS A QUESTION ABOUT THE TREE, not about `ctrl.steps`.
+           `steps` is the RECORDED game's mainline, and the blank analysis board has no recorded
+           game: its one seeded step is the start position and every move the reader explores is
+           a tree node, never a step. Asking `steps.length <= 1` there answered "nothing to show"
+           after any number of moves, so the movelist stayed empty on that page while the tree
+           behind it was correct — moves played, the board advanced, and nothing was listed.
+
+           The three tests together still say "empty" for the case this guard was written for: a
+           game not yet started, whose tree has no children either. */
+        if (ctrl.steps.length <= 1 && displayedMainline.length === 0 && rootChildren.length === 0) {
             ctrl.movelistView.update(h('div#movelist', { class: { 'bug-analysis-tree': true } }));
             return;
         }
@@ -456,10 +514,6 @@ export function updateMovelist(ctrl: TwoBoardController, full = true, activate =
         let lastColIdx = 0;
         let didWeRenderVariSectionAfterLastMove = false;
         let didWeRenderChatSectionAfterLastMove = false;
-        const displayedMainline = treeCtrl.tree.analysisTree ? getDisplayedMainlineNodes(treeCtrl.tree.analysisTree) : [];
-        const rootChildren = treeCtrl.tree.analysisTree?.root.children[0]?.forceVariation
-            ? treeCtrl.tree.analysisTree.root.children
-            : (treeCtrl.tree.analysisTree?.root.children.slice(1) ?? []);
 
         if (treeCtrl.tree.analysisTree && !treeCtrl.tree.analysisTree.root.collapsed) {
             moves.push(...renderTreeVariationRows(treeCtrl, rootChildren));

@@ -168,6 +168,9 @@ async def get_user_context(request: web.Request) -> tuple[User, ViewContext]:
             )
             log.info("+++ New guest user %s connected.", user.username)
             app_state.users[user.username] = user
+            # A -a test user gets a database document so it survives a restart; a no-op for
+            # anonymous users and in production. See User.persist_test_identity().
+            await user.persist_test_identity()
             session["user_name"] = user.username
             request[REQUEST_NEW_SESSION_KEY] = True
 

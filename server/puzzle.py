@@ -129,6 +129,9 @@ async def _get_puzzle_session_user(request):
         game_category=effective_game_category(session, None),
     )
     app_state.users[user.username] = user
+    # A -a test user gets a database document so it survives a restart; a no-op for
+    # anonymous users and in production. See User.persist_test_identity().
+    await user.persist_test_identity()
     session["user_name"] = user.username
     request[REQUEST_NEW_SESSION_KEY] = True
     log.info("+++ New puzzle guest user %s connected.", user.username)

@@ -94,6 +94,9 @@ async def get_user(session: aiohttp_session.Session, request: web.Request) -> Us
             game_category=effective_game_category(session, None),
         )
         app_state.users[user.username] = user
+        # A -a test user gets a database document so it survives a restart; a no-op for
+        # anonymous users and in production. See User.persist_test_identity().
+        await user.persist_test_identity()
         session["user_name"] = user.username
         request[REQUEST_NEW_SESSION_KEY] = True
         request[_WS_SESSION_CHANGED_KEY] = True

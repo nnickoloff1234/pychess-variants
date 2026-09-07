@@ -35,7 +35,8 @@ from glicko2.glicko2 import MU, Rating, gl2, sparse_perf_map
 from json_utils import json_response
 from newid import id8
 from notify import notify
-from user_stats import normalize_user_count
+from pymongo.errors import DuplicateKeyError
+from user_stats import DEFAULT_USER_COUNT, normalize_user_count
 from websocket_utils import ws_send_json_many
 
 if TYPE_CHECKING:
@@ -213,6 +214,7 @@ class User:
             str, set[WebSocketResponse | None]
         ] = {}  # {tournamentId: set()}
         self.simul_sockets: dict[str, set[WebSocketResponse]] = {}  # {simulId: set()}
+        self.study_sockets: dict[str, set[WebSocketResponse]] = {}  # {studyId: set()}
 
         self.notify_channels: set[Queue[str]] = set()
         self.inbox_channels: set[Queue[str]] = set()
@@ -435,6 +437,7 @@ class User:
             or len(self.challenge_channels) > 0
             or len(self.tournament_sockets) > 0
             or len(self.simul_sockets) > 0
+            or len(self.study_sockets) > 0
         )
         if self.online:
             self.ever_connected = True
@@ -469,6 +472,55 @@ class User:
         timeout_until = until or (datetime.now(UTC) + timedelta(seconds=SILENCE))
         self.chat_timeout_until = _as_required_utc(timeout_until)
         return self.chat_timeout_until
+
+    async def persist_test_identity(self) -> None:
+        """Give a `-a` mode guest a database document, so its name outlives the process.
+
+        THIS IS PARITY, NOT A NEW CAPABILITY. Registered users survive a restart for exactly one
+        reason: `Users.get()` queries `db.user` and finds a document. Test users did not, because
+        `db.user` held no `Test-...` record at all, so every restart handed each browser a new name
+        and no browser could reclaim the seat it held — seats are keyed by username.
+
+        Nothing about cookie trust changes. A name asserted only by a session cookie still does not
+        become a user: `_load_registered_user()` finds no document and returns `NONE_USER`. What is
+        different is that the document now exists, so the identity is verified against the database
+        exactly as a registered user's is.
+
+        Guarded by `is_test_user()`, which is False in production whatever the name, so a real
+        account carrying the prefix is never touched and a production database is never written to.
+
+        `ct` is deliberately NOT written here. The first-visit category modal should still appear
+        once; `set_game_category()` writes `ct` when the guest answers it, and that write — which
+        until now matched no document and did nothing — finally lands, so the answer survives the
+        next restart.
+        """
+        if not self.app_state.is_test_user(self.username):
+            return
+        if self.app_state.db is None:
+            return
+
+        try:
+            await self.app_state.db.user.insert_one(
+                {
+                    "_id": self.username,
+                    "title": self.title,
+                    "perfs": {},
+                    "pperfs": {},
+                    "count": dict(DEFAULT_USER_COUNT),
+                    "enabled": True,
+                    "shadowban": False,
+                    "createdAt": datetime.now(UTC),
+                }
+            )
+        except DuplicateKeyError:
+            # A name this server minted already exists in the database, from an earlier run whose
+            # document outlived it. Reusing it is correct: the point of the document is that the
+            # identity is the same one. `_generate_test_username()` only checks the in-memory
+            # store, so after a restart this is reachable rather than exotic.
+            log.info("Test user %s already has a document; reusing it.", self.username)
+        except Exception:
+            # A guest must still be able to play if the write fails; it only loses the restart.
+            log.exception("Could not persist test user %s", self.username)
 
     async def set_rating(self, variant: str, chess960: bool, rating: Rating) -> None:
         if self.anon:

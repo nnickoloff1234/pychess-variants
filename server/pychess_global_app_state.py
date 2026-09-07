@@ -131,12 +131,27 @@ def is_test_run() -> bool:
     return any("pytest" in arg for arg in sys.argv) or any("unittest" in arg for arg in sys.argv)
 
 
+def _is_mongomock(collection: Any) -> bool:
+    """Whether this collection is the in-memory mock rather than a real MongoDB.
+
+    Asked directly because the incompatibility below is a fact about mongomock, not about pytest.
+    `is_test_run()` sniffs `sys.argv` for a test runner, which is true of the unit tests and false
+    of anything else that drives the app against a mock database — the layout matrix report is the
+    first such caller, and it hit the bulk path and crashed on startup.
+
+    THE WHOLE MRO IS ASKED, NOT THE TYPE'S OWN MODULE. `mongomock_motor` hands back a class whose
+    `__module__` is `motor.motor_asyncio` — it builds a proxy that claims the real driver's identity,
+    which is exactly what makes it a convincing mock — and only its bases name it.
+    """
+    return any(base.__module__.startswith("mongomock") for base in type(collection).__mro__)
+
+
 async def _upsert_static_docs(collection: Any, docs: Iterable[Mapping[str, Any]]) -> int:
     static_docs = [doc for doc in docs if doc.get("_id") is not None]
     if not static_docs:
         return 0
 
-    if is_test_run():
+    if is_test_run() or _is_mongomock(collection):
         # mongomock 4.3.0 is not compatible with modern PyMongo UpdateOne
         # bulk writes. Keep test startup semantics equivalent without exercising
         # that third-party incompatibility; the bulk path has a focused unit test.
@@ -228,6 +243,14 @@ class PychessGlobalAppState:
             self.chat_flood = ChatFlood()
             # one dict per tournament! {tournamentId: {user.username: user.tournament_sockets, ...}, ...}
             self.tourneysockets: dict[str, dict[str, set[WebSocketResponse | None]]] = {}
+            # Study rooms are created lazily when the first browser opens /wsstudy/<id>
+            # and removed as soon as their last websocket leaves. No Study is preloaded.
+            self.study_sockets: dict[str, set[WebSocketResponse]] = {}
+            # Serialize mutations for one active Study room while allowing unrelated
+            # Studies to progress independently. Locks are created lazily and evicted
+            # with the last room socket.
+            self.study_mutation_locks: dict[str, asyncio.Lock] = {}
+            self.study_socket_users: dict[str, dict[WebSocketResponse, str]] = {}
             self.background_tasks: set[asyncio.Task[Any]] = set()
             self.game_remove_tasks: dict[str, asyncio.Task[None]] = {}
             self.tournament_remove_tasks: dict[str, asyncio.Task[None]] = {}
@@ -398,9 +421,11 @@ class PychessGlobalAppState:
                 )
                 db_collections = schema_result.initial_collections
                 log.info(
-                    "[startup] MongoDB schema mode=%s collections_created=%s indexes_created=%s",
+                    "[startup] MongoDB schema mode=%s collections_created=%s "
+                    "indexes_dropped=%s indexes_created=%s",
                     schema_result.mode.value,
                     len(schema_result.created_collections),
+                    len(schema_result.dropped_indexes),
                     len(schema_result.created_indexes),
                 )
 
@@ -515,15 +540,10 @@ class PychessGlobalAppState:
 
                 self.games[game_id] = game
                 if not corr:
-                    if isinstance(game, Game):
-                        # load_game_from_doc() already restored the stopwatch
-                        # from the persisted position and wall-clock downtime.
-                        pass
-                    else:
-                        if TYPE_CHECKING:
-                            assert isinstance(game, GameBug)
-                        game.gameClocks.restart("a")
-                        game.gameClocks.restart("b")
+                    # Both game types now restore their own clocks at load time, from the persisted
+                    # position and the wall-clock downtime. Restarting them again here would reset
+                    # each board to its last-move value and hand back the time the server was down.
+                    pass
 
                 if game.bot_game:
                     if TYPE_CHECKING:
@@ -1297,6 +1317,11 @@ class PychessGlobalAppState:
                         if ws is None:
                             continue
                         await ws.close()
+
+        # Study rooms are lazy, so only currently open browser tabs need closing.
+        for ws_set in tuple(self.study_sockets.values()):
+            for ws in tuple(ws_set):
+                await ws.close()
 
         log.debug("--- Cancel running tasks---")
         for task in asyncio.all_tasks():

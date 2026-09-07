@@ -20,7 +20,7 @@ export function chatMessageBug(ply: number, ctrl: RoundControllerBughouse, x: St
     const isBottom = chatDiv.scrollHeight - (chatDiv.scrollTop + chatDiv.offsetHeight) < 80;
     const container = document.getElementById('messages') as HTMLElement;
 
-    const step = ctrl?.steps[ply!]!;
+    const step = ctrl.steps[ply];
     const boardName = step.turnColor === 'black' ? step.boardName?.toUpperCase() : step.boardName;
     const lastMoveSan = ply === 0 ? '' : getLocalMoveNum(step) + '' + boardName + '.' + step.san!;
 
@@ -81,7 +81,7 @@ export function chatMessageBug(ply: number, ctrl: RoundControllerBughouse, x: St
                     h(
                         't.bugchatpointer',
                         {
-                            attrs: { title: ctrl?.steps[ply!].san! },
+                            attrs: { title: step.san ?? '' },
                             on: {
                                 click: () => {
                                     onchatclick(ply, ctrl);
@@ -103,7 +103,9 @@ export function chatMessageBug(ply: number, ctrl: RoundControllerBughouse, x: St
 
 export function onchatclick(ply: number | undefined, ctrl?: RoundControllerBughouse) {
     if (ply && ctrl) {
-        ctrl.goPly(ply);
+        // ONE CALL. This used to run `goPly()` and then `selectMove()`, which runs it again — the
+        // boards were repainted twice for one click. That is what a navigation split across two
+        // places invites: a caller does the part it knows about, then the whole thing, to be sure.
         selectMove(ctrl, ply);
     }
 }
