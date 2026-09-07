@@ -6,19 +6,28 @@ The design document has the shape of it. These are the parts that need reading t
 the question in hand, and they come first because the enumeration is the deliverable — the class is
 only where it ends up living.
 
-- [ ] 1.1 Confirm the message ordering on a real reconnection: snapshot before replay, and whether
-      anything can reverse it. `wsr.py` sends the board on connect; the client sends `reconnect` on
-      open. Prove it with the log rather than from reading.
-- [ ] 1.2 Walk every reader of the resend cache and the ahead-of-server field and record which case
-      each exists for. Four cache entry points, two field sites, and the comments already name most
-      of the cases — they are the raw material for the enumeration.
-- [ ] 1.3 Establish what the server does with each queued move: played, deduplicated silently,
-      refused because the game is over, or raised as invalid. One of those four produces no message
-      at all, which is what the client has to survive.
-- [ ] 1.4 Answer candidate defect 1 in Design: is the dests gate missing after a page RELOAD, where
-      the field is empty and the cache is not? Reason it through first, then reproduce it if the
-      reasoning says it is reachable.
-- [ ] 1.5 Decide whether the analysis page shares any of this or only R1/R2/R11.
+- [x] 1.1 DONE — proved from a recorded message log, not from reading. The bed's socket spy keeps
+      every inbound type in order (`msgsAfterBreak`), and a reconnection reads:
+      `game_user_connected, fullchat, board:N` — the snapshot arrives before anything else. Q8, which
+      reconnects holding a move the server never got, shows `board:1, board:1`: the snapshot first,
+      then the broadcast of the move replayed from `movesQueued`. Snapshot before replay, confirmed.
+- [x] 1.2 DONE — `case-to-code.md`, one row per branch naming the code that decides it, with line
+      numbers. It produced three findings, of which two were live defects.
+- [x] 1.3 DONE — all four are branches 1.2.3.1 to 1.2.3.4 in the tree, and the silent one (1.2.3.2,
+      `lastmovePerBoardAndUser`) is why a move can only be forgotten by SEEING it in a later
+      position. Scenario T6 demonstrates the fourth: after a restart that map is empty, so the same
+      resent move is rejected and resynced instead of ignored.
+- [x] 1.4 DONE, and it was REACHABLE. Scenario Q11 reproduces it: a move in flight, a reload onto a
+      snapshot that predates it, and the board offered back. Fixed by asking BOTH records rather
+      than the in-memory one — `waiting()` — so a fresh page is as careful as one that has been
+      running. `playable_gate_held` holds it. R1 later found the same gate defeated by a second
+      route entirely, the reader scrolling the move list.
+- [x] 1.5 DECIDED: the analysis page shares NONE of it. `ReconnectController` is constructed in
+      exactly one place (`roundCtrl.ts:248`) and the analysis page has no websocket at all — which is
+      its own open change, `analysis-page-presence-websocket`. With no socket there is no
+      reconnection, no queued move and no snapshot, so no case in this tree can arise. What the two
+      pages DO share is navigation, and that is now explicit: both implement `renderPly` and both
+      delegate `goPly` to the move list.
 
 ## 2. The enumeration
 
@@ -197,21 +206,31 @@ from, and seven asymmetries to argue about.
       never matches, and the entry survives to the end of the game. The shipped code says so about
       itself — "a snapshot taken after the opponent has replied shows their move here, not ours" —
       and left it to `clearPendingMoves()`. Q3 failed before the controller and passes after it.
-- [ ] 4.1b `unknown` is still answered as `no`, isolated in `treatsUnknownAsAhead()` with the
-      argument for both answers beside it. MOVED, NOT DECIDED — deliberately, so this change does
-      not do two things at once. Flipping it is now one line in one place rather than six call sites.
+- [x] 4.1b SUPERSEDED, not deferred. `unknown` no longer exists: the tri-state was replaced by one
+      question — is a move waiting on this board — asked of BOTH records, so there is nothing left to
+      be unknown about. `treatsUnknownAsAhead()` was never written.
 
-      DONE: five points: socket open, move sent, own move confirmed, snapshot, game end. No reconnect state left on the round controller.
-- [ ] 4.1 For every case, state what it did before and what it does after. Identical, or recorded.
-- [ ] 4.2 The four measured incidents stay fixed: the 63s richer mover, the 397s light board, the
-      44s handed back, the premove into a passed ply. Each has a game id in the code comments.
+      (The stray "DONE: five points..." line that sat here belonged to 4.1a and is kept there.)
+- [x] 4.1 DONE — `case-to-code.md` states it per branch, and every deliberate change of behaviour is
+      recorded beside the branch it belongs to: 1.2.2 drops a move that can never be played, 1.2.1
+      searches the whole history rather than the last move, 1.1.4 and 2.1.3 are new.
+- [x] 4.2 RE-MEASURED where the harness could reach them, 2026-09-06. The 63s richer mover is the
+      one with a live re-run: S10 staged the same server stall, and all four windows agreed on the
+      mover's own stopped clock (`bw` 3280 everywhere) where the mover used to hold a richer value
+      permanently. S3 and S7 were re-run clean, which covers the light board and the premove into a
+      passed ply by shape. The 44s handed back was a consequence of the same `if (running)` guard as
+      the 63s case and is covered by that fix rather than separately observed.
 - [x] 4.3 The cosmetic review point about clearing the confirmed move is addressed in passing, as
       part of 3.2 — not as its own change.
 
 ## 5. Verify
 
       DONE: the cache has one owner; and the review's finding is now fixed one level deeper — see 4.1a.
-- [ ] 5.1 Reuse the clock stress tests:
+- [ ] 5.1 PARTLY DONE — S3, S6b, S7 and S10 were re-run live on 2026-09-06 and are clean, along with
+      a live illegal-move check. S1, S2, S4, S5, S8, S9 and S11 were not re-run: they were all clean
+      or fixed in the 2026-08-30 pass and nothing since then touches what they exercise. Recorded as
+      partial rather than ticked, because "the suite was re-run" would not be true.
+      Original: Reuse the clock stress tests:
       `openspec/changes/archive/2026-08-30-bughouse-clock-record-investigation/stress-tests.md`
       holds S1-S11 with the runbook — the offline/stall/freeze snippets are exactly this subject, and
       S1-S11 map almost one-to-one onto the case table: S1 -> C-open-first, S3 -> C-snap-predates-ours,
@@ -238,13 +257,22 @@ number" from "the client rendered the wrong one", which S3 could not do.
 | **S6b** | no | yes, one board only | designed, never run |
 | S3 | yes | yes | run, 222s error, cause unknown |
 
-- [ ] 5.1a **S12 — the plain reconnect, which nothing has ever tested on its own.** Nothing of ours
+- [x] 5.1a **S12 — DONE 2026-09-06, CLEAN, and it answers the question it was set.**
+      Run live in the harness and standing in the bed as N4. Offline while it was the opponent's
+      move, they moved, back: the missed move was picked up and the clocks resynced in the right
+      direction — the client had ticked the opponent's clock DOWN to 3549 while away and the server
+      corrected it back UP to 3558. S3 was then also clean, so the premove is exonerated and the
+      222s incident is not reproducible on the current build.
+      Original: **S12 — the plain reconnect, which nothing has ever tested on its own.** Nothing of ours
       pending, no premove armed: go offline while it is the OPPONENT's move, let them move, come
       back. This is C-snap-sync, the plainest reconnect there is and the baseline every other case is
       measured against — and it exists in the suite only as a confound inside S3. If it is CLEAN
       while S3 is not, the premove is implicated; if it is dirty too, the premove is exonerated and
       the board-asymmetry suspicion stands.
-- [ ] 5.1b **S6b — reconnect with ONE board moved and the other not.** Carried over unrun from the
+- [x] 5.1b **S6b — DONE 2026-09-06, CLEAN.** Its shape — board A moved, board B untouched, then a
+      disconnect — is exactly what the S3 re-run staged, and all four windows agreed to within 1.2s
+      of read jitter where the recorded incident was 222s. Neither recorded suspicion reproduced.
+      Original: **S6b — reconnect with ONE board moved and the other not.** Carried over unrun from the
       2026-08-30 pass, where it is marked "NEXT, and now the prime suspect": it is the exact shape of
       S3 minus the premove's other half. Its two recorded suspicions, in order — (1) the client
       renders a board from the LAST STEP's `clocks`/`clocksB` rather than the live values, and a
@@ -258,18 +286,27 @@ number" from "the client rendered the wrong one", which S3 could not do.
       either. Hold the window open with the trick S5d used: kill the socket the instant the stale
       snapshot arrives, rather than racing 43ms.
       DONE: Q7 and Q8 in the bed, both passing.
-- [ ] 5.4 Reconnect into a game that ended while away, and into one where the position moved past
-      our queued move.
-- [ ] 5.4a **The server restart, B4/T4/K9.** Restart the server mid-game and reconnect all four
-      windows. Needs `test-users-survive-restart` first, or the windows return as new anonymous
-      browsers with no seats and the test measures the wrong thing. Expect the rollback until
-      `bughouse-persist-moves-as-played` lands; the point of running it before then is to see the
-      client refuse it rather than accept it.
-- [ ] 5.5 Cross-window comparison, not single-window: the 63s bug was invisible inside one window
-      because each window was internally consistent.
+- [x] 5.4 DONE — T1 reconnects into a game that ended while away (`game_over`, `cache_empty`); Q3
+      reconnects where the opponent has replied to our queued move, so the position has moved past
+      it, and asserts the move is in the record and the cache is clear.
+- [x] 5.4a DONE, both halves. LIVE in the four-window harness: all four windows kept their identities
+      across a real `docker compose restart server`, and the game came back with its moves, pockets
+      and clocks. IN THE BED as T4-T8, including the rollback (T5) and playing on after one (T8).
+      K9 was implemented as branch 1.1.4 — the client now reports a snapshot that went backwards
+      rather than obeying it in silence.
+- [x] 5.5 DONE and it remains the only oracle that can see this class. S10's re-run compared the same
+      STOPPED clock across all four windows — 3280 in every one, including the mover that owns it —
+      where `PB.invariant()` was true in every window both before and after the fix. The bed's
+      `clocks_agree` check does the same for two windows on every relevant scenario.
 - [x] 5.6 Frontend gates.
 
 ## 6. Not in this change
+
+**EVERYTHING STILL OPEN BELOW WAS CARRIED FORWARD on archiving, so it is not lost here.**
+`reconnect-follow-ups` holds 3.4 (the clock rules half-expressed), 6.2 and 6.5 (the premove
+questions), 6.4 (the flicker) and 5.1 (the stress tests not re-run). 6.1 already had a home in
+`bughouse-shrink-ply-clock-record`, which is exactly that subject. 6.3 was a scope statement rather
+than a task — server changes did happen, through their own changes.
 
       DONE: typecheck clean, 294/294 jest.
 - [ ] 6.1 The three stale clock values in a move message. Documented as deprecated in `sendMove`;
@@ -296,7 +333,7 @@ number" from "the client rendered the wrong one", which S3 could not do.
       Worth deciding at the same time: whether the move should be repainted away at all, or held
       optimistically until the server has spoken. That is a product question, not a mechanical one.
 
-- [ ] 6.3 **DOES AN ARMED PREMOVE SURVIVE A FULL BOARD MESSAGE, AND SHOULD IT?** Opened 2026-09-07
+- [ ] 6.5 **DOES AN ARMED PREMOVE SURVIVE A FULL BOARD MESSAGE, AND SHOULD IT?** Opened 2026-09-07
       while establishing what a full message resets, and deliberately not folded into that fix.
 
       THE RULE THAT PROMPTED IT: a full board message is a reset of everything the client holds,
