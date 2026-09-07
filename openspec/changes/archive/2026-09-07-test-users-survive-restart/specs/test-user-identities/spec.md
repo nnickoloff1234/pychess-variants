@@ -49,6 +49,16 @@ The reason is capability, not tidiness: a test user has `anon` set to `False` an
 - **WHEN** a browser holding a valid session cookie naming a test user reconnects after the server has restarted, so the in-memory store is empty
 - **THEN** the lookup finds the persisted document and returns that user, under the same name
 
+#### Scenario: A restart issues a new identity
+- **WHEN** a browser's session cookie names a test user that is absent from both `app_state.users` and `db.user` — a name minted before test users were persisted, or one whose document has been removed — and it reconnects after a restart
+- **THEN** the lookup returns `NONE_USER`, and the browser is issued a new test identity with a newly generated name
+
+KEPT UNDER ITS ORIGINAL NAME, AND NARROWED. It used to describe EVERY restart, which was true only
+because a test user had no document to find. It now describes the case where there is genuinely
+nothing to find. The rule underneath never changed and is why both this scenario and the one above
+exist: a name is honoured when the database verifies it and not otherwise. A cookie was never
+evidence, and still is not.
+
 #### Scenario: An unverified name does not become a user
 - **WHEN** a test username absent from both `app_state.users` and `db.user` is looked up
 - **THEN** no `User` is created for it and none is stored, regardless of whether `anon_as_test_users` is enabled

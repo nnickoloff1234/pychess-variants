@@ -30,19 +30,144 @@ from, and seven asymmetries to argue about.
 - [x] 2.1 Write the case list out in full — R1-R12 and any the analysis adds — each with its
       trigger and its answer in the six terms Design lists.
       DONE: the cases live in `reconnectController.ts`, each commented with the histories that reach it and what narrows it further.
-- [ ] 2.2 Mark each case with how it is reached today, naming the code that handles it. A case with
-      no current handler is a finding; so is a piece of current code that belongs to no case.
-- [ ] 2.3 Check the enumeration is exhaustive over the state that distinguishes cases, rather than
-      being a list of the situations we happen to have met.
+- [x] 2.2 DONE 2026-09-07 — `case-to-code.md`, one row per branch naming the code that decides it,
+      with line numbers. Both kinds of finding the task defines turned up:
+
+      **Finding 1 — branch 2.1 is decided outside the controller** (`roundCtrl.ts:1004`), which the
+      tree already said. What the audit adds is the cost: `seen`, the record branch 1.1.4 compares
+      against, is fed from our own confirmations and from snapshots but NOT from other people's
+      moves, because those never reach the class. A rollback that loses only an opponent move we
+      were told about through 2.1 is undetectable. The detection gap and the ownership gap are the
+      same gap, which is why moving 2.1 is worth more than it looks.
+
+      **Finding 2 — the playable gate is applied in one path and not the other.** `decide()` shuts a
+      board by emptying its dests map (`roundCtrl.ts:923`), and `setState()` ends in `setDests()`,
+      so every single-move message re-opens the board it touches. The premove release is the same
+      shape: gated on `decision.playable` in the full path, ungated in the single path.
+
+      An argument that this was unreachable was written here first and was WRONG, in a way worth
+      keeping: it inferred what the server holds from the fact that we have not been told. A move
+      being unacknowledged says only that no message has reached us — the server may have received
+      it, applied it, broadcast it, and had that broadcast die with the socket. Branch 1.2.3.2, "the
+      server stays silent (it already had that move)", exists for exactly that case, so the argument
+      contradicted the tree it was auditing. See `case-to-code.md`, finding 2.
+
+      The finding stands without a reachability argument and is better for it: the client cannot
+      know whether the board ought to re-open, because that depends on state only the server has. It
+      can only apply its own decision consistently, which is this change's whole premise — decide
+      from what has arrived, never from what the other end must be thinking.
+
+      THEN IT PROVED REACHABLE ANYWAY, and by the cheapest route: `goPly()` is not a message but the
+      READER, and returning to the last ply calls `setDests()` outright. Pressing left then right
+      handed a shut board straight back. Scenario **R1** stages it and failed before the fix. The
+      second unreachability attempt was wrong for a different reason than the first — it examined
+      only what a MESSAGE can do and never asked what the reader can do.
+
+      **FIXED 2026-09-07** as `GameController.movesAllowed`, a predicate `setDests()` consults
+      rather than an overwrite applied after it — the mirror of `snapshot(history, playableNow)`,
+      where the controller borrows a board it does not have. Written first as a cached boolean kept
+      in step by a sync helper, which reintroduced the same disease in miniature (a third copy of
+      one fact, with ordering rules to keep it fresh, and Q11 regressing when one was missed). The
+      predicate removed the copy, the sync calls and both ordering rules. See `case-to-code.md`.
+
+      **Finding 3 — a case the tree does not name.** `latestPly` is `msg.ply === this.ply + 1`,
+      which is false both for a move OLDER than ours (2.1.2, correctly) and for one AHEAD by more
+      than one, which the tree does not cover. Both get 2.1.2's answer, and `this.ply` only advances
+      when `latestPly`, so a single gap latches until a full snapshot arrives. Reachability is low —
+      a websocket delivers in order, and any break that loses a message ends in a reconnection that
+      is answered with a full board message — but the tree claims to be exhaustive over what a
+      message can be, and this is a shape it does not cover.
+- [x] 2.3 DONE 2026-09-07, and it found one gap, which 2.2 had already exposed and which is now
+      closed. The distinguishing state is: is a move waiting on this board, is the game over, does
+      the arriving position contain the waiting move, can it accept it, is the arriving position
+      older than one we were shown, whose move is arriving, and where that move sits relative to
+      what we show. The last of those was the gap — "is this the next move" was asked as a boolean
+      and has three answers, so a move AHEAD of us by more than one was answered as though it were
+      behind us. Now `MovePlace`, branch 2.1.3.
+
+      The enumeration is over that state rather than over remembered incidents: every branch is
+      reachable from a combination of it, and every combination lands on a branch. What it is NOT
+      exhaustive over is the SERVER's behaviour under 1.2.3 — played, silent, refused, rejected —
+      which is four outcomes this class cannot distinguish by looking, and which the scenario bed
+      covers instead.
 
 ## 3. The controller
 
-- [ ] 3.0 **K9 — refuse a snapshot that went backwards.** A snapshot whose ply is LOWER than ours,
-      in a game that is not over, is not a legitimate state in any scenario except a server that has
-      been rolled back. Every other case in this design assumes the snapshot is authoritative because
-      the server knows more than we do; this is the one case where that is false, and nothing detects
-      it today. Detecting it is one comparison; what to DO is a decision — refuse and hold, or accept
-      and warn — and it belongs to the controller because it is the only place that knows both plies.
+- [x] 3.0 **K9 — a snapshot that went backwards.** DONE 2026-09-06 as branch 1.1.4.
+
+      THE CASE, as originally stated: a snapshot whose position is older than ours, in a game that is
+      not over, is not a legitimate state in any scenario except a server that has been rolled back.
+      Every other case in this design assumes the snapshot is authoritative because the server knows
+      more than we do; this is the one case where that is false. Detecting it is one comparison; what
+      to DO was a decision — refuse and hold, or accept and warn — and it belongs to the controller
+      because it is the only place that knows both positions.
+
+      **NO LONGER HYPOTHETICAL — reproduced on demand 2026-09-06 as scenario T5.** Per-ply
+      persistence (`bughouse-persist-moves-as-played`) applies a ply, broadcasts it, and queues the
+      write; a process that dies in between leaves the document one ply short. Dropping that write
+      deliberately (`reconnect_matrix/delays.py::drop_move_persistence`) stages it every time.
+      Before the fix the bed reported:
+
+          FAIL T5  no_silent_rollback  ROLLED BACK: was showing ['f3','g1'] (g1f3), now shows
+                                       ['e5','e7']; the server's record is ['e2e4','e7e5']
+
+      **WHICH BRANCH IT TOOK BEFORE 1.1.4 EXISTED, AND WHY THAT WAS THE WRONG ONE.** The lost move was ours and was
+      CONFIRMED before the restart, so `ownMoveConfirmed()` cleared both records and nothing is
+      waiting. The reconnection therefore enters `1.1 nothing was waiting to be sent`, finds a game
+      that is not over and a position that differs from ours, and takes `1.1.3 moves happened while
+      we were away` — "take the position, the move list and all four clocks, jump to the newest
+      move". Here moves UN-happened, and 1.1.3 walked the reader backwards without a murmur: the
+      game did not end, `PB.invariant()` stayed true, and nothing anywhere said anything was wrong.
+
+      So the tree needed a sibling under 1.1 — the position that arrived is OLDER than ours — and it
+      is the exact question `2.1.2 it is older than what we are already showing` already answers for
+      a SINGLE move. The asymmetry is the finding: one move going backwards is handled, a whole
+      position going backwards is not.
+
+      **AND IT IS RECOVERABLE MORE OFTEN THAN IT LOOKS.** When the lost ply was OURS, the server's
+      position is exactly the one our move was legal in, so the existing `1.2.3 send the move again`
+      does the right thing unchanged. The only reason it does not fire is that the record was
+      dropped on a confirmation the restart then revoked. **A confirmation is not durable** — the
+      client treats "the server acknowledged it" as final, and asynchronous persistence makes that
+      untrue. Worth deciding explicitly: keep the record until the move is known PERSISTED (a
+      protocol change, and it re-couples the move to database latency), or compare plies on
+      reconnect and resend what is missing from a history we still hold.
+
+      When the lost ply was the OPPONENT'S, nothing on this client can restore it and the honest
+      answer is to accept the server's position and SAY SO rather than roll back in silence.
+
+      **WHAT WAS BUILT, AND THE DECISION BEHIND IT.** Branch 1.1.4 in the tree: the position is
+      ACCEPTED, because a move the server cannot remember did not survive and this is the only
+      truth left; the board STAYS PLAYABLE, deliberately unlike 1.2.3, because nothing of ours is
+      in flight and replaying the lost move is the whole of the repair available to the reader —
+      shutting the board would block it; and the fact is REPORTED, because the harm in this branch
+      is not the rollback, which cannot be undone from here, but accepting one in silence.
+
+      `BoardDecision.rolledBack` carries it and `roundCtrl` warns on it, once per board, named by
+      branch. Detection compares MOVES, not move numbers, for the same reason `reconcile()` does.
+      `seen` is in memory like `ahead`, so a RELOADED page cannot detect a rollback — it has no
+      earlier position of its own to weigh the new one against, which is honest rather than a gap.
+
+      **THE REMAINING GAP, and it is exactly the width of 2.1's absence.** `seen` is fed from a
+      confirmation of our own move and from a snapshot. It is NOT fed from the opponent's single
+      moves, because branch 2.1 is still decided in `updateSingleBoardAndClocks` and never reaches
+      this class — so a rollback that loses only an opponent move we were told about separately
+      goes undetected. It closes when 2.1 moves here (task 2.2).
+
+      **NOT DONE, AND A REAL OPTION: repair rather than report.** When the lost ply was ours, the
+      server's position is exactly the one it was legal in, so resending would restore the game
+      outright. It is not done because the resend path runs from `socketOpened()` — the move would
+      go out on the NEXT reconnection rather than now — so doing it properly means giving the
+      controller a way to ask for a send, which is a larger change than this one.
+
+      Covered in `tests/reconnectController.test.ts` by five tests numbered 1.1.4 and one numbered
+      1.1.3 — the guard that a position which merely moved ON is not a rollback, which belongs to
+      1.1.3 rather than to the new branch — and by scenario T5, which now passes:
+      `rolled back ... and SAID SO (branch 1.1.4)`.
+
+      NUMBERING IS PURELY ADDITIVE. 1.1.4 was appended after 1.1.3; nothing was renumbered, no
+      number is reused, and every branch number cited anywhere in the client, the unit tests, the
+      scenario bed and these tasks resolves to a branch the tree defines. Audited, not assumed.
 
 - [x] 3.1 Define what it is given and what it returns: the message and the client's state in, a
       decision in the six terms out. Returning a DECISION rather than performing the work is what
@@ -53,7 +178,13 @@ from, and seven asymmetries to argue about.
 - [x] 3.3 Move the ahead-of-server field under it, keeping the two answers distinct — see the
       requirement; collapsing them is the obvious simplification and it is wrong in both directions.
       DONE: kept distinct via the three-valued `outstanding()`.
-- [ ] 3.4 Express the clock rules as part of the decision: which seats resync, which keep their
+- [ ] 3.4 PARTLY DONE 2026-09-07 — `MoveDecision.takeClocks` now carries the branch-2 rule, so the
+      single-move path no longer decides it inline. What is still split is the OTHER half of that
+      condition: `roundCtrl` ORs in "this seat's clock is still running", which is a fact about a
+      `Clock` object the controller has never held. Settling it means either handing the controller
+      that fact or moving the whole clock decision out. Branch 1's four-clock rule is still applied
+      by the caller and is not expressed as a decision at all.
+      Original: Express the clock rules as part of the decision: which seats resync, which keep their
       local value, and which win on conflict.
 - [x] 3.5 Reduce the round controller to consulting it — ideally at the two points that matter, the
       socket opening and a board message arriving.
@@ -144,4 +275,50 @@ number" from "the client rendered the wrong one", which S3 could not do.
 - [ ] 6.1 The three stale clock values in a move message. Documented as deprecated in `sendMove`;
       shrinking them is its own change.
 - [ ] 6.2 The two premove quirks recorded in `round-clocks-are-client-authoritative`.
+
+- [ ] 6.4 **THE FLICKER: a full board message repaints away a move that is still pending, and
+      nothing tests that it does.** Raised by Nikolay 2026-09-07, to be addressed, not now.
+
+      A player who moves and then reconnects before the server confirms watches their move vanish
+      and come back: `updateSteps(full)` clears the steps, `boardA.setState()` repaints to the
+      server's position, and the move only reappears when the confirmation arrives (branch 2.2).
+      It is deliberate — the alternative, keeping our optimistic position, strands us somewhere the
+      server has never been if the move is ultimately rejected — and the shut board exists BECAUSE
+      of the flicker, so a reader who has just watched their move disappear cannot simply play it
+      again (which is the Q11 race).
+
+      WHAT IS NOT TESTED IS THE FLICKER ITSELF. Q1 and Q8 assert the round trip's endpoints and R1
+      asserts the board is shut in between; no scenario looks at the intermediate frame. So the
+      unconditional reset could be made conditional and every test would still pass. Asserting a
+      transient frame is fiddly — probably a MutationObserver or a screenshot at the right moment —
+      which is why it is recorded rather than done.
+
+      Worth deciding at the same time: whether the move should be repainted away at all, or held
+      optimistically until the server has spoken. That is a product question, not a mechanical one.
+
+- [ ] 6.3 **DOES AN ARMED PREMOVE SURVIVE A FULL BOARD MESSAGE, AND SHOULD IT?** Opened 2026-09-07
+      while establishing what a full message resets, and deliberately not folded into that fix.
+
+      THE RULE THAT PROMPTED IT: a full board message is a reset of everything the client holds,
+      because everything it holds is a copy of something the server can restate — the sole
+      exception being a move waiting to be sent, which the server never had. Applying that rule,
+      `updateSteps(full)` clears the steps, the chat and the move list; the boards, pockets and all
+      four clocks are replaced; `this.ply` now is too (task 3.3b). **An armed premove is not.**
+      Nothing in `roundCtrl` or `gameCtrl` clears `board.premove` on a board message; it is set by
+      `setPremove` and cleared by `unsetPremove`, which chessground calls on its own terms.
+
+      WHY IT MIGHT BE RIGHT: the tree already says a premove may stay ARMED while a board is shut,
+      because "a premove is an intention for a position that has not arrived yet". An intention is
+      arguably not a copy of server state at all, which would put it beside the pending move as a
+      second thing only the client has.
+
+      WHY IT MIGHT BE WRONG: a premove is composed against a specific position, and a snapshot may
+      have replaced that position with one where the intended move is meaningless or means
+      something else. The tree's own concern is a premove FIRING into a position we know is behind;
+      surviving a reset that changed the position underneath it is the same worry one step earlier.
+
+      WHAT WOULD SETTLE IT: a scenario that arms a premove, delivers a full board message whose
+      position makes the premove illegal, and asks what happens when the turn comes. N6 arms a
+      premove across a reconnect but the position is unchanged, so it cannot distinguish the two
+      readings. Until then this is an unstated behaviour rather than a known-good one.
 - [ ] 6.3 Any server change. `handle_reconnect_bughouse` and the duplicate branch are inputs.
