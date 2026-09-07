@@ -26,6 +26,7 @@ from variants import VARIANTS
 from server import make_app
 
 from . import driver
+from .delays import drop_move_persistence, hold_first_move
 from .scenarios import SCENARIOS
 
 # A FRESH PAIR OF IDENTITIES PER SCENARIO. Reusing one pair leaves the previous game unfinished, and
@@ -47,30 +48,85 @@ def server_record(state, game_id: str) -> tuple[list[str], dict]:
         return [], {}
     moves, per_board = [], {}
     for step in getattr(game, "steps", []):
-        move = step.get("move")
-        if move is None:
+        board = step.get("boardName")
+        if board is None:
+            continue
+        # READ THE MOVE OF THE BOARD THIS PLY BELONGS TO. A live game leaves the other board's slot
+        # empty, but a game rebuilt by `load_game_bug_from_doc()` CARRIES THE OTHER BOARD'S LAST
+        # MOVE FORWARD into every step — so reading `move` unconditionally reported board A's move
+        # again on every board-B ply, and a restored three-ply game read as ['e2e4','e7e5','e7e5'].
+        # Same expression is correct for both, because on a board-a ply `move` is this ply's move
+        # and on a board-b ply `moveB` is.
+        move = step.get("move") if board == "a" else step.get("moveB")
+        if not move:
             continue
         moves.append(move)
-        board = step.get("boardName")
-        if board is not None:
-            per_board[board] = move
+        per_board[board] = move
     return moves, per_board
 
 
 async def run_one(browser, base_url, scenario, names, state) -> driver.Result:
-    cam = par = None
+    cam = par = mate = watcher = None
     try:
         cam = await live._page_for_user(browser, base_url, names[0], before_load=driver.install_spy)
         par = await live._page_for_user(browser, base_url, names[1], before_load=driver.install_spy)
-        url = await live.start_game(cam, par)
+        if scenario.params.get("windows") == 3:
+            # A THIRD WINDOW SPLITS OUR TEAM. Two windows seat a whole team per browser, so the
+            # player who would act while we are offline is us. Only N3 needs this so far.
+            mate = await live._page_for_user(
+                browser, base_url, names[2], before_load=driver.install_spy
+            )
+            url = await live.start_game_three(cam, mate, par)
+        else:
+            url = await live.start_game(cam, par)
         game_id = url.rstrip("/").split("/")[-1]
         await driver.install_pb(cam)
         await driver.install_pb(par)
 
-        ctx = {"game_id": game_id, "seating": await driver._seating(cam)}
+        ctx = {"game_id": game_id, "seating": await driver._seating(cam), "state": state}
+
+        if scenario.params.get("spectator"):
+            # A SPECTATOR IS SIMPLY A USER WITH NO SEAT — `isSpectator()` is "no seat on either
+            # board". So a fourth identity that never joined the seek, sent straight to the game
+            # URL, lands on the round page as a watcher. The server adds any non-player who opens
+            # the game to `game.spectators`.
+            watcher = await live._page_for_user(
+                browser, base_url, names[3], before_load=driver.install_spy
+            )
+            await watcher.goto(url)
+            await watcher.wait_for_selector("#mainboard cg-board", state="visible", timeout=30000)
+            await driver.install_pb(watcher)
+            ctx["watcher"] = watcher
+
+        if mate is not None:
+            await driver.install_pb(mate)
+            ctx["mate"] = mate
         before = await driver.probe(cam, game_id)
 
-        await driver.stage(scenario.stage, cam, par, game_id, ctx)
+        if "drop_writes_after" in scenario.params:
+            # The persistence window, held open for the whole scenario rather than for an instant.
+            # `after_n` plies are written; everything later is applied and broadcast but never
+            # persisted, which is what a process dying between the two leaves behind.
+            async with drop_move_persistence(scenario.params["drop_writes_after"]) as dropped:
+                ctx["dropped_writes"] = dropped
+                await driver.stage(scenario.stage, cam, par, game_id, ctx)
+                ctx["dropped_writes"] = list(dropped)
+
+        elif "hold_after" in scenario.params:
+            async with hold_first_move(skip=scenario.params["hold_after"]) as hold:
+                ctx["hold"] = hold
+                await driver.stage(scenario.stage, cam, par, game_id, ctx)
+                ctx["server_applied"] = list(hold.applied)
+
+        elif scenario.stage == "move_in_flight_reload_move_again":
+            # The server holds the first move inside the game lock, which is what makes the window
+            # between "the move arrived" and "the client heard about it" wide enough to act in.
+            async with hold_first_move() as hold:
+                ctx["hold"] = hold
+                await driver.stage(scenario.stage, cam, par, game_id, ctx)
+                ctx["server_applied"] = list(hold.applied)
+        else:
+            await driver.stage(scenario.stage, cam, par, game_id, ctx)
 
         after = await driver.probe(cam, game_id)
         moves, per_board = server_record(state, game_id)
@@ -97,7 +153,7 @@ async def run_one(browser, base_url, scenario, names, state) -> driver.Result:
     except Exception as err:  # noqa: BLE001 - one bad scenario must not hide the rest
         return driver.Result(scenario, "ERROR", {}, {}, f"{type(err).__name__}: {err}")
     finally:
-        for page in (cam, par):
+        for page in (cam, par, mate, watcher):
             if page is not None:
                 try:
                     await page.context.set_offline(False)
@@ -114,8 +170,13 @@ async def run(only, out_path: Path | None):
     base_url = f"http://{server.host}:{server.port}"
     state = get_app_state(app)
 
-    def identities(scenario_id: str) -> tuple[str, str]:
-        pair = (f"{CAMERA}{scenario_id}", f"{PARTNER}{scenario_id}")
+    def identities(scenario_id: str) -> tuple[str, ...]:
+        pair = (
+            f"{CAMERA}{scenario_id}",
+            f"{PARTNER}{scenario_id}",
+            f"Mate{scenario_id}",
+            f"Watch{scenario_id}",
+        )
         for name in pair:
             if name not in state.users:
                 state.users[name] = User(state, username=name, perfs=new_default_perf_map(VARIANTS))
@@ -129,6 +190,10 @@ async def run(only, out_path: Path | None):
         browser = await live._launch(pw)
         try:
             for scenario in wanted:
+                if scenario.collapsed:
+                    results.append(driver.Result(scenario, "N/A", note=scenario.collapsed))
+                    print(f"  n/a     {scenario.id}  {scenario.title}", flush=True)
+                    continue
                 if scenario.blocked:
                     results.append(driver.Result(scenario, "BLOCKED", note=scenario.blocked))
                     print(f"  BLOCKED {scenario.id}  {scenario.title}", flush=True)
@@ -149,6 +214,7 @@ async def run(only, out_path: Path | None):
             "PASS": "ok  ",
             "FAIL": "FAIL",
             "BLOCKED": "--  ",
+            "N/A": "n/a ",
             "ERROR": "ERR ",
             "NO-CHECKS": "?   ",
         }[r.status]

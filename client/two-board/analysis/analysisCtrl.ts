@@ -1,7 +1,7 @@
 import * as cg from 'chessgroundx/types';
 
 import { uci2LastMove } from '../../chess';
-import { updateMovelist, selectMove } from '../common/movelist';
+import { updateMovelist, selectMove, showPly } from '../common/movelist';
 import { Chart } from 'highcharts';
 import { BugBoardName, PyChessModel } from '../../types';
 import { MsgBoard } from '../../messages';
@@ -203,8 +203,16 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
         this.syncBoardHitAreas();
     };
 
-    goPly = (ply: number, plyVari = 0) => {
-        if (this.tree.hasAnalysisTree() && plyVari === 0) {
+    /** One line, delegating to the move list, which owns the selection. See `twoBoardCtrl`.
+     *
+     *  The analysis TREE calls this directly and drives its own move-list redraw behind a
+     *  `redrawMovelist` flag, so this must NOT go through `selectMove` — that would redraw twice
+     *  and override a decision the tree had deliberately made. `showPly` touches the cursor and
+     *  the boards and nothing else, which is exactly what the tree wants. */
+    goPly = (ply: number) => showPly(this, ply);
+
+    renderPly = (ply: number, steppedForward: boolean) => {
+        if (this.tree.hasAnalysisTree()) {
             const node = this.tree.getTreeNodeForPly(ply);
             if (!node) return;
 
@@ -220,10 +228,10 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
             const move = step.boardName === 'b' ? moveB : moveA;
             const capture = this.stepCapture(step, activeBoard, move);
 
-            if (ply === this.ply + 1 && step.boardName !== undefined) {
+            // `steppedForward` comes from the move list, which held the cursor's old value.
+            if (steppedForward && step.boardName !== undefined) {
                 sound.moveSound(activeBoard.variant, capture);
             }
-            this.ply = ply;
             this.plyVari = 0;
 
             if (this.boardA.localAnalysis || this.boardB.localAnalysis) {
@@ -260,11 +268,10 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
 
         const capture = this.stepCapture(step, board, move);
 
-        if (ply === this.ply + 1) {
+        if (steppedForward) {
             // no sound if we are scrolling backwards
             sound.moveSound(board.variant, capture);
         }
-        this.ply = ply;
         this.plyVari = 0;
 
         ////////////// above is more or less copy/pasted from gameCtrl.ts->goPLy. other places just call super.goPly

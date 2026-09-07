@@ -385,8 +385,36 @@ export abstract class GameController extends ChessgroundController implements Ch
             : this.chessground.state.orientation !== this.mycolor;
     }
 
+    /* A REASON TO REFUSE MOVES THAT IS NOT ABOUT THE POSITION.
+     *
+     * `setDests()` answers "what does the variant allow here", computed from the position alone.
+     * Sometimes a board must refuse a move for a reason the position cannot express — for bughouse,
+     * that a move of ours is outstanding and a second one would race it (branch 1.2.3 of the
+     * reconnect tree). That used to be applied by BLANKING the map afterwards, at one of the four
+     * places that write it; the other three recomputed it and silently gave the board back.
+     *
+     * ASKED, NOT STORED. A copy of the answer kept on this object would be a third place the same
+     * fact lives — beside the records the reconnect controller holds and the map chessground holds
+     * — and every one of those needs a moment where somebody remembers to update it. That is the
+     * exact shape of the bug this replaces. A predicate has no such moment: it is evaluated when
+     * the answer is needed, so it cannot be stale and there is nothing to keep in step.
+     *
+     * The mirror of `snapshot(history, playableNow)`, where the controller borrows a board it does
+     * not have. Here a board borrows a controller it does not have. Defaults to allowing
+     * everything, which is what the analysis page and every single-board game get. */
+    movesAllowed: () => boolean = () => true;
+
     setDests() {
         // console.log("gameCtrl.setDests()");
+
+        // Asked BEFORE the legal moves are generated: a board that is refusing moves has nothing to
+        // ask the engine, and computing an answer we are about to discard invites somebody to use
+        // it later.
+        if (!this.movesAllowed()) {
+            this.chessground.set({ movable: { dests: new Map() } });
+            return;
+        }
+
         const legalMoves = this.ffishBoard
             .legalMoves()
             .split(' ')

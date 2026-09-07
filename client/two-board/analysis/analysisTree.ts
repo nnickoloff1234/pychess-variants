@@ -225,7 +225,7 @@ export class AnalysisTreeController {
             const mainChildPath = node.children[0]?.path;
             if (this.analysisPath !== path && mainChildPath && !this.analysisPath.startsWith(mainChildPath)) {
                 this.analysisPath = path;
-                this.ctrl.goPly(node.ply, 0);
+                this.ctrl.goPly(node.ply);
             }
         }
         this.revealTreePath(this.analysisPath);
@@ -328,7 +328,7 @@ export class AnalysisTreeController {
         document.removeEventListener('click', this.onTreeContextMenuDocumentClick, false);
         this.analysisPath = path;
         this.ctrl.plyVari = 0;
-        this.ctrl.goPly(node.ply, 0);
+        this.ctrl.goPly(node.ply);
 
         if (redrawMovelist) {
             updateMovelist(this.ctrl, true, false);

@@ -118,6 +118,46 @@ async def start_game(camera, partner) -> str:
     return camera.url
 
 
+async def start_game_three(us, mate, opp) -> str:
+    """Four seats from THREE contexts: us, our TEAMMATE, and the opponent pair in one window.
+
+    The two-context seating puts a whole team in one browser, so disconnecting "us" also
+    disconnects our teammate — and a teammate is the only player who can put a piece in our pocket.
+    Splitting the team across two windows is what makes that testable; the opposing pair can stay
+    doubled up in one window because nothing asks them to act while we are away.
+
+    Seats are claimed by clicking the join buttons in order, and the FIRST one offered after the
+    seek is created is the creator's own partner seat — which is exactly the one the two-context
+    version has the creator take for itself. Here the teammate takes it instead.
+    """
+    await us.wait_for_timeout(1000)
+    await us.locator(".lobby-button").first.click()
+    await us.wait_for_selector("#variant", state="visible")
+    await us.evaluate(
+        """(idx) => {
+            const min = document.getElementById('min');
+            if (min) { min.value = String(idx); min.dispatchEvent(new Event('input', {bubbles:true})); }
+        }""",
+        MINUTES_INDEX,
+    )
+    await us.locator("#color-button-group button.icon-white").click()
+
+    await mate.wait_for_function("() => document.querySelectorAll('.bug-join-button').length === 3")
+    await mate.locator(".bug-join-button").first.click()
+
+    await opp.wait_for_function("() => document.querySelectorAll('.bug-join-button').length === 2")
+    await opp.locator(".bug-join-button").nth(0).click()
+    await opp.wait_for_function("() => document.querySelectorAll('.bug-join-button').length === 1")
+    await opp.locator(".bug-join-button").first.click()
+
+    for page in (us, mate, opp):
+        await page.wait_for_url(
+            lambda u: str(u).rstrip("/").split("/")[-1].isalnum(), timeout=30000
+        )
+        await page.wait_for_selector("#mainboard cg-board", state="visible", timeout=30000)
+    return us.url
+
+
 SQUARE_XY = """
 ([sel, square]) => {
     const wrap = document.querySelector(sel + ' .cg-wrap');

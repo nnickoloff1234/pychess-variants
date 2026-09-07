@@ -90,7 +90,10 @@ test('initAnalysisTreeAtPly builds the tree and activates the mainline path at t
 
     expect(tree.hasAnalysisTree()).toBe(true);
     expect(tree.getTreeCurrentNode()?.ply).toBe(2);
-    expect(ctrl.goPly).toHaveBeenCalledWith(2, 0);
+    // ONE ARGUMENT. `plyVari` was dropped from the two-board `goPly` on 2026-09-07: the variation
+    // index is a single-board concept and every two-board call site had always passed 0, so the
+    // round page ignored it and the analysis page tested it against a constant.
+    expect(ctrl.goPly).toHaveBeenCalledWith(2);
 });
 
 test('getTreeNodeForPly finds nodes both on and off the active path', () => {

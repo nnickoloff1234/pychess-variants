@@ -128,12 +128,11 @@ export function clearPendingMoves(gameId: string): void {
     writeStoredPendingMoves(gameId, {});
 }
 
-/** Whether a move is queued for this board, without disturbing it.
+/** The move waiting to be sent for this board, if there is one, without disturbing it.
  *
- * The other half of `ReconnectController.outstanding()`: the durable answer, which survives the page
- * and which only the cache can give. */
-export function hasPendingMove(gameId: string, board: BugBoardName): boolean {
-    return readStoredPendingMoves(gameId)[board] !== undefined;
+ * The durable half of "is a move waiting": it survives the page, and only storage can answer it. */
+export function pendingMove(gameId: string, board: BugBoardName): string | undefined {
+    return readStoredPendingMoves(gameId)[board]?.move;
 }
 
 export function recordPendingMove(gameId: string, moveMsg: MsgMove): void {
