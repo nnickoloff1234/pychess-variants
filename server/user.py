@@ -35,7 +35,10 @@ from glicko2.glicko2 import MU, Rating, gl2, sparse_perf_map
 from json_utils import json_response
 from newid import id8
 from notify import notify
+from preferences import effective_game_category, effective_theme
 from pymongo.errors import DuplicateKeyError
+from request_protection import enforce_new_anonymous_identity_limit
+from typedefs import REQUEST_NEW_SESSION_KEY
 from user_stats import DEFAULT_USER_COUNT, normalize_user_count
 from websocket_utils import ws_send_json_many
 
@@ -926,6 +929,45 @@ class User:
         self.category_variant_list = CATEGORY_VARIANT_LISTS[normalized]
         self.category_variant_set = CATEGORY_VARIANT_SETS[normalized]
         self.category_variant_codes = CATEGORY_VARIANT_CODES[normalized]
+
+
+async def mint_guest_user(
+    app_state: PychessGlobalAppState,
+    request: web.Request,
+    session: aiohttp_session.Session,
+    *,
+    arriving_at: str,
+) -> User:
+    """Materialize the browser's guest identity, wherever it first lands.
+
+    ONE FUNCTION BECAUSE IT IS ONE RULE. A guest is created lazily, at whichever entry point the
+    browser reaches first — a page render, a websocket connection, or the puzzle page — so there
+    are three CALLERS by nature. There is no earlier common point: anonymous page rendering is
+    deliberately stateless, and materializing an identity for every request that never needs one is
+    what that statelessness exists to avoid.
+
+    What there is no reason for is three COPIES of the five lines. They drifted apart once already:
+    when test users gained a database document, the puzzle page was missed, so a browser whose first
+    landing was `/puzzle` got the one identity that still evaporated on restart.
+
+    `arriving_at` names the entry point for the log line, which is the only thing that differed
+    between the three.
+    """
+    enforce_new_anonymous_identity_limit(request)
+    user = User(
+        app_state,
+        anon=not app_state.anon_as_test_users,
+        theme=effective_theme(session, None),
+        game_category=effective_game_category(session, None),
+    )
+    app_state.users[user.username] = user
+    # A -a test user gets a database document so its name survives a restart; a no-op for anonymous
+    # users and in production. See User.persist_test_identity().
+    await user.persist_test_identity()
+    session["user_name"] = user.username
+    request[REQUEST_NEW_SESSION_KEY] = True
+    log.info("+++ New %s guest user %s connected.", arriving_at, user.username)
+    return user
 
 
 async def set_theme(request: web.Request) -> web.StreamResponse:
