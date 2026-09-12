@@ -132,7 +132,14 @@ def is_test_run() -> bool:
 
 
 def _is_mongomock(collection: Any) -> bool:
-    """Whether this collection is the in-memory mock rather than a real MongoDB.
+    """FORK-ONLY. Whether this collection is the in-memory mock rather than a real MongoDB.
+
+    NOT FOR UPSTREAM — see `FORK-ONLY.md`. Upstream has the `is_test_run()` half of the guard below
+    and not this one, and it should stay that way: this exists so the scenario beds can start, which
+    is accommodation in the product for the benefit of a test. The same result was available from the
+    bed side (patch this function, or mongomock's builder, in the bed's entry point the way
+    `delays.py` patches `wsr.play_move_bug`). Kept because it is already written and works; not a
+    pattern to repeat.
 
     Asked directly because the incompatibility below is a fact about mongomock, not about pytest.
     `is_test_run()` sniffs `sys.argv` for a test runner, which is true of the unit tests and false
@@ -151,6 +158,7 @@ async def _upsert_static_docs(collection: Any, docs: Iterable[Mapping[str, Any]]
     if not static_docs:
         return 0
 
+    # FORK-ONLY: the `_is_mongomock` half of this condition — see `FORK-ONLY.md`.
     if is_test_run() or _is_mongomock(collection):
         # mongomock 4.3.0 is not compatible with modern PyMongo UpdateOne
         # bulk writes. Keep test startup semantics equivalent without exercising

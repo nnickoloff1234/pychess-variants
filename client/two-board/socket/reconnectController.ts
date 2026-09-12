@@ -320,7 +320,7 @@ import {
  * THE RULE: apply the message, then consult, then act. Anything the consultation is about to change
  * — the position, the turn, the gate — is stale on the other side of it. None of the three was
  * caught by a unit test, because each lived in the seam between this class and its caller; all
- * three were caught by the scenario bed (Q11, Q1, N9).
+ * three were caught by the scenario bed (Q11, Q1, N9).  FORK-ONLY: this credit; see `FORK-ONLY.md`.
  *
  *
  * WHAT IS NOT IN THE TREE, AND WHY
@@ -770,7 +770,7 @@ export class ReconnectController {
      *  behaviour in this file. Looking only at the last move works while our move is the most recent
      *  thing on that board, and fails the moment the opponent has replied to it — then the last move
      *  is theirs, ours is never found, and it sits in storage until the game ends. The old code knew
-     *  this and left it alone; the scenario bed reproduces it.
+     *  this and left it alone; the scenario bed reproduces it.  FORK-ONLY: this clause.
      *
      *  MOVES ARE COMPARED, NEVER MOVE NUMBERS. The move number counts both boards, so it advances
      *  when the other board plays — and comparing numbers would throw away a move that never reached
