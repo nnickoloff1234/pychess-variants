@@ -1,20 +1,32 @@
-## ADDED Requirements
+# game-instance-identity Specification
 
+## Purpose
+TBD - created by archiving change rematch-survives-cache-eviction. Update Purpose after archive.
+## Requirements
 ### Requirement: A game is one object while anyone is connected to it
 
 While any socket is open on a game, every message about that game SHALL be handled against the
 same in-memory instance.
 
-Two sockets on one game SHALL NOT be able to hold different instances, whatever the order in which
-they connected and whatever happened to the cache between those connections.
+TWO MECHANISMS CARRY THIS, and between them they close the paths by which a second instance was
+reachable. The cache entry is held while the game has an audience, so no connection arriving during
+that time finds it absent and parses another. And a game that genuinely has to be loaded is
+constructed once: concurrent loads share one construction task and publish through a single
+`setdefault`, so the loser of a race returns the winner's object rather than its own.
 
-This SHALL hold across a finished game being evicted and later loaded again: a client that connects
-after an eviction SHALL NOT get a second instance while an earlier client is still attached to the
-first.
+WHAT IS NOT CLAIMED, because it is not built. The instance is resolved once per socket and held for
+the life of that connection, so a socket outliving an eviction remains conceivable — it needs the
+eviction to race the last player leaving and returning. Making it impossible means resolving the
+game per message rather than per socket, which is recorded as a follow-up rather than done here.
+Requiring it in this spec would state a guarantee the code does not give.
 
-#### Scenario: A client connecting after an eviction joins the same instance
-- **WHEN** a game has been evicted from the cache while some clients remain connected, and another client then connects
-- **THEN** all connected clients are handled against one instance of that game
+A CLIENT CONNECTING TO AN EVICTED FINISHED GAME SHALL STILL CONVERGE with the others: the first
+connection caches the instance and later ones find it, so the split needs an overlap — someone
+holding a reference across the eviction — and not merely a gap.
+
+#### Scenario: A client connecting to an evicted finished game joins the instance others get
+- **WHEN** a finished game has been evicted and clients connect to it afterwards
+- **THEN** the game is constructed once and all of them are handled against that one instance
 
 #### Scenario: Two clients connecting at once produce one instance
 - **WHEN** two clients connect to the same uncached game simultaneously
@@ -65,3 +77,4 @@ rather than record another offer.
 #### Scenario: Offers are not lost
 - **WHEN** a player asks for a rematch
 - **THEN** every other player's subsequent request sees that offer recorded
+
