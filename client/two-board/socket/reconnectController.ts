@@ -337,12 +337,15 @@ import {
  * write it had queued. Even then the tree is not asked what happened — it is asked what arrived,
  * and "a position missing a move we were shown" is a fact about the message, not about the cause.
  *
- * A restart also moves a journey from one branch to another WITHOUT changing what the reader sees.
+ * A RESTART USED TO MOVE A JOURNEY FROM ONE BRANCH TO ANOTHER, and no longer does.
  * `lastmovePerBoardAndUser`, the map the server uses to ignore a move a player has already made,
- * lives only in memory. So a move resent in a reconnect payload takes 1.2.3.2 (the server stays
- * silent) against a server that has been up all along, and 1.2.3.4 (the server rejects it and hands
- * back its position) against one that has just restarted. Both are correct and both end with the
- * client in step; it is only safe because a refused move no longer ends the game.
+ * lives only in memory, so a move resent in a reconnect payload took 1.2.3.2 (the server stays
+ * silent) against a server that had been up all along and 1.2.3.4 (the server rejects it and hands
+ * back its position) against one that had just restarted. Both were correct and both ended with the
+ * client in step — which is why the bed passed either way — but the answer depended on nothing the
+ * message could express. `load_game_bug_from_doc()` rebuilds the map from the move list now, so the
+ * resend takes 1.2.3.2 whatever the server has been through. Measured on scenario T6 both ways: the
+ * log says "move already played" where it used to say "refused invalid move … resyncing".
  *
  * A reloaded page loses the note that says WE are the ones waiting on a move, while the move itself
  * survives in storage. That used to matter — the board was handed back to a reader who still had a

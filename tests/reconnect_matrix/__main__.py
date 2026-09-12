@@ -138,6 +138,9 @@ async def run_one(browser, base_url, scenario, names, state) -> driver.Result:
         ctx["server_last_on_our_board"] = per_board.get(
             "a" if ctx["our_board"] == "#mainboard" else "b"
         )
+        # BOTH boards' last moves, for `both_boards_highlighted`. The line above narrows the same
+        # record to our own board, which is the one thing a restore is least likely to get wrong.
+        ctx["server_per_board"] = per_board
         # WHOSE TURN THE SERVER THINKS IT IS, per board. Read from the game object rather than
         # inferred from the move list: this is the oracle `clock_runs_for_side_to_move` is measured
         # against, and inferring it from moves would just be the client's own reasoning again.

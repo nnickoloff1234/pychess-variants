@@ -35,6 +35,7 @@ class Scenario:
 #   playable_gate_held       the board was NOT offered while a move of ours was outstanding
 #   opp_move_seen            the opponent's move made during the gap is on our board
 #   client_matches_server    our board shows the server's last move for that board
+#   both_boards_highlighted  BOTH boards show their own last move, not our board alone
 #   ply_advanced             our ply is at least what it was before the break
 #   one_move_lost_at_most    a second move did not erase the first from every record
 #   no_invalid_move          the game was not ended against us by a move we were invited to make
@@ -445,11 +446,16 @@ SCENARIOS = [
             "our_move_played",
             "no_silent_rollback",
             "client_matches_server",
+            "both_boards_highlighted",
             "invariant",
             "clock_runs_for_side_to_move",
         ),
         notes="unblocked 2026-09-06: the players survive a restart (test-users-survive-restart) "
-        "and so does the game (bughouse-persist-moves-as-played)",
+        "and so does the game (bughouse-persist-moves-as-played). `both_boards_highlighted` was "
+        "added 2026-09-12: a restored game was reported as highlighting nothing, and this scenario "
+        "had been measuring the partner board's highlight all along without asserting it — "
+        "`client_matches_server` reads our board alone. Both boards are correct, so the check is "
+        "here to keep them that way.",
     ),
     Scenario(
         "T5",
@@ -482,6 +488,7 @@ SCENARIOS = [
             "play_continues_after_rollback",
             "rollback_damage_is_bounded",
             "swallowed_move_is_recovered",
+            "both_boards_highlighted",
             "invariant",
             "clock_runs_for_side_to_move",
         ),

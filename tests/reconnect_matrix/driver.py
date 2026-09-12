@@ -400,6 +400,39 @@ def _check_client_matches_server(before, after, ctx):
     return ok, f"server's last {server_last}, client shows {last}"
 
 
+def _check_both_boards_highlighted(before, after, ctx):
+    """BOTH boards show their own last move, which `client_matches_server` does not ask.
+
+    That check reads our board alone, so the partner board's highlight was measured on every restart
+    scenario and asserted on none — and the partner board is where a restore is most likely to go
+    wrong, because its last move is at a different ply from ours and the loader has to carry both.
+
+    A restored game was once reported as highlighting nothing at all
+    (`bughouse-restored-game-loose-ends`). It highlights both boards now — the loader fills `move`
+    and `moveB` in every step it builds — so this exists to keep it that way rather than to catch it.
+
+    SKIPPED WHEN A BOARD HAS NO MOVE YET, which is most of the bed: a scenario that never plays on
+    the partner board has nothing for this to assert, and saying so is better than passing on an
+    empty list.
+    """
+    per_board = ctx.get("server_per_board") or {}
+    results = []
+    for board, key in (("a", "lastA"), ("b", "lastB")):
+        expected = per_board.get(board)
+        if expected is None:
+            continue
+        shown = after.get(key) or []
+        results.append(
+            (
+                expected[:2] in shown and expected[2:4] in shown,
+                f"{board}: server {expected}, client {shown or 'nothing'}",
+            )
+        )
+    if not results:
+        return None, "neither board has a move the server holds"
+    return all(ok for ok, _ in results), "; ".join(msg for _, msg in results)
+
+
 def _check_no_invalid_move(before, after, ctx):
     """The game must not have been ended against us by a move we were invited to make.
 
@@ -705,6 +738,7 @@ CHECKS = {
     "playable_gate_held": _check_playable_gate_held,
     "optimistic_move_shown": _check_optimistic_move_shown,
     "client_matches_server": _check_client_matches_server,
+    "both_boards_highlighted": _check_both_boards_highlighted,
     "cache_empty": _check_cache_empty,
     "our_move_played": _check_our_move_played,
     "invariant": _check_invariant,
