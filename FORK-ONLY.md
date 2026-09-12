@@ -46,13 +46,18 @@ the benefit of the TEST, so it has to be stripped by hand forever. The same resu
 the bed side — patch `_upsert_static_docs`, or mongomock's builder, in the bed's own entry point, the
 way `delays.py` already patches `wsr.play_move_bug`. Prefer that next time.
 
-### `client/two-board/socket/reconnectController.ts` — two comments naming the bed
+### Nothing else, as of 2026-09-12 — and one entry was retired the same day
 
-Two lines credit the scenario bed by name (`Q11, Q1, N9`) where upstream's copy says "driving real
-browsers". Harmless in themselves, but they conflicted in the 2026-09-12 upstream merge and will
-conflict again. **Candidate for deletion:** the provenance is recorded in the bed's own
-`scenarios.py` and in `openspec/changes/archive/2026-09-07-reconnect-sync-controller/`, so the fork
-loses nothing by matching upstream here.
+`client/two-board/socket/reconnectController.ts` used to carry two comments crediting the scenario
+bed by name (`Q11, Q1, N9`) where upstream's copy says "driving real browsers". They were deleted
+rather than tracked: they conflicted in that day's upstream merge and would have conflicted at every
+future one, while the provenance they carried is already in the bed's own `scenarios.py` and in
+`openspec/changes/archive/2026-09-07-reconnect-sync-controller/`. **That is the preferred ending for
+an entry in this section** — not a permanent exception, but something removed once its cost is
+visible. `_is_mongomock` stays only because deleting it would break both beds.
+
+Comments are the easy case; keep them free of the beds, the harness, `PB.*` and openspec names, and
+this section stays short.
 
 ## Before a PR or a cherry-pick to upstream
 
