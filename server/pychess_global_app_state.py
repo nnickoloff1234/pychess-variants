@@ -142,11 +142,6 @@ def _is_mongomock(collection: Any) -> bool:
     `delays.py` patches `wsr.play_move_bug`). Kept because it is already written and works; not a
     pattern to repeat.
 
-    Asked directly because the incompatibility below is a fact about mongomock, not about pytest.
-    `is_test_run()` sniffs `sys.argv` for a test runner, which is true of the unit tests and false
-    of anything else that drives the app against a mock database — the layout matrix report is the
-    first such caller, and it hit the bulk path and crashed on startup.
-
     THE WHOLE MRO IS ASKED, NOT THE TYPE'S OWN MODULE. `mongomock_motor` hands back a class whose
     `__module__` is `motor.motor_asyncio` — it builds a proxy that claims the real driver's identity,
     which is exactly what makes it a convincing mock — and only its bases name it.
@@ -1054,19 +1049,10 @@ class PychessGlobalAppState:
     def game_is_held(self, game: Game | GameBug) -> bool:
         """Is anything still using this game, so its cache entry must stay?
 
-        BOTH EVICTION PATHS ASK THIS, WHICH IS THE WHOLE POINT OF IT BEING ONE FUNCTION. The
-        immediate path below has always refused to evict under an audience; the scheduled path slept
-        out the keep time and then evicted regardless. That difference is not cosmetic — it is how
-        one game became two objects.
-
-        WHAT THE SPLIT COSTS, measured on game `hCbqFLim`: `round_socket_handler` resolves the game
-        once, when the socket opens, and holds that reference for the life of the connection. Evict
-        while sockets are attached and the next client to connect finds nothing cached, parses a
-        second `GameBug` from the document, and caches that. Sockets from either side of the eviction
-        then hold different objects, each with its own `rematch_offers` — so four players can each
-        press REMATCH, see all four offers appear, and never reach a fourth offer on either object.
-        The offers propagate because the broadcast goes through the shared `User` objects rather than
-        through the game, which is what makes the symptom a room agreeing to nothing.
+        Both eviction paths ask this. The immediate path below has always refused to evict a game
+        whose players or spectators are still connected; the scheduled path used to sleep out the
+        keep time and then evict regardless. One shared predicate is what keeps them from drifting
+        apart again, and that drift had a user-visible cost: see `remove_from_cache()`.
         """
         from fishnet import has_pending_analysis_work_for_game
 
@@ -1108,15 +1094,25 @@ class PychessGlobalAppState:
     async def remove_from_cache(self, game):
         await asyncio.sleep(LOCALHOST_CACHE_KEEP_TIME if URI == LOCALHOST else GAME_KEEP_TIME)
 
-        # THE KEEP TIME IS NOT THE WHOLE RULE: an audience holds the entry. Asked through the same
-        # predicate the immediate path uses, so the two cannot drift apart again — the drift is what
-        # let two sockets on one game hold two objects. See `game_is_held()`.
+        # The keep time is not the whole rule: an audience holds the entry.
         #
-        # DEFERRED, NOT DROPPED, which is the other half. A game whose viewers all leave still has to
-        # be released or the cache grows without bound, so this re-asks on an interval rather than
-        # giving up — the shape the tournament path already uses. The loop also ends if something
-        # else evicted the game meanwhile, so a task cannot outlive the entry it was armed for and go
-        # on holding a reference to it.
+        # Why it matters. `round_socket_handler` resolves the game once, when the socket opens, and
+        # holds that reference for the life of the connection. Evicting while sockets are still
+        # attached means the next client to connect finds nothing cached, loads the document, and
+        # gets a SECOND object for the same game. Sockets from either side of the eviction then
+        # operate on different instances, and any state that accumulates on the game object
+        # diverges with them -- `rematch_offers` most visibly, since every player's request lands on
+        # whichever instance their own socket holds. The offers still reach every client, because
+        # they are broadcast through the shared `User` objects rather than through the game, so the
+        # players see each other agreeing while no set ever reaches the number needed to start the
+        # rematch. Observed with a four-player bughouse game, where four participants make the split
+        # easy to hit, but nothing about it is variant-specific.
+        #
+        # Deferred, not dropped: a game whose viewers all leave still has to be released, or the
+        # cache grows without bound, so this re-asks on an interval -- the shape
+        # `TOURNAMENT_ACTIVE_RECHECK_INTERVAL` already uses for tournaments. The loop also ends if
+        # something else evicted the game meanwhile, so a deferred task cannot outlive the entry it
+        # was armed for and go on holding a reference to it.
         while game.id in self.games and self.game_is_held(game):
             await asyncio.sleep(GAME_ACTIVE_RECHECK_INTERVAL)
 
