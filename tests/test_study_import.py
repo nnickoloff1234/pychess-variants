@@ -17,7 +17,13 @@ class StudyImportTestCase(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.client = AsyncMongoMockClient(tz_aware=True)
         self.db = self.client["pychess-test"]
-        self.app_state = SimpleNamespace(db=self.db, catalogued_variants={})
+        self.app_state = SimpleNamespace(
+            db=self.db,
+            catalogued_variants={},
+            study_sockets={},
+            study_mutation_locks={},
+            study_mutation_lock_refs={},
+        )
         self.study, self.initial_chapter = await create_study_with_chapter(
             cast(Any, self.app_state), "owner", name="Import target"
         )
@@ -98,6 +104,35 @@ class StudyImportTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(node.get("c", False))
         self.assertIn("4P3", node["f"])
         self.assertEqual(imported["root"]["_"]["a"]["c"][0]["a"], "owner")
+
+    async def test_import_persists_parsed_evaluation_after_server_replay(self) -> None:
+        chapter = self._chapter("e2e4", name="Evaluated", node_id="Node000010")
+        tree = cast(dict[str, object], chapter["tree"])
+        nodes = cast(list[dict[str, object]], tree["nodes"])
+        # Match the browser-normalized PGN payload: after 1.e4 Black is to move,
+        # so a White +0.35 PGN evaluation is stored internally as Black -0.35.
+        nodes[0]["turnColor"] = "black"
+        nodes[0]["eval"] = {"cp": -35}
+
+        response = await self._request({"chapters": [chapter]})
+        self.assertEqual(response.status, 200)
+
+        doc = await self.db.study_chapter.find_one({"studyId": self.study.id, "name": "Evaluated"})
+        assert doc is not None
+        node = next(value for key, value in doc["root"].items() if key != "_")
+        self.assertEqual(node["e"], {"cp": -35})
+
+    async def test_sync_off_import_keeps_existing_shared_chapter(self) -> None:
+        response = await self._request(
+            {
+                "sync": False,
+                "chapters": [self._chapter("e2e4", name="Private import", node_id="Node000009")],
+            }
+        )
+        self.assertEqual(response.status, 200)
+        study_doc = await self.db.study.find_one({"_id": self.study.id})
+        assert study_doc is not None
+        self.assertEqual(study_doc["currentChapter"], self.initial_chapter.id)
 
     async def test_rejects_illegal_later_chapter_without_partial_import(self) -> None:
         invalid = self._chapter("e2e5", name="Illegal", node_id="Node000004")

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 import re
 from collections.abc import Mapping
@@ -16,7 +15,15 @@ from ws_structs import STUDY_TYPED_DECODERS, WsInboundStruct
 from study.models import Study
 from study.mutations import StudyMutationResult, StudyMutationService
 from study.permissions import can_view_study
-from study.storage import StudyStorageError, set_shared_position
+from study.sequencer import cleanup_study_sequence, sequence_study
+from study.snapshot import chapter_snapshot_token, study_snapshot_token
+from study.storage import (
+    StudyStorageError,
+    chapter_previews,
+    load_chapter,
+    load_study,
+    set_shared_position,
+)
 
 if TYPE_CHECKING:
     from pychess_global_app_state import PychessGlobalAppState
@@ -142,6 +149,72 @@ async def _finish_mutation(
         await ws_send_json(ws, payload)
 
 
+async def broadcast_study_chapters(
+    app_state: PychessGlobalAppState,
+    study_id: str,
+) -> None:
+    room = app_state.study_sockets.get(study_id)
+    if not room:
+        return
+    study_doc = await app_state.db.study.find_one(
+        {"_id": study_id}, projection={"currentChapter": 1, "currentPath": 1}
+    )
+    if study_doc is None:
+        return
+    await ws_send_json_many(
+        tuple(room),
+        {
+            "type": "study_chapters",
+            "studyId": study_id,
+            "chapters": await chapter_previews(app_state, study_id),
+            "sharedChapter": str(study_doc.get("currentChapter") or ""),
+            "sharedPath": str(study_doc.get("currentPath") or ""),
+        },
+    )
+
+
+async def broadcast_study_chapter_content(
+    app_state: PychessGlobalAppState,
+    study_id: str,
+    chapter_id: str,
+    revision: int,
+    description: str,
+) -> None:
+    room = app_state.study_sockets.get(study_id)
+    if not room:
+        return
+    await ws_send_json_many(
+        tuple(room),
+        {
+            "type": "study_chapter_content",
+            "studyId": study_id,
+            "chapterId": chapter_id,
+            "revision": revision,
+            "description": description,
+        },
+    )
+
+
+async def broadcast_study_position(
+    app_state: PychessGlobalAppState,
+    study_id: str,
+    chapter_id: str,
+    path: str,
+) -> None:
+    room = app_state.study_sockets.get(study_id)
+    if not room:
+        return
+    await ws_send_json_many(
+        tuple(room),
+        {
+            "type": "study_position",
+            "studyId": study_id,
+            "chapterId": chapter_id,
+            "path": path,
+        },
+    )
+
+
 async def _broadcast_shared_position(
     app_state: PychessGlobalAppState,
     ws: WebSocketResponse,
@@ -149,17 +222,19 @@ async def _broadcast_shared_position(
     chapter_id: str,
     path: str,
 ) -> None:
-    payload = {
-        "type": "study_position",
-        "studyId": study_id,
-        "chapterId": chapter_id,
-        "path": path,
-    }
     room = app_state.study_sockets.get(study_id)
     if room:
-        await ws_send_json_many(tuple(room), payload)
+        await broadcast_study_position(app_state, study_id, chapter_id, path)
     else:
-        await ws_send_json(ws, payload)
+        await ws_send_json(
+            ws,
+            {
+                "type": "study_position",
+                "studyId": study_id,
+                "chapterId": chapter_id,
+                "path": path,
+            },
+        )
 
 
 async def _set_shared_position_message(
@@ -227,6 +302,44 @@ async def _repair_shared_position_after_delete(
     await _broadcast_shared_position(app_state, ws, study_id, chapter_id, repaired)
 
 
+async def _sync_chapter_message(
+    app_state: PychessGlobalAppState,
+    ws: WebSocketResponse,
+    data: Mapping[str, object],
+    *,
+    study_id: str,
+) -> None:
+    chapter_id = data.get("chapterId")
+    request_id = data.get("requestId")
+    if (
+        data.get("studyId") != study_id
+        or not isinstance(chapter_id, str)
+        or not chapter_id
+        or not isinstance(request_id, str)
+        or _CLIENT_OP_ID_RE.fullmatch(request_id) is None
+    ):
+        await _send_invalid_message(ws, data)
+        return
+
+    study = await load_study(app_state, study_id)
+    chapters = await chapter_previews(app_state, study_id) if study is not None else []
+    chapter = await load_chapter(app_state, study_id, chapter_id)
+    await ws_send_json(
+        ws,
+        {
+            "type": "study_chapter_sync",
+            "studyId": study_id,
+            "chapterId": chapter_id,
+            "requestId": request_id,
+            "revision": chapter.revision if chapter is not None else None,
+            "snapshotToken": chapter_snapshot_token(chapter) if chapter is not None else None,
+            "roomSnapshotToken": (
+                study_snapshot_token(study, chapters) if study is not None else None
+            ),
+        },
+    )
+
+
 async def process_message(
     app_state: PychessGlobalAppState,
     user: User,
@@ -240,8 +353,7 @@ async def process_message(
     # room are processed and broadcast in one total order. Holding the lock through
     # broadcast guarantees every connected client observes monotonically ordered
     # revisions before the next queued mutation starts.
-    lock = app_state.study_mutation_locks.setdefault(study_id, asyncio.Lock())
-    async with lock:
+    async with sequence_study(app_state, study_id):
         await _process_message_unlocked(
             app_state, user, ws, raw_data, study_id=study_id, service=service
         )
@@ -256,14 +368,76 @@ async def _process_message_unlocked(
     study_id: str,
     service: StudyMutationService,
 ) -> None:
+    # Existing Study websockets can outlive the HTTP account-deletion request.
+    # Once that request disables the shared User object, reject messages that were
+    # queued before socket shutdown but have not yet entered the Study sequencer.
+    if not getattr(user, "enabled", True):
+        await ws.close()
+        return
+
     data = _as_mapping(raw_data)
     if data is None:
         await _send_invalid_message(ws, {})
         return
 
     message_type = data.get("type")
+    if message_type == "study_sync_chapter":
+        await _sync_chapter_message(app_state, ws, data, study_id=study_id)
+        return
+
     if message_type == "study_set_position":
         await _set_shared_position_message(app_state, user, ws, data, study_id=study_id)
+        return
+
+    if message_type == "study_request_analysis":
+        chapter_id = data.get("chapterId")
+        if data.get("studyId") != study_id or not isinstance(chapter_id, str) or not chapter_id:
+            await _send_invalid_message(ws, data)
+            return
+        from study.analysis import request_study_server_analysis
+
+        result = await request_study_server_analysis(
+            app_state,
+            study_id=study_id,
+            chapter_id=chapter_id,
+            username=user.username,
+        )
+        if result.status == "started":
+            return
+        if result.status == "already_requested" and not result.pending:
+            await ws_send_json(
+                ws,
+                {
+                    "type": "study_analysis_unavailable",
+                    "studyId": study_id,
+                    "chapterId": chapter_id,
+                    "reason": result.status,
+                },
+            )
+            return
+        if result.server_eval is not None and result.status in {
+            "already_requested",
+            "already_done",
+        }:
+            await ws_send_json(
+                ws,
+                {
+                    "type": "study_analysis_progress",
+                    "studyId": study_id,
+                    "chapterId": chapter_id,
+                    "serverEval": result.server_eval.to_payload(pending=result.pending),
+                },
+            )
+            return
+        await ws_send_json(
+            ws,
+            {
+                "type": "study_analysis_unavailable",
+                "studyId": study_id,
+                "chapterId": chapter_id,
+                "reason": result.status,
+            },
+        )
         return
 
     if not _valid_common_message(data, study_id):
@@ -456,21 +630,48 @@ async def init_ws(
     app_state: PychessGlobalAppState,
     ws: WebSocketResponse,
     user: User,
-    study: Study,
+    study_id: str,
 ) -> None:
-    room = app_state.study_sockets.setdefault(study.id, set())
-    room.add(ws)
-    app_state.study_mutation_locks.setdefault(study.id, asyncio.Lock())
-    app_state.study_socket_users.setdefault(study.id, {})[ws] = user.username
-    user.study_sockets.setdefault(study.id, set()).add(ws)
-    user.update_online()
-    await ws_send_json(
-        ws,
-        {
-            "type": "study_user_connected",
-            "studyId": study.id,
-        },
-    )
+    # The HTTP handshake may have authorized an older Study snapshot. Re-read the
+    # document under the same sequencer used by visibility/member revocations, then
+    # insert the socket before releasing it. No private room event can pass between
+    # the authoritative authorization check and room membership.
+    async with sequence_study(app_state, study_id):
+        # Account deletion disables the shared in-memory User before GDPR cleanup.
+        # Recheck here as well as in process_ws so a handshake that passed its first
+        # enabled check cannot enter a Study room after erasure has begun.
+        if not getattr(user, "enabled", True):
+            await ws.close()
+            return
+
+        raw_study = await app_state.db.study.find_one({"_id": study_id})
+        if raw_study is None:
+            await ws.close()
+            return
+        try:
+            study = Study.from_document(raw_study)
+        except (TypeError, ValueError):
+            log.warning("Invalid stored Study document %s", study_id, exc_info=True)
+            await ws.close()
+            return
+        if not can_view_study(study, user.username):
+            await ws.close()
+            return
+
+        chapters = await chapter_previews(app_state, study_id)
+        room = app_state.study_sockets.setdefault(study_id, set())
+        room.add(ws)
+        app_state.study_socket_users.setdefault(study_id, {})[ws] = user.username
+        user.study_sockets.setdefault(study_id, set()).add(ws)
+        user.update_online()
+        await ws_send_json(
+            ws,
+            {
+                "type": "study_user_connected",
+                "studyId": study_id,
+                "roomSnapshotToken": study_snapshot_token(study, chapters),
+            },
+        )
 
 
 async def finally_logic(
@@ -487,7 +688,6 @@ async def finally_logic(
             users.pop(ws, None)
         if not room:
             app_state.study_sockets.pop(study_id, None)
-            app_state.study_mutation_locks.pop(study_id, None)
             app_state.study_socket_users.pop(study_id, None)
 
     user_room = user.study_sockets.get(study_id)
@@ -496,6 +696,7 @@ async def finally_logic(
         if not user_room:
             user.study_sockets.pop(study_id, None)
     user.update_online()
+    cleanup_study_sequence(app_state, study_id)
 
 
 async def broadcast_study_likes(
@@ -585,6 +786,17 @@ async def close_study_sockets(app_state: PychessGlobalAppState, study_id: str) -
         await ws.close()
 
 
+async def close_study_user_sockets(
+    app_state: PychessGlobalAppState, study_id: str, username: str
+) -> None:
+    """Close one user's live sockets in a Study room without evicting other viewers."""
+
+    users = app_state.study_socket_users.get(study_id, {})
+    for ws, socket_username in tuple(users.items()):
+        if socket_username == username:
+            await ws.close()
+
+
 async def study_socket_handler(request: web.Request) -> web.StreamResponse:
     app_state = get_app_state(request.app)
     study_id = request.match_info["studyId"]
@@ -611,7 +823,7 @@ async def study_socket_handler(request: web.Request) -> web.StreamResponse:
         ws: WebSocketResponse,
         inner_user: User,
     ) -> None:
-        await init_ws(inner_app_state, ws, inner_user, study)
+        await init_ws(inner_app_state, ws, inner_user, study_id)
 
     async def on_message(
         inner_app_state: PychessGlobalAppState,

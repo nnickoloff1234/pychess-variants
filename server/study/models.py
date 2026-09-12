@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal, cast
 
 from newid import new_id
+from typing_defs import AnalysisStep
 
 from study.annotations import canonical_description, canonical_tags
 from study.constants import (
@@ -312,6 +313,82 @@ class Study:
 
 
 @dataclass(frozen=True, slots=True)
+class StudyServerEval:
+    path: str
+    done: bool
+    requested_at: datetime
+    analysis: tuple[AnalysisStep | None, ...] = ()
+
+    def to_document(self) -> dict[str, object]:
+        return {
+            "path": self.path,
+            "done": self.done,
+            "requestedAt": _utc(self.requested_at),
+            "analysis": [None if step is None else dict(step) for step in self.analysis],
+        }
+
+    def to_payload(self, *, pending: bool | None = None) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "path": self.path,
+            "done": self.done,
+            "requestedAt": _utc(self.requested_at).isoformat(),
+            "analysis": [None if step is None else dict(step) for step in self.analysis],
+        }
+        if pending is not None:
+            payload["pending"] = pending
+        return payload
+
+    @classmethod
+    def from_document(cls, doc: Mapping[str, object]) -> StudyServerEval:
+        path = doc.get("path")
+        if not isinstance(path, str):
+            raise TypeError("Study serverEval field 'path' must be a string")
+        done = doc.get("done")
+        if not isinstance(done, bool):
+            raise TypeError("Study serverEval field 'done' must be boolean")
+        requested_at = _required_datetime(doc, "requestedAt")
+        raw_analysis = doc.get("analysis", [])
+        if not isinstance(raw_analysis, (list, tuple)):
+            raise TypeError("Study serverEval field 'analysis' must be a list")
+
+        analysis: list[AnalysisStep | None] = []
+        for raw_step in raw_analysis:
+            if raw_step is None:
+                analysis.append(None)
+                continue
+            if not isinstance(raw_step, Mapping):
+                raise TypeError("Study serverEval analysis entries must be mappings or null")
+            step: AnalysisStep = {}
+            raw_score = raw_step.get("s")
+            if not isinstance(raw_score, Mapping):
+                raise TypeError("Study serverEval analysis score must be a mapping")
+            score: dict[str, int] = {}
+            for key in ("cp", "mate"):
+                value = raw_score.get(key)
+                if value is not None:
+                    if isinstance(value, bool) or not isinstance(value, int):
+                        raise TypeError(
+                            f"Study serverEval analysis score {key!r} must be an integer"
+                        )
+                    score[key] = value
+            if not score:
+                raise ValueError("Study serverEval analysis score requires cp or mate")
+            step["s"] = score
+            depth = raw_step.get("d")
+            if depth is not None:
+                if isinstance(depth, bool) or not isinstance(depth, int) or depth < 0:
+                    raise ValueError("Study serverEval analysis depth must be non-negative")
+                step["d"] = depth
+            pv = raw_step.get("p")
+            if pv is not None:
+                if not isinstance(pv, str):
+                    raise TypeError("Study serverEval analysis PV must be a string")
+                step["p"] = pv
+            analysis.append(step)
+        return cls(path=path, done=done, requested_at=requested_at, analysis=tuple(analysis))
+
+
+@dataclass(frozen=True, slots=True)
 class StudyChapter:
     id: str
     study_id: str
@@ -326,8 +403,10 @@ class StudyChapter:
     updated_at: datetime
     chess960: bool = False
     variant_ini: str | None = None
+    source: StudySource = field(default_factory=StudySource)
     description: str = ""
     tags: Mapping[str, str] = field(default_factory=dict)
+    server_eval: StudyServerEval | None = None
     revision: int = 0
 
     def to_document(self) -> dict[str, object]:
@@ -358,10 +437,14 @@ class StudyChapter:
             doc["chess960"] = True
         if self.variant_ini is not None:
             doc["variantIni"] = self.variant_ini
+        if self.source.kind != "scratch":
+            doc["source"] = self.source.encode()
         if description:
             doc["description"] = description
         if tags:
             doc["tags"] = tags
+        if self.server_eval is not None:
+            doc["serverEval"] = self.server_eval.to_document()
         return doc
 
     @classmethod
@@ -376,6 +459,9 @@ class StudyChapter:
         if not isinstance(raw_chess960, bool):
             raise TypeError("Study chapter field 'chess960' must be boolean")
         raw_tags = doc.get("tags", {})
+        raw_server_eval = doc.get("serverEval")
+        if raw_server_eval is not None and not isinstance(raw_server_eval, Mapping):
+            raise TypeError("Study chapter field 'serverEval' must be a mapping or null")
 
         return cls(
             id=_required_str(doc, "_id"),
@@ -391,8 +477,14 @@ class StudyChapter:
             updated_at=_required_datetime(doc, "updatedAt"),
             chess960=raw_chess960,
             variant_ini=_optional_str(doc, "variantIni"),
+            source=StudySource.decode(doc.get("source", "scratch")),
             description=canonical_description(doc.get("description", "")),
             tags=canonical_tags(raw_tags),
+            server_eval=(
+                StudyServerEval.from_document(raw_server_eval)
+                if isinstance(raw_server_eval, Mapping)
+                else None
+            ),
             revision=_nonnegative_int(doc, "revision", default=0),
         )
 
@@ -402,6 +494,8 @@ async def make_study(
     *,
     owner: str,
     name: str | None = None,
+    visibility: StudyVisibility = "private",
+    settings: Mapping[str, object] | None = None,
     source: StudySource | None = None,
     now: datetime | None = None,
 ) -> Study:
@@ -411,7 +505,8 @@ async def make_study(
         name=name or f"{owner}'s Study",
         owner=owner,
         members={owner: "write"},
-        visibility="private",
+        visibility=visibility,
+        settings={} if settings is None else dict(settings),
         source=source or StudySource(),
         created_at=created_at,
         updated_at=created_at,
@@ -432,6 +527,7 @@ async def make_chapter(
     chess960: bool = False,
     variant_ini: str | None = None,
     root: StudyTree | None = None,
+    source: StudySource | None = None,
     description: str = "",
     tags: Mapping[str, str] | None = None,
     now: datetime | None = None,
@@ -449,6 +545,7 @@ async def make_chapter(
         orientation=orientation,
         variant_ini=variant_ini,
         root=StudyTree() if root is None else root,
+        source=source or StudySource(),
         description=description,
         tags={} if tags is None else dict(tags),
         created_at=created_at,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 import secrets
 import string
@@ -55,6 +56,39 @@ def _nonnegative_int(doc: Mapping[str, object], key: str, *, default: int = 0, c
     return value
 
 
+def _canonical_clocks(value: object, *, context: str) -> tuple[int | float, int | float] | None:
+    if value is None:
+        return None
+    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence) or len(value) != 2:
+        raise TypeError(f"{context} must contain two clock values")
+    clocks: list[int | float] = []
+    for raw in value:
+        if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+            raise TypeError(f"{context} clock values must be numbers")
+        if raw < 0 or not math.isfinite(raw):
+            raise ValueError(f"{context} clock values must be finite and non-negative")
+        clocks.append(raw)
+    return clocks[0], clocks[1]
+
+
+def _canonical_eval_score(value: object, *, context: str) -> dict[str, int] | None:
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise TypeError(f"{context} must be a mapping or null")
+    score: dict[str, int] = {}
+    for key in ("cp", "mate"):
+        raw = value.get(key)
+        if raw is None:
+            continue
+        if isinstance(raw, bool) or not isinstance(raw, int):
+            raise TypeError(f"{context} field {key!r} must be an integer")
+        score[key] = raw
+    if not score:
+        raise ValueError(f"{context} requires cp or mate")
+    return score
+
+
 @dataclass(frozen=True, slots=True)
 class StudyTreeNode:
     id: str
@@ -68,6 +102,8 @@ class StudyTreeNode:
     san_san: str | None = None
     force_variation: bool = False
     annotations: StudyAnnotations = field(default_factory=StudyAnnotations)
+    eval_score: Mapping[str, int] | None = None
+    clocks: tuple[int | float, int | float] | None = None
 
     def __post_init__(self) -> None:
         if not is_study_node_id(self.id):
@@ -84,6 +120,16 @@ class StudyTreeNode:
             raise ValueError("Study node FEN must be non-empty")
         if self.turn_color not in _TURN_COLORS:
             raise ValueError(f"Invalid Study node turn color: {self.turn_color!r}")
+        object.__setattr__(
+            self,
+            "eval_score",
+            _canonical_eval_score(self.eval_score, context="Study node eval"),
+        )
+        object.__setattr__(
+            self,
+            "clocks",
+            _canonical_clocks(self.clocks, context="Study node clocks"),
+        )
 
     def to_document(self) -> dict[str, object]:
         doc: dict[str, object] = {
@@ -104,6 +150,10 @@ class StudyTreeNode:
             doc["v"] = True
         if not self.annotations.empty:
             doc["a"] = self.annotations.to_document()
+        if self.eval_score is not None:
+            doc["e"] = dict(self.eval_score)
+        if self.clocks is not None:
+            doc["k"] = list(self.clocks)
         return doc
 
     @classmethod
@@ -147,6 +197,8 @@ class StudyTreeNode:
             san_san=_optional_str(doc, "ss", context=context),
             force_variation=raw_force,
             annotations=StudyAnnotations.from_document(raw_annotations),
+            eval_score=_canonical_eval_score(doc.get("e"), context=f"{context} field 'e'"),
+            clocks=_canonical_clocks(doc.get("k"), context=f"{context} field 'k'"),
         )
 
     def to_payload(self) -> dict[str, object]:
@@ -167,6 +219,10 @@ class StudyTreeNode:
             payload["forceVariation"] = True
         if not self.annotations.empty:
             payload["annotations"] = self.annotations.to_payload()
+        if self.eval_score is not None:
+            payload["eval"] = dict(self.eval_score)
+        if self.clocks is not None:
+            payload["clocks"] = list(self.clocks)
         return payload
 
     @classmethod
@@ -200,6 +256,10 @@ class StudyTreeNode:
             san_san=_optional_str(payload, "sanSAN", context=context),
             force_variation=raw_force,
             annotations=StudyAnnotations.from_payload(raw_annotations),
+            eval_score=_canonical_eval_score(
+                payload.get("eval"), context=f"{context} field 'eval'"
+            ),
+            clocks=_canonical_clocks(payload.get("clocks"), context=f"{context} field 'clocks'"),
         )
 
 
@@ -214,10 +274,16 @@ class StudyTree:
 
     nodes: Mapping[str, StudyTreeNode] = field(default_factory=dict)
     root_annotations: StudyAnnotations = field(default_factory=StudyAnnotations)
+    root_clocks: tuple[int | float, int | float] | None = None
 
     def __post_init__(self) -> None:
         nodes = dict(self.nodes)
         object.__setattr__(self, "nodes", nodes)
+        object.__setattr__(
+            self,
+            "root_clocks",
+            _canonical_clocks(self.root_clocks, context="Study root clocks"),
+        )
         self._validate(nodes)
 
     @staticmethod
@@ -267,6 +333,28 @@ class StudyTree:
             )
         )
 
+    def preferred_mainline(self) -> tuple[StudyTreeNode, ...]:
+        """Return the editable Study mainline using the same rule as the client.
+
+        The first ordered child is the preferred continuation unless that child is
+        explicitly forced to remain a variation. This mirrors
+        client/study/studyTree.ts::refreshStudyMainline().
+        """
+
+        nodes: list[StudyTreeNode] = []
+        parent_id: str | None = None
+        while True:
+            children = self.children_of(parent_id)
+            if not children or children[0].force_variation:
+                return tuple(nodes)
+            node = children[0]
+            nodes.append(node)
+            parent_id = node.id
+
+    def preferred_mainline_path(self) -> str:
+        line = self.preferred_mainline()
+        return ".".join(node.id for node in line)
+
     def path_for_node(self, node_id: str) -> str:
         if node_id not in self.nodes:
             raise KeyError(node_id)
@@ -298,6 +386,8 @@ class StudyTree:
         root_record: dict[str, object] = {}
         if not self.root_annotations.empty:
             root_record["a"] = self.root_annotations.to_document()
+        if self.root_clocks is not None:
+            root_record["k"] = list(self.root_clocks)
         doc: dict[str, object] = {STUDY_TREE_ROOT_KEY: root_record}
         for node_id, node in self.nodes.items():
             doc[node_id] = node.to_document()
@@ -311,10 +401,11 @@ class StudyTree:
         raw_root_annotations = raw_root.get("a", {})
         if not isinstance(raw_root_annotations, Mapping):
             raise TypeError("Study tree root annotation record must be a mapping")
-        unexpected_root_keys = set(raw_root) - {"a"}
+        unexpected_root_keys = set(raw_root) - {"a", "k"}
         if unexpected_root_keys:
             raise ValueError("Study tree root record contains unsupported fields")
         root_annotations = StudyAnnotations.from_document(raw_root_annotations)
+        root_clocks = _canonical_clocks(raw_root.get("k"), context="Study root clocks")
 
         nodes: dict[str, StudyTreeNode] = {}
         for node_id, raw_node in doc.items():
@@ -325,7 +416,7 @@ class StudyTree:
             if not isinstance(raw_node, Mapping):
                 raise TypeError(f"Study node {node_id!r} must be a mapping")
             nodes[node_id] = StudyTreeNode.from_document(node_id, raw_node)
-        return cls(nodes, root_annotations=root_annotations)
+        return cls(nodes, root_annotations=root_annotations, root_clocks=root_clocks)
 
     def to_payload(self) -> dict[str, object]:
         # Payload order is deterministic and topological, but consumers must use the
@@ -345,12 +436,17 @@ class StudyTree:
         payload: dict[str, object] = {"nodes": [node.to_payload() for node in ordered]}
         if not self.root_annotations.empty:
             payload["rootAnnotations"] = self.root_annotations.to_payload()
+        if self.root_clocks is not None:
+            payload["rootClocks"] = list(self.root_clocks)
         return payload
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, object]) -> StudyTree:
         raw_nodes = payload.get("nodes")
         raw_root_annotations = payload.get("rootAnnotations", {})
+        raw_root_clocks = _canonical_clocks(
+            payload.get("rootClocks"), context="Study tree payload field 'rootClocks'"
+        )
         if not isinstance(raw_root_annotations, Mapping):
             raise TypeError("Study tree payload field 'rootAnnotations' must be a mapping")
         if not isinstance(raw_nodes, Sequence) or isinstance(raw_nodes, (str, bytes)):
@@ -363,4 +459,8 @@ class StudyTree:
             if node.id in nodes:
                 raise ValueError(f"Duplicate Study node id: {node.id!r}")
             nodes[node.id] = node
-        return cls(nodes, root_annotations=StudyAnnotations.from_payload(raw_root_annotations))
+        return cls(
+            nodes,
+            root_annotations=StudyAnnotations.from_payload(raw_root_annotations),
+            root_clocks=raw_root_clocks,
+        )

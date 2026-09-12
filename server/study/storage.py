@@ -10,6 +10,7 @@ from typing import Any, Literal, cast
 from bson import BSON
 from fairy import FairyBoard
 
+from study.annotations import StudyAnnotations
 from study.builder import StudyChapterDraft
 from study.constants import (
     STUDY_CHAPTER_MAX_BSON_BYTES,
@@ -18,6 +19,7 @@ from study.constants import (
     STUDY_MAX_MEMBERS,
     STUDY_MAX_TOPICS,
     STUDY_NAME_MAX_LENGTH,
+    STUDY_PREVIEW_NB_CHAPTERS,
     STUDY_TOPIC_MAX_LENGTH,
     STUDY_TOPIC_MIN_LENGTH,
 )
@@ -38,6 +40,7 @@ from study.models import (
     study_visibility,
 )
 from study.permissions import STUDY_FEATURE_KEYS, can_write_study
+from study.tree import StudyTree
 
 
 class StudyStorageError(ValueError):
@@ -68,6 +71,40 @@ def _study_list_sort(order: StudyListOrder) -> list[tuple[str, int]]:
     return [("updatedAt", -1), ("_id", 1)]
 
 
+async def study_list_chapter_names(
+    app_state: Any, studies: list[Study]
+) -> dict[str, tuple[str, ...]]:
+    """Return the ordered chapter-name previews used by Study list cards.
+
+    Lichess previews four chapter names per Study. Group them in MongoDB so list
+    pages do not issue one chapter query per card and do not load chapter trees.
+    """
+
+    study_ids = [study.id for study in studies]
+    if not study_ids:
+        return {}
+
+    pipeline = [
+        {"$match": {"studyId": {"$in": study_ids}}},
+        {"$sort": {"studyId": 1, "order": 1}},
+        {"$group": {"_id": "$studyId", "names": {"$push": "$name"}}},
+    ]
+    cursor_or_awaitable = app_state.db.study_chapter.aggregate(pipeline)
+    cursor = await cursor_or_awaitable if isawaitable(cursor_or_awaitable) else cursor_or_awaitable
+    docs = await cursor.to_list(length=len(study_ids))
+
+    previews: dict[str, tuple[str, ...]] = {}
+    for doc in docs:
+        study_id = doc.get("_id")
+        raw_names = doc.get("names")
+        if not isinstance(study_id, str) or not isinstance(raw_names, list):
+            continue
+        previews[study_id] = tuple(
+            name for name in raw_names[:STUDY_PREVIEW_NB_CHAPTERS] if isinstance(name, str)
+        )
+    return previews
+
+
 async def _studies_page(
     app_state: Any,
     query: dict[str, object],
@@ -89,6 +126,7 @@ async def _studies_page(
     studies = [Study.from_document(doc) async for doc in cursor]
     return {
         "studies": studies,
+        "chapter_names": await study_list_chapter_names(app_state, studies),
         "order": order,
         "page": page,
         "pages": pages,
@@ -787,7 +825,7 @@ async def load_chapter(app_state: Any, study_id: str, chapter_id: str) -> StudyC
 async def chapter_previews(app_state: Any, study_id: str) -> list[dict[str, object]]:
     cursor = app_state.db.study_chapter.find(
         {"studyId": study_id},
-        projection={"_id": 1, "name": 1, "order": 1, "orientation": 1},
+        projection={"_id": 1, "name": 1, "order": 1, "orientation": 1, "description": 1},
     ).sort("order", 1)
     return [
         {
@@ -795,6 +833,7 @@ async def chapter_previews(app_state: Any, study_id: str) -> list[dict[str, obje
             "name": str(doc["name"]),
             "order": int(doc["order"]),
             "orientation": str(doc.get("orientation") or "white"),
+            "descriptionPinned": bool(doc.get("description")),
         }
         async for doc in cursor
     ]
@@ -806,11 +845,15 @@ async def create_study_from_draft(
     draft: StudyChapterDraft,
     *,
     name: str | None = None,
+    visibility: StudyVisibility = "private",
+    settings: Mapping[str, object] | None = None,
 ) -> tuple[Study, StudyChapter]:
     study = await make_study(
         app_state.db.study,
         owner=owner,
         name=_clean_name(name, fallback=f"{owner}'s Study", max_length=STUDY_NAME_MAX_LENGTH),
+        visibility=visibility,
+        settings=settings,
         source=draft.source,
     )
     chapter = await make_chapter(
@@ -823,6 +866,7 @@ async def create_study_from_draft(
         orientation=draft.orientation,
         variant_ini=draft.variant_ini,
         root=draft.root,
+        source=draft.source,
         description=draft.description,
         tags=draft.tags,
         order=1,
@@ -847,6 +891,8 @@ async def create_study_with_chapter(
     owner: str,
     *,
     name: str | None = None,
+    visibility: StudyVisibility = "private",
+    settings: Mapping[str, object] | None = None,
 ) -> tuple[Study, StudyChapter]:
     return await create_study_from_draft(
         app_state,
@@ -856,6 +902,8 @@ async def create_study_with_chapter(
             initial_fen=FairyBoard.start_fen("chess"),
         ),
         name=name,
+        visibility=visibility,
+        settings=settings,
     )
 
 
@@ -872,16 +920,6 @@ async def clone_study(
     Study id for provenance.
     """
 
-    docs = (
-        await app_state.db.study_chapter.find({"studyId": source.id})
-        .sort("order", 1)
-        .to_list(length=STUDY_MAX_CHAPTERS + 1)
-    )
-    if not docs:
-        raise StudyStorageError("Study has no chapters to clone")
-    if len(docs) > STUDY_MAX_CHAPTERS:
-        raise StudyStorageError(f"A Study can have at most {STUDY_MAX_CHAPTERS} chapters")
-
     now = datetime.now(UTC)
     cloned = await make_study(
         app_state.db.study,
@@ -892,50 +930,62 @@ async def clone_study(
     )
     cloned = replace(cloned, settings=dict(source.settings), topics=source.topics)
 
-    chapters: list[StudyChapter] = []
-    for doc in docs:
-        original = StudyChapter.from_document(doc)
-        chapter = await make_chapter(
-            app_state.db.study_chapter,
-            study_id=cloned.id,
-            owner=owner,
-            variant=original.variant,
-            initial_fen=original.initial_fen,
-            orientation=original.orientation,
-            order=original.order,
-            name=original.name,
-            chess960=original.chess960,
-            variant_ini=original.variant_ini,
-            root=original.root,
-            description=original.description,
-            tags=original.tags,
-            now=now,
-        )
-        _ensure_chapter_size(chapter)
-        chapters.append(chapter)
-
-    cloned = replace(cloned, current_chapter=chapters[0].id)
-    chapter_ids = [chapter.id for chapter in chapters]
+    # Do not materialize every chapter at once. A chapter may be several MiB and
+    # a maximal Study can contain dozens of them, which makes an eager clone an
+    # avoidable OOM risk on small web dynos. MongoDB cursor batches are bounded
+    # by the wire-protocol batch size; copying one decoded chapter at a time keeps
+    # Python-side memory proportional to one chapter rather than the whole Study.
+    cursor = app_state.db.study_chapter.find({"studyId": source.id}).sort("order", 1)
+    first_chapter: StudyChapter | None = None
+    chapter_count = 0
     try:
-        await app_state.db.study_chapter.insert_many(
-            [chapter.to_document() for chapter in chapters]
-        )
+        async for doc in cursor:
+            chapter_count += 1
+            if chapter_count > STUDY_MAX_CHAPTERS:
+                raise StudyStorageError(f"A Study can have at most {STUDY_MAX_CHAPTERS} chapters")
+            original = StudyChapter.from_document(doc)
+            chapter = await make_chapter(
+                app_state.db.study_chapter,
+                study_id=cloned.id,
+                owner=owner,
+                variant=original.variant,
+                initial_fen=original.initial_fen,
+                orientation=original.orientation,
+                order=original.order,
+                name=original.name,
+                chess960=original.chess960,
+                variant_ini=original.variant_ini,
+                root=original.root,
+                source=original.source,
+                description=original.description,
+                tags=original.tags,
+                now=now,
+            )
+            _ensure_chapter_size(chapter)
+            await app_state.db.study_chapter.insert_one(chapter.to_document())
+            if first_chapter is None:
+                first_chapter = chapter
+
+        if first_chapter is None:
+            raise StudyStorageError("Study has no chapters to clone")
+
+        cloned = replace(cloned, current_chapter=first_chapter.id)
         await app_state.db.study.insert_one(cloned.to_document())
         await refresh_study_search_tokens(app_state, cloned.id)
     except Exception:
-        await app_state.db.study_chapter.delete_many(
-            {"_id": {"$in": chapter_ids}, "studyId": cloned.id}
-        )
+        await app_state.db.study_chapter.delete_many({"studyId": cloned.id})
         await app_state.db.study.delete_one({"_id": cloned.id, "owner": owner})
         raise
 
-    return cloned, chapters[0]
+    return cloned, first_chapter
 
 
 async def add_chapter_from_draft(
     app_state: Any,
     study: Study,
     draft: StudyChapterDraft,
+    *,
+    activate_shared: bool = True,
 ) -> StudyChapter:
     count = await app_state.db.study_chapter.count_documents({"studyId": study.id})
     if count >= STUDY_MAX_CHAPTERS:
@@ -955,6 +1005,7 @@ async def add_chapter_from_draft(
         orientation=draft.orientation,
         variant_ini=draft.variant_ini,
         root=draft.root,
+        source=draft.source,
         description=draft.description,
         tags=draft.tags,
         order=order,
@@ -965,14 +1016,21 @@ async def add_chapter_from_draft(
     _ensure_chapter_size(chapter)
     await app_state.db.study_chapter.insert_one(chapter.to_document())
     now = datetime.now(UTC)
-    await app_state.db.study.update_one(
+    study_update: dict[str, object] = {
+        "$set": {"updatedAt": now},
+        "$inc": {"revision": 1},
+    }
+    if activate_shared:
+        cast_set = cast(dict[str, object], study_update["$set"])
+        cast_set["currentChapter"] = chapter.id
+        study_update["$unset"] = {"currentPath": ""}
+    result = await app_state.db.study.update_one(
         {"_id": study.id, "owner": study.owner},
-        {
-            "$set": {"currentChapter": chapter.id, "updatedAt": now},
-            "$unset": {"currentPath": ""},
-            "$inc": {"revision": 1},
-        },
+        study_update,
     )
+    if result.matched_count != 1:
+        await app_state.db.study_chapter.delete_one({"_id": chapter.id, "studyId": study.id})
+        raise StudyStorageError("Study disappeared while adding chapter")
     await refresh_study_search_tokens(app_state, study.id)
     return chapter
 
@@ -981,6 +1039,8 @@ async def add_chapters_from_drafts(
     app_state: Any,
     study: Study,
     drafts: list[StudyChapterDraft],
+    *,
+    activate_shared: bool = True,
 ) -> list[StudyChapter]:
     if not drafts:
         raise StudyStorageError("PGN import contains no chapters")
@@ -1009,6 +1069,7 @@ async def add_chapters_from_drafts(
             orientation=draft.orientation,
             variant_ini=draft.variant_ini,
             root=draft.root,
+            source=draft.source,
             description=draft.description,
             tags=draft.tags,
             order=order,
@@ -1025,13 +1086,17 @@ async def add_chapters_from_drafts(
             [chapter.to_document() for chapter in chapters]
         )
         now = datetime.now(UTC)
+        study_update: dict[str, object] = {
+            "$set": {"updatedAt": now},
+            "$inc": {"revision": 1},
+        }
+        if activate_shared:
+            cast_set = cast(dict[str, object], study_update["$set"])
+            cast_set["currentChapter"] = chapters[-1].id
+            study_update["$unset"] = {"currentPath": ""}
         result = await app_state.db.study.update_one(
             {"_id": study.id, "owner": study.owner},
-            {
-                "$set": {"currentChapter": chapters[-1].id, "updatedAt": now},
-                "$unset": {"currentPath": ""},
-                "$inc": {"revision": 1},
-            },
+            study_update,
         )
         if result.matched_count != 1:
             raise StudyStorageError("Study disappeared during PGN import")
@@ -1073,7 +1138,7 @@ async def add_chapter(
     )
     await app_state.db.study_chapter.insert_one(chapter.to_document())
     now = datetime.now(UTC)
-    await app_state.db.study.update_one(
+    result = await app_state.db.study.update_one(
         {"_id": study.id, "owner": study.owner},
         {
             "$set": {"currentChapter": chapter.id, "updatedAt": now},
@@ -1081,6 +1146,9 @@ async def add_chapter(
             "$inc": {"revision": 1},
         },
     )
+    if result.matched_count != 1:
+        await app_state.db.study_chapter.delete_one({"_id": chapter.id, "studyId": study.id})
+        raise StudyStorageError("Study disappeared while adding chapter")
     await refresh_study_search_tokens(app_state, study.id)
     return chapter
 
@@ -1211,22 +1279,37 @@ async def edit_chapter_metadata(
     *,
     name: object,
     orientation: object,
+    pinned_description: object | None = None,
 ) -> tuple[str, StudyOrientation]:
     clean_name = _clean_name(name, fallback=chapter.name, max_length=STUDY_CHAPTER_NAME_MAX_LENGTH)
     clean_orientation = str(orientation or chapter.orientation).lower()
     if clean_orientation not in ("white", "black"):
         raise StudyStorageError("Invalid Study chapter orientation")
     typed_orientation = cast(StudyOrientation, clean_orientation)
+
+    next_description = chapter.description
+    if pinned_description is not None:
+        enabled = str(pinned_description or "").strip() == "1"
+        next_description = chapter.description or "-" if enabled else ""
+
     now = datetime.now(UTC)
+    set_fields: dict[str, object] = {
+        "name": clean_name,
+        "orientation": typed_orientation,
+        "updatedAt": now,
+    }
+    update: dict[str, object] = {"$set": set_fields}
+    description_changed = next_description != chapter.description
+    if description_changed:
+        if next_description:
+            set_fields["description"] = next_description
+        else:
+            update["$unset"] = {"description": ""}
+        update["$inc"] = {"revision": 1}
+
     await app_state.db.study_chapter.update_one(
         {"_id": chapter.id, "studyId": chapter.study_id, "owner": chapter.owner},
-        {
-            "$set": {
-                "name": clean_name,
-                "orientation": typed_orientation,
-                "updatedAt": now,
-            }
-        },
+        update,
     )
     await app_state.db.study.update_one(
         {"_id": chapter.study_id, "owner": chapter.owner},
@@ -1234,6 +1317,130 @@ async def edit_chapter_metadata(
     )
     await refresh_study_search_tokens(app_state, chapter.study_id)
     return clean_name, typed_orientation
+
+
+def _without_chapter_annotations(tree: StudyTree) -> tuple[StudyTree, bool]:
+    changed = not tree.root_annotations.empty or any(
+        not node.annotations.empty for node in tree.nodes.values()
+    )
+    if not changed:
+        return tree, False
+    nodes = {
+        node_id: replace(node, annotations=StudyAnnotations())
+        for node_id, node in tree.nodes.items()
+    }
+    return (
+        StudyTree(nodes, root_annotations=StudyAnnotations(), root_clocks=tree.root_clocks),
+        True,
+    )
+
+
+def _without_chapter_variations(tree: StudyTree) -> tuple[StudyTree, bool]:
+    nodes = {}
+    parent_id: str | None = None
+    while True:
+        children = tree.children_of(parent_id)
+        if not children:
+            break
+        node = children[0]
+        nodes[node.id] = node
+        parent_id = node.id
+    if len(nodes) == len(tree.nodes):
+        return tree, False
+    return (
+        StudyTree(
+            nodes,
+            root_annotations=tree.root_annotations,
+            root_clocks=tree.root_clocks,
+        ),
+        True,
+    )
+
+
+def _existing_tree_path(tree: StudyTree, path: str) -> str:
+    candidate = path
+    while candidate and tree.node_at_path(candidate) is None:
+        candidate = candidate.rpartition(".")[0]
+    return candidate
+
+
+async def clear_chapter_annotations(app_state: Any, study: Study, chapter: StudyChapter) -> bool:
+    """Clear all comments, shapes and NAGs in a chapter, like Lichess.
+
+    Lichess also clears the chapter's server-analysis record because that record
+    can contain annotations derived from the old tree state. Keep node evals,
+    which are separate from annotations.
+    """
+
+    root, annotations_changed = _without_chapter_annotations(chapter.root)
+    changed = annotations_changed or chapter.server_eval is not None
+    if not changed:
+        return False
+
+    candidate = replace(
+        chapter,
+        root=root,
+        server_eval=None,
+        revision=chapter.revision + 1,
+        updated_at=datetime.now(UTC),
+    )
+    _ensure_chapter_size(candidate)
+    update: dict[str, object] = {
+        "$set": {"root": root.to_document(), "updatedAt": candidate.updated_at},
+        "$inc": {"revision": 1},
+    }
+    if chapter.server_eval is not None:
+        update["$unset"] = {"serverEval": ""}
+    await app_state.db.study_chapter.update_one(
+        {"_id": chapter.id, "studyId": study.id, "owner": study.owner},
+        update,
+    )
+    await app_state.db.study.update_one(
+        {"_id": study.id, "owner": study.owner},
+        {"$set": {"updatedAt": candidate.updated_at}, "$inc": {"revision": 1}},
+    )
+
+    from study.analysis import drop_study_analysis_work
+
+    drop_study_analysis_work(app_state, study.id, chapter.id)
+    return True
+
+
+async def clear_chapter_variations(app_state: Any, study: Study, chapter: StudyChapter) -> bool:
+    """Keep only each position's first ordered child recursively."""
+
+    root, changed = _without_chapter_variations(chapter.root)
+    if not changed:
+        return False
+
+    now = datetime.now(UTC)
+    candidate = replace(chapter, root=root, revision=chapter.revision + 1, updated_at=now)
+    _ensure_chapter_size(candidate)
+    await app_state.db.study_chapter.update_one(
+        {"_id": chapter.id, "studyId": study.id, "owner": study.owner},
+        {
+            "$set": {"root": root.to_document(), "updatedAt": now},
+            "$inc": {"revision": 1},
+        },
+    )
+
+    study_update: dict[str, object] = {
+        "$set": {"updatedAt": now},
+        "$inc": {"revision": 1},
+    }
+    if study.current_chapter == chapter.id and study.current_path:
+        repaired_path = _existing_tree_path(root, study.current_path)
+        if repaired_path != study.current_path:
+            set_fields = cast(dict[str, object], study_update["$set"])
+            if repaired_path:
+                set_fields["currentPath"] = repaired_path
+            else:
+                study_update["$unset"] = {"currentPath": ""}
+    await app_state.db.study.update_one(
+        {"_id": study.id, "owner": study.owner},
+        study_update,
+    )
+    return True
 
 
 async def delete_chapter(app_state: Any, study: Study, chapter: StudyChapter) -> str:
@@ -1250,6 +1457,9 @@ async def delete_chapter(app_state: Any, study: Study, chapter: StudyChapter) ->
     await app_state.db.study_chapter.delete_one(
         {"_id": chapter.id, "studyId": study.id, "owner": study.owner}
     )
+    from study.analysis import drop_study_analysis_work
+
+    drop_study_analysis_work(app_state, study.id, chapter.id)
     deleted_index = next(index for index, doc in enumerate(docs) if str(doc["_id"]) == chapter.id)
     remaining = [doc for doc in docs if str(doc["_id"]) != chapter.id]
     for order, doc in enumerate(remaining, start=1):
@@ -1279,5 +1489,8 @@ async def delete_chapter(app_state: Any, study: Study, chapter: StudyChapter) ->
 
 
 async def delete_study(app_state: Any, study: Study) -> None:
+    from study.analysis import drop_study_analysis_works_for_study
+
+    drop_study_analysis_works_for_study(app_state, study.id)
     await app_state.db.study_chapter.delete_many({"studyId": study.id, "owner": study.owner})
     await app_state.db.study.delete_one({"_id": study.id, "owner": study.owner})

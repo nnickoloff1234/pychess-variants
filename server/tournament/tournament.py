@@ -75,6 +75,7 @@ if TYPE_CHECKING:
     from pychess_global_app_state import PychessGlobalAppState
     from ws_types import ChatLine, SpectatorsMessage
 from lobby_spotlights import broadcast_lobby_spotlights
+from profile_counts import refresh_tournament_points
 from settings import URI
 from spectators import spectators
 from user import User
@@ -1416,6 +1417,16 @@ class Tournament(ABC):
         game = await self.app_state.db.game.find_one({"tid": self.id}, {"_id": 1})
         return game is not None
 
+    def remove_calendar_link(self) -> None:
+        """Keep the scheduled event, but stop linking to a deleted tournament."""
+        if self.app_state.tourney_calendar is None:
+            return
+        url = f"/tournament/{self.id}"
+        for event in self.app_state.tourney_calendar:
+            if event.get("url") == url:
+                event.pop("url", None)
+                event["borderColor"] = "gray"
+
     async def destroy(self) -> None:
         """Permanently remove a tournament and its tournament-owned metadata."""
         if self.app_state.db is not None:
@@ -1425,6 +1436,7 @@ class Tournament(ABC):
             await self.app_state.db.tournament_arrangement.delete_many({"tid": self.id})
             await self.app_state.db.tournament_chat.delete_many({"tid": self.id})
 
+        self.remove_calendar_link()
         current_task = asyncio.current_task()
         clock_task = self.clock_task
         if clock_task is not None and clock_task is not current_task and not clock_task.done():
@@ -2669,6 +2681,7 @@ class Tournament(ABC):
             and not (self.system == RR and self.status == T_CREATED)
         ):
             d = await self.app_state.db.tournament.delete_many({"_id": self.id})
+            self.remove_calendar_link()
             log.info("Deleted %r", d)
             log.info("Deleted empty tournament %s" % self.id)
             return
@@ -2682,6 +2695,8 @@ class Tournament(ABC):
             "rounds": self.rounds,
             "cr": self.current_round,
         }
+        if self.status in (T_FINISHED, T_ARCHIVED):
+            new_data["profilePointsPending"] = True
         if self.system == RR:
             new_data["rrJoiningClosed"] = self.rr_joining_closed
             new_data["rrPendingPlayers"] = sorted(self.rr_pending_players)
@@ -2712,6 +2727,8 @@ class Tournament(ABC):
             self.app_state.shield_owners[variant_name] = winner
 
         if self.status in (T_FINISHED, T_ARCHIVED):
+            if doc_after is not None:
+                await refresh_tournament_points(self.app_state, self.id)
             await refresh_lobby_tournament_winners_cache(self.app_state)
 
     def print_leaderboard(self) -> None:

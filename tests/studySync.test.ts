@@ -47,6 +47,9 @@ function makeCtrl() {
         steps: [tree.root.step],
         recordedMainlinePly: undefined,
         doSend: jest.fn(),
+        buildScoreStr: jest.fn((_color: string, ceval: any) =>
+            ceval.s.cp !== undefined ? String(ceval.s.cp) : `#${ceval.s.mate}`,
+        ),
         username: 'owner',
         chessground: { setShapes: jest.fn() },
     };
@@ -80,6 +83,103 @@ describe('Study analysis websocket synchronization', () => {
         expect(ctrl.oppcolor).toBe('white');
         expect(extension.treeStorageKey).toBe('study:study001:chapter1');
         expect(updateMovelistMock).toHaveBeenCalled();
+    });
+
+    test('applies persisted and live Study server analysis to the preferred mainline', () => {
+        const ctrl = makeCtrl();
+        ctrl.tree = { loadAnalysisTree: jest.fn((tree: unknown) => (ctrl.analysisTree = tree)) };
+        const changed = jest.fn();
+        const extension = new StudyAnalysisExtension(ctrl, {
+            studyId: 'study001',
+            chapterId: 'chapter1',
+            revision: 0,
+            tree: { nodes: [e4Node()] },
+            serverEval: {
+                path: 'StudyNode1',
+                done: false,
+                requestedAt: '2026-09-07T12:00:00+00:00',
+                analysis: [
+                    { s: { cp: 10 }, d: 14 },
+                    { s: { cp: 25 }, d: 14 },
+                ],
+            },
+            onServerEvalChanged: changed,
+            onReloadRequired: jest.fn(),
+        });
+
+        extension.onInitialBoardLoaded();
+        expect(ctrl.steps[0].ceval).toEqual({ s: { cp: 10 }, d: 14 });
+        expect(ctrl.steps[1].ceval).toEqual({ s: { cp: 25 }, d: 14 });
+
+        expect(
+            extension.onSocketMessage('study_analysis_progress', {
+                type: 'study_analysis_progress',
+                studyId: 'study001',
+                chapterId: 'chapter1',
+                tree: {
+                    nodes: [
+                        {
+                            ...e4Node(),
+                            eval: { mate: 3 },
+                            annotations: {
+                                shapes: [],
+                                comments: [{ id: 'EngineNote', author: 'PyChess', text: 'Blunder. d4 was best.' }],
+                                nags: [4],
+                            },
+                        },
+                        {
+                            id: 'StudyNode2',
+                            parentId: null,
+                            order: 1,
+                            move: 'd2d4',
+                            fen: 'd4 b - - 0 1',
+                            turnColor: 'black',
+                            check: false,
+                            san: 'd4',
+                            sanSAN: 'd4',
+                            eval: { cp: -18 },
+                        },
+                    ],
+                },
+                serverEval: {
+                    path: 'StudyNode1',
+                    done: true,
+                    requestedAt: '2026-09-07T12:00:00+00:00',
+                    analysis: [
+                        { s: { cp: 12 }, d: 18 },
+                        { s: { mate: 3 }, d: 18, p: 'e7e5' },
+                    ],
+                },
+            }),
+        ).toBe(true);
+        expect(ctrl.steps[0].ceval).toEqual({ s: { cp: 12 }, d: 18 });
+        expect(ctrl.steps[1].ceval).toEqual({ s: { mate: 3 }, d: 18, p: 'e7e5' });
+        expect(ctrl.analysisTree.root.children.map((node: any) => node.step.move)).toEqual(['e2e4', 'd2d4']);
+        expect(ctrl.analysisTree.root.children[0].annotations?.nags).toEqual([4]);
+        expect(ctrl.analysisTree.root.children[1].step.ceval).toEqual({ s: { cp: -18 }, d: 0 });
+        expect(ctrl.analysisTree.root.children[1].step.scoreStr).toBe('-18');
+        expect(changed).toHaveBeenCalledWith(expect.objectContaining({ done: true }));
+    });
+
+    test('requests Study server analysis only for a connected writable client', () => {
+        const ctrl = makeCtrl();
+        const extension = new StudyAnalysisExtension(ctrl, {
+            studyId: 'study001',
+            chapterId: 'chapter1',
+            revision: 0,
+            writable: true,
+            onReloadRequired: jest.fn(),
+        });
+
+        extension.requestServerAnalysis();
+        expect(ctrl.doSend).not.toHaveBeenCalled();
+        extension.onSocketOpen();
+        extension.requestServerAnalysis();
+        expect(ctrl.doSend).toHaveBeenLastCalledWith({
+            type: 'study_request_analysis',
+            studyId: 'study001',
+            chapterId: 'chapter1',
+        });
     });
 
     test('restores persisted shapes on initial load and path navigation', () => {
@@ -428,6 +528,136 @@ describe('Study analysis websocket synchronization', () => {
         });
     });
 
+    test('chapter-list messages deliver metadata and authoritative shared chapter without changing revision', () => {
+        const ctrl = makeCtrl();
+        const chaptersChanged = jest.fn();
+        const reload = jest.fn();
+        const extension = new StudyAnalysisExtension(ctrl, {
+            studyId: 'study001',
+            chapterId: 'chapter1',
+            revision: 7,
+            onChaptersChanged: chaptersChanged,
+            onReloadRequired: reload,
+        });
+
+        expect(
+            extension.onSocketMessage('study_chapters', {
+                type: 'study_chapters',
+                studyId: 'study001',
+                sharedChapter: 'chapter2',
+                sharedPath: '',
+                chapters: [
+                    {
+                        id: 'chapter1',
+                        name: 'Renamed chapter',
+                        order: 1,
+                        orientation: 'black',
+                        descriptionPinned: true,
+                    },
+                    { id: 'chapter2', name: 'Second', order: 2, orientation: 'white' },
+                ],
+            }),
+        ).toBe(true);
+        expect(chaptersChanged).toHaveBeenCalledWith(
+            [
+                {
+                    id: 'chapter1',
+                    name: 'Renamed chapter',
+                    order: 1,
+                    orientation: 'black',
+                    descriptionPinned: true,
+                },
+                { id: 'chapter2', name: 'Second', order: 2, orientation: 'white' },
+            ],
+            'chapter2',
+            '',
+        );
+        expect(extension.revision).toBe(7);
+        expect(reload).not.toHaveBeenCalled();
+    });
+
+    test('rejects chapter-list messages whose shared chapter is no longer present', () => {
+        const ctrl = makeCtrl();
+        const reload = jest.fn();
+        const extension = new StudyAnalysisExtension(ctrl, {
+            studyId: 'study001',
+            chapterId: 'chapter1',
+            revision: 0,
+            onReloadRequired: reload,
+        });
+
+        extension.onSocketMessage('study_chapters', {
+            type: 'study_chapters',
+            studyId: 'study001',
+            sharedChapter: 'deleted',
+            sharedPath: '',
+            chapters: [{ id: 'chapter1', name: 'Only', order: 1, orientation: 'white' }],
+        });
+        expect(reload).toHaveBeenCalledWith('invalid_chapter_list');
+    });
+
+    test('chapter-content messages advance revision and refresh the pinned description', () => {
+        const ctrl = makeCtrl();
+        const changed = jest.fn();
+        const reload = jest.fn();
+        const extension = new StudyAnalysisExtension(ctrl, {
+            studyId: 'study001',
+            chapterId: 'chapter1',
+            revision: 7,
+            description: 'old description',
+            onAnnotationStateChanged: changed,
+            onReloadRequired: reload,
+        });
+
+        expect(
+            extension.onSocketMessage('study_chapter_content', {
+                type: 'study_chapter_content',
+                studyId: 'study001',
+                chapterId: 'chapter1',
+                revision: 8,
+                description: '-',
+            }),
+        ).toBe(true);
+        expect(extension.revision).toBe(8);
+        expect(extension.annotationState.description).toBe('-');
+        expect(changed).toHaveBeenLastCalledWith(expect.objectContaining({ description: '-' }));
+        expect(reload).not.toHaveBeenCalled();
+
+        extension.onSocketMessage('study_chapter_content', {
+            type: 'study_chapter_content',
+            studyId: 'study001',
+            chapterId: 'chapter1',
+            revision: 10,
+            description: '',
+        });
+        expect(reload).toHaveBeenCalledWith('revision_mismatch');
+    });
+
+    test('chapter-content messages for other chapters do not change the current revision', () => {
+        const ctrl = makeCtrl();
+        const reload = jest.fn();
+        const extension = new StudyAnalysisExtension(ctrl, {
+            studyId: 'study001',
+            chapterId: 'chapter1',
+            revision: 7,
+            description: 'current',
+            onReloadRequired: reload,
+        });
+
+        expect(
+            extension.onSocketMessage('study_chapter_content', {
+                type: 'study_chapter_content',
+                studyId: 'study001',
+                chapterId: 'chapter2',
+                revision: 3,
+                description: 'other chapter',
+            }),
+        ).toBe(true);
+        expect(extension.revision).toBe(7);
+        expect(extension.annotationState.description).toBe('current');
+        expect(reload).not.toHaveBeenCalled();
+    });
+
     test('shared position messages are delivered independently of chapter revisions', () => {
         const ctrl = makeCtrl();
         const sharedPosition = jest.fn();
@@ -512,6 +742,7 @@ describe('Study analysis websocket synchronization', () => {
             chapterId: 'chapter1',
             revision: 0,
             writable: true,
+            memberRole: 'write',
             onMembersChanged: membersChanged,
             onReloadRequired: reload,
         });
@@ -527,9 +758,81 @@ describe('Study analysis websocket synchronization', () => {
         ).toBe(true);
 
         expect(membersChanged).toHaveBeenCalledWith({ owner: 'write', writer: 'read' });
-        expect(reload).toHaveBeenCalledWith('write_access_changed');
+        expect(reload).toHaveBeenCalledWith('member_access_changed');
         extension.setDescription('must stay local');
         expect(ctrl.doSend).not.toHaveBeenCalled();
+    });
+
+    test('reloads when read membership changes even though write access stays false', () => {
+        const addedCtrl = makeCtrl();
+        addedCtrl.username = 'reader';
+        const addedReload = jest.fn();
+        const added = new StudyAnalysisExtension(addedCtrl, {
+            studyId: 'study001',
+            chapterId: 'chapter1',
+            revision: 0,
+            writable: false,
+            onReloadRequired: addedReload,
+        });
+        added.onSocketOpen();
+
+        expect(
+            added.onSocketMessage('study_members', {
+                type: 'study_members',
+                studyId: 'study001',
+                members: { owner: 'write', reader: 'read' },
+                revision: 1,
+            }),
+        ).toBe(true);
+        expect(addedReload).toHaveBeenCalledWith('member_access_changed');
+
+        const removedCtrl = makeCtrl();
+        removedCtrl.username = 'reader';
+        const removedReload = jest.fn();
+        const removed = new StudyAnalysisExtension(removedCtrl, {
+            studyId: 'study001',
+            chapterId: 'chapter1',
+            revision: 0,
+            writable: false,
+            memberRole: 'read',
+            onReloadRequired: removedReload,
+        });
+        removed.onSocketOpen();
+
+        expect(
+            removed.onSocketMessage('study_members', {
+                type: 'study_members',
+                studyId: 'study001',
+                members: { owner: 'write' },
+                revision: 1,
+            }),
+        ).toBe(true);
+        expect(removedReload).toHaveBeenCalledWith('member_access_changed');
+    });
+
+    test('does not reload when only another Study member changes', () => {
+        const ctrl = makeCtrl();
+        ctrl.username = 'reader';
+        const reload = jest.fn();
+        const extension = new StudyAnalysisExtension(ctrl, {
+            studyId: 'study001',
+            chapterId: 'chapter1',
+            revision: 0,
+            writable: false,
+            memberRole: 'read',
+            onReloadRequired: reload,
+        });
+        extension.onSocketOpen();
+
+        expect(
+            extension.onSocketMessage('study_members', {
+                type: 'study_members',
+                studyId: 'study001',
+                members: { owner: 'write', reader: 'read', contributor: 'write' },
+                revision: 1,
+            }),
+        ).toBe(true);
+        expect(reload).not.toHaveBeenCalled();
     });
 
     test('updates the Study like count from room broadcasts', () => {
@@ -673,6 +976,266 @@ describe('Study analysis websocket synchronization', () => {
         expect(extension.revision).toBe(2);
         expect(extension.pendingCount).toBe(0);
         expect(reload).not.toHaveBeenCalled();
+    });
+
+    test('reconciles a duplicate move id and continues queued descendant mutations', () => {
+        const ctrl = makeCtrl();
+        const reload = jest.fn();
+        const opIds = ['LocalE4Op', 'LocalE5Op', 'LocalNote'];
+        const extension = new StudyAnalysisExtension(ctrl, {
+            studyId: 'study001',
+            chapterId: 'chapter1',
+            revision: 0,
+            onReloadRequired: reload,
+            opIdFactory: () => opIds.shift()!,
+        });
+        const localE4: StudyTreeNodeDto = { ...e4Node(), id: 'LocalNode1' };
+        const localE5: StudyTreeNodeDto = {
+            id: 'LocalNode2',
+            parentId: 'LocalNode1',
+            order: 0,
+            move: 'e7e5',
+            fen: 'e5 w - - 0 2',
+            turnColor: 'white',
+            check: false,
+            san: 'e5',
+            sanSAN: 'e5',
+        };
+        addStudyNodeToAnalysisTree(ctrl.analysisTree, '', localE4);
+        addStudyNodeToAnalysisTree(ctrl.analysisTree, 'LocalNode1', localE5);
+        ctrl.analysisPath = 'LocalNode1.LocalNode2';
+
+        extension.onSocketOpen();
+        extension.onNodeAdded('', ctrl.analysisTree.root.children[0]);
+        extension.onNodeAdded('LocalNode1', ctrl.analysisTree.root.children[0].children[0]);
+        extension.setComment('Comment001', 'Keep this note', 'LocalNode1.LocalNode2');
+
+        expect(ctrl.doSend).toHaveBeenCalledTimes(1);
+        expect(extension.pendingCount).toBe(3);
+
+        const canonicalE4: StudyTreeNodeDto = { ...e4Node(), id: 'CanonNode1' };
+        extension.onSocketMessage('study_add_node', {
+            type: 'study_add_node',
+            studyId: 'study001',
+            chapterId: 'chapter1',
+            clientOpId: 'RemoteE4Op',
+            revision: 1,
+            changed: true,
+            parentPath: '',
+            path: 'CanonNode1',
+            node: canonicalE4,
+        });
+        expect(ctrl.analysisTree.root.children.map((node: any) => node.id)).toEqual(['CanonNode1', 'LocalNode1']);
+
+        extension.onSocketMessage('study_add_node', {
+            type: 'study_add_node',
+            studyId: 'study001',
+            chapterId: 'chapter1',
+            clientOpId: 'LocalE4Op',
+            revision: 1,
+            changed: false,
+            parentPath: '',
+            path: 'CanonNode1',
+            move: 'e2e4',
+            node: canonicalE4,
+        });
+
+        expect(reload).not.toHaveBeenCalled();
+        expect(extension.pendingCount).toBe(2);
+        expect(ctrl.analysisTree.root.children.map((node: any) => node.id)).toEqual(['CanonNode1']);
+        expect(ctrl.analysisTree.byPath.has('LocalNode1')).toBe(false);
+        expect(ctrl.analysisTree.byPath.has('LocalNode1.LocalNode2')).toBe(false);
+        expect(ctrl.analysisTree.byPath.get('CanonNode1.LocalNode2')?.step.move).toBe('e7e5');
+        expect(ctrl.analysisPath).toBe('CanonNode1.LocalNode2');
+        expect(ctrl.doSend).toHaveBeenCalledTimes(2);
+        expect(ctrl.doSend).toHaveBeenLastCalledWith({
+            type: 'study_add_node',
+            studyId: 'study001',
+            chapterId: 'chapter1',
+            clientOpId: 'LocalE5Op',
+            expectedRevision: 1,
+            parentPath: 'CanonNode1',
+            move: 'e7e5',
+            nodeId: 'LocalNode2',
+        });
+
+        extension.onSocketMessage('study_add_node', {
+            type: 'study_add_node',
+            studyId: 'study001',
+            chapterId: 'chapter1',
+            clientOpId: 'LocalE5Op',
+            revision: 2,
+            changed: true,
+            parentPath: 'CanonNode1',
+            path: 'CanonNode1.LocalNode2',
+            move: 'e7e5',
+            node: { ...localE5, parentId: 'CanonNode1' },
+        });
+
+        expect(ctrl.doSend).toHaveBeenCalledTimes(3);
+        expect(ctrl.doSend).toHaveBeenLastCalledWith({
+            type: 'study_set_comment',
+            studyId: 'study001',
+            chapterId: 'chapter1',
+            clientOpId: 'LocalNote',
+            expectedRevision: 2,
+            path: 'CanonNode1.LocalNode2',
+            commentId: 'Comment001',
+            text: 'Keep this note',
+        });
+        expect(ctrl.analysisTree.byPath.get('CanonNode1.LocalNode2')?.annotations?.comments).toEqual([
+            { id: 'Comment001', author: 'owner', text: 'Keep this note' },
+        ]);
+
+        extension.onSocketMessage('study_set_comment', {
+            type: 'study_set_comment',
+            studyId: 'study001',
+            chapterId: 'chapter1',
+            clientOpId: 'LocalNote',
+            revision: 3,
+            changed: true,
+            path: 'CanonNode1.LocalNode2',
+            annotations: {
+                shapes: [],
+                comments: [{ id: 'Comment001', author: 'owner', text: 'Keep this note' }],
+                nags: [],
+            },
+        });
+
+        expect(extension.pendingCount).toBe(0);
+        expect(extension.revision).toBe(3);
+        expect(reload).not.toHaveBeenCalled();
+    });
+
+    test('verifies the initial HTTP snapshot before sending queued mutations', async () => {
+        const ctrl = makeCtrl();
+        const reload = jest.fn();
+        const extension = new StudyAnalysisExtension(ctrl, {
+            studyId: 'study001',
+            chapterId: 'chapter1',
+            revision: 0,
+            snapshotToken: 'snapshot-a',
+            roomSnapshotToken: 'room-a',
+            onReloadRequired: reload,
+            opIdFactory: () => 'CommentOp1',
+            syncIdFactory: () => 'SyncOp1',
+        });
+
+        extension.onSocketOpen();
+        expect(ctrl.doSend).toHaveBeenCalledWith({
+            type: 'study_sync_chapter',
+            studyId: 'study001',
+            chapterId: 'chapter1',
+            requestId: 'SyncOp1',
+        });
+
+        extension.setComment('Comment001', 'Queued before sync');
+        expect(ctrl.doSend).toHaveBeenCalledTimes(1);
+
+        extension.onSocketMessage('study_chapter_sync', {
+            type: 'study_chapter_sync',
+            studyId: 'study001',
+            chapterId: 'chapter1',
+            requestId: 'SyncOp1',
+            revision: 0,
+            snapshotToken: 'snapshot-a',
+            roomSnapshotToken: 'room-a',
+        });
+        await Promise.resolve();
+
+        expect(ctrl.doSend).toHaveBeenLastCalledWith({
+            type: 'study_set_comment',
+            studyId: 'study001',
+            chapterId: 'chapter1',
+            clientOpId: 'CommentOp1',
+            expectedRevision: 0,
+            path: '',
+            commentId: 'Comment001',
+            text: 'Queued before sync',
+        });
+        expect(reload).not.toHaveBeenCalled();
+    });
+
+    test('reloads instead of sending queued mutations when the initial snapshot is stale', async () => {
+        const ctrl = makeCtrl();
+        const reload = jest.fn();
+        const extension = new StudyAnalysisExtension(ctrl, {
+            studyId: 'study001',
+            chapterId: 'chapter1',
+            revision: 0,
+            snapshotToken: 'snapshot-old',
+            roomSnapshotToken: 'room-old',
+            onReloadRequired: reload,
+            opIdFactory: () => 'CommentOp1',
+            syncIdFactory: () => 'SyncOp1',
+        });
+
+        extension.onSocketOpen();
+        extension.setComment('Comment001', 'Must not send stale');
+        extension.onSocketMessage('study_chapter_sync', {
+            type: 'study_chapter_sync',
+            studyId: 'study001',
+            chapterId: 'chapter1',
+            requestId: 'SyncOp1',
+            revision: 1,
+            snapshotToken: 'snapshot-new',
+            roomSnapshotToken: 'room-old',
+        });
+        await Promise.resolve();
+
+        expect(reload).toHaveBeenCalledWith('snapshot_stale');
+        expect(ctrl.doSend).toHaveBeenCalledTimes(1);
+    });
+
+    test('reloads when Study-wide state changed although the chapter snapshot still matches', async () => {
+        const ctrl = makeCtrl();
+        const reload = jest.fn();
+        const extension = new StudyAnalysisExtension(ctrl, {
+            studyId: 'study001',
+            chapterId: 'chapter1',
+            revision: 0,
+            snapshotToken: 'chapter-a',
+            roomSnapshotToken: 'room-old',
+            onReloadRequired: reload,
+            syncIdFactory: () => 'SyncOp1',
+        });
+
+        extension.onSocketOpen();
+        extension.onSocketMessage('study_chapter_sync', {
+            type: 'study_chapter_sync',
+            studyId: 'study001',
+            chapterId: 'chapter1',
+            requestId: 'SyncOp1',
+            revision: 0,
+            snapshotToken: 'chapter-a',
+            roomSnapshotToken: 'room-new',
+        });
+        await Promise.resolve();
+
+        expect(reload).toHaveBeenCalledWith('snapshot_stale');
+    });
+
+    test('initial room acknowledgement rejects stale Study-wide HTTP state', () => {
+        const ctrl = makeCtrl();
+        const reload = jest.fn();
+        const extension = new StudyAnalysisExtension(ctrl, {
+            studyId: 'study001',
+            chapterId: 'chapter1',
+            revision: 0,
+            snapshotToken: 'chapter-a',
+            roomSnapshotToken: 'room-old',
+            onReloadRequired: reload,
+            syncIdFactory: () => 'SyncOp1',
+        });
+
+        extension.onSocketOpen();
+        extension.onSocketMessage('study_user_connected', {
+            type: 'study_user_connected',
+            studyId: 'study001',
+            roomSnapshotToken: 'room-new',
+        });
+
+        expect(reload).toHaveBeenCalledWith('study_snapshot_stale');
     });
 
     test('reloads after a real websocket reconnect because broadcasts may have been missed', () => {

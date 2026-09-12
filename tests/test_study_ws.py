@@ -12,6 +12,10 @@ from fairy.fairy_board import FairyBoard
 from mongomock_motor import AsyncMongoMockClient
 from study.models import Study, StudyChapter
 from study.mutations import StudyMutationService
+from study.permissions import can_view_study
+from study.sequencer import sequence_study
+from study.snapshot import chapter_snapshot_token, study_snapshot_token
+from study.storage import chapter_previews, load_study
 from study.tree import StudyTree
 from study.ws import (
     broadcast_study_members,
@@ -29,6 +33,7 @@ from ws_structs import (
     StudySetPositionIn,
     StudySetShapesIn,
     StudySetTagsIn,
+    StudySyncChapterIn,
 )
 
 STUDY_ID = "study001"
@@ -52,6 +57,7 @@ class FakeWebSocket:
 class FakeUser:
     def __init__(self, username: str) -> None:
         self.username = username
+        self.enabled = True
         self.study_sockets: dict[str, set[Any]] = {}
         self.online = False
 
@@ -68,6 +74,7 @@ class StudyWebsocketTestCase(unittest.IsolatedAsyncioTestCase):
             catalogued_variants={},
             study_sockets={},
             study_mutation_locks={},
+            study_mutation_lock_refs={},
             study_socket_users={},
         )
         now = datetime(2026, 9, 4, 16, 0, tzinfo=UTC)
@@ -119,9 +126,91 @@ class StudyWebsocketTestCase(unittest.IsolatedAsyncioTestCase):
             cast(Any, self.app_state),
             cast(Any, ws),
             cast(Any, user or self.user),
-            self.study,
+            STUDY_ID,
         )
         return ws
+
+    async def test_init_rejects_user_disabled_after_initial_handshake_check(self) -> None:
+        self.user.enabled = False
+        ws = FakeWebSocket()
+
+        await init_ws(
+            cast(Any, self.app_state),
+            cast(Any, ws),
+            cast(Any, self.user),
+            STUDY_ID,
+        )
+
+        self.assertTrue(ws.closed)
+        self.assertNotIn(STUDY_ID, self.app_state.study_sockets)
+        self.assertNotIn(STUDY_ID, self.user.study_sockets)
+
+    async def test_queued_mutation_rechecks_disabled_user_under_sequencer(self) -> None:
+        ws = await self._connect()
+        ws.sent.clear()
+
+        async with sequence_study(cast(Any, self.app_state), STUDY_ID):
+            mutation_task = asyncio.create_task(
+                process_message(
+                    cast(Any, self.app_state),
+                    cast(Any, self.user),
+                    cast(Any, ws),
+                    StudySetCommentIn(
+                        type="study_set_comment",
+                        studyId=STUDY_ID,
+                        chapterId=CHAPTER_ID,
+                        clientOpId="erase-race",
+                        expectedRevision=0,
+                        path="",
+                        commentId="Comment001",
+                        text="Must not persist",
+                    ),
+                    study_id=STUDY_ID,
+                    service=self.service,
+                )
+            )
+            for _ in range(100):
+                if self.app_state.study_mutation_lock_refs.get(STUDY_ID, 0) >= 2:
+                    break
+                await asyncio.sleep(0)
+            self.assertGreaterEqual(self.app_state.study_mutation_lock_refs.get(STUDY_ID, 0), 2)
+            self.user.enabled = False
+
+        await mutation_task
+
+        self.assertTrue(ws.closed)
+        chapter_doc = await self.db.study_chapter.find_one({"_id": CHAPTER_ID})
+        assert chapter_doc is not None
+        self.assertEqual(0, chapter_doc["revision"])
+        self.assertNotIn("a", chapter_doc["root"]["_"])
+
+    async def test_init_reauthorizes_stale_public_handshake_before_room_insertion(self) -> None:
+        public_study = replace(self.study, visibility="public")
+        await self.db.study.replace_one({"_id": STUDY_ID}, public_study.to_document())
+        stale_snapshot = Study.from_document(public_study.to_document())
+        outsider = FakeUser("outsider")
+        self.assertTrue(can_view_study(stale_snapshot, outsider.username))
+
+        private_study = replace(
+            public_study,
+            members={OWNER: "write"},
+            visibility="private",
+            revision=public_study.revision + 1,
+        )
+        await self.db.study.replace_one({"_id": STUDY_ID}, private_study.to_document())
+
+        ws = FakeWebSocket()
+        await init_ws(
+            cast(Any, self.app_state),
+            cast(Any, ws),
+            cast(Any, outsider),
+            STUDY_ID,
+        )
+
+        self.assertTrue(ws.closed)
+        self.assertEqual(ws.sent, [])
+        self.assertNotIn(STUDY_ID, self.app_state.study_sockets)
+        self.assertNotIn(STUDY_ID, outsider.study_sockets)
 
     async def test_room_is_lazy_and_removed_after_last_socket(self) -> None:
         self.assertNotIn(STUDY_ID, self.app_state.study_sockets)
@@ -130,7 +219,10 @@ class StudyWebsocketTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.app_state.study_sockets[STUDY_ID], {ws})
         self.assertEqual(self.user.study_sockets[STUDY_ID], {ws})
         self.assertTrue(self.user.online)
-        self.assertEqual(ws.sent[-1], {"type": "study_user_connected", "studyId": STUDY_ID})
+        connected = ws.sent[-1]
+        self.assertEqual(connected["type"], "study_user_connected")
+        self.assertEqual(connected["studyId"], STUDY_ID)
+        self.assertIsInstance(connected["roomSnapshotToken"], str)
 
         await finally_logic(
             cast(Any, self.app_state), cast(Any, ws), cast(Any, self.user), STUDY_ID
@@ -140,6 +232,134 @@ class StudyWebsocketTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(STUDY_ID, self.app_state.study_socket_users)
         self.assertNotIn(STUDY_ID, self.user.study_sockets)
         self.assertFalse(self.user.online)
+
+    async def test_room_cleanup_keeps_lock_used_by_queued_study_operation(self) -> None:
+        ws = await self._connect()
+        lock = self.app_state.study_mutation_locks[STUDY_ID]
+        await lock.acquire()
+
+        entered = asyncio.Event()
+
+        async def queued_operation() -> None:
+            async with sequence_study(cast(Any, self.app_state), STUDY_ID):
+                entered.set()
+
+        task = asyncio.create_task(queued_operation())
+        await asyncio.sleep(0)
+        self.assertEqual(self.app_state.study_mutation_lock_refs[STUDY_ID], 1)
+
+        await finally_logic(
+            cast(Any, self.app_state), cast(Any, ws), cast(Any, self.user), STUDY_ID
+        )
+        self.assertIs(self.app_state.study_mutation_locks[STUDY_ID], lock)
+
+        lock.release()
+        await task
+        self.assertTrue(entered.is_set())
+        self.assertNotIn(STUDY_ID, self.app_state.study_mutation_locks)
+        self.assertNotIn(STUDY_ID, self.app_state.study_mutation_lock_refs)
+
+    async def test_chapter_sync_reports_sequenced_snapshot_token(self) -> None:
+        ws = await self._connect()
+        ws.sent.clear()
+        chapter_doc = await self.db.study_chapter.find_one({"_id": CHAPTER_ID})
+        assert chapter_doc is not None
+        chapter = StudyChapter.from_document(chapter_doc)
+        stale_token = chapter_snapshot_token(chapter)
+        # Snapshot verification must cover persisted content that is allowed to
+        # change without the collaborative mutation revision (Fishnet analysis is
+        # the production example).
+        await self.db.study_chapter.update_one(
+            {"_id": CHAPTER_ID}, {"$set": {"description": "changed without revision"}}
+        )
+        current_doc = await self.db.study_chapter.find_one({"_id": CHAPTER_ID})
+        assert current_doc is not None
+        expected = chapter_snapshot_token(StudyChapter.from_document(current_doc))
+        current_study = await load_study(cast(Any, self.app_state), STUDY_ID)
+        assert current_study is not None
+        expected_room = study_snapshot_token(
+            current_study, await chapter_previews(cast(Any, self.app_state), STUDY_ID)
+        )
+        self.assertNotEqual(stale_token, expected)
+
+        message = StudySyncChapterIn(
+            type="study_sync_chapter",
+            studyId=STUDY_ID,
+            chapterId=CHAPTER_ID,
+            requestId="Sync0001",
+        )
+        await process_message(
+            cast(Any, self.app_state),
+            cast(Any, self.user),
+            cast(Any, ws),
+            message,
+            study_id=STUDY_ID,
+            service=self.service,
+        )
+
+        self.assertEqual(
+            ws.sent,
+            [
+                {
+                    "type": "study_chapter_sync",
+                    "studyId": STUDY_ID,
+                    "chapterId": CHAPTER_ID,
+                    "requestId": "Sync0001",
+                    "revision": 0,
+                    "snapshotToken": expected,
+                    "roomSnapshotToken": expected_room,
+                }
+            ],
+        )
+
+    async def test_room_snapshot_token_covers_study_state_and_chapter_previews(self) -> None:
+        study = await load_study(cast(Any, self.app_state), STUDY_ID)
+        assert study is not None
+        previews = await chapter_previews(cast(Any, self.app_state), STUDY_ID)
+        original = study_snapshot_token(study, previews)
+
+        await self.db.study.update_one({"_id": STUDY_ID}, {"$set": {"currentPath": "Node0001"}})
+        shared_changed = await load_study(cast(Any, self.app_state), STUDY_ID)
+        assert shared_changed is not None
+        self.assertNotEqual(original, study_snapshot_token(shared_changed, previews))
+
+        await self.db.study.update_one({"_id": STUDY_ID}, {"$unset": {"currentPath": ""}})
+        await self.db.study_chapter.update_one(
+            {"_id": CHAPTER_ID}, {"$set": {"name": "Renamed chapter"}}
+        )
+        renamed_study = await load_study(cast(Any, self.app_state), STUDY_ID)
+        assert renamed_study is not None
+        renamed_previews = await chapter_previews(cast(Any, self.app_state), STUDY_ID)
+        self.assertNotEqual(original, study_snapshot_token(renamed_study, renamed_previews))
+
+    async def test_chapter_sync_detects_room_change_without_chapter_change(self) -> None:
+        chapter_doc = await self.db.study_chapter.find_one({"_id": CHAPTER_ID})
+        assert chapter_doc is not None
+        chapter_token = chapter_snapshot_token(StudyChapter.from_document(chapter_doc))
+        study = await load_study(cast(Any, self.app_state), STUDY_ID)
+        assert study is not None
+        old_room_token = study_snapshot_token(
+            study, await chapter_previews(cast(Any, self.app_state), STUDY_ID)
+        )
+
+        await self.db.study.update_one({"_id": STUDY_ID}, {"$set": {"currentPath": "Node0001"}})
+        ws = FakeWebSocket()
+        await process_message(
+            cast(Any, self.app_state),
+            cast(Any, self.user),
+            cast(Any, ws),
+            StudySyncChapterIn(
+                type="study_sync_chapter",
+                studyId=STUDY_ID,
+                chapterId=CHAPTER_ID,
+                requestId="SyncRoom1",
+            ),
+            study_id=STUDY_ID,
+            service=self.service,
+        )
+
+        self.assertEqual(ws.sent[0]["snapshotToken"], chapter_token)
+        self.assertNotEqual(ws.sent[0]["roomSnapshotToken"], old_room_token)
 
     async def test_typed_add_broadcasts_same_stable_node_to_both_tabs(self) -> None:
         first = await self._connect()

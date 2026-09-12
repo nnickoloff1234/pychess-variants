@@ -45,6 +45,9 @@ class UserDocument(TypedDict, total=False):
     patron: bool
     createdAt: datetime
     count: UserCount
+    tournamentPoints: int | float
+    forumPosts: int
+    variantCount: int
     swissBanUntil: datetime
     swissBanHours: int
     swissBanGameId: str
@@ -147,10 +150,26 @@ class RatingDiffs(TypedDict):
     wrdiff: int | str
 
 
+class AnalysisVariationStep(TypedDict):
+    move: str
+    fen: str
+    turnColor: str
+    check: bool
+    san: str
+    sanSAN: str
+
+
+class AnalysisAdvice(TypedDict):
+    nag: int
+    comment: str
+    variation: list[AnalysisVariationStep]
+
+
 class AnalysisStep(TypedDict, total=False):
     s: object
     d: int
     p: str
+    advice: AnalysisAdvice
 
 
 class GameRatingDoc(TypedDict):
@@ -333,7 +352,10 @@ class FishnetWorkInfo(TypedDict):
 
 class FishnetWork(TypedDict):
     work: FishnetWorkInfo
-    game_id: str
+    game_id: NotRequired[str]
+    study_id: NotRequired[str]
+    chapter_id: NotRequired[str]
+    study_path: NotRequired[str]
     position: str
     variant: str
     chess960: bool
@@ -616,6 +638,12 @@ class ViewContext(TypedDict, total=False):
     profile: str | None
     profile_teams: Sequence[Mapping[str, object]]
     profile_simul_count: int
+    profile_tournament_points: int | float
+    profile_tournament_entries: list[dict[str, object]]
+    profile_tournament_prev: str
+    profile_tournament_next: str
+    profile_forum_posts: int
+    profile_variant_count: int
     profile_title: str
     profile_patron: bool
     profile_online: bool
@@ -870,6 +898,7 @@ class TournamentDoc(TypedDict):
 
 
 class TournamentUpdateData(TypedDict, total=False):
+    profilePointsPending: bool
     name: str
     password: str
     d: str

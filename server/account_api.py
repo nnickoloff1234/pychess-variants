@@ -22,6 +22,7 @@ from login import logout
 from pychess_global_app_state_utils import get_app_state
 from request_utils import read_post_data
 from simul.simuls import erase_user_from_simuls
+from study.gdpr import erase_user_from_studies
 from team import remove_user_from_teams_on_account_disable
 from tournament.gdpr import erase_user_from_tournaments
 from typedefs import REQUEST_NEW_SESSION_KEY
@@ -300,6 +301,7 @@ async def _scrub_delete_owned_data(app_state: Any, user: Any, now: datetime) -> 
     await _scrub_authored_chat_history(app_state, user.username)
     await erase_user_from_tournaments(app_state, user.username)
     await erase_user_from_simuls(app_state, user.username)
+    await erase_user_from_studies(app_state, user.username)
 
     await db.inbox_msg.update_many(
         {"from": user.username},
@@ -567,15 +569,23 @@ async def account_delete_post(request: web.Request) -> web.StreamResponse:
                 "gdprErasedAt": now,
                 "closeType": "deleted",
                 "count": dict(DEFAULT_USER_COUNT),
+                "forumPosts": 0,
+                "tournamentPoints": 0,
                 "perfs": {},
                 "pperfs": {},
             },
             "$unset": {"security": ""},
         },
     )
+    # Disable the shared live User before any potentially long GDPR discovery and
+    # cleanup. Existing websocket handlers observe this immediately, and new
+    # websocket handshakes are rejected by process_ws while authored data is erased.
+    user.enabled = False
     await _scrub_delete_owned_data(app_state, user, now)
     _clear_public_user_cache(app_state, user.username)
 
+    user.forum_posts = 0
+    user.tournament_points = 0
     user.enabled = False
     user.title = ""
     user.oauth_id = ""

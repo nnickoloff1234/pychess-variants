@@ -177,7 +177,12 @@ class StudyMutationService:
         nodes = dict(chapter.root.nodes)
         nodes[node.id] = node
         candidate = self._candidate_chapter(
-            chapter, StudyTree(nodes, root_annotations=chapter.root.root_annotations)
+            chapter,
+            StudyTree(
+                nodes,
+                root_annotations=chapter.root.root_annotations,
+                root_clocks=chapter.root.root_clocks,
+            ),
         )
         size_error = self._size_error(candidate)
         if size_error is not None:
@@ -239,7 +244,12 @@ class StudyMutationService:
                 changed_nodes[sibling.id] = replacement
 
         candidate = self._candidate_chapter(
-            chapter, StudyTree(nodes, root_annotations=chapter.root.root_annotations)
+            chapter,
+            StudyTree(
+                nodes,
+                root_annotations=chapter.root.root_annotations,
+                root_clocks=chapter.root.root_clocks,
+            ),
         )
         result = await self._commit(
             chapter,
@@ -318,7 +328,12 @@ class StudyMutationService:
             )
 
         candidate = self._candidate_chapter(
-            chapter, StudyTree(nodes, root_annotations=chapter.root.root_annotations)
+            chapter,
+            StudyTree(
+                nodes,
+                root_annotations=chapter.root.root_annotations,
+                root_clocks=chapter.root.root_clocks,
+            ),
         )
         size_error = self._size_error(candidate)
         if size_error is not None:
@@ -373,7 +388,12 @@ class StudyMutationService:
             )
 
         candidate = self._candidate_chapter(
-            chapter, StudyTree(nodes, root_annotations=chapter.root.root_annotations)
+            chapter,
+            StudyTree(
+                nodes,
+                root_annotations=chapter.root.root_annotations,
+                root_clocks=chapter.root.root_clocks,
+            ),
         )
         size_error = self._size_error(candidate)
         if size_error is not None:
@@ -629,10 +649,18 @@ class StudyMutationService:
             if target is None:
                 return self._reload(chapter.revision, "invalid_path")
             nodes[target.id] = replace(target, annotations=annotations)
-            root = StudyTree(nodes, root_annotations=chapter.root.root_annotations)
+            root = StudyTree(
+                nodes,
+                root_annotations=chapter.root.root_annotations,
+                root_clocks=chapter.root.root_clocks,
+            )
             annotation_field = f"root.{target.id}.a"
         else:
-            root = StudyTree(nodes, root_annotations=annotations)
+            root = StudyTree(
+                nodes,
+                root_annotations=annotations,
+                root_clocks=chapter.root.root_clocks,
+            )
             annotation_field = "root._.a"
 
         candidate = self._candidate_chapter(chapter, root)
@@ -807,9 +835,13 @@ class StudyMutationService:
 
     @staticmethod
     def _candidate_chapter(chapter: StudyChapter, root: StudyTree) -> StudyChapter:
+        server_eval = chapter.server_eval
+        if server_eval is not None and root.preferred_mainline_path() != server_eval.path:
+            server_eval = None
         return replace(
             chapter,
             root=root,
+            server_eval=server_eval,
             updated_at=datetime.now(UTC),
             revision=chapter.revision + 1,
         )
@@ -847,6 +879,8 @@ class StudyMutationService:
         update: dict[str, object] = {"$set": set_fields}
         unset_fields = {f"root.{node_id}" for node_id in (unset_node_ids or set())}
         unset_fields.update(extra_unset or set())
+        if previous.server_eval is not None and candidate.server_eval is None:
+            unset_fields.add("serverEval")
         if unset_fields:
             update["$unset"] = {field: "" for field in unset_fields}
 
@@ -863,6 +897,10 @@ class StudyMutationService:
                 {"_id": previous.study_id},
                 {"$set": {"updatedAt": candidate.updated_at}},
             )
+            if previous.server_eval is not None and candidate.server_eval is None:
+                from study.analysis import drop_study_analysis_work
+
+                drop_study_analysis_work(self.app_state, previous.study_id, previous.id)
             return None
 
         current = await self.db.study_chapter.find_one(

@@ -246,10 +246,15 @@ class PychessGlobalAppState:
             # Study rooms are created lazily when the first browser opens /wsstudy/<id>
             # and removed as soon as their last websocket leaves. No Study is preloaded.
             self.study_sockets: dict[str, set[WebSocketResponse]] = {}
-            # Serialize mutations for one active Study room while allowing unrelated
-            # Studies to progress independently. Locks are created lazily and evicted
-            # with the last room socket.
+            # Serialize Study operations while allowing unrelated Studies to progress
+            # independently. Ref-count queued/active users so room cleanup cannot replace
+            # a lock while an HTTP/websocket/Fishnet operation is waiting on it.
             self.study_mutation_locks: dict[str, asyncio.Lock] = {}
+            self.study_mutation_lock_refs: dict[str, int] = {}
+            # Study mutations are sequenced per Study, but Fishnet admission also
+            # needs a tiny cross-Study critical section to enforce one request per
+            # account without retaining one lock per user.
+            self.study_analysis_request_lock = asyncio.Lock()
             self.study_socket_users: dict[str, dict[WebSocketResponse, str]] = {}
             self.background_tasks: set[asyncio.Task[Any]] = set()
             self.game_remove_tasks: dict[str, asyncio.Task[None]] = {}
@@ -466,6 +471,12 @@ class PychessGlobalAppState:
                     )
 
             with startup.phase("restore tournaments"):
+                from profile_counts import refresh_tournament_points
+
+                async for pending in self.db.tournament.find(
+                    {"profilePointsPending": True}, {"_id": 1}
+                ):
+                    await refresh_tournament_points(self, pending["_id"])
                 cursor = self.db.tournament.find(
                     {"$or": [{"status": T_STARTED}, {"status": T_CREATED}]}
                 )

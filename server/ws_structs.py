@@ -167,6 +167,19 @@ class StudySetPositionIn(WsInboundStruct):
     path: str
 
 
+class StudyRequestAnalysisIn(WsInboundStruct):
+    type: Literal["study_request_analysis"]
+    studyId: str
+    chapterId: str
+
+
+class StudySyncChapterIn(WsInboundStruct):
+    type: Literal["study_sync_chapter"]
+    studyId: str
+    chapterId: str
+    requestId: str
+
+
 STUDY_TYPED_DECODERS: dict[str, msgspec.json.Decoder] = {
     "study_add_node": msgspec.json.Decoder(type=StudyAddNodeIn),
     "study_delete_node": msgspec.json.Decoder(type=StudyDeleteNodeIn),
@@ -179,4 +192,6 @@ STUDY_TYPED_DECODERS: dict[str, msgspec.json.Decoder] = {
     "study_set_description": msgspec.json.Decoder(type=StudySetDescriptionIn),
     "study_set_tags": msgspec.json.Decoder(type=StudySetTagsIn),
     "study_set_position": msgspec.json.Decoder(type=StudySetPositionIn),
+    "study_request_analysis": msgspec.json.Decoder(type=StudyRequestAnalysisIn),
+    "study_sync_chapter": msgspec.json.Decoder(type=StudySyncChapterIn),
 }

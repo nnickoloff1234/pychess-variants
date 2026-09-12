@@ -1,7 +1,7 @@
 import type { DrawShape } from 'chessgroundx/draw';
 
 import { AnalysisTree, AnalysisTreeNode, type AnalysisAnnotations } from '../analysis/analysisTree';
-import { Step } from '../messages';
+import type { Ceval, Step } from '../messages';
 
 export const STUDY_NODE_ID_LENGTH = 10;
 const STUDY_NODE_ID_RE = new RegExp(`^[A-Za-z0-9]{${STUDY_NODE_ID_LENGTH}}$`);
@@ -26,6 +26,11 @@ export interface StudyAnnotationsDto {
     nags: number[];
 }
 
+export interface StudyEvalDto {
+    cp?: number;
+    mate?: number;
+}
+
 export interface StudyTreeNodeDto {
     id: string;
     parentId: string | null;
@@ -38,11 +43,14 @@ export interface StudyTreeNodeDto {
     sanSAN?: string;
     forceVariation?: boolean;
     annotations?: StudyAnnotationsDto;
+    eval?: StudyEvalDto;
+    clocks?: [number, number];
 }
 
 export interface StudyTreeDto {
     nodes: StudyTreeNodeDto[];
     rootAnnotations?: StudyAnnotationsDto;
+    rootClocks?: [number, number];
 }
 
 export function isStudyNodeId(value: unknown): value is string {
@@ -154,6 +162,29 @@ export function studyAnnotationsFromAnalysis(value: AnalysisAnnotations | undefi
     return annotations;
 }
 
+function cevalFromStudyEval(value: StudyEvalDto | undefined): Ceval | undefined {
+    if (!value) return undefined;
+    const score: StudyEvalDto = {};
+    if (value.cp !== undefined) {
+        if (!Number.isInteger(value.cp)) throw new Error('Invalid Study centipawn evaluation');
+        score.cp = value.cp;
+    }
+    if (value.mate !== undefined) {
+        if (!Number.isInteger(value.mate)) throw new Error('Invalid Study mate evaluation');
+        score.mate = value.mate;
+    }
+    if (score.cp === undefined && score.mate === undefined) throw new Error('Study evaluation requires cp or mate');
+    return { s: score, d: 0 };
+}
+
+function studyEvalFromCeval(value: Ceval | undefined): StudyEvalDto | undefined {
+    if (!value) return undefined;
+    const score: StudyEvalDto = {};
+    if (Number.isInteger(value.s.cp)) score.cp = value.s.cp;
+    if (Number.isInteger(value.s.mate)) score.mate = value.s.mate;
+    return score.cp === undefined && score.mate === undefined ? undefined : score;
+}
+
 function validateDtoNode(node: StudyTreeNodeDto): void {
     if (!isStudyNodeId(node.id)) throw new Error(`Invalid Study node id: ${node.id}`);
     if (node.parentId !== null && !isStudyNodeId(node.parentId)) {
@@ -164,6 +195,15 @@ function validateDtoNode(node: StudyTreeNodeDto): void {
     if (!node.fen) throw new Error('Study node FEN must be non-empty');
     if (node.turnColor !== 'white' && node.turnColor !== 'black') throw new Error('Invalid Study node turn color');
     if (node.annotations !== undefined) parseStudyAnnotations(node.annotations);
+    if (node.eval !== undefined) cevalFromStudyEval(node.eval);
+    if (node.clocks !== undefined) {
+        if (
+            !Array.isArray(node.clocks) ||
+            node.clocks.length !== 2 ||
+            node.clocks.some(clock => typeof clock !== 'number' || !Number.isFinite(clock) || clock < 0)
+        )
+            throw new Error('Invalid Study node clocks');
+    }
 }
 
 function parentKey(parentId: string | null): string {
@@ -171,6 +211,16 @@ function parentKey(parentId: string | null): string {
 }
 
 export function analysisTreeFromStudy(rootStep: Step, dto: StudyTreeDto): AnalysisTree {
+    if (dto.rootClocks !== undefined) {
+        if (
+            !Array.isArray(dto.rootClocks) ||
+            dto.rootClocks.length !== 2 ||
+            dto.rootClocks.some(clock => typeof clock !== 'number' || !Number.isFinite(clock) || clock < 0)
+        )
+            throw new Error('Invalid Study root clocks');
+        rootStep = { ...rootStep, clocks: [...dto.rootClocks] as [number, number] };
+    }
+
     const dtoById = new Map<string, StudyTreeNodeDto>();
     const children = new Map<string, StudyTreeNodeDto[]>();
 
@@ -233,11 +283,13 @@ export function analysisTreeFromStudy(rootStep: Step, dto: StudyTreeDto): Analys
                     turnColor: dtoNode.turnColor,
                     san: dtoNode.san,
                     sanSAN: dtoNode.sanSAN,
+                    clocks: dtoNode.clocks,
                 },
                 children: [],
                 forceVariation: dtoNode.forceVariation,
                 mainlinePly: onMainline ? current.parent.ply + 1 : undefined,
                 annotations: analysisAnnotationsFromStudy(dtoNode.annotations),
+                eval: cevalFromStudyEval(dtoNode.eval),
             };
             current.parent.children.push(node);
             tree.byPath.set(path, node);
@@ -265,6 +317,7 @@ function allocateStableId(preferred: string, used: Set<string>): string {
 export function studyTreeFromAnalysisTree(tree: AnalysisTree): StudyTreeDto {
     const nodes: StudyTreeNodeDto[] = [];
     const rootAnnotations = studyAnnotationsFromAnalysis(tree.root.annotations);
+    const rootClocks = tree.root.step.clocks ? ([...tree.root.step.clocks] as [number, number]) : undefined;
     const used = new Set<string>();
     const queue: Array<{ parent: AnalysisTreeNode; stableParentId: string | null }> = [
         { parent: tree.root, stableParentId: null },
@@ -286,15 +339,22 @@ export function studyTreeFromAnalysisTree(tree: AnalysisTree): StudyTreeDto {
             };
             if (child.step.san !== undefined) node.san = child.step.san;
             if (child.step.sanSAN !== undefined) node.sanSAN = child.step.sanSAN;
+            if (child.step.clocks !== undefined) node.clocks = [...child.step.clocks] as [number, number];
             if (child.forceVariation) node.forceVariation = true;
             const annotations = studyAnnotationsFromAnalysis(child.annotations);
             if (annotations) node.annotations = annotations;
+            const evalScore = studyEvalFromCeval(child.eval);
+            if (evalScore) node.eval = evalScore;
             nodes.push(node);
             queue.push({ parent: child, stableParentId: id });
         });
     }
 
-    return rootAnnotations ? { nodes, rootAnnotations } : { nodes };
+    return {
+        nodes,
+        ...(rootAnnotations ? { rootAnnotations } : {}),
+        ...(rootClocks ? { rootClocks } : {}),
+    };
 }
 
 export function addStudyNodeToAnalysisTree(
@@ -327,11 +387,13 @@ export function addStudyNodeToAnalysisTree(
             turnColor: dtoNode.turnColor,
             san: dtoNode.san,
             sanSAN: dtoNode.sanSAN,
+            clocks: dtoNode.clocks,
         },
         children: [],
         forceVariation: dtoNode.forceVariation,
         mainlinePly: onMainline ? parent.ply + 1 : undefined,
         annotations: analysisAnnotationsFromStudy(dtoNode.annotations),
+        eval: cevalFromStudyEval(dtoNode.eval),
     };
     parent.children.push(child);
     tree.byPath.set(path, child);
@@ -371,9 +433,11 @@ export function mergeStudyNodeIntoAnalysisTree(
             turnColor: dtoNode.turnColor,
             san: dtoNode.san,
             sanSAN: dtoNode.sanSAN,
+            clocks: dtoNode.clocks,
         };
         existing.forceVariation = dtoNode.forceVariation;
         existing.annotations = analysisAnnotationsFromStudy(dtoNode.annotations);
+        existing.eval = cevalFromStudyEval(dtoNode.eval);
         return path;
     }
 
@@ -389,14 +453,95 @@ export function mergeStudyNodeIntoAnalysisTree(
             turnColor: dtoNode.turnColor,
             san: dtoNode.san,
             sanSAN: dtoNode.sanSAN,
+            clocks: dtoNode.clocks,
         },
         children: [],
         forceVariation: dtoNode.forceVariation,
         annotations: analysisAnnotationsFromStudy(dtoNode.annotations),
+        eval: cevalFromStudyEval(dtoNode.eval),
     };
     parent.children.splice(dtoNode.order, 0, child);
     tree.byPath.set(path, child);
     return path;
+}
+
+export function reconcileStudyNodeIntoAnalysisTree(
+    tree: AnalysisTree,
+    parentPath: string,
+    localNodeId: string,
+    dtoNode: StudyTreeNodeDto,
+): { localPath: string; canonicalPath: string } | undefined {
+    if (!isStudyNodeId(localNodeId)) return undefined;
+    const parent = tree.byPath.get(parentPath);
+    if (!parent) return undefined;
+
+    const localPath = parentPath ? `${parentPath}.${localNodeId}` : localNodeId;
+    const localNode = tree.byPath.get(localPath);
+    const canonicalPath = mergeStudyNodeIntoAnalysisTree(tree, parentPath, dtoNode);
+    if (!canonicalPath) return undefined;
+    const canonicalNode = tree.byPath.get(canonicalPath);
+    if (!canonicalNode) return undefined;
+
+    if (localNode && localNode !== canonicalNode) {
+        const localIndex = parent.children.indexOf(localNode);
+        if (localIndex < 0) return undefined;
+
+        const descendants: AnalysisTreeNode[] = [];
+        const collect = (node: AnalysisTreeNode): void => {
+            for (const child of node.children) {
+                descendants.push(child);
+                collect(child);
+            }
+        };
+        collect(localNode);
+        const descendantSet = new Set(descendants);
+        const remappedPaths = descendants.map(node => [
+            node,
+            `${canonicalPath}${node.path.slice(localPath.length)}`,
+        ] as const);
+        for (const [node, nextPath] of remappedPaths) {
+            const existing = tree.byPath.get(nextPath);
+            if (existing && existing !== node && !descendantSet.has(existing)) return undefined;
+        }
+
+        parent.children.splice(localIndex, 1);
+        canonicalNode.children.push(...localNode.children);
+        localNode.children = [];
+        if (localNode.collapsed !== undefined) canonicalNode.collapsed = localNode.collapsed;
+
+        tree.byPath.delete(localPath);
+        for (const [node] of remappedPaths) tree.byPath.delete(node.path);
+        for (const [node, nextPath] of remappedPaths) {
+            node.path = nextPath;
+            tree.byPath.set(nextPath, node);
+        }
+    }
+
+    return { localPath, canonicalPath };
+}
+
+export function mergeStudyTreeIntoAnalysisTree(tree: AnalysisTree, dto: StudyTreeDto): boolean {
+    if (dto.rootClocks !== undefined) {
+        if (
+            !Array.isArray(dto.rootClocks) ||
+            dto.rootClocks.length !== 2 ||
+            dto.rootClocks.some(clock => typeof clock !== 'number' || !Number.isFinite(clock) || clock < 0)
+        )
+            return false;
+        tree.root.step = { ...tree.root.step, clocks: [...dto.rootClocks] as [number, number] };
+    }
+    const serverPathById = new Map<string, string>();
+    const seen = new Set<string>();
+    for (const dtoNode of dto.nodes) {
+        if (seen.has(dtoNode.id)) return false;
+        seen.add(dtoNode.id);
+        const parentPath = dtoNode.parentId === null ? '' : serverPathById.get(dtoNode.parentId);
+        if (parentPath === undefined) return false;
+        const path = mergeStudyNodeIntoAnalysisTree(tree, parentPath, dtoNode);
+        if (path === undefined) return false;
+        serverPathById.set(dtoNode.id, path);
+    }
+    return true;
 }
 
 // Unlike ordinary post-game analysis, a Study's preferred mainline is mutable:

@@ -1,19 +1,31 @@
 from __future__ import annotations
 
+import math
 from collections import deque
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal, cast
 
-from catalogued_variants import find_catalogued_variant_doc
+from catalogued_variants import CATALOGUED_SOURCE_FSF_BUILTIN, find_catalogued_variant_doc
 from fairy.fairy_board import FEN_OK, NOTATION_SAN, WHITE, FairyBoard, validate_fen
+from settings import URI
 from utils import MAX_CUSTOM_FEN_LENGTH, load_game, sanitize_fen
-from variants import ALL_VARIANTS, C2V, TWO_BOARD_VARIANT_CODES, is_catalogued_variant
+from variants import (
+    ALL_VARIANTS,
+    C2V,
+    TWO_BOARD_VARIANT_CODES,
+    catalogued_variant_random_start,
+    is_catalogued_variant,
+)
 
 from study.annotations import StudyAnnotations, StudyComment, canonical_tags
 from study.models import StudySource
 from study.tree import StudyTree, StudyTreeNode
-from study.variant import study_variant_context
+from study.variant import (
+    StudyVariantCapacityError,
+    study_variant_context,
+    validate_study_variant_import_without_mutating_server,
+)
 
 StudyOrientation = Literal["white", "black"]
 
@@ -53,7 +65,9 @@ class StudyChapterBuilder:
         variant_ini = await self._variant_snapshot(variant, chess960)
         with study_variant_context(self.app_state, variant, variant_ini) as options:
             if fen and fen.strip():
-                valid, initial_fen = sanitize_fen(variant, fen.strip(), chess960)
+                valid, initial_fen = self._validated_initial_fen(
+                    variant, fen.strip(), chess960, options.runtime_variant
+                )
                 if not valid:
                     raise StudyChapterBuildError("Invalid FEN for this variant")
             else:
@@ -115,6 +129,7 @@ class StudyChapterBuilder:
                 turn_color=cast(StudyOrientation, turn_color),
                 check=bool(raw_step.get("check", False)),
                 san=str(raw_step["san"]) if raw_step.get("san") is not None else None,
+                clocks=self._step_clocks(raw_step),
             )
             nodes[node_id] = node
             parent_id = node_id
@@ -127,15 +142,30 @@ class StudyChapterBuilder:
 
         default_name = f"{game.wplayer.username} - {game.bplayer.username}"
         initial_fen = str(raw_steps[0].get("fen") or game.initial_fen)
+        tags = canonical_tags(
+            {
+                "Event": "PyChess game",
+                "Site": f"{URI}/{game_id}",
+                "Date": game.date.strftime("%Y.%m.%d"),
+                "White": game.wplayer.username,
+                "Black": game.bplayer.username,
+                "Result": game.result,
+                "WhiteElo": str(game.wrating),
+                "BlackElo": str(game.brating),
+                **({"WhiteTitle": game.wplayer.title} if game.wplayer.title else {}),
+                **({"BlackTitle": game.bplayer.title} if game.bplayer.title else {}),
+            }
+        )
         return StudyChapterDraft(
             variant=game.variant,
             chess960=bool(game.chess960),
             initial_fen=initial_fen,
             orientation="white",
             variant_ini=variant_ini,
-            root=StudyTree(nodes),
+            root=StudyTree(nodes, root_clocks=self._step_clocks(raw_steps[0])),
             name=name or default_name,
             source=StudySource("game", game_id),
+            tags=tags,
         )
 
     async def from_import(
@@ -162,22 +192,26 @@ class StudyChapterBuilder:
 
         snapshot = variant_ini if isinstance(variant_ini, str) and variant_ini.strip() else None
         if snapshot is not None:
-            if chess960:
-                raise StudyChapterBuildError(
-                    "Embedded custom variant snapshots do not support Chess960"
-                )
             server_variant = ALL_VARIANTS.get(variant)
             if server_variant is not None and not is_catalogued_variant(variant):
                 raise StudyChapterBuildError(
                     "Built-in variants cannot use an embedded custom rules snapshot"
                 )
             try:
+                submitted = StudyTree.from_payload(tree_payload)
+                await validate_study_variant_import_without_mutating_server(
+                    variant,
+                    snapshot,
+                    initial_fen,
+                    tuple(
+                        (node.id, node.parent_id, node.move) for node in submitted.nodes.values()
+                    ),
+                )
                 with study_variant_context(self.app_state, variant, snapshot) as options:
-                    if validate_fen(initial_fen, options.runtime_variant, chess960) != FEN_OK:
+                    if chess960 and not options.random_start:
                         raise StudyChapterBuildError(
-                            "Invalid PGN FEN for embedded variant snapshot"
+                            "Embedded custom variant snapshot does not support randomized Chess960 starts"
                         )
-                    submitted = StudyTree.from_payload(tree_payload)
                     root = self._validated_tree(
                         submitted,
                         variant=variant,
@@ -188,14 +222,16 @@ class StudyChapterBuilder:
                         runtime_variant=options.runtime_variant,
                         comment_author=self.owner,
                     )
-            except StudyChapterBuildError:
+            except (StudyChapterBuildError, StudyVariantCapacityError):
                 raise
             except Exception as exc:
                 raise StudyChapterBuildError("Embedded PGN variant snapshot is invalid") from exc
         else:
             snapshot = await self._variant_snapshot(variant, chess960)
             with study_variant_context(self.app_state, variant, snapshot) as options:
-                valid, sanitized_fen = sanitize_fen(variant, initial_fen, chess960)
+                valid, sanitized_fen = self._validated_initial_fen(
+                    variant, initial_fen, chess960, options.runtime_variant
+                )
                 if not valid:
                     raise StudyChapterBuildError("Invalid PGN FEN for this variant")
                 initial_fen = sanitized_fen
@@ -258,7 +294,9 @@ class StudyChapterBuilder:
                     raise StudyChapterBuildError("Analysis start FEN does not match source game")
                 sanitized_fen = saved_initial_fen
             else:
-                valid, sanitized_fen = sanitize_fen(variant, initial_fen.strip(), chess960)
+                valid, sanitized_fen = self._validated_initial_fen(
+                    variant, initial_fen.strip(), chess960, options.runtime_variant
+                )
                 if not valid:
                     raise StudyChapterBuildError("Invalid analysis start FEN")
             try:
@@ -321,6 +359,43 @@ class StudyChapterBuilder:
             raise StudyChapterBuildError("Analysis mode does not match source game")
         return doc
 
+    @staticmethod
+    def _validated_initial_fen(
+        variant: str,
+        initial_fen: str,
+        chess960: bool,
+        runtime_variant: str,
+    ) -> tuple[bool, str]:
+        if is_catalogued_variant(variant):
+            # Generic sanitize_fen() deliberately carries first-class-variant
+            # assumptions such as king counts and pieces derived from the start
+            # position. Catalogued variants can legitimately violate those
+            # assumptions (Joust and Amazons have no kings, for example), so the
+            # loaded Fairy-Stockfish definition is the authoritative validator.
+            if len(initial_fen) > MAX_CUSTOM_FEN_LENGTH:
+                return False, ""
+            return validate_fen(initial_fen, runtime_variant, chess960) == FEN_OK, initial_fen
+        return sanitize_fen(variant, initial_fen, chess960)
+
+    @staticmethod
+    def _step_clocks(step: Mapping[str, object]) -> tuple[int | float, int | float] | None:
+        raw = step.get("clocks")
+        if raw is None:
+            return None
+        if not isinstance(raw, (list, tuple)) or len(raw) != 2:
+            raise StudyChapterBuildError("Saved game contains invalid clock data")
+        values: list[int | float] = []
+        for value in raw:
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or value < 0
+                or not math.isfinite(value)
+            ):
+                raise StudyChapterBuildError("Saved game contains invalid clock data")
+            values.append(value)
+        return values[0], values[1]
+
     async def _variant_snapshot(self, variant: str, chess960: bool) -> str | None:
         server_variant = ALL_VARIANTS.get(variant)
         if server_variant is None:
@@ -328,13 +403,18 @@ class StudyChapterBuilder:
         if server_variant.two_boards:
             raise StudyChapterBuildError("Two-board variants are not supported by Study yet")
         if is_catalogued_variant(variant):
-            if chess960:
+            if chess960 and not catalogued_variant_random_start(variant):
                 raise StudyChapterBuildError("Catalogued variants do not support Chess960 mode")
             doc = await find_catalogued_variant_doc(self.app_state, variant, self.owner)
             if doc is None:
                 raise StudyChapterBuildError("Variant is unavailable")
             ini = str(doc.get("ini") or "")
             if not ini:
+                # Fairy-Stockfish catalogue built-ins are metadata-only entries.
+                # Their rules already live in the engine binary, so there is no INI
+                # to snapshot (the same way normal built-in variants store none).
+                if doc.get("source") == CATALOGUED_SOURCE_FSF_BUILTIN:
+                    return None
                 raise StudyChapterBuildError("Variant rules snapshot is unavailable")
             return ini
         return None
@@ -393,16 +473,27 @@ class StudyChapterBuilder:
                 except Exception as exc:
                     raise StudyChapterBuildError("Analysis tree cannot be replayed") from exc
 
+                turn_color = "white" if board.color == WHITE else "black"
+                eval_score = submitted.eval_score
+                if eval_score is not None and submitted.turn_color != turn_color:
+                    # Study evaluations are stored from the side-to-move point of view.
+                    # Submitted FEN/turn metadata is deliberately untrusted, so rebase
+                    # the score if authoritative move replay reconstructs the opposite
+                    # side to move.
+                    eval_score = {key: -value for key, value in eval_score.items()}
+
                 node = StudyTreeNode(
                     id=submitted.id,
                     parent_id=parent_id,
                     order=submitted.order,
                     move=submitted.move,
                     fen=board.fen,
-                    turn_color="white" if board.color == WHITE else "black",
+                    turn_color=turn_color,
                     check=board.is_checked(),
                     san=san,
                     san_san=san_san,
+                    eval_score=eval_score,
+                    clocks=submitted.clocks,
                     force_variation=submitted.force_variation,
                     annotations=StudyChapterBuilder._canonical_annotation_authors(
                         submitted.annotations, comment_author
@@ -419,6 +510,7 @@ class StudyChapterBuilder:
             root_annotations=StudyChapterBuilder._canonical_annotation_authors(
                 tree.root_annotations, comment_author
             ),
+            root_clocks=tree.root_clocks,
         )
 
     @staticmethod

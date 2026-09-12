@@ -1,18 +1,24 @@
 import asyncio
 import unittest
+from unittest.mock import patch
 
 import game
 import test_logger
 from aiohttp.test_utils import AioHTTPTestCase
 from bug.game_bug import GameBug
 from bug.wsr_bug import handle_rematch_bughouse
+from catalogued_variants import register_catalogued_variant_doc
 from const import RATED
+from fairy import FairyBoard
+from fairy.fairy_board import STANDARD_FEN
 from game import Game
 from glicko2.glicko2 import new_default_perf_map
 from mongomock_motor import AsyncMongoMockClient
 from pychess_global_app_state_utils import get_app_state
 from user import User
-from variants import VARIANTS
+from utils import insert_game_to_db, load_game_from_doc
+from utils import pgn as export_pgn
+from variants import VARIANTS, unregister_catalogued_server_variant
 from wsr import handle_rematch
 
 from server import make_app
@@ -83,6 +89,150 @@ class RamatchChess960GameTestCase(AioHTTPTestCase):
                 resp = await handle_rematch(app_state, self.fake_ws, user, data, game)
 
         return resp
+
+    def register_fixed_community_variant(self, name="pawnsideways960"):
+        app_state = get_app_state(self.app)
+        fen = "4k3/8/8/8/8/8/8/RK1R4 w DA - 0 1"
+        register_catalogued_variant_doc(
+            app_state,
+            {
+                "name": name,
+                "ini": f"[{name}:pawnsideways]\nchess960 = true\nstartFen = {fen}\n",
+                "startFen": fen,
+                "visibility": "public",
+            },
+        )
+        self.addCleanup(unregister_catalogued_server_variant, name)
+        return fen
+
+    async def test_community_fixed_start_persists_and_replays_after_reload(self):
+        app_state = get_app_state(self.app)
+        for name in ("pawnsideways960", "fixed_castling"):
+            with self.subTest(variant=name):
+                fen = self.register_fixed_community_variant(name)
+                current = Game(app_state, name, name, "", self.Aplayer, self.Bplayer)
+                app_state.games[current.id] = current
+                await insert_game_to_db(current, app_state)
+                document = await app_state.db.game.find_one({"_id": current.id})
+                self.assertEqual(document["if"], fen)
+                self.assertEqual(document["z"], 0)
+
+                moves = ["b1d1", "e8e7", "a1a2", "e7e6", "a2a3", "e6e5"]
+                for move in moves:
+                    await current.play_move(move)
+                await current.game_ended(current.bplayer, "resign")
+                document = await app_state.db.game.find_one({"_id": current.id})
+                self.assertEqual(document["if"], fen)
+
+                # A saved game must not consult the variant's default again.
+                with patch.object(
+                    FairyBoard, "start_fen", side_effect=AssertionError("regenerated start")
+                ):
+                    for _ in range(2):
+                        app_state.games.pop(current.id, None)
+                        reloaded = await load_game_from_doc(app_state, document)
+                        self.assertIsInstance(reloaded, Game)
+                        reloaded.create_steps()
+                        self.assertEqual(reloaded.initial_fen, fen)
+                        self.assertEqual(reloaded.board.variant, name)
+                        self.assertEqual(reloaded.board.move_stack, moves)
+                        self.assertEqual(reloaded.steps[0]["fen"], fen)
+                        self.assertEqual(reloaded.steps[1]["san"], "O-O")
+                        self.assertEqual(reloaded.steps[-1]["fen"], current.board.fen)
+
+    async def test_community_960_rematches_keep_fixed_start_beyond_two_games(self):
+        app_state = get_app_state(self.app)
+        fen = self.register_fixed_community_variant()
+        current = Game(app_state, "12345678", "pawnsideways960", "", self.Aplayer, self.Bplayer)
+        app_state.games[current.id] = current
+        with patch.object(FairyBoard, "shuffle_start", side_effect=AssertionError("randomized")):
+            for _ in range(3):
+                previous = current
+                response = await self.play_game_and_rematch_game(current)
+                current = app_state.games[response["gameId"]]
+                self.assertEqual(current.initial_fen, fen)
+                self.assertEqual(current.board.variant, "pawnsideways960")
+                self.assertIs(current.wplayer, previous.bplayer)
+                self.assertIs(current.bplayer, previous.wplayer)
+
+    def register_random_community_variant(self):
+        name = "testsideways960"
+        register_catalogued_variant_doc(
+            get_app_state(self.app),
+            {
+                "name": name,
+                "ini": f"[{name}:pawnsideways]\nchess960 = true",
+                "startFen": STANDARD_FEN,
+                "visibility": "public",
+            },
+        )
+        self.addCleanup(unregister_catalogued_server_variant, name)
+        return name
+
+    async def test_community_random_start_is_saved_and_replayed_with_literal_name(self):
+        app_state = get_app_state(self.app)
+        name = self.register_random_community_variant()
+        current = Game(app_state, "random01", name, "", self.Aplayer, self.Bplayer)
+        app_state.games[current.id] = current
+        await insert_game_to_db(current, app_state)
+        initial_fen = current.initial_fen
+        self.assertTrue(current.chess960)
+        self.assertGreaterEqual(current.posnum, 0)
+        self.assertEqual(current.board.variant, name)
+        for _ in range(4):
+            await current.play_move(current.board.legal_moves()[0])
+        await current.game_ended(current.bplayer, "resign")
+        document = await app_state.db.game.find_one({"_id": current.id})
+        self.assertEqual(document["v"], name)
+        self.assertEqual(document["z"], 1)
+        self.assertEqual(document["if"], initial_fen)
+        self.assertIn('[Variant "Testsideways960"]', current.pgn)
+        self.assertIn('[Variant "Testsideways960"]', export_pgn(document))
+        app_state.games.pop(current.id, None)
+        with patch.object(FairyBoard, "start_fen", side_effect=AssertionError("regenerated start")):
+            reloaded = await load_game_from_doc(app_state, document)
+            reloaded.create_steps()
+        self.assertTrue(reloaded.chess960)
+        self.assertEqual(reloaded.steps[0]["fen"], initial_fen)
+        self.assertEqual(reloaded.steps[-1]["fen"], current.board.fen)
+
+    async def test_community_random_rematches_reuse_then_change_start(self):
+        app_state = get_app_state(self.app)
+        name = self.register_random_community_variant()
+        current = Game(app_state, "random02", name, "", self.Aplayer, self.Bplayer)
+        app_state.games[current.id] = current
+        first_fen = current.initial_fen
+        for rematch in range(2):
+            response = await self.play_game_and_rematch_game(current)
+            current = app_state.games[response["gameId"]]
+            self.assertTrue(current.chess960)
+            self.assertEqual(current.board.variant, name)
+            if rematch == 0:
+                self.assertEqual(current.initial_fen, first_fen)
+            else:
+                self.assertNotEqual(current.initial_fen, first_fen)
+
+    async def test_community_supplied_and_missing_historical_starts_are_not_randomized(self):
+        app_state = get_app_state(self.app)
+        name = self.register_random_community_variant()
+        supplied = "4k3/8/8/8/8/8/8/RK1R4 w DA - 0 1"
+        current = Game(app_state, "random03", name, supplied, self.Aplayer, self.Bplayer)
+        self.assertEqual(current.initial_fen, supplied)
+        self.assertFalse(current.chess960)
+        await current.stopwatch.cancel()
+        with patch("fairy.fairy_board.random.shuffle", side_effect=AssertionError("randomized")):
+            historical = Game(
+                app_state,
+                "random04",
+                name,
+                "",
+                self.Aplayer,
+                self.Bplayer,
+                chess960=True,
+                create=False,
+            )
+        self.assertEqual(historical.initial_fen, STANDARD_FEN)
+        await historical.stopwatch.cancel()
 
     @unittest.skipIf(ONE_TEST_ONLY, "1 test only")
     async def test_ramatch_ataxx(self):

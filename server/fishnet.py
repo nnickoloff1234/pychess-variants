@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from pychess_global_app_state import PychessGlobalAppState
 import logging
 
+from game_analysis import enrich_game_analysis
 from json_utils import json_response
 from pychess_global_app_state_utils import get_app_state
 from request_utils import read_json_data
@@ -115,7 +116,19 @@ def _cache_fishnet_variants_payload(
         or fishnet_variants_payload_cache_bytes(app_state)
         > FISHNET_VARIANTS_PAYLOAD_CACHE_MAX_BYTES
     ):
-        cache.pop(next(iter(cache)))
+        pinned = {
+            str(work.get("variantsSha256"))
+            for work in getattr(app_state, "fishnet_works", {}).values()
+            if work.get("variantsSha256")
+        }
+        # The payload currently being cached may be attached to a work item only
+        # after this function returns. Protect it as well so an immutable Study
+        # snapshot cannot disappear between queueing and the worker's rules fetch.
+        pinned.add(sha256)
+        evict = next((key for key in cache if key not in pinned), None)
+        if evict is None:
+            break
+        cache.pop(evict)
     return payload
 
 
@@ -243,8 +256,36 @@ def fishnet_variants_payload(
     return _cache_fishnet_variants_payload(app_state, payload)
 
 
+def fishnet_variants_payload_from_ini(
+    app_state: PychessGlobalAppState, variant_name: str, variants_ini: str
+) -> dict[str, str]:
+    """Cache an immutable rules payload for work pinned to a Study snapshot.
+
+    Historical Study variants run under a content-hashed alias. Include any custom
+    base definitions that the current server can resolve, then keep this exact text
+    addressable by hash for the lifetime of the queued/reissued Fishnet job.
+    """
+
+    base_name = extract_variant_base_name(variants_ini).strip()
+    base_chain = _fishnet_custom_ini_chain(app_state, base_name) if base_name else []
+    parts = [*base_chain, variants_ini.strip() + "\n"]
+    exact_ini = "\n".join(part.strip() for part in parts if part.strip()) + "\n"
+    payload = {
+        "variantsIni": exact_ini,
+        "variantsSha256": hashlib.sha256(exact_ini.encode("utf-8")).hexdigest(),
+        "variantsScope": variant_name,
+    }
+    return _cache_fishnet_variants_payload(app_state, payload)
+
+
 def _attach_variants_hash(app_state: PychessGlobalAppState, work: FishnetWork) -> None:
     variant_name = str(work.get("variant") or "")
+    pinned_sha256 = work.get("variantsSha256")
+    pinned_scope = work.get("variantsScope")
+    if pinned_sha256 and pinned_scope == variant_name:
+        cached = _fishnet_variants_payload_cache(app_state).get(pinned_sha256)
+        if cached is not None and cached.get("variantsScope") == variant_name:
+            return
     work.pop("variantsSha256", None)
     work.pop("variantsScope", None)
     payload = fishnet_variants_payload(app_state, variant_name)
@@ -262,6 +303,8 @@ def _variant_allows_cached_fishnet_payload(
     catalogued_docs = getattr(app_state, "catalogued_variants", {})
     if variant_name in catalogued_docs:
         return catalogued_variant_allows_fishnet(app_state, variant_name)
+    if re.fullmatch(r"studysnap_[0-9a-f]{12}", variant_name):
+        return True
     return variant_name in _site_fishnet_ini_sections()
 
 
@@ -429,6 +472,7 @@ def drop_stale_analysis_work(app_state: PychessGlobalAppState, *, now: float | N
         work_id
         for work_id, work in tuple(app_state.fishnet_works.items())
         if work["work"]["type"] == "analysis"
+        and not work.get("study_id")
         and now - work.get("time", now) > ANALYSIS_WORK_TIME_OUT
     ]
     for work_id in stale_ids:
@@ -499,7 +543,7 @@ def has_available_fishnet_worker(
 
 def has_pending_analysis_work_for_game(app_state: PychessGlobalAppState, game_id: str) -> bool:
     return any(
-        work["work"]["type"] == "analysis" and work["game_id"] == game_id
+        work["work"]["type"] == "analysis" and work.get("game_id") == game_id
         for work in app_state.fishnet_works.values()
     )
 
@@ -633,6 +677,10 @@ async def _drop_terminal_work_failure(
     if work["work"]["type"] == "move":
         await _adjudicate_failing_move_work(app_state, work_id, work, failure_reason)
     else:
+        if work.get("study_id"):
+            from study.analysis import fail_study_server_analysis
+
+            await fail_study_server_analysis(app_state, work, reason=failure_reason)
         log.warning(
             "Dropping analysis work %s after repeated fishnet failures "
             "(reason=%s, aborts=%s, engine_failures=%s, stale_reissues=%s)",
@@ -742,29 +790,40 @@ async def get_work(
                     work_id,
                     "request",
                     "analysis",
-                    work["moves"].count(" ") + 1,
+                    len(work["moves"].split()),
                 )
             )
 
-            # delete previous analysis
-            gameId = work["game_id"]
-            game = await load_game(app_state, gameId)
-            if game is None:
-                app_state.fishnet_works.pop(work_id, None)
-                continue
+            if work.get("study_id"):
+                from study.analysis import study_analysis_work_is_current
 
-            for step in game.steps:
-                if "analysis" in step:
-                    del step["analysis"]
+                if not await study_analysis_work_is_current(app_state, work):
+                    app_state.fishnet_works.pop(work_id, None)
+                    continue
+            else:
+                # Game analysis starts from a clean in-memory analysis array. Study
+                # analysis is persisted separately and can resume after partial reports.
+                game_id = work.get("game_id")
+                if not game_id:
+                    app_state.fishnet_works.pop(work_id, None)
+                    continue
+                game = await load_game(app_state, game_id)
+                if game is None:
+                    app_state.fishnet_works.pop(work_id, None)
+                    continue
 
-            if "username" in work:
-                response = {
-                    "type": "roundchat",
-                    "user": "",
-                    "room": "spectator",
-                    "message": "Work for fishnet sent...",
-                }
-                await app_state.users[work["username"]].send_game_message(work["game_id"], response)
+                for step in game.steps:
+                    if "analysis" in step:
+                        del step["analysis"]
+
+                if "username" in work:
+                    response = {
+                        "type": "roundchat",
+                        "user": "",
+                        "room": "spectator",
+                        "message": "Work for fishnet sent...",
+                    }
+                    await app_state.users[work["username"]].send_game_message(game_id, response)
         else:
             fm[worker].append(
                 "%s %s %s %s for level %s"
@@ -785,6 +844,12 @@ async def get_work(
     # (in case when worker grabbed it from queue but not responded after timeout)
     now = monotonic()
     for work_id, work_item in tuple(app_state.fishnet_works.items()):
+        if work_item.get("study_id"):
+            from study.analysis import study_analysis_work_is_current
+
+            if not await study_analysis_work_is_current(app_state, work_item):
+                app_state.fishnet_works.pop(work_id, None)
+                continue
         if not _work_variant_allows_fishnet(app_state, work_item):
             log.warning(
                 "Dropping stale fishnet work %s because AI is temporarily disabled for variant %s",
@@ -894,7 +959,17 @@ async def fishnet_analysis(request: web.Request) -> web.Response:
     work: FishnetWork = app_state.fishnet_works[work_id]
     app_state.fishnet_monitor[worker].append("%s %s %s" % (datetime.now(UTC), work_id, "analysis"))
 
-    gameId = work["game_id"]
+    if work.get("study_id"):
+        from study.analysis import merge_study_server_analysis
+
+        await merge_study_server_analysis(app_state, work_id, work, data["analysis"])
+        return web.Response(status=204)
+
+    game_id = work.get("game_id")
+    if not game_id:
+        app_state.fishnet_works.pop(work_id, None)
+        return web.Response(status=204)
+    gameId = game_id
     game = await load_game(app_state, gameId)
     if game is None:
         app_state.fishnet_works.pop(work_id, None)
@@ -921,60 +996,53 @@ async def fishnet_analysis(request: web.Request) -> web.Response:
     # the server's reconstructed steps so that current deployed workers remain
     # compatible and malformed/stale responses cannot index past game.steps.
     analysis_rows = analysis_rows[:step_count]
+    responses: list[dict[str, object]] = []
     length = len(analysis_rows)
     for j, analysis in enumerate(reversed(analysis_rows)):
         i = length - j - 1
         if analysis is None:
             continue
 
-        # `existing` may already hold a partial record (created on an earlier,
-        # partial progress report from fairyfishnet with prev=None at the time,
-        # so "p" could not yet be evaluated). We must keep re-entering this
-        # branch on later reports so a PV that becomes decidable once its
-        # neighbour ply arrives can still be added — the old code's
-        # `if "analysis" not in game.steps[i]:` gate closed this permanently
-        # after the first report, which is the bug this restructure fixes.
-        existing: AnalysisStep | None = game.steps[i].get("analysis")
-        created = existing is None
-
-        if created:
-            step_analysis: AnalysisStep = {"s": analysis["score"]}
-            if "depth" in analysis:
-                step_analysis["d"] = analysis["depth"]
-            game.steps[i]["analysis"] = step_analysis
-        else:
-            step_analysis = existing
-
+        # Revisit partial rows when their neighbour arrives. Advice must not be
+        # lost merely because this position's evaluation arrived first.
+        existing = game.steps[i].get("analysis")
+        step_analysis: AnalysisStep = dict(existing) if existing is not None else {}
+        step_analysis["s"] = analysis["score"]
+        if "depth" in analysis:
+            step_analysis["d"] = analysis["depth"]
         prev = analysis_rows[i - 1] if i > 0 else None
         turn_color = game.steps[i].get("turnColor")
-
-        added_pv = False
-        if "p" not in step_analysis and _should_save_analysis_pv(analysis, prev, turn_color, i):
-            step_analysis["p"] = analysis["pv"]
-            added_pv = True
-
-        # Nothing new to tell the client: this step already existed before this
-        # report AND nothing changed on it during this pass. Re-sending would be
-        # a redundant duplicate "analysis" message for a step the client already has.
-        if not created and not added_pv:
+        if game.server_variant.two_boards:
+            if "p" not in step_analysis and _should_save_analysis_pv(analysis, prev, turn_color, i):
+                step_analysis["p"] = analysis["pv"]
+        else:
+            enrich_game_analysis(game, i, prev, analysis, step_analysis)
+        if step_analysis == existing:
             continue
-
-        ply = str(i)
+        game.steps[i]["analysis"] = step_analysis
         response = {
             "type": "analysis",
-            "ply": ply,
-            "color": "w" if i % 2 == 0 else "b",
-            # step_analysis IS game.steps[i]["analysis"] (same dict object in both
-            # branches above), so this reflects any "p" just added.
+            "ply": str(i),
+            "color": "w" if turn_color == "white" else "b",
             "ceval": step_analysis,
         }
+        responses.append(response)
+
+    if (
+        responses
+        and not game.server_variant.two_boards
+        and any(step.get("analysis", {}).get("advice") for step in game.steps)
+    ):
+        responses[-1]["pgn"] = game.pgn
+    for response in responses:
         await app_state.users[username].send_game_message(gameId, response)
 
     # remove completed work
     if len(analysis_rows) == step_count and all(analysis_rows):
         del app_state.fishnet_works[work_id]
         await clear_catalogued_variant_ai_failures(app_state, str(work.get("variant") or ""))
-        new_data = {"a": [step["analysis"] for step in game.steps]}
+        game.analysis = [step["analysis"] for step in game.steps]
+        new_data = {"a": game.analysis}
         await app_state.db.game.find_one_and_update({"_id": game.id}, {"$set": new_data})
 
     return web.Response(status=204)

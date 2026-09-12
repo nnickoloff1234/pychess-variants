@@ -71,6 +71,7 @@ from variants import (
     GRANDS,
     CataloguedServerVariant,
     ServerVariants,
+    catalogued_variant_random_start,
     get_server_variant,
     is_catalogued_variant,
 )
@@ -188,7 +189,10 @@ class Game:
             # documents; private and unlisted games are in-memory tests decided
             # at creation time.
             rated = CASUAL
-            chess960 = False
+            if create:
+                chess960 = catalogued_variant_random_start(variant) and (
+                    not initial_fen or bool(chess960)
+                )
         elif (
             create
             and rated == RATED
@@ -389,9 +393,16 @@ class Game:
 
         if TYPE_CHECKING:
             assert self.chess960 is not None
+        board_initial_fen = self.initial_fen
+        if catalogued_casual and not create and not board_initial_fen:
+            # An absent historical snapshot cannot be recovered by drawing a
+            # new random position. Keep the fixed engine default as the fallback.
+            if catalogued_variant_random_start(self.variant) or self.chess960:
+                log.warning("Community game %s has no saved initial FEN", self.id)
+            board_initial_fen = FairyBoard.start_fen(self.variant)
         self.board = FairyBoard(
             self.variant,
-            self.initial_fen,
+            board_initial_fen,
             self.chess960,
             show_promoted=self.server_variant.show_promoted,
             legal_moves_need_history=self.server_variant.legal_moves_need_history,
@@ -429,7 +440,9 @@ class Game:
             [self.byoyomi_state()] if self.byoyomi else []
         )
 
-        if self.chess960 or self.random_only:
+        # Snapshot community starts too, so reloads and rematches use the
+        # game's actual position even if the variant's default later changes.
+        if self.chess960 or self.random_only or catalogued_casual:
             self.initial_fen = self.board.initial_fen
 
         self.random_mover = (
@@ -1607,6 +1620,14 @@ class Game:
                 for ind, move in enumerate(mlist)
             )
         )
+        if not self.server_variant.two_boards and any(
+            step.get("analysis", {}).get("advice") for step in self.steps
+        ):
+            from game_analysis import annotated_game_moves
+
+            moves = annotated_game_moves(
+                mlist, self.board.initial_fen, [step.get("analysis") for step in self.steps]
+            )
         no_setup = self.board.initial_fen == FairyBoard.start_fen("chess") and not self.chess960
         # Use lichess format for crazyhouse games to support easy import
         setup_fen = (
@@ -1627,7 +1648,9 @@ class Game:
             tc,
             self.wrating,
             self.brating,
-            self.variant.capitalize() if not self.chess960 else VARIANT_960_TO_PGN[self.variant],
+            self.variant.capitalize()
+            if not self.chess960 or is_catalogued_variant(self.variant)
+            else VARIANT_960_TO_PGN[self.variant],
             moves,
             self.result,
             fen="" if no_setup else '[FEN "%s"]\n' % setup_fen,

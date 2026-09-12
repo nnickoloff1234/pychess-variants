@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
 
 import aiohttp
 import pytest
@@ -12,13 +14,16 @@ from const import FOLLOW
 from fairy import FairyBoard
 from mongomock_motor import AsyncMongoMockClient
 from pychess_global_app_state_utils import get_app_state
+from study import storage as study_storage
 from study.builder import StudyChapterBuilder
+from study.sequencer import sequence_study
 from study.storage import (
     add_chapter,
     add_study_member,
     create_study_from_draft,
     set_study_visibility,
 )
+from views import study as study_views
 
 from server import make_app
 
@@ -44,6 +49,147 @@ def _login_cookie(username: str) -> str:
     return json.dumps({"session": {"user_name": username}, "created": int(time.time())})
 
 
+class _StudyRoomSocket:
+    def __init__(self) -> None:
+        self.sent: list[dict[str, object]] = []
+        self.closed = False
+
+    async def send_str(self, payload: str) -> None:
+        self.sent.append(json.loads(payload))
+
+    async def close(self) -> None:
+        self.closed = True
+
+
+@pytest.mark.asyncio
+async def test_study_create_modal_collects_first_chapter_before_creating(aiohttp_client) -> None:
+    app = make_app(db_client=AsyncMongoMockClient(tz_aware=True), simple_cookie_storage=True)
+    client = await aiohttp_client(app)
+    app_state = get_app_state(app)
+    username = "study_create_owner"
+    await _insert_user(app_state, username)
+    client.session.cookie_jar.update_cookies({"AIOHTTP_SESSION": _login_cookie(username)})
+
+    response = await client.get("/study")
+    assert response.status == 200
+    html = await response.text()
+    assert "data-study-new-open" in html
+    assert 'id="study-new-dialog"' in html
+    assert 'id="study-create-form"' in html
+    assert 'id="study-first-chapter-dialog"' in html
+    assert 'id="study-first-chapter-form-mount"' in html
+    assert '<script src="' in html and "pychess-variants.js" in html
+
+    study_form = html.split('id="study-create-form"', 1)[1].split("</form>", 1)[0]
+    assert 'name="variant"' not in study_form
+    assert 'name="gameId"' not in study_form
+    assert 'name="fen"' not in study_form
+
+    response = await client.post(
+        "/study",
+        data={
+            "name": "Modal Study",
+            "visibility": "unlisted",
+            "computer": "member",
+            "explorer": "owner",
+            "cloneable": "contributor",
+            "shareable": "nobody",
+            "chapterName": "Atomic opener",
+            "variant": "atomic",
+        },
+        allow_redirects=False,
+    )
+    assert response.status == 302
+
+    study_doc = await app_state.db.study.find_one({"owner": username, "name": "Modal Study"})
+    assert study_doc is not None
+    assert study_doc["visibility"] == "unlisted"
+    assert study_doc["settings"] == {
+        "computer": "member",
+        "explorer": "owner",
+        "cloneable": "contributor",
+        "shareable": "nobody",
+    }
+    chapter_doc = await app_state.db.study_chapter.find_one({"studyId": study_doc["_id"]})
+    assert chapter_doc is not None
+    assert chapter_doc["name"] == "Atomic opener"
+    assert chapter_doc["variant"] == "atomic"
+    assert chapter_doc["initialFen"] == FairyBoard.start_fen("atomic")
+    assert response.headers["Location"] == f"/study/{study_doc['_id']}/{chapter_doc['_id']}"
+
+
+@pytest.mark.asyncio
+async def test_new_study_entry_points_share_creation_budget(aiohttp_client) -> None:
+    app = make_app(db_client=AsyncMongoMockClient(tz_aware=True), simple_cookie_storage=True)
+    client = await aiohttp_client(app)
+    app_state = get_app_state(app)
+    username = "study_quota_owner"
+    await _insert_user(app_state, username)
+    client.session.cookie_jar.update_cookies({"AIOHTTP_SESSION": _login_cookie(username)})
+
+    with patch("study.quota.STUDY_CREATION_CREDITS_PER_24H", 1):
+        first = await client.post(
+            "/study",
+            data={"name": "First", "chapterName": "Chapter 1", "variant": "chess"},
+            allow_redirects=False,
+        )
+        assert first.status == 302
+
+        second = await client.post(
+            "/study",
+            data={"name": "Second", "chapterName": "Chapter 1", "variant": "chess"},
+            allow_redirects=False,
+        )
+        assert second.status == 429
+        assert "Retry-After" in second.headers
+
+        from_analysis = await client.post(
+            "/study/from-analysis",
+            json={
+                "variant": "chess",
+                "initialFen": FairyBoard.start_fen("chess"),
+                "tree": {"nodes": []},
+            },
+        )
+        assert from_analysis.status == 429
+
+
+@pytest.mark.asyncio
+async def test_failed_study_creation_releases_quota_claim(aiohttp_client, monkeypatch) -> None:
+    app = make_app(db_client=AsyncMongoMockClient(tz_aware=True), simple_cookie_storage=True)
+    client = await aiohttp_client(app)
+    app_state = get_app_state(app)
+    username = "study_quota_rollback"
+    await _insert_user(app_state, username)
+    client.session.cookie_jar.update_cookies({"AIOHTTP_SESSION": _login_cookie(username)})
+
+    original = study_views.create_study_from_draft
+    calls = 0
+
+    async def fail_once(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise study_storage.StudyStorageError("simulated creation failure")
+        return await original(*args, **kwargs)
+
+    monkeypatch.setattr(study_views, "create_study_from_draft", fail_once)
+    with patch("study.quota.STUDY_CREATION_CREDITS_PER_24H", 1):
+        failed = await client.post(
+            "/study",
+            data={"name": "Failed", "chapterName": "Chapter 1", "variant": "chess"},
+            allow_redirects=False,
+        )
+        assert failed.status == 400
+
+        retry = await client.post(
+            "/study",
+            data={"name": "Retry", "chapterName": "Chapter 1", "variant": "chess"},
+            allow_redirects=False,
+        )
+        assert retry.status == 302
+
+
 @pytest.mark.asyncio
 async def test_analysis_can_append_to_existing_owned_study(aiohttp_client) -> None:
     app = make_app(db_client=AsyncMongoMockClient(tz_aware=True), simple_cookie_storage=True)
@@ -56,6 +202,8 @@ async def test_analysis_can_append_to_existing_owned_study(aiohttp_client) -> No
         variant="chess", name="First chapter"
     )
     study, _ = await create_study_from_draft(app_state, username, first, name="Existing Study")
+    room = _StudyRoomSocket()
+    app_state.study_sockets[study.id] = {room}
 
     client.session.cookie_jar.update_cookies({"AIOHTTP_SESSION": _login_cookie(username)})
 
@@ -91,6 +239,450 @@ async def test_analysis_can_append_to_existing_owned_study(aiohttp_client) -> No
     assert chapters[1]["name"] == "Imported analysis"
     assert chapters[1]["orientation"] == "black"
     assert chapters[1]["tags"] == {"Black": "Bob", "White": "Alice"}
+    assert [message["type"] for message in room.sent] == ["study_chapters", "study_position"]
+    assert room.sent[1]["chapterId"] == chapters[1]["_id"]
+
+
+@pytest.mark.asyncio
+async def test_chapter_create_reloads_writer_after_waiting_for_study_sequencer(
+    aiohttp_client, monkeypatch
+) -> None:
+    app = make_app(db_client=AsyncMongoMockClient(tz_aware=True), simple_cookie_storage=True)
+    client = await aiohttp_client(app)
+    app_state = get_app_state(app)
+    owner = "chapter_lock_owner"
+    writer = "chapter_lock_writer"
+    await _insert_user(app_state, owner)
+    await _insert_user(app_state, writer)
+
+    draft = await StudyChapterBuilder(app_state, owner).blank_or_fen(variant="chess")
+    study, _ = await create_study_from_draft(app_state, owner, draft, visibility="unlisted")
+    await add_study_member(app_state, study.id, owner, writer, "write")
+    client.session.cookie_jar.update_cookies({"AIOHTTP_SESSION": _login_cookie(writer)})
+
+    original_load_study = study_views.load_study
+    loaded = asyncio.Event()
+    resume_load = asyncio.Event()
+
+    async def pausing_load_study(inner_app_state, study_id):
+        result = await original_load_study(inner_app_state, study_id)
+        if study_id == study.id:
+            loaded.set()
+            await resume_load.wait()
+        return result
+
+    monkeypatch.setattr(study_views, "load_study", pausing_load_study)
+
+    sequencer = sequence_study(app_state, study.id)
+    await sequencer.__aenter__()
+    try:
+        request_task = asyncio.create_task(
+            client.post(
+                f"/study/{study.id}/chapter",
+                data={"chapterName": "Should not be created", "variant": "chess"},
+                allow_redirects=False,
+            )
+        )
+        try:
+            await asyncio.wait_for(loaded.wait(), timeout=0.05)
+        except TimeoutError:
+            pass
+
+        await app_state.db.study.update_one(
+            {"_id": study.id},
+            {
+                "$set": {
+                    "members": {owner: "write"},
+                    "memberIds": [owner],
+                    "writeMemberIds": [owner],
+                }
+            },
+        )
+        resume_load.set()
+    finally:
+        await sequencer.__aexit__(None, None, None)
+
+    response = await request_task
+    assert response.status == 403
+    assert await app_state.db.study_chapter.count_documents({"studyId": study.id}) == 1
+
+
+@pytest.mark.asyncio
+async def test_concurrent_chapter_creates_share_cap_and_order_sequencer(
+    aiohttp_client, monkeypatch
+) -> None:
+    app = make_app(db_client=AsyncMongoMockClient(tz_aware=True), simple_cookie_storage=True)
+    client = await aiohttp_client(app)
+    app_state = get_app_state(app)
+    owner = "chapter_create_owner"
+    await _insert_user(app_state, owner)
+
+    draft = await StudyChapterBuilder(app_state, owner).blank_or_fen(variant="chess")
+    study, _ = await create_study_from_draft(app_state, owner, draft)
+    client.session.cookie_jar.update_cookies({"AIOHTTP_SESSION": _login_cookie(owner)})
+
+    monkeypatch.setattr(study_storage, "STUDY_MAX_CHAPTERS", 2)
+    original_add_chapter = study_views.add_chapter_from_draft
+    active = 0
+    max_active = 0
+
+    async def observed_add_chapter(
+        inner_app_state, inner_study, inner_draft, *, activate_shared=True
+    ):
+        nonlocal active, max_active
+        active += 1
+        max_active = max(max_active, active)
+        try:
+            await asyncio.sleep(0.02)
+            return await original_add_chapter(
+                inner_app_state, inner_study, inner_draft, activate_shared=activate_shared
+            )
+        finally:
+            active -= 1
+
+    monkeypatch.setattr(study_views, "add_chapter_from_draft", observed_add_chapter)
+
+    first_response, second_response = await asyncio.gather(
+        client.post(
+            f"/study/{study.id}/chapter",
+            data={"chapterName": "Second A", "variant": "chess"},
+            allow_redirects=False,
+        ),
+        client.post(
+            f"/study/{study.id}/chapter",
+            data={"chapterName": "Second B", "variant": "chess"},
+            allow_redirects=False,
+        ),
+    )
+
+    assert sorted((first_response.status, second_response.status)) == [302, 400]
+    assert max_active == 1
+    chapters = (
+        await app_state.db.study_chapter.find({"studyId": study.id})
+        .sort("order", 1)
+        .to_list(length=10)
+    )
+    assert [chapter["order"] for chapter in chapters] == [1, 2]
+
+
+@pytest.mark.asyncio
+async def test_concurrent_chapter_deletes_are_serialized_by_study(
+    aiohttp_client, monkeypatch
+) -> None:
+    app = make_app(db_client=AsyncMongoMockClient(tz_aware=True), simple_cookie_storage=True)
+    client = await aiohttp_client(app)
+    app_state = get_app_state(app)
+    owner = "chapter_delete_owner"
+    await _insert_user(app_state, owner)
+
+    draft = await StudyChapterBuilder(app_state, owner).blank_or_fen(variant="chess")
+    study, first = await create_study_from_draft(app_state, owner, draft)
+    second = await add_chapter(app_state, study, first, name="Second")
+    client.session.cookie_jar.update_cookies({"AIOHTTP_SESSION": _login_cookie(owner)})
+
+    original_delete_chapter = study_views.delete_chapter
+    active = 0
+    max_active = 0
+
+    async def observed_delete_chapter(inner_app_state, inner_study, inner_chapter):
+        nonlocal active, max_active
+        active += 1
+        max_active = max(max_active, active)
+        try:
+            await asyncio.sleep(0.02)
+            return await original_delete_chapter(inner_app_state, inner_study, inner_chapter)
+        finally:
+            active -= 1
+
+    monkeypatch.setattr(study_views, "delete_chapter", observed_delete_chapter)
+
+    first_response, second_response = await asyncio.gather(
+        client.post(
+            f"/study/{study.id}/{first.id}/delete",
+            allow_redirects=False,
+        ),
+        client.post(
+            f"/study/{study.id}/{second.id}/delete",
+            allow_redirects=False,
+        ),
+    )
+
+    assert sorted((first_response.status, second_response.status)) == [302, 400]
+    assert max_active == 1
+    assert await app_state.db.study_chapter.count_documents({"studyId": study.id}) == 1
+
+
+@pytest.mark.asyncio
+async def test_study_delete_serializes_with_chapter_create_and_terminates_room(
+    aiohttp_client, monkeypatch
+) -> None:
+    app = make_app(db_client=AsyncMongoMockClient(tz_aware=True), simple_cookie_storage=True)
+    client = await aiohttp_client(app)
+    app_state = get_app_state(app)
+    owner = "study_delete_race_owner"
+    await _insert_user(app_state, owner)
+
+    draft = await StudyChapterBuilder(app_state, owner).blank_or_fen(variant="chess")
+    study, _ = await create_study_from_draft(app_state, owner, draft)
+    client.session.cookie_jar.update_cookies({"AIOHTTP_SESSION": _login_cookie(owner)})
+    room = _StudyRoomSocket()
+    app_state.study_sockets[study.id] = {room}
+
+    original_delete_study = study_views.delete_study
+    delete_entered = asyncio.Event()
+    allow_delete = asyncio.Event()
+
+    async def paused_delete_study(inner_app_state, inner_study):
+        delete_entered.set()
+        await allow_delete.wait()
+        await original_delete_study(inner_app_state, inner_study)
+
+    monkeypatch.setattr(study_views, "delete_study", paused_delete_study)
+
+    delete_task = asyncio.create_task(
+        client.post(f"/study/{study.id}/delete", allow_redirects=False)
+    )
+    await asyncio.wait_for(delete_entered.wait(), timeout=1)
+    create_task = asyncio.create_task(
+        client.post(
+            f"/study/{study.id}/chapter",
+            data={"chapterName": "Too late", "variant": "chess"},
+            allow_redirects=False,
+        )
+    )
+    for _ in range(100):
+        if app_state.study_mutation_lock_refs.get(study.id, 0) >= 2:
+            break
+        await asyncio.sleep(0.001)
+    assert app_state.study_mutation_lock_refs.get(study.id, 0) >= 2
+    allow_delete.set()
+
+    delete_response, create_response = await asyncio.gather(delete_task, create_task)
+    assert delete_response.status == 302
+    assert create_response.status == 404
+    assert await app_state.db.study.find_one({"_id": study.id}) is None
+    assert await app_state.db.study_chapter.count_documents({"studyId": study.id}) == 0
+    assert room.sent == [
+        {
+            "type": "study_reload",
+            "studyId": study.id,
+            "reason": "study_deleted",
+        }
+    ]
+    assert room.closed
+
+
+@pytest.mark.asyncio
+async def test_study_delete_reauthorizes_owner_after_waiting_for_sequencer(aiohttp_client) -> None:
+    app = make_app(db_client=AsyncMongoMockClient(tz_aware=True), simple_cookie_storage=True)
+    client = await aiohttp_client(app)
+    app_state = get_app_state(app)
+    owner = "study_delete_stale_owner"
+    successor = "study_delete_successor"
+    await _insert_user(app_state, owner)
+    await _insert_user(app_state, successor)
+
+    draft = await StudyChapterBuilder(app_state, owner).blank_or_fen(variant="chess")
+    study, _ = await create_study_from_draft(app_state, owner, draft)
+    client.session.cookie_jar.update_cookies({"AIOHTTP_SESSION": _login_cookie(owner)})
+
+    sequencer = sequence_study(app_state, study.id)
+    await sequencer.__aenter__()
+    try:
+        delete_task = asyncio.create_task(
+            client.post(f"/study/{study.id}/delete", allow_redirects=False)
+        )
+        for _ in range(100):
+            if app_state.study_mutation_lock_refs.get(study.id, 0) >= 2:
+                break
+            await asyncio.sleep(0.001)
+        assert app_state.study_mutation_lock_refs.get(study.id, 0) >= 2
+        await app_state.db.study.update_one({"_id": study.id}, {"$set": {"owner": successor}})
+    finally:
+        await sequencer.__aexit__(None, None, None)
+
+    response = await delete_task
+    assert response.status == 404
+    assert await app_state.db.study.find_one({"_id": study.id}) is not None
+    assert await app_state.db.study_chapter.count_documents({"studyId": study.id}) == 1
+
+
+@pytest.mark.asyncio
+async def test_single_chapter_add_rolls_back_if_parent_update_fails(aiohttp_client) -> None:
+    app = make_app(db_client=AsyncMongoMockClient(tz_aware=True), simple_cookie_storage=True)
+    await aiohttp_client(app)
+    app_state = get_app_state(app)
+    owner = "chapter_parent_missing_owner"
+    await _insert_user(app_state, owner)
+
+    first_draft = await StudyChapterBuilder(app_state, owner).blank_or_fen(variant="chess")
+    study, first = await create_study_from_draft(app_state, owner, first_draft)
+    second_draft = await StudyChapterBuilder(app_state, owner).blank_or_fen(
+        variant="chess", name="Second"
+    )
+    await app_state.db.study.delete_one({"_id": study.id})
+
+    with pytest.raises(study_storage.StudyStorageError, match="Study disappeared"):
+        await study_storage.add_chapter_from_draft(app_state, study, second_draft)
+    chapters = await app_state.db.study_chapter.find({"studyId": study.id}).to_list(length=10)
+    assert [chapter["_id"] for chapter in chapters] == [first.id]
+
+    with pytest.raises(study_storage.StudyStorageError, match="Study disappeared"):
+        await study_storage.add_chapter(app_state, study, first, name="Clone")
+    chapters = await app_state.db.study_chapter.find({"studyId": study.id}).to_list(length=10)
+    assert [chapter["_id"] for chapter in chapters] == [first.id]
+
+
+@pytest.mark.asyncio
+async def test_chapter_create_honors_sync_mode_and_broadcasts_chapter_list(aiohttp_client) -> None:
+    app = make_app(db_client=AsyncMongoMockClient(tz_aware=True), simple_cookie_storage=True)
+    client = await aiohttp_client(app)
+    app_state = get_app_state(app)
+    owner = "chapter_sync_owner"
+    await _insert_user(app_state, owner)
+
+    draft = await StudyChapterBuilder(app_state, owner).blank_or_fen(
+        variant="chess", name="Shared chapter"
+    )
+    study, first = await create_study_from_draft(app_state, owner, draft)
+    client.session.cookie_jar.update_cookies({"AIOHTTP_SESSION": _login_cookie(owner)})
+    room = _StudyRoomSocket()
+    app_state.study_sockets[study.id] = {room}
+
+    response = await client.post(
+        f"/study/{study.id}/chapter",
+        data={"chapterName": "Private branch", "variant": "chess", "sync": "0"},
+        allow_redirects=False,
+    )
+    assert response.status == 302
+
+    stored = await app_state.db.study.find_one({"_id": study.id})
+    assert stored is not None
+    assert stored["currentChapter"] == first.id
+    assert [message["type"] for message in room.sent] == ["study_chapters"]
+    chapter_event = room.sent[0]
+    assert chapter_event["sharedChapter"] == first.id
+    assert chapter_event["sharedPath"] == ""
+    assert [chapter["name"] for chapter in chapter_event["chapters"]] == [
+        "Shared chapter",
+        "Private branch",
+    ]
+
+    room.sent.clear()
+    response = await client.post(
+        f"/study/{study.id}/chapter",
+        data={"chapterName": "Shared branch", "variant": "chess", "sync": "1"},
+        allow_redirects=False,
+    )
+    assert response.status == 302
+    shared_id = response.headers["Location"].rsplit("/", 1)[-1]
+    stored = await app_state.db.study.find_one({"_id": study.id})
+    assert stored is not None
+    assert stored["currentChapter"] == shared_id
+    assert [message["type"] for message in room.sent] == ["study_chapters", "study_position"]
+    assert room.sent[0]["sharedChapter"] == shared_id
+    assert room.sent[1] == {
+        "type": "study_position",
+        "studyId": study.id,
+        "chapterId": shared_id,
+        "path": "",
+    }
+
+
+@pytest.mark.asyncio
+async def test_chapter_edit_and_delete_are_broadcast_to_room(aiohttp_client) -> None:
+    app = make_app(db_client=AsyncMongoMockClient(tz_aware=True), simple_cookie_storage=True)
+    client = await aiohttp_client(app)
+    app_state = get_app_state(app)
+    owner = "chapter_broadcast_owner"
+    await _insert_user(app_state, owner)
+
+    draft = await StudyChapterBuilder(app_state, owner).blank_or_fen(
+        variant="chess", name="First chapter"
+    )
+    study, first = await create_study_from_draft(app_state, owner, draft)
+    second = await add_chapter(app_state, study, first, name="Second chapter")
+    client.session.cookie_jar.update_cookies({"AIOHTTP_SESSION": _login_cookie(owner)})
+    room = _StudyRoomSocket()
+    app_state.study_sockets[study.id] = {room}
+
+    response = await client.post(
+        f"/study/{study.id}/{first.id}/edit",
+        data={"name": "Renamed first", "orientation": "black"},
+        allow_redirects=False,
+    )
+    assert response.status == 302
+    assert [message["type"] for message in room.sent] == ["study_chapters"]
+    first_preview = room.sent[0]["chapters"][0]
+    assert first_preview["name"] == "Renamed first"
+    assert first_preview["orientation"] == "black"
+
+    room.sent.clear()
+    response = await client.post(
+        f"/study/{study.id}/{second.id}/delete",
+        allow_redirects=False,
+    )
+    assert response.status == 302
+    assert [message["type"] for message in room.sent] == ["study_chapters", "study_position"]
+    assert [chapter["id"] for chapter in room.sent[0]["chapters"]] == [first.id]
+    assert room.sent[0]["sharedChapter"] == first.id
+    assert room.sent[1] == {
+        "type": "study_position",
+        "studyId": study.id,
+        "chapterId": first.id,
+        "path": "",
+    }
+
+
+@pytest.mark.asyncio
+async def test_chapter_description_pinning_broadcasts_content_revision(aiohttp_client) -> None:
+    app = make_app(db_client=AsyncMongoMockClient(tz_aware=True), simple_cookie_storage=True)
+    client = await aiohttp_client(app)
+    app_state = get_app_state(app)
+    owner = "chapter_description_owner"
+    await _insert_user(app_state, owner)
+
+    draft = await StudyChapterBuilder(app_state, owner).blank_or_fen(
+        variant="chess", name="Pinned description"
+    )
+    study, chapter = await create_study_from_draft(app_state, owner, draft)
+    client.session.cookie_jar.update_cookies({"AIOHTTP_SESSION": _login_cookie(owner)})
+    room = _StudyRoomSocket()
+    app_state.study_sockets[study.id] = {room}
+
+    response = await client.post(
+        f"/study/{study.id}/{chapter.id}/edit",
+        data={"name": chapter.name, "orientation": chapter.orientation, "description": "1"},
+        allow_redirects=False,
+    )
+    assert response.status == 302
+    assert [message["type"] for message in room.sent] == [
+        "study_chapter_content",
+        "study_chapters",
+    ]
+    assert room.sent[0] == {
+        "type": "study_chapter_content",
+        "studyId": study.id,
+        "chapterId": chapter.id,
+        "revision": 1,
+        "description": "-",
+    }
+    assert room.sent[1]["chapters"][0]["descriptionPinned"] is True
+
+    room.sent.clear()
+    response = await client.post(
+        f"/study/{study.id}/{chapter.id}/edit",
+        data={"name": chapter.name, "orientation": chapter.orientation, "description": ""},
+        allow_redirects=False,
+    )
+    assert response.status == 302
+    assert [message["type"] for message in room.sent] == [
+        "study_chapter_content",
+        "study_chapters",
+    ]
+    assert room.sent[0]["revision"] == 2
+    assert room.sent[0]["description"] == ""
+    assert room.sent[1]["chapters"][0]["descriptionPinned"] is False
 
 
 @pytest.mark.asyncio
@@ -411,7 +1003,7 @@ async def test_profile_study_listing_only_exposes_public_studies(aiohttp_client)
     profile_html = await response.text()
     assert f"/study/by/{owner}" in profile_html
     assert "Studies" in profile_html
-    assert "(1)" in profile_html
+    assert "<strong>1</strong> Studies</a>" in profile_html
 
     client.session.cookie_jar.update_cookies({"AIOHTTP_SESSION": _login_cookie(viewer)})
     response = await client.get(f"/@/{owner}")
@@ -419,7 +1011,7 @@ async def test_profile_study_listing_only_exposes_public_studies(aiohttp_client)
     profile_html = await response.text()
     assert f"/study/by/{owner}" in profile_html
     assert "Studies" in profile_html
-    assert "(1)" in profile_html
+    assert "<strong>1</strong> Studies</a>" in profile_html
 
     client.session.cookie_jar.clear()
     client.session.cookie_jar.update_cookies({"AIOHTTP_SESSION": _login_cookie(owner)})
@@ -437,10 +1029,43 @@ async def test_profile_study_listing_only_exposes_public_studies(aiohttp_client)
     assert response.status == 200
     profile_html = await response.text()
     assert f"/study/by/{owner}" in profile_html
-    assert "(3)" in profile_html
+    assert "<strong>3</strong> Studies</a>" in profile_html
 
     response = await client.get("/study/by/no_such_study_owner")
     assert response.status == 404
+
+
+@pytest.mark.asyncio
+async def test_study_list_cards_preview_chapters_and_members(aiohttp_client) -> None:
+    app = make_app(db_client=AsyncMongoMockClient(tz_aware=True), simple_cookie_storage=True)
+    client = await aiohttp_client(app)
+    app_state = get_app_state(app)
+    owner = "study_card_owner"
+    reader = "study_card_reader"
+    await _insert_user(app_state, owner)
+    await _insert_user(app_state, reader)
+
+    draft = await StudyChapterBuilder(app_state, owner).blank_or_fen(
+        variant="chess", name="First line"
+    )
+    study, first = await create_study_from_draft(app_state, owner, draft, name="Preview repertoire")
+    for name in ("Second line", "Third line", "Fourth line", "Fifth line"):
+        await add_chapter(app_state, study, first, name=name)
+    await add_study_member(app_state, study.id, owner, reader, "read")
+    await set_study_visibility(app_state, study, "public")
+
+    response = await client.get("/study/all")
+    assert response.status == 200
+    html = await response.text()
+    assert 'class="study-card__overlay"' in html
+    assert 'class="study-card__icon"' in html
+    assert '<ol class="study-card__chapters">' in html
+    assert '<ol class="study-card__members">' in html
+    assert 'class="study-card__chapter">First line</li>' in html
+    assert 'class="study-card__chapter">Fourth line</li>' in html
+    assert 'class="study-card__chapter">Fifth line</li>' not in html
+    assert f'class="study-card__member study-card__member--write">{owner}</li>' in html
+    assert f'class="study-card__member study-card__member--read">{reader}</li>' in html
 
 
 @pytest.mark.asyncio
@@ -569,6 +1194,12 @@ async def test_public_study_discovery_and_search_never_expose_link_only_studies(
     assert "discovery_alice" in html
     assert "Sicilian Secret" not in html
     assert "Sicilian Private" not in html
+    assert 'class="study-index__topics"' in html
+    assert 'class="study-topic-list study-topic-list--shortcuts"' not in html
+    assert 'class="study-search-count"' not in html
+    assert "<info-date timestamp=" in html
+    # Keep Studies with the learning resources, matching Lichess navigation.
+    assert html.index('href="/study/all">Studies</a>') < html.index('href="/tv">Watch</a>')
 
     response = await client.get("/study/all?q=sic")
     assert response.status == 200
@@ -705,7 +1336,9 @@ async def test_switching_to_private_disconnects_read_only_study_websockets(aioht
     async with aiohttp.ClientSession() as viewer:
         ws = await viewer.ws_connect(client.make_url(f"/wsstudy/{study.id}"))
         connected = await ws.receive_json()
-        assert connected == {"type": "study_user_connected", "studyId": study.id}
+        assert connected["type"] == "study_user_connected"
+        assert connected["studyId"] == study.id
+        assert isinstance(connected["roomSnapshotToken"], str)
         assert study.id in app_state.study_sockets
         server_ws = next(iter(app_state.study_sockets[study.id]))
         assert not server_ws.closed
@@ -774,6 +1407,11 @@ async def test_viewable_study_can_be_cloned_into_private_owned_copy(aiohttp_clie
     response = await client.get(source_url, headers={"Accept": "application/json"})
     assert response.status == 200
     assert (await response.json())["study"]["canClone"] is True
+
+    with patch("study.quota.STUDY_CREATION_CREDITS_PER_24H", 2):
+        response = await client.post(clone_url, allow_redirects=False)
+        assert response.status == 429
+        assert "Retry-After" in response.headers
 
     response = await client.post(clone_url, allow_redirects=False)
     assert response.status == 302

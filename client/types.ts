@@ -31,11 +31,20 @@ export interface SimulGame {
 
 export type StudyFeatureSelection = 'nobody' | 'owner' | 'contributor' | 'member' | 'everyone';
 
+export type StudyServerEval = {
+    path: string;
+    done: boolean;
+    pending?: boolean;
+    requestedAt: string;
+    analysis: Array<{ s: { cp?: number; mate?: number }; d?: number; p?: string } | null>;
+};
+
 export type StudyChapterPreview = {
     id: string;
     name: string;
     order: number;
     orientation: 'white' | 'black';
+    descriptionPinned?: boolean;
 };
 
 export type StudyPageModel = {
@@ -69,6 +78,7 @@ export type StudyPageModel = {
     maxMembers: number;
     sharedChapter: string;
     sharedPath: string;
+    roomSnapshotToken: string;
     // Runtime collaboration mode. The server owns sharedChapter/sharedPath; these
     // three fields are local browser state initialized by the Study client.
     sticky?: boolean;
@@ -78,10 +88,13 @@ export type StudyPageModel = {
     sideTab?: 'chapters' | 'members';
     memberConfig?: string;
     likePending?: boolean;
+    serverAnalysisError?: string;
+    chapterDescriptionEditing?: boolean;
     chapter: {
         id: string;
         name: string;
         revision: number;
+        snapshotToken: string;
         order: number;
         orientation: 'white' | 'black';
         variant: string;
@@ -89,8 +102,10 @@ export type StudyPageModel = {
         initialFen: string;
         variantIni: string | null;
         createdAt: string;
+        source?: { kind: 'scratch' | 'game' | 'study' | 'import'; id?: string | null };
         description: string;
         tags: Record<string, string>;
+        serverEval: StudyServerEval | null;
         tree: import('./study/studyTree').StudyTreeDto;
     };
     chapters: StudyChapterPreview[];

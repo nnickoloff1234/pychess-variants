@@ -37,6 +37,9 @@ class PublicProfile:
     pm_friends_only: bool
     oauth_id: str
     oauth_provider: str
+    tournament_points: int | float = 0
+    forum_posts: int = 0
+    variant_count: int = 0
 
 
 class PublicUsers:
@@ -77,6 +80,9 @@ class PublicUsers:
             pm_friends_only=user.pm_friends_only,
             oauth_id=user.oauth_id,
             oauth_provider=user.oauth_provider,
+            tournament_points=user.tournament_points,
+            forum_posts=user.forum_posts,
+            variant_count=user.variant_count,
         )
 
     @staticmethod
@@ -99,6 +105,9 @@ class PublicUsers:
             pm_friends_only=doc.get("pmf", False),
             oauth_id=doc.get("oauth_id") or "",
             oauth_provider=doc.get("oauth_provider") or "",
+            tournament_points=doc.get("tournamentPoints", 0),
+            forum_posts=doc.get("forumPosts", 0),
+            variant_count=doc.get("variantCount", 0),
         )
 
     @staticmethod

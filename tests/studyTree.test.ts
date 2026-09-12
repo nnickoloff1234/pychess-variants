@@ -6,6 +6,7 @@ import {
     addStudyNodeToAnalysisTree,
     analysisTreeFromStudy,
     isStudyNodeId,
+    mergeStudyTreeIntoAnalysisTree,
     newStudyNodeId,
     refreshStudyMainline,
     studyTreeFromAnalysisTree,
@@ -52,6 +53,23 @@ describe('Study tree persistence adapter', () => {
         expect(restored.root.children[1].mainlinePly).toBeUndefined();
     });
 
+    test('round-trips root and move clocks through the generic analysis tree', () => {
+        const rootStep = {
+            ...makeStep('start w - - 0 1', undefined, 'white'),
+            clocks: [300000, 300000] as [number, number],
+        };
+        const e4 = { ...makeStep('e4 b - - 0 1', 'e2e4', 'black', 'e4'), clocks: [298000, 300000] as [number, number] };
+        const tree = createAnalysisTree([rootStep, e4]);
+
+        const dto = studyTreeFromAnalysisTree(tree);
+        expect(dto.rootClocks).toEqual([300000, 300000]);
+        expect(dto.nodes[0].clocks).toEqual([298000, 300000]);
+
+        const restored = analysisTreeFromStudy(makeStep('start w - - 0 1', undefined, 'white'), dto);
+        expect(restored.root.step.clocks).toEqual([300000, 300000]);
+        expect(restored.root.children[0].step.clocks).toEqual([298000, 300000]);
+    });
+
     test('round-trips root and node annotations through the generic analysis tree', () => {
         const rootStep = makeStep('start w - - 0 1', undefined, 'white');
         const dto: StudyTreeDto = {
@@ -75,6 +93,7 @@ describe('Study tree persistence adapter', () => {
                         comments: [{ id: 'Comment002', author: 'owner', text: 'Node note' }],
                         nags: [2],
                     },
+                    eval: { cp: 42 },
                 },
             ],
         };
@@ -83,6 +102,7 @@ describe('Study tree persistence adapter', () => {
         expect(tree.root.annotations?.comments[0].text).toBe('Root note');
         expect(tree.root.children[0].annotations?.shapes).toEqual([{ orig: 'd4', brush: 'blue' }]);
         expect(tree.root.children[0].annotations?.nags).toEqual([2]);
+        expect(tree.root.children[0].eval).toEqual({ s: { cp: 42 }, d: 0 });
         expect(studyTreeFromAnalysisTree(tree)).toEqual(dto);
     });
 
@@ -134,6 +154,57 @@ describe('Study tree persistence adapter', () => {
                 move: 'd2d4',
             }),
         ).toBeUndefined();
+    });
+
+    test('merges a server analysis tree snapshot without dropping local optimistic siblings', () => {
+        const rootStep = makeStep('start w - - 0 1', undefined, 'white');
+        const tree = analysisTreeFromStudy(rootStep, {
+            nodes: [
+                {
+                    id: 'StudyNode1',
+                    parentId: null,
+                    order: 0,
+                    move: 'e2e4',
+                    fen: 'e4 b - - 0 1',
+                    turnColor: 'black',
+                    check: false,
+                    san: 'e4',
+                },
+            ],
+        });
+        const localPath = addOrSelectChild(tree, '', makeStep('c4 b - - 0 1', 'c2c4', 'black', 'c4'), false);
+
+        expect(
+            mergeStudyTreeIntoAnalysisTree(tree, {
+                nodes: [
+                    {
+                        id: 'StudyNode1',
+                        parentId: null,
+                        order: 0,
+                        move: 'e2e4',
+                        fen: 'e4 b - - 0 1',
+                        turnColor: 'black',
+                        check: false,
+                        san: 'e4',
+                        eval: { cp: -30 },
+                    },
+                    {
+                        id: 'StudyNode2',
+                        parentId: null,
+                        order: 1,
+                        move: 'd2d4',
+                        fen: 'd4 b - - 0 1',
+                        turnColor: 'black',
+                        check: false,
+                        san: 'd4',
+                    },
+                ],
+            }),
+        ).toBe(true);
+
+        expect(tree.root.children.map(node => node.step.move)).toEqual(['e2e4', 'd2d4', 'c2c4']);
+        expect(tree.root.children[0].eval).toEqual({ s: { cp: -30 }, d: 0 });
+        expect(tree.byPath.has(localPath)).toBe(true);
     });
 
     test('recomputes mutable Study mainline metadata after tree reordering', () => {

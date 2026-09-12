@@ -24,9 +24,24 @@ def _positive_int_env(name: str, default: int) -> int:
 # have much larger FEN/tree payloads than orthodox chess.
 STUDY_MAX_CHAPTERS = _positive_int_env("STUDY_MAX_CHAPTERS", 64)
 STUDY_MAX_NODES_PER_CHAPTER = _positive_int_env("STUDY_MAX_NODES_PER_CHAPTER", 3_000)
+# Fairy-Stockfish variant definitions cannot be unloaded from pyffish. Bound the
+# number of immutable historical Study snapshots admitted into one web-server
+# process; a restart starts a fresh native registry. Operators with a measured
+# memory budget can tune this independently of the persisted Study chapter cap.
+STUDY_MAX_NATIVE_SNAPSHOT_VARIANTS = _positive_int_env("STUDY_MAX_NATIVE_SNAPSHOT_VARIANTS", 256)
 # Lichess currently caps Study membership at 30. Keep the same conservative
 # default but allow operators to lower/raise it without code changes.
 STUDY_MAX_MEMBERS = _positive_int_env("STUDY_MAX_MEMBERS", 30)
+# Resource-fairness budgets follow Lichess-scale defaults while remaining
+# configurable for PyChess deployments. A normal new Study costs one creation
+# credit; cloning costs more because it copies every chapter.
+STUDY_CREATION_CREDITS_PER_24H = _positive_int_env("STUDY_CREATION_CREDITS_PER_24H", 30)
+STUDY_CLONE_CREATION_COST = _positive_int_env("STUDY_CLONE_CREATION_COST", 3)
+STUDY_ANALYSIS_MAX_PER_DAY = _positive_int_env("STUDY_ANALYSIS_MAX_PER_DAY", 40)
+STUDY_ANALYSIS_MAX_PER_WEEK = _positive_int_env("STUDY_ANALYSIS_MAX_PER_WEEK", 200)
+# Lichess Study list cards preview at most four chapter names and four members.
+STUDY_PREVIEW_NB_CHAPTERS = 4
+STUDY_PREVIEW_NB_MEMBERS = 4
 STUDY_CHAPTER_MAX_BSON_BYTES = min(
     _positive_int_env("STUDY_CHAPTER_MAX_BSON_BYTES", 8 * 1024 * 1024),
     STUDY_CHAPTER_BSON_HARD_CEILING,
