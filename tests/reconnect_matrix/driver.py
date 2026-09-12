@@ -442,7 +442,37 @@ def _check_playable_gate_held(before, after, ctx):
         return None, "the scenario did not reach the point of asking"
     return not offered, (
         f"board was {'OFFERED' if offered else 'held shut'} while holding a queued move; "
-        f"it was showing {ctx.get('stale_last_move')}"
+        f"it was showing {ctx.get('shown_before_confirmation')}"
+    )
+
+
+def _check_optimistic_move_shown(before, after, ctx):
+    """THE INTERMEDIATE FRAME, asserted rather than watched go by.
+
+    A player who moves and then reconnects before the server confirms SHALL go on seeing their own
+    move. The snapshot that greets them cannot carry it — the server has not applied it yet — so
+    `BoardDecision.replay` carries it and `replayPendingMove()` puts it back on top of the position
+    that arrived. Before that, the repaint showed the server's position and the move vanished until
+    its confirmation came: a player watching their move blink out and return.
+
+    WHY THIS IS AN ORDINARY PROBE. The frame used to be a moment too short to catch, which is why
+    the task that asked for it assumed a MutationObserver. `hold_first_move` keeps the server inside
+    the game lock, so "the move is out and unconfirmed" is a STEADY STATE and the assertion is one
+    `PB.lastMove()` read like any other.
+
+    Q11 and Q12 reach it by different doors — a reload and a socket drop — and the difference is not
+    cosmetic: a reload loses the page's in-memory record of the move, so the confirmation arrives as
+    branch 2.2.3 and the server's clocks win, while a socket drop keeps it and the resend gives
+    2.2.2. Both must show the move.
+    """
+    shown = ctx.get("shown_before_confirmation")
+    move = ctx.get("first_move")
+    if shown is None or move is None:
+        return None, "the scenario did not reach the point of asking"
+    want = {move[:2], move[2:4]}
+    return set(shown or []) == want, (
+        f"while the server still held {move}, the board was showing "
+        f"{sorted(shown) if shown else 'nothing'}; expected {sorted(want)}"
     )
 
 
@@ -673,6 +703,7 @@ CHECKS = {
     "premove_fired": _check_premove_fired,
     "clock_runs_for_side_to_move": _check_clock_runs_for_side_to_move,
     "playable_gate_held": _check_playable_gate_held,
+    "optimistic_move_shown": _check_optimistic_move_shown,
     "client_matches_server": _check_client_matches_server,
     "cache_empty": _check_cache_empty,
     "our_move_played": _check_our_move_played,
@@ -988,7 +1019,7 @@ async def stage(name, cam, par, game_id, ctx):
         await wait_for_socket(cam)
 
         # What the new page believes, BEFORE we touch it: this is the hole, measured.
-        ctx["stale_last_move"] = await cam.evaluate("() => PB.lastMove('#mainboard')")
+        ctx["shown_before_confirmation"] = await cam.evaluate("() => PB.lastMove('#mainboard')")
         ctx["playable_on_stale_snapshot"] = await can_select(cam, "#mainboard", "d2")
 
         if ctx["playable_on_stale_snapshot"]:
@@ -997,6 +1028,40 @@ async def stage(name, cam, par, game_id, ctx):
             )  # M2, legal only in the position we can still see
             ctx["second_move"] = "d2d4"
         hold.release()  # M1 lands; M2 is then judged against a position the server has left
+        await cam.wait_for_timeout(4000)
+
+    elif name == "move_in_flight_reconnect":
+        """The intermediate frame, reached the way a player actually meets it: the wifi drops.
+
+        1. Move M1. It reaches the server, which is held inside the game lock.
+        2. Drop the socket while it is still being applied. The page lives, so its in-memory record
+           of M1 lives with it — the difference from Q11, which destroys the page.
+        3. Come back. `init_ws` answers with a snapshot that PREDATES M1, because the lock has not
+           released yet. This is the frame: the position the server sent does not contain our move.
+        4. Probe it. The board must show M1 all the same — `BoardDecision.replay` carries it and
+           `replayPendingMove()` puts it back — and must refuse a second move.
+        5. Release the lock. M1 is applied and confirmed, and the board reopens.
+
+        No second move is played here on purpose. Q11 plays one because its subject is the overwrite
+        race; this scenario's subject is the frame, and adding a move would let a failure in one be
+        read as a failure in the other.
+        """
+        hold = ctx["hold"]
+        await _our_move_on_a(cam, ctx, "e2e4")
+        ctx["first_move"] = "e2e4"
+        ctx["server_held_the_move"] = await hold.wait_until_holding()
+
+        await go_offline(cam)
+        await cam.wait_for_timeout(1200)
+        await go_online(cam)
+        await wait_for_socket(cam)
+        await cam.wait_for_timeout(SETTLE_MS)
+
+        # The frame, measured while the server is still holding the move.
+        ctx["shown_before_confirmation"] = await cam.evaluate("() => PB.lastMove('#mainboard')")
+        ctx["playable_on_stale_snapshot"] = await can_select(cam, "#mainboard", "d2")
+
+        hold.release()
         await cam.wait_for_timeout(4000)
 
     elif name == "server_restart":

@@ -120,6 +120,7 @@ async def run_one(browser, base_url, scenario, names, state) -> driver.Result:
 
         elif scenario.stage in (
             "move_in_flight_reload_move_again",
+            "move_in_flight_reconnect",
             "premove_over_unacknowledged_move",
         ):
             # The server holds the first move inside the game lock, which is what makes the window

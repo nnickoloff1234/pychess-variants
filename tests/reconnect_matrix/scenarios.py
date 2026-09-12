@@ -43,6 +43,7 @@ class Scenario:
 #   record_written           the DOCUMENT holds the ending, not merely the in-memory game
 #   game_over                the client knows the game ended
 #   clocks_agree             our four clock readings match the other window's, allowing for tick
+#   optimistic_move_shown    our own unconfirmed move is on the board while the server still holds it
 
 SCENARIOS = [
     # ---- N: nothing of ours in flight -------------------------------------------------------
@@ -316,10 +317,47 @@ SCENARIOS = [
         "OVERWRITE RACE: move in flight, reload onto a stale snapshot, move again",
         "B3 . U1 . move in flight . X0",
         "move_in_flight_reload_move_again",
-        ("no_invalid_move", "one_move_lost_at_most", "playable_gate_held"),
+        (
+            "no_invalid_move",
+            "one_move_lost_at_most",
+            "playable_gate_held",
+            "optimistic_move_shown",
+        ),
         notes="the second move is composed against a position the server has already left, and "
         "recordPendingMove overwrites the first move's cache entry on its way out. Staged "
-        "with a server-side delay so the window is deterministic rather than a coin toss.",
+        "with a server-side delay so the window is deterministic rather than a coin toss. "
+        "IT ALSO PASSES THROUGH THE INTERMEDIATE FRAME, which it used to report only inside a "
+        "failure message; `optimistic_move_shown` asserts it now, so the frame is covered by the "
+        "scenario that was already staging it rather than by a watcher of its own.",
+    ),
+    Scenario(
+        "Q12",
+        "Q",
+        "THE INTERMEDIATE FRAME: move in flight, the socket drops and returns before the confirmation",
+        "B1 . U1 . move in flight . X0",
+        "move_in_flight_reconnect",
+        (
+            "optimistic_move_shown",
+            "playable_gate_held",
+            "our_move_played",
+            "cache_empty",
+            "no_invalid_move",
+            "clock_runs_for_side_to_move",
+        ),
+        notes="NO `invariant` HERE, AND THE OMISSION IS THE POINT — measured 2026-09-12, it fails by "
+        "construction. `hold_first_move` keeps the server inside the game lock, and "
+        "`handle_reconnect_bughouse` samples `get_clocks_for_board_msg(full=True)` BEFORE that lock, "
+        "so the held interval is never charged to our board while the other board's clock ticks on "
+        "locally: boardA 7192 against boardB 7180, a 12s gap for a ~12s hold. A real reconnect has "
+        "no such lock — the same 40s outage run by hand the same day left the invariant intact — so "
+        "asserting it here would test the staging rather than the client. "
+        "Q11's twin through the other door, and the difference is not cosmetic. Q11 is B3: the "
+        "page is destroyed, so its in-memory record of the move dies and the confirmation arrives as "
+        "branch 2.2.3, where the server's clocks win because this page never paused that clock. This "
+        "is B1: the page lives, the record survives, the move is resent and the confirmation is "
+        "2.2.2. Both must show the move while the server holds it. The frame is a STEADY STATE here "
+        "because `hold_first_move` keeps the server inside the game lock — which is what makes this "
+        "an ordinary probe rather than the MutationObserver the task assumed it would need.",
     ),
     # ---- T: terminal ---------------------------------------------------------------------------
     Scenario(

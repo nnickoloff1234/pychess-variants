@@ -41,6 +41,18 @@ other seven were not.
 - An armed premove's fate across a full board message SHALL be decided and stated.
 - The remaining stress tests SHALL be re-run, or retired with a reason.
 
+WHICH ALTERNATIVES WERE TAKEN, added 2026-09-12 so the bullets above are not read as still open:
+the clock rules are expressed as fields of the decision — `MoveDecision.takeClocks` and
+`SnapshotDecision.takeAllClocks` — rather than as a documented division, and the caller adds no
+condition of its own. The flicker was removed by holding the pending move optimistically rather than
+tested as it stood. The premove's fate is decided: a full board message does not end one.
+
+AND TWO DEFECTS THE READING FOUND, which are in this change because they were found by doing it and
+would otherwise go unrecorded (tasks 5.1–5.3): the caller was taking an arriving move's turn colour,
+mover and move from the client's own history rather than from the message, which could restart the
+wrong seat's clock and threw outright on a page holding no history; and branch 2.1.2 was taking the
+clocks from a message behind the game, which set that board backwards.
+
 ## Impact
 
 - `client/two-board/socket/reconnectController.ts` — `MoveDecision`, and the clock rules in the header.
