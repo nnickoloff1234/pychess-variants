@@ -1,0 +1,496 @@
+{
+ "P3-C1-100x100": "[tasks 5.1 · 360x800] Second preset set should fold into ONE full-width row under BOTH tracks instead of two rows of five in the 199px tools track, buttons resized to fit ten across, freed height to the chat. Measured: row 199.1 -> 355.6 wide, pitch 40.3 -> 35.6, button 37.4 -> ~31 (clear of the 24px WCAG floor), panel 84.8 -> ~36, about 49px back to the chat. Blocked structurally: PORTRAIT HAS NO ZONE A OR B — areas are chat/p1/p2/tablist inside .bug-right-column, every row scoped to one track. Needs a new area spanning both tracks. Not a defect: nothing overlaps or overflows.\n\n[tasks 5.6] The tab strip has room for the full width too — measured at 39-41% of viewport width on every phone, because it lives in \"stack tablist\" sharing the tools track with draw/resign, which is why its three tabs ellipsise on the narrowest phones. Same new both-tracks row would hold it.",
+ "P1-C1-100x100": "[tasks 5.2 · 390x844] Same full-width preset row as 5.1, stronger here: tools track 224, preset rows 90 each = 180 of a 348px column, chat 128 — SIX PIXELS LESS than at 360x800 on a phone 30px wider, because the buttons scale with the board square and the chat takes what is left. One row of ten hands back ~54px. Nothing overlaps or overflows.\n\n[tasks 5.6] Tab strip could take the full width too (39-41% of viewport on every phone).",
+ "P2-C1-100x100": "[tasks 5.3 · measured at 393x873, this row is 393x852] Same note again. Tools track 217, chat 153, preset rows 92 each = 184 of a 377px column; one row of ten hands back ~56px, the most of the three phones so far. The 29px of extra height over the iPhone all went to the chat while the rows barely moved — rows follow the board square, chat takes the remainder. Nothing overlaps or overflows.\n\nNOTE: the walkthrough used 393x873; this row is 21px shorter, so the chat figure here will read a little lower.\n\n[tasks 5.6] Tab strip could take the full width too.",
+ "P4-C1-100x100": "[tasks 5.4 · 412x915] Same note, and the strongest case for it. Preset rows 98 each = 196px, HALF the 392px column, against a 157px chat; one row of ten hands back ~62px. Across four phones the rows take 169.6 -> 180 -> 184 -> 196 as the screen grows, because they are sized from the board's square rather than from the column's room — the bigger the phone, the larger the share the presets claim, which is backwards. Nothing overlaps or overflows.\n\n[tasks 5.6] Tab strip could take the full width too.\n\nRELATED, NO ROW HERE: tasks 5.5 recorded the same note at 414x896 (the worst ratio of the six — rows 99 each = 198px against a 135px chat, ~63px returned). No 414x896 viewport exists in the matrix.",
+ "P5-C1-100x100": {
+  "note": "[tasks 5.7 · 375x667 iPhone SE] Worst of the six: chat 44, preset rows 61 each = 122 of the same column, own board 370². The buttons did shrink, so publishPresetSize() is working. BUT IN PORTRAIT THE FULL-WIDTH ROW COSTS THE OWN BOARD: the tools column's height is max(partner stack, tools content), so moving the second set out saves only 10px there while the new row adds ~36 below — about 27px of own board for about 51px of chat (44 -> ~95). Landscape has no such cost. This is the decision to take before designing the row, and it is not the landscape decision.\n\n[tasks 5.8] The SE sits 0.6% inside the portrait threshold — 375/667 = 0.5622 against 9/16 = 0.5625. Emulated at 373x655 (0.569) the page flips to the landscape arrangement. On a real SE the URL bar hiding on scroll could flip the whole layout. Decide whether the threshold wants hysteresis.\n\n[tasks 5.9] NOT CLEAR HOW TO ADDRESS: hardly any space for a proper chat text area — 44px, a line and a half, with nothing overlapping or overflowing. Two candidate directions, neither chosen: (1) render chat and buttons differently at this size rather than scaling them down; (2) MOVE THE THRESHOLD, since this resolution is liminal.",
+  "accepted": true
+ },
+ "T1-C1-100x100": "[tasks 5.10 · 768x1024] THE PRESETS SHOULD TAKE ZONE A, by the mechanism the analysis page already has. Zone A is 245 x 306 and EMPTY while the whole tools stack queues in zone B and the chat has 143. Cannot happen today for a structural reason: the cascade offers the band only to parts that declare a zone B class, and ROUND_DROPPABLE's entries declare none. The step is small and designed: give .chatpresets-panel-1 and -2 the third Droppable field and a declared --bug-part-min-w/h; the areas (zoneA2, zoneA3) and the group element already exist. A row folded to the band's 245px is ~61px tall, so both rows fit twice over and the chat goes 143 -> ~317 at no cost to either board.\n\n[tasks 5.11] TEN IN A ROW here too, for the opposite reason: the two rows are already 751px wide and still hold five buttons each, strung out with huge gaps. Ten across 751 is a 75px pitch and halves the block (174 -> ~45), handing ~87px to the chat, no trade at all. Interacts with 5.10 — in zone A they are back in a 245px column and want five per row. Settle 5.10 first.\n\n[tasks 5.16] Why 4x5 here and 2x10 at 810: publishPresetSize() computes the button for both arrangements and publishes whichever gives the LARGER button (floored 0.55 square, capped 1 square). At 768 the four-row option won (~43px), at 810 the two-row one (~38). Whether \"biggest button\" is the right objective — rather than \"fewest rows, so the chat keeps its height\" — is the same decision as 5.15.",
+ "T2-C1-100x100": "[tasks 5.12 · 810x1080] Better than 768, and the ten-in-a-row fold ALREADY EXISTS: the same two panels are five-across and 87 tall at 768 but ten-across and 44 tall here, buttons ~43 -> ~38, so both rows cost 88 instead of 174 and the chat goes 143 -> 252. So 5.11 is not \"invent ten-in-a-row\" but \"why does 768 miss the fold and should the threshold move\".\n\n[tasks 5.13] EXPERIMENT: the presets in zone A here too. Even with the fold, zone A is 256 x 327 and empty while the presets hold 88px of zone B. Moving them hands the chat those 88px (252 -> ~340) at no board cost, and in a 256px column they go back to five per row (~122px, which the band holds twice over). Whether a 340px chat beside the boards reads better than a 252px one with the presets below is a judgement for the screen — try it both ways here. Depends on 5.10.",
+ "T3-C1-100x100": "[tasks 5.14 · 820x1180] The same as 810 with more room; THE LEAST INTERESTING TO REVIEW. Own board 523², partner 261², chat 346, preset rows 44 each with the fold holding, zone A 261 x 326 empty, no overlaps. Nothing new in kind — skip it when re-reviewing. It does turn 5.13 around, though: at 346px the chat is already more than the conversation needs, so the presets moving to the band here is about filling a dead 261 x 326 region, not about buying chat height.\n\n(The 184px of header overflow recorded with this item was the site header, fixed upstream on 2026-09-13.)",
+ "T4-C1-100x100": "[tasks 5.14 · 834x1194, filed as skippable] 533² and 267² boards, the same 346px chat, folded rows at 44, zone A 267 x 334 empty, no overlaps — 14px wider than the Air and identical in kind. Review with T3 or not at all.\n\n(The 170px of header overflow recorded with this item was the site header, fixed upstream on 2026-09-13.)",
+ "T6-C1-100x100": "[tasks 5.15 · 800x1280] ALL THE SLACK GOES TO THE CHAT; A RULE IS NEEDED. Chat 459 and nearly empty, boards 512²/251² (sized by WIDTH, not height), zone A 251 x 327 empty, ~460px of slack spent entirely on the chat. The rule asked for — move the presets on how much chat is visible — has its ingredient already: chatMinHeight() computes what the chat needs from its line height and input, and publishPresetSize() already subtracts it. So \"the presets leave the chat's column while the chat is under N times its minimum\" is writable against a number the module measures. The four tablet chats bracket it: 143 / 252 / 346 / 459.",
+ "T5-C1-100x100": "[tasks 5.17 · 1024x1366] \"Plenty of unused space\", and THE MODE ITSELF MAY BE WRONG. Own 651², partner 331², chat 372, zone A 331 x 400 EMPTY (larger than most phones' whole viewport), content 1313 of a 1372 budget with the chat absorbing the slack. The boards cannot take the space: they are WIDTH-capped at 82.8 per square while the height's answer is 131 — the cap exists so the partner board fits beside them. So the real item is the THRESHOLD: every tablet is in the landscape family because the portrait test is aspect-ratio <= 9/16 and a 4:3 tablet upright is 0.75, yet the portrait arrangement would give a 1024px own board instead of 651 and use ~1364 of the 1372 height. Decide whether a viewport this tall should be stacked regardless of aspect. Interacts with 5.8, where the same threshold is 0.6% away in the other direction.",
+ "D1-C1-100xmin": {
+  "note": "good, here the preset buttons arranged themselves to take the full width, use this as reference how thing should look like when there is space for the preset buttons because sometimes they just stay compacted and even centered in the free space",
+  "accepted": true
+ },
+ "D4-C1-100xmin": {
+  "note": "this is bad, it is not a problem with the harness as it is not currently supposed to detect such problems, but is a real problem with the layout that in other screensizes look ok - see my note from the a previously accepted case, where i say it should be used as reference and then describe exactly this kind of problem with the preset buttons - here they do not take the full free space in terms of available width, in that accepted case they had margin/padding/gaps increased between the buttons so they took the full width, which is the expected arrangement",
+  "accepted": true
+ },
+ "D6-C1-100xmin": "same problem with preset buttons not taking all available width but staying compacted without increasing the gaps between them",
+ "P4-landscape-C1-100x100": "preset buttons are overlapped by partner board - i think in other places such problems have been correctly identified by the harness but not here - i think this requires fix in the harness first to detect them properly, then when we can trust the harness to detect them, we should think of ways to fix the problem itself",
+ "P6-C1-100x100": "same as other portrait mobile layouts where there is space for some/all preset buttons to flow under the partner board in zoneB and go on one row",
+ "T1-landscape-C1-100xmin": "same problem with preset buttons centered instead of taking all the width using larger gaps between buttons",
+ "T1-landscape-C1-100x100": "same problems with preset buttons centered instead of taking all width",
+ "T2-landscape-C1-100xmin": "same problem with preset buttons centered and compact while there is free space to spread into",
+ "T2-landscape-C1-100x100": "same problem with compacted centered preset buttons",
+ "T3-landscape-C1-100xmin": "same problem with centered compacted preset buttons",
+ "T4-C1-100xmin": {
+  "note": "again preset buttons are not spreading into whole width but are centered and compact, but this time it is a different layout and they are in zoneB. maybe also some rule for the size of the buttons should apply here to allow them to be smaller and go to 2 rows instead of 4 in this particular case only - similar resolutions already do that i wonder why it doesnt happen here",
+  "accepted": true
+ },
+ "T5-C1-100xmin": {
+  "note": "same problem with compacted centered bug preset buttons in zoneB instead of being spread in full width and also in this case smaller so fit on two rows",
+  "accepted": true
+ },
+ "D1-C2-100xmin": {
+  "note": "i am marking this as accepted, but i was under the impression we split the movelist into several fragments, one of which is the control buttons, and allowed them to flow into other areas where there is enough space, which is the case here, same as the tablist got expanded into the free space. however treat this as low priority and only mention it when we are done with everything else or dont mention it at all because i am not even sure it is good idea here to expand the control buttons unnecessary, mostly noting it because it didnt match my expectations",
+  "accepted": true
+ },
+ "P1-C2-100x100": "tablist and control buttons for the movelist must expand into the free area - on the left, i believe zoneA or zoneB not sure how we defined the space under partner board and above own board in portrait - similar problems exist with preset buttons in other portrait layouts",
+ "P1-landscape-C2-100x100": "there is enough space for the draw and resign button to fit in the tablist row if they were slightly smaller - i have seen other layouts where those two buttons got carried over on a new line and didnt comment then, because look like there genuinely was no space for them, but here we have to analyse with what rules do we determine the size of those buttons because they look visibly larger than the tablist items, they should probably follow similar size as the tablist buttons in all cases, which would allow them to stay on same row more often than not. worst case they might still get to flow out on the next line but ideally should happen and should be a last resort which here doesnt seem necessary",
+ "P2-C2-100x100": "movelist control buttons and tablist items can flow in the space between the two baord - zone a/b/ whaetever it is called in this layout - same as previous cases",
+ "P2-landscape-C2-100x100": "again resign and draw buttons too large and on new row while there is space. also the whole tools panel doesnt seem to occupy the full remaining width to the end of the screen, something i am sure we have definied for the short-landscape, i.e. mobile landscape layout",
+ "P3-C2-100x100": "again same problem with tablist and movelist control buttons in portrait not flowing to full width in the space between the two boards",
+ "P3-landscape-C2-100x100": "again big resign and draw buttons on second line and not full width taken by the movelist in short landscape, which should always be the rule.",
+ "P4-C2-100x100": "again portait mode problem with tablist and movelist control buttons not taking full width while they can, i.e. there is space in zone/ab/ the area between boards. if that area was smaller this would have been acceptable, i.e. shorter screen height, but here there is space, this space i believe should be defined as zonea or zoneb and used by those elements",
+ "P4-landscape-C2-100x100": "not full remaining width used by the tools in short landscape again. also draw resign buttons still big here but luckily on same row",
+ "P5-landscape-C2-100x100": "this should have triggered resizing the cap of the partner board to become smaller and let tablist and movelist control buttons flow under partner board and allow more space for the remaining tools panel - i.e. in this case the move list - we have such rule, wonder after what threshold it gets into effect. in fact i notice it has been triggered, the partner board is inedeed smaller at 100 zoom in this screenshot, just not small enough - we should review how we determine the cap of the zoom and make it enough to allow at least for the tablist and maybe more - requires experimenting and focus only on this, maybe a separate proposal - we will tackle this specially and after the more common problems",
+ "P6-C2-100x100": "again portrait with lots of space between the board where the tablist and movelist control buttons can expand into",
+ "P6-landscape-C2-100x100": {
+  "note": "accepting but tools panel still doesnt take the whole remaining width which in the short landscape layout should always be the rule. i will from now on click accept on such cases where nothing else is wrong, assuming all short landscapes have this problem",
+  "accepted": true
+ },
+ "T1-landscape-C2-100xmin": {
+  "note": "accepting but there is space for the movelist control buttons, probably if we make an improvement for that fragment to behave like the tablist and let them become bigger this will change, but accepting anyway, not something to focus in particular that is not already addressed in other comments, will accept such cases too even if they have this flaw",
+  "accepted": true
+ },
+ "T4-C2-100xmin": {
+  "note": "i have noticed this in other tablet resolutions but will comment only here - i do not understand how the title says this is 100 zoom and 50 zoom but the partner board looks identical to other cases in same resolution where it is 100/100. also there is definitely not enough free space for the partner board in this screenshot to grow twice its current size - i.e. if we actually zoom it to 100 from this starting position. i understand the cap of the partner max zoom here is different than the cap of the own board, that is ok, but whatever the cap, there is no space for it to be twice the current size of partner board or this is not 50% zoom we are looking at right now in the partner board. again this i have seen in many such layouts but will comment only here and mark the others accepted as they look acceptable, but is also interesting to test actual behaviour of zooming in this this case and see how it behaves",
+  "accepted": true
+ },
+ "D3-C4-100xmin": {
+  "note": "i am accepting this but i also want to note something important related to other case which i didnt accept - this is the only case so far i see the movelist control buttons expanded in the free area - did we make this work only for analysis page and not the round page?",
+  "accepted": true
+ },
+ "P1-C4-100x100": "movelist buttons and engine panel can expand in the free area the same way tablist buttons did here, but only they did it",
+ "P2-C4-100x100": "again tablist expands correctly in the free area, but movelist buttons and engine panel dont",
+ "P3-C4-100x100": "again a portrait layout that has space between the board to accomomdate the movelist buttons and engine panel but doesnt",
+ "P4-C4-100x100": "again movelist buttons and engine panel should expand in the free space between boards",
+ "T1-C4-100x100": "lets make the rule that in this case correctly moved the engine and movelist buttons to zoneA also to arrange them in reverse order - i.e. movelest buttons below the engine panel. also they should stack one on top of the other without gap as in this screenshot - i.e. the free space between them is undesireable",
+ "T2-C4-100xmin": "same case of movelist buttons and engine panel correctly moved to zoneA, but should switch places and space between them should disappear so they appear stacked without gap",
+ "T3-C4-100xmin": "again correctly moved the movelist buttons and engine panel to zoneA, but need reordering and removing the gap between them",
+ "T3-C4-100x100": "same problem with movelist buttons and engine panel in zoneA need reordering and gluing together",
+ "T4-C4-100xmin": "same problem about movelist buttons and engine panel in zoneA needing reorder and gluing together",
+ "T4-C4-100x100": "same problem about movelist buttons and engine panel in zoneA needing reorder and gluing together",
+ "T5-C4-minxmin": {
+  "note": "there is a lot of free space below the boards, i am accepting this because if i remember correctly we gave priority to besides position for tools if there is space but still wanted to note that this is something we might want to reconsider at later time, if this is the case, because so much free space remains below, still not a big deal because if user zooms in the boards it will be used, just thought noting it anyway , good for now",
+  "accepted": true
+ },
+ "T5-C4-100xmin": "same problem about movelist buttons and engine panel in zoneA needing reorder and gluing together",
+ "T5-C4-100x100": "same problem about movelist buttons and engine panel in zoneA needing reorder and gluing together",
+ "T6-C4-100xmin": "same problem about movelist buttons and engine panel in zoneA needing reorder and gluing together",
+ "T6-C4-100x100": "same problem about movelist buttons and engine panel in zoneA needing reorder and gluing together",
+ "D1-C1-100x100": {
+  "accepted": true
+ },
+ "D2-C1-100x100": {
+  "accepted": true
+ },
+ "D3-C1-100x100": {
+  "accepted": true
+ },
+ "D4-C1-100x100": {
+  "accepted": true
+ },
+ "D5-C1-100xmin": {
+  "accepted": true
+ },
+ "D5-C1-100x100": {
+  "accepted": true
+ },
+ "T1-C1-100xmin": {
+  "accepted": true
+ },
+ "T2-C1-100xmin": {
+  "accepted": true
+ },
+ "T2-landscape-C1-minxmin": {
+  "accepted": true
+ },
+ "T3-C1-100xmin": {
+  "accepted": true
+ },
+ "T3-landscape-C1-100x100": {
+  "accepted": true
+ },
+ "T4-landscape-C1-100xmin": {
+  "accepted": true
+ },
+ "T4-landscape-C1-100x100": {
+  "accepted": true
+ },
+ "T5-landscape-C1-100xmin": {
+  "accepted": true
+ },
+ "T5-landscape-C1-100x100": {
+  "accepted": true
+ },
+ "T6-C1-100xmin": {
+  "accepted": true
+ },
+ "T6-landscape-C1-100xmin": {
+  "accepted": true
+ },
+ "D1-C2-100x100": {
+  "accepted": true
+ },
+ "D2-C2-100xmin": {
+  "accepted": true
+ },
+ "D2-C2-100x100": {
+  "accepted": true
+ },
+ "D3-C2-100xmin": {
+  "accepted": true
+ },
+ "D3-C2-100x100": {
+  "accepted": true
+ },
+ "D4-C2-100xmin": {
+  "accepted": true
+ },
+ "D4-C2-100x100": {
+  "accepted": true
+ },
+ "D5-C2-100xmin": {
+  "accepted": true
+ },
+ "D5-C2-100x100": {
+  "accepted": true
+ },
+ "D6-C2-100xmin": {
+  "accepted": true
+ },
+ "D6-C2-100x100": {
+  "accepted": true
+ },
+ "P5-C2-100x100": {
+  "accepted": true
+ },
+ "T1-C2-100xmin": {
+  "accepted": true
+ },
+ "T1-C2-100x100": {
+  "accepted": true
+ },
+ "T1-landscape-C2-100x100": {
+  "accepted": true
+ },
+ "T2-C2-100xmin": {
+  "accepted": true
+ },
+ "T2-C2-100x100": {
+  "accepted": true
+ },
+ "T2-landscape-C2-100xmin": {
+  "accepted": true
+ },
+ "T2-landscape-C2-100x100": {
+  "accepted": true
+ },
+ "T3-C2-100xmin": {
+  "accepted": true
+ },
+ "T3-C2-100x100": {
+  "accepted": true
+ },
+ "T3-landscape-C2-100xmin": {
+  "accepted": true
+ },
+ "T3-landscape-C2-100x100": {
+  "accepted": true
+ },
+ "T4-C2-100x100": {
+  "accepted": true
+ },
+ "T4-landscape-C2-100xmin": {
+  "accepted": true
+ },
+ "T4-landscape-C2-100x100": {
+  "accepted": true
+ },
+ "T5-C2-100xmin": {
+  "accepted": true
+ },
+ "T5-C2-100x100": {
+  "accepted": true
+ },
+ "T5-landscape-C2-100xmin": {
+  "accepted": true
+ },
+ "T5-landscape-C2-100x100": {
+  "accepted": true
+ },
+ "T6-C2-100xmin": {
+  "accepted": true
+ },
+ "T6-C2-100x100": {
+  "accepted": true
+ },
+ "T6-landscape-C2-100xmin": {
+  "accepted": true
+ },
+ "T6-landscape-C2-100x100": {
+  "accepted": true
+ },
+ "D1-C3-100xmin": {
+  "accepted": true
+ },
+ "D1-C3-100x100": {
+  "accepted": true
+ },
+ "D2-C3-100xmin": {
+  "accepted": true
+ },
+ "D2-C3-100x100": {
+  "accepted": true
+ },
+ "D3-C3-100xmin": {
+  "accepted": true
+ },
+ "D3-C3-100x100": {
+  "accepted": true
+ },
+ "D4-C3-100xmin": {
+  "accepted": true
+ },
+ "D4-C3-100x100": {
+  "accepted": true
+ },
+ "D5-C3-100xmin": {
+  "accepted": true
+ },
+ "D5-C3-100x100": {
+  "accepted": true
+ },
+ "D6-C3-100xmin": {
+  "accepted": true
+ },
+ "D6-C3-100x100": {
+  "accepted": true
+ },
+ "P1-C3-100x100": {
+  "accepted": true
+ },
+ "P1-landscape-C3-100x100": {
+  "accepted": true
+ },
+ "P2-C3-100x100": {
+  "accepted": true
+ },
+ "P2-landscape-C3-100x100": {
+  "accepted": true
+ },
+ "P3-C3-100x100": {
+  "accepted": true
+ },
+ "P3-landscape-C3-100x100": {
+  "accepted": true
+ },
+ "P4-C3-100x100": {
+  "accepted": true
+ },
+ "P4-landscape-C3-100x100": {
+  "accepted": true
+ },
+ "P5-C3-100x100": {
+  "accepted": true
+ },
+ "P6-C3-100x100": {
+  "accepted": true
+ },
+ "P6-landscape-C3-100x100": {
+  "accepted": true
+ },
+ "T1-landscape-C3-100xmin": {
+  "accepted": true
+ },
+ "T1-landscape-C3-100x100": {
+  "accepted": true
+ },
+ "T2-landscape-C3-100xmin": {
+  "accepted": true
+ },
+ "T2-landscape-C3-100x100": {
+  "accepted": true
+ },
+ "T3-landscape-C3-100xmin": {
+  "accepted": true
+ },
+ "T3-landscape-C3-100x100": {
+  "accepted": true
+ },
+ "T4-landscape-C3-100xmin": {
+  "accepted": true
+ },
+ "T4-landscape-C3-100x100": {
+  "accepted": true
+ },
+ "T5-landscape-C3-100xmin": {
+  "accepted": true
+ },
+ "T5-landscape-C3-100x100": {
+  "accepted": true
+ },
+ "T6-landscape-C3-100xmin": {
+  "accepted": true
+ },
+ "T6-landscape-C3-100x100": {
+  "accepted": true
+ },
+ "D1-C4-minxmin": {
+  "accepted": true
+ },
+ "D1-C4-100xmin": {
+  "accepted": true
+ },
+ "D1-C4-100x100": {
+  "accepted": true
+ },
+ "D2-C4-minxmin": {
+  "accepted": true
+ },
+ "D2-C4-100xmin": {
+  "accepted": true
+ },
+ "D2-C4-100x100": {
+  "accepted": true
+ },
+ "D3-C4-minxmin": {
+  "accepted": true
+ },
+ "D3-C4-100x100": {
+  "accepted": true
+ },
+ "D4-C4-minxmin": {
+  "accepted": true
+ },
+ "D4-C4-100xmin": {
+  "accepted": true
+ },
+ "D4-C4-100x100": {
+  "accepted": true
+ },
+ "D5-C4-minxmin": {
+  "accepted": true
+ },
+ "D5-C4-100xmin": {
+  "accepted": true
+ },
+ "D5-C4-100x100": {
+  "accepted": true
+ },
+ "D6-C4-minxmin": {
+  "accepted": true
+ },
+ "D6-C4-100xmin": {
+  "accepted": true
+ },
+ "D6-C4-100x100": {
+  "accepted": true
+ },
+ "P1-landscape-C4-100x100": {
+  "accepted": true
+ },
+ "P2-landscape-C4-100x100": {
+  "accepted": true
+ },
+ "P3-landscape-C4-100x100": {
+  "accepted": true
+ },
+ "P4-landscape-C4-100x100": {
+  "accepted": true
+ },
+ "P5-C4-100x100": {
+  "accepted": true
+ },
+ "P5-landscape-C4-100x100": {
+  "accepted": true
+ },
+ "P6-C4-100x100": {
+  "accepted": true
+ },
+ "P6-landscape-C4-100x100": {
+  "accepted": true
+ },
+ "T1-C4-100xmin": {
+  "accepted": true
+ },
+ "T1-landscape-C4-minxmin": {
+  "accepted": true
+ },
+ "T1-landscape-C4-100xmin": {
+  "accepted": true
+ },
+ "T1-landscape-C4-100x100": {
+  "accepted": true
+ },
+ "T2-landscape-C4-minxmin": {
+  "accepted": true
+ },
+ "T2-landscape-C4-100xmin": {
+  "accepted": true
+ },
+ "T2-landscape-C4-100x100": {
+  "accepted": true
+ },
+ "T3-landscape-C4-100xmin": {
+  "accepted": true
+ },
+ "T3-landscape-C4-100x100": {
+  "accepted": true
+ },
+ "T4-landscape-C4-minxmin": {
+  "accepted": true
+ },
+ "T4-landscape-C4-100xmin": {
+  "accepted": true
+ },
+ "T4-landscape-C4-100x100": {
+  "accepted": true
+ },
+ "T5-landscape-C4-minxmin": {
+  "accepted": true
+ },
+ "T5-landscape-C4-100xmin": {
+  "accepted": true
+ },
+ "T5-landscape-C4-100x100": {
+  "accepted": true
+ },
+ "T6-landscape-C4-minxmin": {
+  "accepted": true
+ },
+ "T6-landscape-C4-100xmin": {
+  "accepted": true
+ },
+ "T6-landscape-C4-100x100": {
+  "accepted": true
+ },
+ "D3-C1-100xmin": {
+  "accepted": true
+ },
+ "D6-C1-100x100": {
+  "accepted": true
+ },
+ "T2-C4-minxmin": {
+  "accepted": true
+ },
+ "T3-C4-minxmin": {
+  "accepted": true
+ },
+ "T3-landscape-C4-minxmin": {
+  "accepted": true
+ },
+ "T4-C4-minxmin": {
+  "accepted": true
+ },
+ "T6-C4-minxmin": {
+  "accepted": true
+ }
+}

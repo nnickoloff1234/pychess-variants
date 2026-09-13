@@ -9,6 +9,7 @@ THE PARTNER CONTEXT IS NEVER TOUCHED once the game starts. A disconnected client
 game after about a minute and this walk takes several, so only the camera is resized or navigated.
 """
 
+import base64
 import json
 import shutil
 import time
@@ -17,7 +18,7 @@ from pathlib import Path
 
 from playwright.async_api import Error as PlaywrightError
 
-from .viewports import BASE_ZOOM, VIEWPORTS, ZOOMS, Case, Viewport
+from .viewports import BASE_ZOOM, VIEWPORTS, ZOOMS, Case, Viewport, zoom_label
 
 PROBE = (Path(__file__).parent / "probe.js").read_text()
 
@@ -50,7 +51,7 @@ class Row:
 
     @property
     def key(self) -> str:
-        return f"{self.viewport.key}-{self.case.key}-{self.zoom[0]}x{self.zoom[1]}"
+        return f"{self.viewport.key}-{self.case.key}-{zoom_label(self.zoom)}"
 
 
 async def _launch(playwright):
@@ -321,6 +322,23 @@ async def settle(page) -> dict:
     return await page.evaluate(SETTLE_SIGNATURE, SETTLE_MAX_FRAMES)
 
 
+async def shoot(cdp, path: Path) -> None:
+    """THROUGH CDP, NOT `page.screenshot()`.
+
+    The viewport is applied by `Emulation.setDeviceMetricsOverride` above, which Playwright knows
+    nothing about: it still believes the page is at its context's default size. `page.screenshot()`
+    re-applies ITS OWN device metrics to take the capture and restores them afterwards, so the
+    override is clobbered twice over — measured, every image in a full run came out 1280x720, each
+    row photographed at the viewport of the row BEFORE it, and the page was left at that size for
+    the next row to inherit. A 360x800 portrait phone was pictured as a landscape desktop.
+
+    `Page.captureScreenshot` photographs what the emulation says is on screen, so an 810x1080 @2
+    row yields 1620x2160 and nothing is restored behind our back.
+    """
+    shot = await cdp.send("Page.captureScreenshot", {"format": "png"})
+    path.write_bytes(base64.b64decode(shot["data"]))
+
+
 async def capture(page, cdp, row: Row, shots_dir: Path) -> Row:
     try:
         await apply_viewport(page, cdp, row.viewport)
@@ -355,7 +373,7 @@ async def capture(page, cdp, row: Row, shots_dir: Path) -> Row:
                 + ", ".join(f"{k} {v[0]} -> {v[1]}" for k, v in stale.items())
             )
         name = f"{row.key}.png"
-        await page.screenshot(path=str(shots_dir / name))
+        await shoot(cdp, shots_dir / name)
         row.shot = name
     # DELIBERATELY BLIND. The matrix is a survey: one combination that throws — a viewport the
     # browser refuses, a selector that is not on this page, a probe that trips over a state nobody

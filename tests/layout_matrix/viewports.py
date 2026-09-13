@@ -117,7 +117,23 @@ CASES = [
 # Named by the two boards' zoom percentages, left then right. The asymmetric one is the reason the
 # set exists: independent zoom is what makes the two squares diverge, which is what zone A is
 # measured from and what the tools' cascade decides on.
-ZOOMS = [(100, 100), (100, 50), (50, 50)]
+#
+# ZERO MEANS "AS SMALL AS THE APP ALLOWS", and it is asked for rather than stated. `clampZoom()`
+# raises anything under `minZoomPercent()` — four left-squares of stack, which is 40% on a desktop
+# and about 80% on a tablet, where the partner board's allowance is already half the left board's.
+# A flat 50 therefore tested the extreme on desktops and nothing at all on tablets: measured, 96 of
+# 264 rows drew something other than the zoom they were headed with, 100/50 arriving as 100/81. The
+# floor belongs to the app, so the row asks for it by asking for less than any floor and letting
+# `clampZoom()` answer.
+MIN_ZOOM = 0
+ZOOMS = [(100, 100), (100, MIN_ZOOM), (MIN_ZOOM, MIN_ZOOM)]
+
+
+def zoom_label(zoom: tuple[int, int]) -> str:
+    """`min` rather than `0` in a row's key: the row asked for the floor, not for nothing."""
+    return "x".join("min" if z == MIN_ZOOM else str(z) for z in zoom)
+
+
 BASE_ZOOM = ZOOMS[0]
 
 
