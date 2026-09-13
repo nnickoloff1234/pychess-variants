@@ -492,5 +492,125 @@
  },
  "T6-C4-minxmin": {
   "accepted": true
+ },
+ "D2-C1-minxmin": {
+  "accepted": true
+ },
+ "D3-C1-minxmin": {
+  "accepted": true
+ },
+ "D2-C1-100xmin": {
+  "accepted": true
+ },
+ "D5-C1-minxmin": {
+  "accepted": true
+ },
+ "T1-landscape-C1-minxmin": {
+  "accepted": true
+ },
+ "T3-landscape-C1-minxmin": {
+  "accepted": true
+ },
+ "T4-landscape-C1-minxmin": {
+  "accepted": true
+ },
+ "T5-C1-minxmin": {
+  "accepted": true
+ },
+ "D1-C2-minxmin": {
+  "accepted": true
+ },
+ "D2-C2-minxmin": {
+  "accepted": true
+ },
+ "D3-C2-minxmin": {
+  "accepted": true
+ },
+ "D4-C2-minxmin": {
+  "accepted": true
+ },
+ "D5-C2-minxmin": {
+  "accepted": true
+ },
+ "D6-C2-minxmin": {
+  "accepted": true
+ },
+ "T1-C2-minxmin": {
+  "accepted": true
+ },
+ "T1-landscape-C2-minxmin": {
+  "accepted": true
+ },
+ "T2-C2-minxmin": {
+  "accepted": true
+ },
+ "T2-landscape-C2-minxmin": {
+  "accepted": true
+ },
+ "T3-C2-minxmin": {
+  "accepted": true
+ },
+ "T3-landscape-C2-minxmin": {
+  "accepted": true
+ },
+ "T4-C2-minxmin": {
+  "accepted": true
+ },
+ "T4-landscape-C2-minxmin": {
+  "accepted": true
+ },
+ "T5-C2-minxmin": {
+  "accepted": true
+ },
+ "T6-C2-minxmin": {
+  "accepted": true
+ },
+ "D1-C3-minxmin": {
+  "accepted": true
+ },
+ "D2-C3-minxmin": {
+  "accepted": true
+ },
+ "D3-C3-minxmin": {
+  "accepted": true
+ },
+ "D4-C3-minxmin": {
+  "accepted": true
+ },
+ "D5-C3-minxmin": {
+  "accepted": true
+ },
+ "D6-C3-minxmin": {
+  "accepted": true
+ },
+ "T1-C3-minxmin": {
+  "accepted": true
+ },
+ "T1-landscape-C3-minxmin": {
+  "accepted": true
+ },
+ "T2-C3-minxmin": {
+  "accepted": true
+ },
+ "T2-landscape-C3-minxmin": {
+  "accepted": true
+ },
+ "T3-C3-minxmin": {
+  "accepted": true
+ },
+ "T3-landscape-C3-minxmin": {
+  "accepted": true
+ },
+ "T4-C3-minxmin": {
+  "accepted": true
+ },
+ "T4-landscape-C3-minxmin": {
+  "accepted": true
+ },
+ "T5-C3-minxmin": {
+  "accepted": true
+ },
+ "T6-C3-minxmin": {
+  "accepted": true
  }
 }

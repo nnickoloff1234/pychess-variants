@@ -74,6 +74,51 @@
        paints outside it — `.chatpresets-set` is five fixed tracks and spills equally both ways when
        the button size does not fit its track — and that paint is what lands on a neighbour. The
        walk stops at any descendant that clips, since its own box is then the limit of what shows. */
+    /* THE SURFACES A PART ACTUALLY PAINTS. Descent stops at anything that draws as one thing — a
+       board, a button, a leaf — because that box is then the shape on the screen. */
+    const surfaces = root => {
+        const out = [];
+        const walk = el => {
+            for (const child of el.children) {
+                const cs = getComputedStyle(child);
+                if (cs.display === 'none' || cs.visibility === 'hidden' || child.tagName === 'CG-RESIZE') continue;
+                const r = child.getBoundingClientRect();
+                if (r.width <= 0 || r.height <= 0) continue;
+                /* A SURFACE IS ANYTHING THAT PUTS INK DOWN, not only a childless element. A button
+                   with an icon inside it paints its own background across its whole box, and a
+                   collision that lands on that background rather than on the icon is still one
+                   thing drawn over another — counting only leaves missed exactly that. */
+                const paints =
+                    cs.backgroundImage !== 'none' ||
+                    (cs.backgroundColor !== 'transparent' && !/^rgba\(.*,\s*0\)$/.test(cs.backgroundColor)) ||
+                    parseFloat(cs.borderTopWidth) > 0 || parseFloat(cs.borderBottomWidth) > 0 ||
+                    parseFloat(cs.borderLeftWidth) > 0 || parseFloat(cs.borderRightWidth) > 0;
+                if (paints || child.children.length === 0 || child.tagName.startsWith('CG-')) {
+                    out.push({ r, what: (child.className.toString() || child.tagName).slice(0, 24) });
+                }
+                if (!child.tagName.startsWith('CG-')) walk(child);
+            }
+        };
+        walk(root);
+        return out;
+    };
+
+    /* The worst pair of surfaces two parts have, or null when nothing they draw touches. */
+    const collision = (elA, elB) => {
+        let worst = null;
+        for (const a of surfaces(elA)) {
+            for (const b of surfaces(elB)) {
+                const dx = Math.min(a.r.right, b.r.right) - Math.max(a.r.left, b.r.left);
+                const dy = Math.min(a.r.bottom, b.r.bottom) - Math.max(a.r.top, b.r.top);
+                if (dx <= 1 || dy <= 1) continue;
+                if (worst === null || dx * dy > worst.dx * worst.dy) {
+                    worst = { dx: Math.round(dx), dy: Math.round(dy), a: a.what, b: b.what };
+                }
+            }
+        }
+        return worst;
+    };
+
     const painted = root => {
         const b = root.getBoundingClientRect();
         let x1 = b.left, y1 = b.top, x2 = b.right, y2 = b.bottom;
@@ -209,6 +254,9 @@
 
     // ---- the checks ----------------------------------------------------------------------------
     const failures = [];
+    /* WORTH SEEING, NOT WORTH FAILING A ROW FOR. A warning is a measurement a reviewer may want and
+       may equally decide to live with; it does not make a row bad, and it never hides one that is. */
+    const warnings = [];
     const doc = document.documentElement;
 
     /* THE CONTENT'S SIZE, ASKED OF THE BODY, AGAINST THE LAYOUT VIEWPORT.
@@ -338,13 +386,21 @@
                 p.x + p.w - gap > s2.x && s2.x + s2.w - gap > p.x &&
                 p.y + p.h - gap > s2.y && s2.y + s2.h - gap > p.y;
             if (!over) continue;
+
+            /* BOXES TOUCHING IS NOT A COLLISION; WHAT IS DRAWN DECIDES. A part is routinely a few
+               pixels taller than its track and reaches into the gutter below it, where nothing is
+               painted — the seat name sits in that band and the buttons start under it. A size
+               threshold cannot separate those from the real thing, because a real collision here is
+               small too. So the boxes only nominate a pair, and the surfaces inside them settle it:
+               two LEAVES that share pixels are one drawn over the other, whatever their parents do. */
+            const hit = collision(placed[i].el, placed[j].el);
+            if (hit === null) continue;
             // BY HOW MUCH, because triage needs it: a five-pixel spill into a gutter and a board
             // drawn across its neighbour are the same sentence without a number.
-            const dx = Math.round(Math.min(p.x + p.w, s2.x + s2.w) - Math.max(p.x, s2.x));
-            const dy = Math.round(Math.min(p.y + p.h, s2.y + s2.h) - Math.max(p.y, s2.y));
             failures.push(
                 `${placed[i].rec.what} (${placed[i].rec.area}) overlaps ` +
-                `${placed[j].rec.what} (${placed[j].rec.area}) by ${dx}x${dy}px`,
+                `${placed[j].rec.what} (${placed[j].rec.area}) by ${hit.dx}x${hit.dy}px ` +
+                `— ${hit.a} over ${hit.b}`,
             );
         }
     }
@@ -385,6 +441,45 @@
        Nikolay actually described is that the draw and resign controls are drawn LARGER than the tab
        items and would fit beside them if they followed the same size. That is a rule about how those
        controls are sized, to be decided and then asserted, not a defect a measurement can find. */
+
+    /* HOW CLOSE ANYTHING COMES TO A BOARD — A WARNING, NOT A FAILURE. An overlap is the extreme
+       case of a clearance and the interesting ones stop short of it: measured at 1536x739 with both
+       boards at minimum zoom, the partner's seat name hung 1.7px below the stack it belongs to and
+       the first preset button began 3.3px under that. Nothing touched; it reads as touching.
+
+       AT A LOWER PRIORITY BECAUSE MOST OF IT IS BY DESIGN: of 141 findings on a full run, 108 were a
+       clearance of exactly 0.0px — a panel's edge flush with a board's pocket, which is one grid
+       track ending where the next begins. A reviewer can read those and decide; a row is not broken
+       for having them. Asked of the boards only: two tool parts stacked close are deliberate. */
+    for (const stack of placed) {
+        if (!/bug-(own|partner)-stack/.test(stack.rec.what)) continue;
+        for (const other of placed) {
+            if (other === stack || other.rec.area === stack.rec.area) continue;
+            if (stack.el.contains(other.el) || other.el.contains(stack.el)) continue;
+            let nearest = null;
+            for (const a of surfaces(stack.el)) {
+                for (const b of surfaces(other.el)) {
+                    const dx = Math.max(a.r.left - b.r.right, b.r.left - a.r.right);
+                    const dy = Math.max(a.r.top - b.r.bottom, b.r.top - a.r.bottom);
+                    // Only a pair sharing one axis is a neighbour; a diagonal one is not crowded.
+                    let gap = null;
+                    if (dx < 0 && dy >= 0) gap = dy;
+                    else if (dy < 0 && dx >= 0) gap = dx;
+                    if (gap === null) continue;
+                    if (nearest === null || gap < nearest.gap) nearest = { gap, a: a.what, b: b.what };
+                }
+            }
+            if (nearest !== null && nearest.gap < 8) {
+                warnings.push(
+                    nearest.gap < 0.05
+                        ? `${other.rec.what} (${other.rec.area}) sits flush against ${stack.rec.what}` +
+                          ` — ${nearest.b} and ${nearest.a}`
+                        : `${other.rec.what} (${other.rec.area}) comes within ${nearest.gap.toFixed(1)}px ` +
+                          `of ${stack.rec.what} — ${nearest.b} and ${nearest.a}`,
+                );
+            }
+        }
+    }
 
     /* A ROW OF BUTTONS THAT WILL NOT SPREAD. `publishPresetGap()` solves the gap so that ten
        buttons fill the row exactly; a fraction of rounding then makes ten NOT fit, the flex wraps
@@ -447,6 +542,7 @@
 
     return {
         ok: true,
+        warnings,
         presetRowBoxes,
         // THE LAYOUT VIEWPORT, which is the one the stylesheet answered. `innerWidth` is the
         // visual viewport and reads LARGER than the device wherever the browser has zoomed out to

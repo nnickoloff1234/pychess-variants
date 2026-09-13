@@ -263,10 +263,12 @@ SCRIPT = """
   const withAccepted = document.querySelector('.filter .with-accepted input');
   const hidden = el => el.classList.contains('accepted') && !withAccepted.checked;
   const shown = {
-    /* FIXED AND REGRESSED IGNORE "accepted": a row accepted while it was broken is exactly the row
-       whose fix wants confirming, and hiding it would hide the review the change was made for. */
-    fixed: el => el.classList.contains('fixed'),
-    regressed: el => el.classList.contains('regressed'),
+    /* FIXED AND REGRESSED HIDE ACCEPTED ROWS LIKE EVERY OTHER VIEW. They used not to — a row
+       accepted while it was broken is the one whose fix wants confirming — but a tick that removes
+       the row everywhere else and does nothing here reads as a tick that was not recorded, and a
+       reviewer cannot tell those apart. `include accepted` brings them back when that is the point. */
+    fixed: el => el.classList.contains('fixed') && !hidden(el),
+    regressed: el => el.classList.contains('regressed') && !hidden(el),
     all: el => !hidden(el),
     bad: el => el.classList.contains('bad') && !hidden(el),
     good: el => el.classList.contains('good') && !hidden(el),
@@ -277,13 +279,14 @@ SCRIPT = """
   const CLASS_OF = { all: () => true, bad: el => el.classList.contains('bad'),
                      good: el => el.classList.contains('good'), noted: el => el.classList.contains('noted'),
                      fixed: el => el.classList.contains('fixed'),
-                     regressed: el => el.classList.contains('regressed') };
+                     regressed: el => el.classList.contains('regressed'),
+                     warned: el => el.classList.contains('warned') };
   const relabel = () => {
     for (const b of buttons) {
       const mode = b.dataset.mode;
       const n = allRows.filter(shown[mode]).length;
       let extra = '';
-      if (!['accepted', 'fixed', 'regressed'].includes(mode) && !withAccepted.checked) {
+      if (mode !== 'accepted' && !withAccepted.checked) {
         const held = allRows.filter(el => el.classList.contains('accepted') && CLASS_OF[mode](el)).length;
         if (held) extra = ` (+${held} accepted)`;
       }
