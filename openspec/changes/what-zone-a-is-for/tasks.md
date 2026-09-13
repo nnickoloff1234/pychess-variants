@@ -94,6 +94,36 @@ mechanism, not a proposal of its own — see `design.md` "Findings".
       by clicking every tab: each shows its own content, and the round page's strip reads Partner
       board, Chat, Moves, Info.
 
+- [x] 1.20 **The preset set was drawn outside the track it sits in.** Five fixed columns, centred,
+      cannot shrink: measured at 915x412, five 46.66px buttons wanting 245px of a 183px track, the
+      31px spilling left landing on the partner board. FIXED — `publishPresetSize()` caps the button
+      by the region, and that cap outranks the tap-target floor. Requirement in the delta spec.
+- [x] 1.21 **The preset row was spaced for an exact fit, so rounding decided the arrangement.**
+      Ten buttons paired when they fitted to the last fraction; the flex then wrapped to five and
+      five keeping the ten-across gap — 290px of row in a 584px box. FIXED — a pixel of slack.
+- [x] 1.22 **A published size survived the arrangement that published it.** The publisher is whichever
+      element owns the tools, and an inner copy shadows the outer: the app carried 61px while
+      `.bug-right-column` still carried 46.67px from an arrangement that had ended. Four passes could
+      not shift it; only a reload could. FIXED — stale carriers are cleared on publish. NOT ONLY A
+      SURVEY ARTEFACT: resizing a window or rotating a phone reaches a viewport the same way.
+      Requirement in the delta spec.
+- [x] 1.23 **Short landscape left 21-44px claimed by no track**, centred as margins by `#main-wrap`,
+      because `--bug-tools-track` was a `20vw` share while the boards are sized from the height.
+      FIXED — in short landscape the track takes what the boards leave. 15 rows lost the finding,
+      12 went clean, no row in 264 gained one.
+- [x] 1.24 **The site header overflowed between 800px and the width it needs, on every page.** NOT
+      OURS: fixed upstream directly (`0613e725b`, `f16c2fa58`) — the nav now yields, DONATE falls
+      back to its icon, and the username is capped. It was 48 of the 56 overflow rows in the survey.
+
+- [ ] 1.25 **No preset gap is published at all in 15 rows** — `C1` at base zoom, on phones and
+      tablets. Both rows are identical and afford 7-30px; the page publishes 3, which is the floor
+      showing through because nothing wrote a value for that arrangement. Same family as 1.22.
+      Reproduction and the per-row affordances are in the survey's facts (`presetRowBoxes`).
+- [ ] 1.26 **An anonymous `DIV` paints outside itself in the tools column, 19 rows.** Never
+      diagnosed; may be the same shape as 1.20 or a fifth false positive. Identify it first.
+- [ ] 1.27 **`T5-landscape-C1-100x100` gained `DIV (zoneA) overlaps chatpresets-panel`** when the
+      preset rows started spreading — the only row the preset fixes made worse. Not yet looked at.
+
 ## 2. Decide zone A, per mode
 
 - [ ] 2.1 Zone A has a different CAUSE in each mode — a reader's zoom in tall landscape, width
@@ -399,7 +429,30 @@ running game".
       fell 38 -> 34, which with the new "tab Moves covered" rows points at the analysis page's parts
       being grid items in `zoneB`/`zoneA` rows at 50% zoom.
 
-## 6. Record
+## 6. Where this stands — 2026-09-13
+
+WHAT IS DONE. The layout survey (`tests/layout_matrix`) is the instrument this change now works
+through, and it is trusted: four of its checks were wrong and were corrected or removed, a fifth was
+demoted to a warning. Its report carries per-row notes and an accepted flag (`notes.json`, 229 rows
+recorded, 187 accepted) and diffs against `baseline.json` so a fix is reviewed rather than believed.
+Findings 1.20 to 1.23 are fixed and confirmed on screen; 1.24 went upstream on its own. Two
+requirements were added to the delta spec, and `design.md` records how the instrument is used.
+
+WHERE TO PICK UP. 1.25 first — it has a reproduction and is the remainder of a class already fixed
+twice. Then 1.26, which needs identifying before it can be judged. 1.27 is one row. The survey's
+remaining classes, by unaccepted rows: area slack (~38), the tools column's `DIV` (17), the
+unpublished gap (12), zone A declared and empty (12).
+
+WHAT IS PARKED, DELIBERATELY. The clearance warning: of 141 findings, 108 were a 0.0px flush edge
+between a panel and a board, which is a grid track ending where the next begins. The real case (a
+seat name overhanging its own stack by 1.7px, a preset button 3.3px below) reads as crowding rather
+than breaking, and separating the two needs a different question — is a surface drawn OUTSIDE its
+own part's box and close to a board.
+
+THE WORK SO FAR IS OUT. Fork master carries all of it (`8afa1ac90`); PR #2355 takes the layout and
+reconnect work to gbtami without the fork-only material, for Nikolay to review and merge.
+
+## 7. Record
 
 - [ ] 6.1 Fold the decisions into `bughouse-round-layout`, replacing this change's acceptance criteria
       with the rules actually chosen — and keep the findings' requirements, which are not criteria but

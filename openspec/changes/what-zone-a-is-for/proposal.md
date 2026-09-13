@@ -11,6 +11,16 @@ a proposal each: they are found by this work, they change the numbers this work 
 a separate change per finding would leave the decision waiting on a queue of its own making. Section
 "Findings" in `design.md` is the log; each one is a task here with its measurement.
 
+**AND THE WAY THEY ARE FOUND IS NOW PART OF THE CHANGE.** The findings are no longer turned up by
+reading the layout in a browser one size at a time: `tests/layout_matrix` walks every viewport, case
+and zoom, and a reviewer reads its report and marks what is wrong. Each mark becomes a check, the
+check finds the same defect everywhere else it occurs, and a fix is confirmed by diffing a run
+against the state it set out to change. What this changes about the proposal is the ORDER OF WORK —
+see a defect once, teach the survey to see it, fix it where the survey points — and the standard of
+evidence, since every rule added here now carries the measurement that produced it. `design.md`,
+"How these rules were found", states how the instrument is used and where it has been wrong.
+Section 6 of `tasks.md` is the standing status: what is done, where to pick up, what is parked.
+
 The two original directions, re-measured 2026-09-12:
 
 - **Admitted, and the parts do not fit** — **FIXED**, by the cumulative drop cascade in
