@@ -10,6 +10,81 @@
    placement code to read, and what the stylesheet computes from the others — is the next step,
    with its own survey run, because reordering declarations can change which one wins. */
 
+/* THE MAP — every `--bug-*` name, what it is, and where its value comes from.
+   ==========================================================================================
+   GROUPED HERE RATHER THAN REORDERED BELOW, and the reason is load-bearing: seven of these
+   names are declared MORE THAN ONCE — `--bug-stack-allow` eight times, `--bug-stack-sq` six,
+   `--bug-coord-room` five, `--bug-tools-track` three, `--bug-coord-gap`, `--bug-sq` and
+   `--bug-own-sq` twice — once per mode, and the one that applies is the one whose selector and
+   media query match. Sorting the file into groups would reorder those and change which wins.
+   So the declarations stay in the order they were written and the grouping is stated here.
+
+   AND THE FILE HOLDS 27 OF THE 48 NAMES. The rest have no CSS declaration at all: `squareUnit.ts`
+   writes 8 and `toolsPlacement.ts` 7 straight onto the app's style attribute, so looking one of
+   those up in the stylesheet finds nothing. They are listed here with the module that writes them.
+
+   PUBLISHED BY `squareUnit.ts` — written on every resize; in no declaration below.
+
+     --bug-tall-sq-a / -b      each column's square in tall landscape, after the zoom
+     --bug-tall-allow-a / -b   the same at FULL zoom: what the column is ALLOWED, not drawing
+     --bug-sq / --bug-sq-b     the two squares in short landscape, which has no zoom
+     --bug-portrait-sq         the own board's square in portrait: the full width over eight
+     --bug-portrait-partner-sq the partner board's, which is what the tools' track is left of
+     --bug-app-h               the app's height: the viewport less the header, measured
+     --bug-tall-sq             the square before a column is named — the height's answer alone
+
+   PUBLISHED BY `toolsPlacement.ts` — written after it has arranged the parts.
+
+     --bug-preset-btn          the size a preset button is drawn at, between the two below
+     --bug-preset-btn-min/-max its floor (0.55 of a square) and its ceiling (one square)
+     --bug-preset-gap          the pitch between buttons, and `-gap-min` its floor
+     --bug-preset-align        how a short row sits in its track: centred, or spread
+     --bug-preset-row-gap      the space between the two preset rows
+     --bug-boards-h            the taller stack's height, which zone B begins under
+     --bug-app-content-h       what the app may be: the boards plus whatever zone B holds
+     --bug-controls-labels     1 when draw and resign have room for their words, else 0
+     --bug-chat-min-lines      messages the chat is owed before the presets may grow
+     --bug-chat-msg-advance    what one message costs, top of one to the top of the next
+
+   DECLARED BY A PART, FOR THE PLACEMENT CODE TO READ — the only direction that runs the other
+   way. Registered with `@property` so `getComputedStyle` returns pixels rather than the token.
+
+     --bug-part-min-w / -h     what a part needs before it may be dropped into a zone
+
+   COMPUTED HERE, FROM THE ABOVE — arithmetic the stylesheet does for itself.
+
+     --bug-stack-sq            this stack's square, whichever column it is
+     --bug-stack-allow         this stack's square at full zoom: its ceiling
+     --bug-coord-room          10 x (allow - sq): the height a zoomed-down board gave back
+     --bug-coord-overhang      how far the file labels hang below the board
+     --bug-coord-capped        the room, clamped to what the labels can use
+     --bug-coord-floor         12px, under which a gap is not worth having
+     --bug-coord-fits          the floor as arithmetic: 0 below it, 1 at or above
+     --bug-coord-gap           the gap actually taken — capped x fits
+     --bug-coord-lead          the space a label leads with
+     --bug-name-fs / -fs-max   the username's size and its 16.8px ceiling
+     --bug-strip-h             a seat strip's height: one square
+     --bug-tools-track         the width the tools column is given
+     --bug-own-sq              the viewer's own square, for the parts that size against it
+     --bug-chart-inverted      1 when the chart's panel is taller than wide (@property)
+
+   THE ARRANGEMENT'S VOCABULARY — values that are TEMPLATES, not numbers. Only `layout/` reads
+   them, and they may belong there rather than here; left with the other custom properties for
+   now because moving them is a cascade change, not a move.
+
+     --bug-zones-strip / -a4 / -a34 / -a234 / -a3 / -a23 / -below / -zonea
+
+   TWO NAMES FOR ONE QUANTITY — carried forward for the renaming, NOT merged here, because
+   merging is a behaviour change:
+
+     --bug-sq = --bug-stack-sq      both `var(--bug-tall-sq-a)` in tall landscape
+     --bug-sq-b = --bug-stack-sq    both `var(--bug-tall-sq-b)` in the partner's column
+     `--bug-stack-sq` is the per-stack alias of whichever column's square applies, so the pair
+     is not redundancy but indirection — worth keeping only if the indirection is used. It is:
+     `seatNamePlacement.ts` and the coordinate arithmetic read the stack's name without caring
+     which column they are on.
+   ========================================================================================== */
+
 /* Registered, and the registration is load-bearing twice over.
    `getComputedStyle` hands back an unregistered custom property UNRESOLVED — `parseFloat`
    of "clamp(0px, ...)" is NaN — and seatNamePlacement has to read this number to know how

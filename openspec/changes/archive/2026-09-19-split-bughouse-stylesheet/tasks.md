@@ -48,14 +48,32 @@ against the previous run; commit only on an empty diff.
       comment at the top saying that, and nothing else in the file.
 - [x] 2.10 `properties.css` — all 61 `--bug-*` declarations and their `@property` registrations,
       including the app-level ones on `:is(.round-app, .analysis-app).bug`.
-      - [x] 2.10.1 First the inventory: for each property, where it is DECLARED, whether TypeScript
+      - [x] 2.10.1 DONE — and it found that the file holds only 27 of the 48 names: `squareUnit.ts`
+            writes 8 and `toolsPlacement.ts` 7 straight onto the app's style attribute, so a reader
+            looking `--bug-preset-btn` up in the stylesheet would have found nothing at all.
+            ORIGINAL: First the inventory: for each property, where it is DECLARED, whether TypeScript
             sets it (about 32 do — `squareUnit.ts`, `toolsPlacement.ts`, `seatNamePlacement.ts` and
             the chart), whether TypeScript reads it, and which other properties it is computed from.
-      - [x] 2.10.2 Then the file: grouped by that — what `squareUnit` publishes, what `toolsPlacement`
+      - [x] 2.10.2 DONE, AS A MAP AT THE TOP RATHER THAN AS AN ORDERING, and the reason is
+            load-bearing: seven names are declared MORE THAN ONCE — `--bug-stack-allow` eight
+            times, `--bug-stack-sq` six, `--bug-coord-room` five, `--bug-tools-track` three, and
+            `--bug-coord-gap`, `--bug-sq`, `--bug-own-sq` twice — once per mode, the winner decided
+            by which selector and query match. Sorting the file into groups would reorder those and
+            change which wins. So the declarations stay in written order and the grouping is stated
+            above them, in five groups: what `squareUnit` publishes, what `toolsPlacement`
+            publishes, what a part declares for the placement code, what the stylesheet computes,
+            and — exposed by the grouping — the `--bug-zones-*` templates, which are not numbers at
+            all and are read only by `layout/`. Survey after: no row changed.
+            ORIGINAL: Then the file: grouped by that — what `squareUnit` publishes, what `toolsPlacement`
             publishes, what a part declares for the placement code to read, what the stylesheet
             computes from the others — with each property carrying one or two lines saying what it
             is about.
-      - [x] 2.10.3 Anything the inventory shows to be two names for one quantity is RECORDED, not
+      - [x] 2.10.3 DONE. Two pairs resolve to the same value — `--bug-sq` = `--bug-stack-sq` and
+            `--bug-sq-b` = `--bug-stack-sq` — and they are INDIRECTION rather than redundancy:
+            `--bug-stack-sq` is the per-stack alias that lets `seatNamePlacement.ts` and the
+            coordinate arithmetic ask for "this stack's square" without knowing which column they
+            are on. Recorded, not merged.
+            ORIGINAL: Anything the inventory shows to be two names for one quantity is RECORDED, not
             merged. Reduction is a behaviour change and belongs with the renaming.
 - [x] 2.11 `layout/` — what is left, split into `shared`, `landscape`, `tall-landscape`,
       `short-landscape` and `portrait`. Last, because by then it is all that remains and the split
@@ -79,22 +97,36 @@ against the previous run; commit only on an empty diff.
       known to jitter.
 - [x] 4.2 `yarn lint`, `yarn typecheck`, `yarn md`, `yarn test` — unchanged by a CSS move, and run so
       that the claim is checked rather than assumed.
-- [ ] 4.3 The four-window harness on the round page and the analysis page, one look per mode, for
+- [x] 4.3 DONE, AND IT FOUND THE ONE THING EVERYTHING ELSE MISSED — see 6.7. ORIGINAL: The four-window harness on the round page and the analysis page, one look per mode, for
       the things a geometric survey cannot see: colours, borders, hover states, the scrollbars.
-- [ ] 4.4 First paint measured before and after on the harness. Eleven requests instead of one is the
+- [x] 4.4 DONE. Median of three cold loads each, same page, same server, HTTP/1.1 on localhost:
+      before — 14 stylesheets, 652,815 bytes, first paint 103.7ms, DOMContentLoaded 489ms;
+      after — 32 stylesheets, 679,300 bytes, first paint 137.7ms, DOMContentLoaded 545ms.
+      So the split costs ~34ms of first paint and ~55ms to DCL on a cold cache, and 26KB of
+      headers and re-created `@media` wrappers. It lands on a first visit only, on the transport
+      where 18 extra requests are at their most expensive. Recorded rather than acted on; if it
+      ever matters the answer is a build-time concatenation, not one file again.
+      ORIGINAL: First paint measured before and after on the harness. Eleven requests instead of one is the
       trade this change makes, and it should be stated in numbers rather than assumed to be free.
 
 ## 5. What this unlocks, and does not do
 
-- [ ] 5.1 Record in `design.md` which files ended up holding what, against the estimate above — the
+- [x] 5.1 DONE — the final file map is in `design.md`'s "What it came to". ORIGINAL: Record in `design.md` which files ended up holding what, against the estimate above — the
       difference is the map of where the concerns actually are, which is what the renaming change
       will work from.
-- [ ] 5.2 The renaming of areas, classes and ids is NOT part of this change. Once the split is in,
+- [~] 5.2 NOT THIS CHANGE, by design — a forward pointer, not a task. The renaming of areas, classes and ids is NOT part of this change. Once the split is in,
       each rename is one file, one survey run, one commit.
-- [ ] 5.3 Carry 2.10.3's list forward: the properties that look like two names for one quantity, with
+- [x] 5.3 DONE — the two pairs are in `properties.css`'s map, with what the indirection buys, so
+      the renaming starts from them. ORIGINAL: Carry 2.10.3's list forward: the properties that look like two names for one quantity, with
       the values that make them look that way. That list is the reduction's starting point, and it
       is worth nothing until the renaming gives the survivors names that say what they are.
-- [ ] 5.4 **The two pages state the same arrangement twice — 509 lines**, 230 round-only and 279
+- [x] 5.4 **The two pages state the same arrangement twice — DONE, 2026-09-19.** Of the 569
+      page-scoped lines in `layout/landscape.css`, eight selector pairs differed only in the app
+      class and their declarations matched to the character — 189 lines. Merged to
+      `:is(.round-app, .analysis-app)`, which costs no specificity, and the survey confirmed no
+      row changed. The file went 727 to 662 lines. What remains page-scoped is rules for parts one
+      page has and the other does not, which are right to say which page they are for.
+      ORIGINAL NOTE: **the two pages state the same arrangement twice — 509 lines**, 230 round-only and 279
       analysis-only, each spelling out its own `tools-*` and `drop-*` rules over the same zone names.
       Once `layout/<mode>.css` puts the two copies side by side, that is the next thing to read: it
       is the same shape the seat-name rule had before 2026-09-19, one question answered twice, one
@@ -125,7 +157,7 @@ against the previous run; commit only on an empty diff.
       they were written for by looking up what followed them in the original; 13 section banners were
       placed by hand; 3 dividers whose whole content was "the rules below came from analysis.css"
       were dropped, because the folder says that now.
-- [ ] 6.5 **`layout/landscape.css` is 725 lines**, the only file over the target — and it is the 509
+- [x] 6.5 **`layout/landscape.css` was 725 lines, now 662** — see 5.4. ORIGINAL NOTE: it was, the only file over the target — and it is the 509
       lines of two pages stating the same arrangement twice (task 5.4). The split is what makes that
       readable; reducing it is the next change.
 - [x] 6.6 **THE NINETEEN FILES LOAD ON EVERY PAGE, AND THAT IS THE ANSWER — retired, 2026-09-19.**

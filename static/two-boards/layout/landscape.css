@@ -459,8 +459,19 @@
     /* THE APP IS AS TALL AS ITS CONTENT, in both landscape modes. `toolsPlacement` publishes the
        taller stack plus whatever zone B holds, capped at the budget; without it the app grows to
        whatever its rows want and the page scrolls, which neither mode may do. Measured in short
-       landscape before this was shared: rows totalling 739 in a 503px viewport. */
-    :is(.round-app, .analysis-app).bug,
+       landscape before this was shared: rows totalling 739 in a 503px viewport.
+
+       THE `body` PREFIX IS HOW THIS RULE KEEPS WINNING, and the split is why it needs one. It ties
+       at (0,2,0) with short landscape's own `.analysis-app.bug { height: 100% }`, whose comment
+       says in as many words that it wins by being "later in the file than the shared landscape
+       block". That was true of one file. Split, this block is `layout/landscape.css` and that one
+       is `layout/short-landscape.css`, which loads AFTER it — so the tie reversed and the analysis
+       app took `100%` of the budget instead of its content's height: measured 390px of stack
+       against 393 at 393x852 and 411 against 412 at 412x915, on `C4` in short landscape. The
+       prefix makes it (0,2,1) and the outcome no longer depends on which file loads first.
+       Found by comparing SCREENSHOTS between the runs — no check changed, because a 3px stack is
+       not a finding; the pixels are. */
+    body[data-variant='bughouse'] :is(.round-app, .analysis-app).bug,
     body[data-variant='bughouse'] main.round.bug {
         height: var(--bug-app-content-h, 100%);
     }

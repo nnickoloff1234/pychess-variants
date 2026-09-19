@@ -608,6 +608,31 @@ ctx => {
         );
     }
 
+    /* A RESOURCE THE PAGE ASKED FOR AND DID NOT GET.
+       ------------------------------------------------------------------------------------
+       Added 2026-09-19, after the stylesheet split silently broke every preset icon. A `url()`
+       in CSS resolves against the STYLESHEET, not the page: `url('images/bugroundchat/P.svg')`
+       meant `/static/images/...` from `/static/bughouse.css` and `/static/two-boards/components/
+       images/...` from the file it moved to. 37 icons, all 404, and NOTHING here noticed —
+       a missing background image paints nothing, moves nothing, and overlaps nothing. It was
+       found by eye on the live harness, which is exactly what a survey is meant to make
+       unnecessary.
+
+       `responseStatus` on a resource entry is the whole check. It covers every asset the page
+       fetched — images, fonts, stylesheets, the wasm — so the next thing that quietly fails to
+       load is a failing row rather than a picture nobody drew. */
+    const failedResources = performance
+        .getEntriesByType('resource')
+        .filter(r => r.responseStatus >= 400)
+        .map(r => `${r.name.split('/').slice(-2).join('/')} ${r.responseStatus}`);
+    if (failedResources.length) {
+        const unique = [...new Set(failedResources)];
+        failures.push(
+            `${unique.length} resource(s) the page asked for failed: ${unique.slice(0, 4).join(', ')}` +
+            (unique.length > 4 ? `, and ${unique.length - 4} more` : ''),
+        );
+    }
+
     /* PORTRAIT: THE BAND BETWEEN THE BOARDS, AND WHAT SHOULD BE IN IT.
        ------------------------------------------------------------------------------------
        Nikolay, 2026-09-19, and it is the largest group of unaccepted rows in the survey. Portrait

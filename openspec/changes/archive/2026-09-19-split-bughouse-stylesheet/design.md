@@ -219,3 +219,29 @@ done in eleven, each step is a diff a person can read and a survey run can confi
   `layout/<mode>.css` is what will put the two copies side by side where the difference can be read.
   Recorded here as the thing to look at once the split is done.
 - Whether `seats.css` should be split further into strips, clocks and pockets, at ~550 lines.
+
+## What it came to — 2026-09-19
+
+The estimate is in the table at the top; this is what the files actually hold. `bughouse.css` is
+deleted.
+
+| file | lines | | file | lines |
+| --- | --- | --- | --- | --- |
+| `layout/landscape.css` | 662 | | `components/seats/usernames.css` | 329 |
+| `components/presets.css` | 545 | | `layout/portrait.css` | 311 |
+| `components/tabs.css` | 498 | | `layout/tall-landscape.css` | 286 |
+| `components/stacks.css` | 496 | | `components/engine.css` | 205 |
+| `layout/shared.css` | 490 | | `components/seats/strips.css` | 198 |
+| `properties.css` | 455 | | `components/seats/clocks.css` | 193 |
+| `page-shell.css` | 330 | | `components/movelist.css` | 188 |
+| | | | `layout/short-landscape.css` | 181 |
+| | | | `components/seats/pockets.css` | 123 |
+| | | | `components/chat.css` | 100 |
+| | | | `bughouse-lobby.css` | 51 |
+| | | | `components/movetime-chart.css` | 39 |
+
+WHERE THE ESTIMATE WAS WRONG, and why it is worth recording: the component estimates were made
+with a parser that took the line containing `{` as the selector, so every multi-line selector list
+was under-counted. `tabs.css` came out 409 lines against an estimated 182, `presets.css` 475
+against 452, `seats/` 693 against 620. The three biggest files are the ones whose rules the
+stylesheet states twice — once per page — which is the finding in 5.4 and now partly fixed.

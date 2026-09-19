@@ -365,6 +365,14 @@
    every layout alike: messages, input, presets underneath. A layout that wants
    them somewhere else should mount them somewhere else rather than reorder them
    in place — reordering in place is exactly what made portrait disagree. */
+/* THE ICON URLS ARE ROOT-RELATIVE BECAUSE THIS FILE MOVED, and a `url()` is resolved against
+   the STYLESHEET, not the page. `url('images/bugroundchat/P.svg')` meant `/static/images/...`
+   while these rules lived in `/static/bughouse.css`; from
+   `/static/two-boards/components/presets.css` the same text means
+   `/static/two-boards/components/images/...`, which is a 404, and every preset button lost its
+   picture — 28 of them, silently, because a missing background image draws nothing and breaks no
+   layout. Found on the live harness, not by the survey. Written from the root so that the next
+   move of this file cannot repeat it. */
 .chatpresets button.bugchat {
   /* fills its track, because the track is the button's size — but never taller than the row it
      is in: `aspect-ratio` alone makes height follow width, so a button in a short box grows past
@@ -403,115 +411,115 @@ button.bugchat::-moz-focus-inner {
   border: 0;
 }
 .bugchat.p {
-  background-image: url('images/bugroundchat/P.svg');
+  background-image: url('/static/images/bugroundchat/P.svg');
   background-size: cover;
 }
 .bugchat.n{
-  background-image: url('images/bugroundchat/N.svg');
+  background-image: url('/static/images/bugroundchat/N.svg');
   background-size: cover;
 }
 .bugchat.b{
-  background-image: url('images/bugroundchat/B.svg');
+  background-image: url('/static/images/bugroundchat/B.svg');
   background-size: cover;
 }
 .bugchat.r{
-  background-image: url('images/bugroundchat/R.svg');
+  background-image: url('/static/images/bugroundchat/R.svg');
   background-size: cover;
 }
 .bugchat.q{
-  background-image: url('images/bugroundchat/Q.svg');
+  background-image: url('/static/images/bugroundchat/Q.svg');
   background-size: cover;
 }
 .bugchat.a {
-  background-image: url('images/bugroundchat/Q.svg');
+  background-image: url('/static/images/bugroundchat/Q.svg');
   background-size: cover;
 }
 .bugchat.c {
-  background-image: url('images/bugroundchat/C.svg');
+  background-image: url('/static/images/bugroundchat/C.svg');
   background-size: cover;
 }
 .bugchat.m {
-  background-image: url('images/bugroundchat/M.svg');
+  background-image: url('/static/images/bugroundchat/M.svg');
   background-size: cover;
 }
 .bugchat.s {
-  background-image: url('images/bugroundchat/S.svg');
+  background-image: url('/static/images/bugroundchat/S.svg');
   background-size: cover;
 }
 .bugchat.nop{
-  background-image: url('images/bugroundchat/DONT.svg'), url('images/bugroundchat/P.svg');
+  background-image: url('/static/images/bugroundchat/DONT.svg'), url('/static/images/bugroundchat/P.svg');
   background-size: cover;
 }
 .bugchat.non{
-  background-image: url('images/bugroundchat/DONT.svg'), url('images/bugroundchat/N.svg');
+  background-image: url('/static/images/bugroundchat/DONT.svg'), url('/static/images/bugroundchat/N.svg');
   background-size: cover;
 }
 .bugchat.nob{
-  background-image: url('images/bugroundchat/DONT.svg'), url('images/bugroundchat/B.svg');
+  background-image: url('/static/images/bugroundchat/DONT.svg'), url('/static/images/bugroundchat/B.svg');
   background-size: cover;
 }
 .bugchat.nor{
-  background-image: url('images/bugroundchat/DONT.svg'), url('images/bugroundchat/R.svg');
+  background-image: url('/static/images/bugroundchat/DONT.svg'), url('/static/images/bugroundchat/R.svg');
   background-size: cover;
 }
 .bugchat.noq{
-  background-image: url('images/bugroundchat/DONT.svg'), url('images/bugroundchat/Q.svg');
+  background-image: url('/static/images/bugroundchat/DONT.svg'), url('/static/images/bugroundchat/Q.svg');
   background-size: cover;
 }
 .bugchat.noa{
-  background-image: url('images/bugroundchat/DONT.svg'), url('images/bugroundchat/Q.svg');
+  background-image: url('/static/images/bugroundchat/DONT.svg'), url('/static/images/bugroundchat/Q.svg');
   background-size: cover;
 }
 .bugchat.noc{
-  background-image: url('images/bugroundchat/DONT.svg'), url('images/bugroundchat/C.svg');
+  background-image: url('/static/images/bugroundchat/DONT.svg'), url('/static/images/bugroundchat/C.svg');
   background-size: cover;
 }
 .bugchat.nom{
-  background-image: url('images/bugroundchat/DONT.svg'), url('images/bugroundchat/M.svg');
+  background-image: url('/static/images/bugroundchat/DONT.svg'), url('/static/images/bugroundchat/M.svg');
   background-size: cover;
 }
 .bugchat.nos{
-  background-image: url('images/bugroundchat/DONT.svg'), url('images/bugroundchat/S.svg');
+  background-image: url('/static/images/bugroundchat/DONT.svg'), url('/static/images/bugroundchat/S.svg');
   background-size: cover;
 }
 .bugchat.sit{
-  background-image: url('images/bugroundchat/SIT.svg');
+  background-image: url('/static/images/bugroundchat/SIT.svg');
   background-size: cover;
 }
 .bugchat.go{
-  background-image: url('images/bugroundchat/GO.svg');
+  background-image: url('/static/images/bugroundchat/GO.svg');
   background-size: cover;
 }
 .bugchat.trade{
-  background-image: url('images/bugroundchat/TRADE.svg');
+  background-image: url('/static/images/bugroundchat/TRADE.svg');
   background-size: cover;
 }
 .bugchat.notrade{
-  background-image: url('images/bugroundchat/NOTRADE.svg');
+  background-image: url('/static/images/bugroundchat/NOTRADE.svg');
   background-size: cover;
 }
 .bugchat.mate{
-  background-image: url('images/bugroundchat/MATE.svg');
+  background-image: url('/static/images/bugroundchat/MATE.svg');
   background-size: cover;
 }
 .bugchat.ok{
-  background-image: url('images/bugroundchat/OK.svg');
+  background-image: url('/static/images/bugroundchat/OK.svg');
   background-size: cover;
 }
 .bugchat.no{
-  background-image: url('images/bugroundchat/NO.svg');
+  background-image: url('/static/images/bugroundchat/NO.svg');
   background-size: cover;
 }
 .bugchat.mb{
-  background-image: url('images/bugroundchat/MB.svg');
+  background-image: url('/static/images/bugroundchat/MB.svg');
   background-size: cover;
 }
 .bugchat.nvm{
-  background-image: url('images/bugroundchat/NVM.svg');
+  background-image: url('/static/images/bugroundchat/NVM.svg');
   background-size: cover;
 }
 .bugchat.nice{
-  background-image: url('images/bugroundchat/NICE.svg');
+  background-image: url('/static/images/bugroundchat/NICE.svg');
   background-size: cover;
 }
 bugchat img{
