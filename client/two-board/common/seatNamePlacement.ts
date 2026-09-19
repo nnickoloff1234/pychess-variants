@@ -26,7 +26,16 @@
  * changed. Measuring asks the page what it actually is.
  */
 
-const APP = '.round-app.bug';
+/* BOTH PAGES, ONE RULE. The analysis page answered this question a second time, in CSS —
+   `--bug-name-outside`, arithmetic on the same room with the line's cost charged at the
+   font's CAP rather than measured. Two implementations of one question about a STACK, which
+   is a component both pages build the same way, and they disagreed: measured across the 264
+   rows of the layout survey, 33 partner stacks on the round page were granted a line the
+   arithmetic refused — 37 to 49px of room against a charge of 53.8 where the line really
+   costs 31.9 to 40.6. Nowhere did the arithmetic grant one this does not. So the CSS decision
+   is gone and this module is where the question is asked; each page still says for ITSELF what
+   "outside" looks like, which is the part that legitimately differs. */
+const APP = '.round-app.bug, .analysis-app.bug';
 
 /** A stack is a strip, eight board rows and a strip — the same ten `squareUnit.ts` divides by. */
 const ROWS_PER_STACK = 10;
@@ -48,7 +57,8 @@ const SEATS = [
 ] as const;
 
 /**
- * What a seat's own line actually costs in height.
+ * What a seat's own line actually costs in height — ALWAYS MEASURED, by putting the seat
+ * in that state and reading it.
  *
  * NOT the name's `line-height`. That was the first attempt and it oscillates: the name
  * box carries a presence dot and a rating beside the text, so the strip grows by
@@ -57,20 +67,29 @@ const SEATS = [
  * pair. The layout then predicted cheap, granted the line, overflowed, took it back,
  * predicted cheap again, and flipped forever at roughly 12Hz.
  *
- * So: measure it where it can be measured, and over-estimate where it cannot. A seat
- * that already has its line reports what the line is really costing — the strip's
- * height above one square. A seat that does not is charged twice its font size, which
- * is above the ~1.6 ratio observed, because the failure mode of under-charging is an
- * infinite loop and the failure mode of over-charging is one seat that keeps its name
- * inline when it might just have fitted.
+ * NOR THE FONT, WHICH WAS THE SECOND ATTEMPT AND IS WHY THIS NOW TRIES IT. A seat without
+ * the line was charged twice its rendered font size, which is an over-estimate on the round
+ * page — the name is at its 16.8px cap there, so 33.6 against a real 20.3 — and a wild
+ * under-estimate on the analysis page, where the name's size comes from a container query
+ * and falls with the strip: measured at 768x1024 with both boards at minimum zoom, a name
+ * rendering at about 5px charged some 20px for a line that costs 45.2. Ported as it was,
+ * that seat would have been granted a line it cannot afford, measured the real cost on the
+ * next pass, taken it back, and flipped — the 12Hz failure again, by a different route.
+ *
+ * TRYING IT IS CHEAPER THAN PREDICTING IT. The class is toggled on, the strip is read, and
+ * the class is put back; the caller then decides against a real number. It costs one forced
+ * layout per seat that does not already have its line, and it cannot be wrong about a cost
+ * that depends on the arrangement it is asking about — which the name's size does, since
+ * the wider row a line gives it is what makes it larger.
  */
-function lineCost(seat: HTMLElement, squareHeight: number): number {
-    const measured = seat.getBoundingClientRect().height - squareHeight;
-    if (measured > 1) return measured;
+function lineCost(app: HTMLElement, seat: HTMLElement, className: string, squareHeight: number): number {
+    const read = () => seat.getBoundingClientRect().height - squareHeight;
+    if (app.classList.contains(className)) return Math.max(0, read());
 
-    const name = seat.querySelector<HTMLElement>('round-player0, round-player1');
-    if (!name) return 0;
-    return parseFloat(getComputedStyle(name).fontSize) * 2;
+    app.classList.add(className);
+    const cost = read();
+    app.classList.remove(className);
+    return Math.max(0, cost);
 }
 
 /** A seat's square, taken from the board it belongs to rather than from a calc() string. */
@@ -185,7 +204,7 @@ function place(app: HTMLElement): void {
         // because the line was granted, so the two states disagreed about the same
         // question and each kept overturning the other.
         const square = squareOf(app, board);
-        const cost = 2 * lineCost(element, square);
+        const cost = 2 * lineCost(app, element, className, square);
         const base = stackHeight(app, element, board) - (app.classList.contains(className) ? cost : 0);
 
         app.classList.toggle(className, base + cost <= spaceFor(app, element) - coordGap(element));

@@ -8,6 +8,7 @@ FAILING ROWS COME FIRST. A survey nobody can triage is a survey nobody reads.
 
 import html
 import json
+import re
 from pathlib import Path
 
 from .viewports import CASES
@@ -68,7 +69,21 @@ def _facts_table(facts: dict) -> str:
     return "<table class='facts'>" + "".join(rows) + "</table>"
 
 
-def _row_html(r, was_failing=frozenset()) -> str:
+def _shorten(sentence: str, limit: int = 96) -> str:
+    """A check's sentence, cut where it stops naming the check and starts giving evidence.
+
+    The full text is on the entry's `title`, so nothing is lost — this is the line a reviewer scans
+    to find the check they mean.
+    """
+    for cut in (" — ", " (box ", " (N", ": own", " while "):
+        head, sep, _ = sentence.partition(cut)
+        if sep and len(head) >= 20:
+            sentence = head
+            break
+    return sentence if len(sentence) <= limit else sentence[: limit - 1] + "…"
+
+
+def _row_html(r, was_failing=frozenset(), kinds_of=None) -> str:
     facts = r.facts or {}
     failures = facts.get("failures", []) if facts.get("ok") else []
     if r.error:
@@ -106,8 +121,11 @@ def _row_html(r, was_failing=frozenset()) -> str:
                 else "NOT the zoom asked for"
             )
             zoom += f" <span class='floored'>drawn {drawn[0]}/{drawn[1]} — {note}</span>"
+    # THE KINDS THIS ROW CARRIES, so the header's list can show and hide by check rather than by
+    # row. A row with three findings is in three of the lists and appears whenever any is on.
+    kinds = " ".join(sorted((kinds_of or {}).get(r.key, ())))
     return f"""
-<section class="row {status}{was}" id="{html.escape(r.key)}">
+<section class="row {status}{was}" id="{html.escape(r.key)}" data-kinds="{kinds}">
   <h3>{html.escape(r.viewport.key)} · {html.escape(r.case.key)} · zoom {zoom}</h3>
   <p class="sub">{html.escape(r.viewport.stands_for)} — {html.escape(r.viewport.label)},
      aspect {r.viewport.aspect:.3f} · {html.escape(r.case.describes)}</p>
@@ -133,6 +151,17 @@ h3 { margin: 0 0 2px; font-size: 15px; }
 .sub { margin: 0 0 10px; opacity: .7; }
 .row { border: 1px solid var(--line); border-left-width: 4px; border-radius: 6px; padding: 12px 14px; margin: 14px 0; }
 .row.bad { border-left-color: var(--bad); }
+.kinds { list-style:none; margin:8px 0 0; padding:0; display:flex; flex-direction:column; gap:4px; }
+.kinds .kind { display:flex; gap:8px; align-items:baseline; width:100%; text-align:left;
+  background:none; border:1px solid transparent; border-radius:5px; padding:3px 7px;
+  color:inherit; font:inherit; cursor:pointer; }
+.kinds .kind:hover { border-color:var(--line); }
+.kinds .kind[aria-pressed="true"] { border-color:var(--line); }
+.kinds .kind[aria-pressed="false"] { opacity:.45; }
+.kinds .kind[aria-pressed="false"] .what { text-decoration: line-through; }
+.kinds .kind[aria-pressed="false"] .count { color:inherit; font-weight:400; }
+.kinds .count { min-width:2.5em; text-align:right; font-variant-numeric:tabular-nums; color:var(--bad); font-weight:700; }
+.kinds-clear { margin-left:8px; font:inherit; }
 .row.good { border-left-color: var(--ok); }
 .body { display: flex; gap: 16px; flex-wrap: wrap; }
 /* A GREY MAT, because the screenshots are of a dark app on a dark page: against either background
@@ -314,13 +343,54 @@ SCRIPT = """
   buttons.forEach(b => b.addEventListener('click', () => apply(b.dataset.mode)));
 
   /* FINDING ONE FINDING. A check that fires on 58 rows is unreviewable if the only way to reach
-     them is to scroll past the other 206, so the text of a row's failures is searchable. */
+     them is to scroll past the other 206, so the text of a row's failures is searchable — and the
+     header's list of CHECKS is the same thing without the typing: each entry switches its own
+     check's rows on, several can be on at once, and with none on every row is eligible. */
+  /* EVERY CHECK IS ON UNTIL IT IS SWITCHED OFF, which is the way round a reviewer reads the
+     list: "I do not want to look at that one today". The first version worked the other way —
+     a click PICKED a check and the view narrowed to it — and the two read identically until you
+     click several, when picking the ones you do not want shows exactly the rows you meant to
+     drop. Measured on this report: a portrait row also carries the stack-slack and preset-gap
+     checks, so switching those two "off" under the picking rule brought that row back.
+
+     A ROW SURVIVES WHILE ANY OF ITS CHECKS IS STILL ON. A row with three findings is not hidden
+     by silencing one of them — it still has something to say — and it leaves the list only when
+     every check it carries has been switched off.
+
+     AND WITH ANY CHECK OFF, THE CLEAN ROWS GO TOO. The list is a question about findings, so
+     while it is being used the rows that have none are not part of the answer; they come back the
+     moment every check is on again. */
+  const kindButtons = [...document.querySelectorAll('.kinds .kind')];
+  const kindsClear = document.querySelector('.kinds-clear');
+  const off = new Set();
   const find = document.querySelector('.filter .find');
   const matches = el => {
+    if (off.size) {
+      const mine = (el.dataset.kinds || '').split(' ').filter(Boolean);
+      if (!mine.length) return false;
+      if (!mine.some(k => !off.has(k))) return false;
+    }
     const needle = find.value.trim().toLowerCase();
     if (!needle) return true;
     return (el.querySelector('.failures')?.textContent || '').toLowerCase().includes(needle);
   };
+  for (const b of kindButtons) {
+    b.addEventListener('click', () => {
+      const k = b.dataset.kind;
+      if (off.has(k)) off.delete(k); else off.add(k);
+      b.setAttribute('aria-pressed', String(!off.has(k)));
+      kindsClear.hidden = off.size === 0;
+      /* "Clean" and a check filter cannot both be true of one row, so the first switch moves the
+         view to the set the remaining checks live in. */
+      apply(off.size && currentMode === 'good' ? 'bad' : currentMode);
+    });
+  }
+  kindsClear.addEventListener('click', () => {
+    off.clear();
+    for (const b of kindButtons) b.setAttribute('aria-pressed', 'true');
+    kindsClear.hidden = true;
+    apply(currentMode);
+  });
   find.addEventListener('input', () => { apply(currentMode); });
   withAccepted.addEventListener('change', () => apply(currentMode));
   addEventListener('hashchange', () => {
@@ -402,11 +472,42 @@ def write(rows, out_dir: Path, meta: dict, notes_file: Path | None = None) -> Pa
                 was_failing.add(raw["key"])
 
     failing = [r for r in rows if r.error or (r.facts.get("failures") if r.facts else None)]
+    # ---- ONE ENTRY PER CHECK, NOT PER ROW -------------------------------------------------
+    # The list used to be every failing row with a link to it, which is the table of contents of a
+    # page you are already scrolling: it grew with the rows and said nothing about what is wrong.
+    # Grouped by CHECK it says what the run found and how much of it there is — and each entry is a
+    # switch, so a reviewer can put two checks on screen together and leave the other twelve out.
+    #
+    # THE KEY IS THE SENTENCE WITH ITS NUMBERS TAKEN OUT. A check writes one sentence and fills in
+    # the measurements, so `28px` -> `Npx` turns every instance of a check into the same string
+    # without the checks having to carry ids. Two sentences that differ in wording — "still 5+5+5+5"
+    # against "unplaced" — do group apart, which is a fair reflection of them being different cases.
+    kind_rows: dict[str, set[str]] = {}
+    kind_hits: dict[str, int] = {}
+    # GROUPED BY THE LINE A REVIEWER READS, not by the sentence behind it. Two instances of one
+    # check can still differ after the part that names it — "the buttons are still 5+5+5+5" against
+    # "unplaced" — and grouping by the full sentence then put the same check in the list twice,
+    # under two entries a reviewer cannot tell apart. The shortened label is the identity.
+    for r in failing:
+        sentences = list((r.facts.get("failures") or []) if r.facts else [])
+        if r.error:
+            sentences.append(r.error)
+        for f in sentences:
+            key = _shorten(re.sub(r"[\d.]+", "N", f))
+            kind_rows.setdefault(key, set()).add(r.key)
+            kind_hits[key] = kind_hits.get(key, 0) + 1
+    ordered = sorted(kind_rows, key=lambda k: (-len(kind_rows[k]), k))
+    kind_id = {key: f"k{i}" for i, key in enumerate(ordered)}
+    kinds_of: dict[str, set[str]] = {}
+    for key, keys in kind_rows.items():
+        for row_key in keys:
+            kinds_of.setdefault(row_key, set()).add(kind_id[key])
     index = "".join(
-        f'<li><a href="#{html.escape(r.key)}">{html.escape(r.key)}</a> — '
-        + html.escape("; ".join((r.facts.get("failures") or [])[:2]) or (r.error or ""))
-        + "</li>"
-        for r in failing
+        f'<li><button type="button" class="kind" data-kind="{kind_id[key]}" aria-pressed="true">'
+        f'<span class="count">{len(kind_rows[key])}</span> '
+        f'<span class="what">{html.escape(key)}</span>'
+        f"</button></li>"
+        for key in ordered
     )
 
     sections = []
@@ -417,7 +518,7 @@ def write(rows, out_dir: Path, meta: dict, notes_file: Path | None = None) -> Pa
         in_case.sort(key=lambda r: (r.viewport.key, r.zoom))
         sections.append(
             f"<h2>{html.escape(case.key)} — {html.escape(case.describes)}</h2>"
-            + "".join(_row_html(r, was_failing) for r in in_case)
+            + "".join(_row_html(r, was_failing, kinds_of) for r in in_case)
         )
 
     doc = f"""<!doctype html>
@@ -447,8 +548,10 @@ def write(rows, out_dir: Path, meta: dict, notes_file: Path | None = None) -> Pa
     <span class="note noted-count"></span>
   </div>
   <div class="summary">
-    <strong>{len(failing)} rows failed a check.</strong>
-    <ul>{index or '<li class="ok">none</li>'}</ul>
+    <strong>{len(failing)} rows failed a check</strong>
+    <span class="note">— every check is ON; click one to switch it off and drop its rows</span>
+    <button type="button" class="kinds-clear" hidden>switch every check back on</button>
+    <ul class="kinds">{index or '<li class="ok">none</li>'}</ul>
   </div>
 </header>
 <main>{"".join(sections)}</main>

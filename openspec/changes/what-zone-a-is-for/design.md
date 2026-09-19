@@ -685,6 +685,170 @@ BUGHOUSE3", FEN & PGN shows "BFEN / Download PGN", Move times shows the chart, C
 `#roundchat`, and Moves shows all three fragments. On the round page the strip now reads
 **Partner board, Chat, Moves, Info**.
 
+### 12. The band spread its parts with the own stack's leftover — FIXED
+
+The `below` home gave zone A two rows of `min-content`, which reads as "each part is its own height".
+It is not what happens. The own stack SPANS the board row and both band rows, and a spanning item's
+leftover is distributed EQUALLY to every spanned row whose max track sizing function is intrinsic —
+`min-content` among them. Measured on the analysis page at 768x1024: an own stack of 590 over rows of
+295 + 40 + 75, and each of the three rows was handed 60px. On screen that is the engine box and the
+button row 60px apart with another 60 below them, and on the round page, where only the end-of-game
+block drops, an EMPTY band row 55px tall.
+
+Fixed with `minmax(min-content, 0)` on the pair. The `0` is the whole of it: a DEFINITE max takes a
+row out of that distribution, while `min-content` still floors it at its part's own height, and a row
+with nothing in it collapses to zero. The leftover then has one intrinsic row left to go to — the
+board row above — so it collects under the partner board, which is where zone A's rule wants it.
+
+Both engines agree. Measured in Chromium and in Firefox at three own-stack heights (590, 615, 420),
+including one short enough that the band could have stolen from the move list: it does not, because
+the rows are content-sized rather than flexible, and the move list's `1fr` row keeps exactly the
+height it has today. The alternative tried first — making the board row `minmax(min-content, 1fr)` —
+is the one that fails that case, since two flexible rows split the leftover and the band grows past
+the bottom of the own stack.
+
+The `align-self: start` the two parts carried here went with the row sizing that made it necessary.
+It existed because the rows were inflated and the parts stretched into them; the rows are now each
+their part's height, so there is nothing to stretch into and nothing to pack against.
+
+### 13. The engine box belongs above the button row — Nikolay's rule, 2026-09-19
+
+Zone A's parts drop in a fixed order — tab strip, engine box, controls — and each new one takes the
+next row UP, so the last to drop ends on top. For this pair that is backwards: the engine box reads
+as the subject and the buttons as its controls, so the box goes above them wherever both are in the
+band, whether the move list is beside them in the tools column or below them in zone B.
+
+It is stated per home rather than derived, because the drop order is what would derive it: engine
+`zoneA2` and controls `zoneA3` in `below`, the same pair in `beside` once both have dropped, and
+engine `zoneA3` / controls `zoneA4` in `zonea`, under the move list. The engine box on its own keeps
+`zoneA3` in `beside`, the only band row its template declares — and being alone, it is at the bottom
+of the band regardless, since the other row collapses.
+
+The general rule this sits inside is the band's, not the pair's: **whatever zone A holds stacks at
+the bottom of the band, glued, with the slack above it** — one part or several. The homes beside the
+boards already did that, their first row being `minmax(0, 1fr)`; finding 12 is how the home below
+was brought into line.
+
+### 14. The survey called the band a defect, in 40 rows
+
+`area stack is Npx tall and its occupants use Npx` fired on the partner stack's own area. But zone A
+IS the height the partner board leaves in its column, so that area is underfilled by exactly the
+band, always and by construction — the check was reporting the layout for being itself, and finding
+12 would have added 48 more of them by moving the slack to where the rule wants it. It is a WARNING
+there now, and only while the partner stack is alone in that area: the last resort puts the tools in
+it too, and height going unused under a panel is an ordinary finding. What a reviewer wants of the
+band — how much of it there is, and whether anything is in it — the zone A areas already say.
+
+### 15. The chat carried a minimum nobody wrote — FIXED
+
+`DIV in zoneTools1 paints 11px outside itself (box 190x188, painted 201x188)`, and the same 201 in
+fifteen rows whatever the track was. The `DIV` is the tab panel; the thing painting outside it is the
+chat.
+
+The chat is a flex item, so its `min-width` is `auto` — the automatic minimum, which resolves to the
+CONTENT's min-content width. Its content includes a text input, and an `<input>` with no `size`
+attribute has an intrinsic width of twenty characters. Cloned at `width: max-content` it measures
+201px at this font, on every viewport. The tools track is routinely narrower: 190px at 844x390, 141px
+at 1024x768, 61px at 667x375. So the chat was wider than the panel holding it, and the panel's
+`overflow: hidden` cut the right edge off the input. At 667x375 the input's centre was off the
+viewport altogether — the hit test had been saying so in its own words, `chat input is covered by
+nothing (outside the viewport)`, and it could not be clicked.
+
+Isolated on the live page before anything was changed, four variants measured in one pass:
+
+| variant | chat width | content outside |
+| --- | --- | --- |
+| baseline | 201 | 11.1px |
+| `min-width: 0` on the INPUT | 201 | 11.1px |
+| the input hidden (control) | 189.9 | 0 |
+| `min-width: 0` on the CHAT | 189.9 | 0 |
+
+The third line names the culprit and the second says where the fix cannot go: an item's own minimum
+is not what its parent's automatic minimum is computed from. `width: 100%` on the input works too,
+and is the same fix stated further from the cause.
+
+So `min-width: 0` on `.bugroundchat`, beside the `min-height: 0` that was already there refusing
+`site.css`'s `.chat { min-height: 15em }`. The two are one rule on two axes: **the track is the
+authority on how wide the chat is, and the row on how tall it is** — what the chat NEEDS is said
+where every other part says it, as `--bug-part-min-w`, which advises the placement code and never
+binds the box. 15 rows went clean and none were newly failing.
+
+What is left of that finding is not this: `P5-landscape` gives the tools a 61px column, and the
+button rows in it are icons with a real minimum — 103px of movelist controls, a 129px engine box, a
+75px end-of-game block. No rule about minimums helps there; the column is too narrow, which is the
+partner board's cap and a change of its own.
+
+### 16. The two stacks, compared — a class the survey could not see
+
+The checks were all about an area, a part, or a pair of surfaces. A stack that is 45px taller than
+its twin while holding the same board breaks none of them, so `T1-C4-minxmin` read as clean while
+the two seats were plainly different on screen. Measured, both boards 188x188:
+
+| | own | partner |
+| --- | --- | --- |
+| stack | 296.2 | 251.0 |
+| seat strips | 46.1 each | 23.5 each |
+| username | its own line, 188px wide | inline, 70.5px beside the pocket |
+
+The check asks only where the boards MATCH — different sizes are meant to carry different furniture,
+since the strips scale with the square and a board too small to afford the extra line is the rule
+working. It reads the name's state from its drawn width, not from a class: `own-name-outside` is set
+by `seatNamePlacement.ts`, which runs on the round page only, while the stylesheet decides the same
+thing again per stack through `--bug-name-outside`. Measuring the result asks neither mechanism to
+be right about the other. Four rows fire, all `C4` at minimum zoom on a tablet, and the round page
+never disagrees with itself in any equal-board row.
+
+THE CAUSE. `--bug-coord-room` is `10 * (--bug-stack-allow - --bug-stack-sq)` — the spare height a
+stack has inside ITS OWN allowance. The partner board is width-capped at half the own board's
+allowance, 29.5px per square against 59, so at minimum zoom the two are drawn identically while
+standing at quite different fractions of their own ceilings: the own board at 40% with 355px of
+room, the partner at 80% with 60px, just short of the ~64px its two name lines would cost.
+
+So the rule spends the BOARD's spare height and the eye is looking at the COLUMN's — and on that
+row the column has 85px going unused, which the survey already reports as a warning. Whether a stack
+may spend its column is not a detail: it was refused once, with a measurement, because at full zoom
+the partner sits in a column taller than it may use; and the same height is what zone A offers the
+tools. That decision is Nikolay's, and it is the same seam as the partner board's cap.
+
+### 17. One rule for the seat name, asked once for both pages
+
+Two implementations of one question about a stack, and a stack is a component both pages build the
+same way. The round page measured, in `seatNamePlacement.ts`; the analysis page did arithmetic, in
+`--bug-name-outside`, because that block's comment claimed a standing "no observers" rule for the
+page — a rule nobody had set, and one that should not exist for a page rather than for a component.
+
+BEFORE CHOOSING, BOTH RULES WERE RUN ON EVERY ROW — 528 stack decisions:
+
+| | agree | measurement grants, arithmetic refuses | arithmetic grants, measurement refuses |
+| --- | --- | --- | --- |
+| round | 363 | **33** | 0 |
+| analysis | 132 | 0 | 0 |
+
+The 33 are all the partner stack, at minimum zoom on tablets and on the `P5` phone in portrait: 37
+to 49px of room against a charge of 53.8, where the line really costs 31.9 to 40.6. The room the two
+compute is the same quantity and both decide per stack, so the COST was the entire difference —
+`16.8 × 1.6` per strip as a deliberate over-estimate against what a strip really grows by.
+
+THE COST HAD TO CHANGE FOR THE MOVE TO BE SAFE. The module's fallback for a seat without the line
+was twice its rendered font size. On the round page the name is at its 16.8px cap, so that
+over-charges (33.6 against a real 20.3) and the decision is stable. On the analysis page the name's
+size comes from a container query and falls with the strip: at 768x1024 with both boards at minimum
+zoom it renders near 5px, so the fallback would charge about 20px for a line costing 45.2 — grant
+it, measure the truth on the next pass, and take it back. So `lineCost` now puts the seat in that
+state and reads it: the class on, the strip measured, the class off. A cost that depends on the
+arrangement being asked about cannot be predicted from the arrangement it is in — the name is
+larger on a line of its own precisely because that line is wider.
+
+RESULT: no verdict changed on either page except the two the cap had been refusing —
+`T3-C4-minxmin` and `T4-C4-minxmin` now draw both names alike, which is two of the four rows of
+finding 16. Every row settles within three frames and none reports `layout never settled`.
+
+WHAT WAS TRADED AWAY, recorded because it will be the next question: the arithmetic could not
+oscillate and cost nothing to run. The analysis page now carries a `ResizeObserver` and the same
+feedback risk the round page's module has twice been fixed for. Nikolay's call — one implementation
+first, then the oscillation question taken once, for both pages, when what depends on what is
+settled.
+
 ## Portrait, in a running game — observations by resolution
 
 Walked on p4 (the harness's portrait window) at dpr 2.25, in the LIVE round page — game

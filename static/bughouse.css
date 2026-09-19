@@ -25,12 +25,6 @@
 
    Initial value 0 — a stack that supplies no room reserves no line, which is what makes
    portrait and full zoom keep their names inside the strip without either being named. */
-@property --bug-name-outside {
-    syntax: '<number>';
-    inherits: true;
-    initial-value: 0;
-}
-
 /* WHICH WAY THE MOVE-TIMES CHART IS DRAWN, decided here and carried out by
    `trackChartOrientation()` in movetimeChart.ts. Registered for the same reason as the two
    above: unregistered, `getComputedStyle` hands the value back as an unresolved token.
@@ -653,8 +647,9 @@ body[data-variant='bughouse'][data-view='analysis'] {
     }
     /* TWO CLASS FAMILIES, ONE PER REGION, AND THEY MEAN THE SAME THING IN EVERY HOME:
        `drop-<part>` says that part is in ZONE A, `drop-<part>-b` says it is in ZONE B. The AREAS
-       are the same in every home too — controls `zoneA2`, engine `zoneA3` — so only the home's
-       default differs and a part cannot mean two things.
+       are the same in every home too — engine `zoneA2`, controls `zoneA3` once both are in the
+       band — so only the home's default differs and a part cannot mean two things. The engine box
+       alone keeps `zoneA3`, which is the row its template has; see the pair's rule below.
 
        ZONE A, IN THE ORDER THE PARTS LEAVE. Each class is cumulative — `toolsPlacement.ts` only
        sets `drop-engine` once `drop-tablist` is on — so the template and the areas can be stated
@@ -668,8 +663,17 @@ body[data-variant='bughouse'][data-view='analysis'] {
     .analysis-app.bug.drop-tablist.drop-engine.drop-controls {
         grid-template-areas: var(--bug-zones-a234);
     }
-    .analysis-app.bug.drop-controls .bug-tool-group > .analysis-controls-panel {
+    /* THE ENGINE BOX ON TOP, THE BUTTON ROW UNDER IT, ONCE BOTH ARE IN THE BAND — the same rule
+       as in the home below, and the reason this pair is the one place where a part's area is not
+       the same in every combination. The parts drop in the order tablist, engine, controls and
+       each new one takes the next row UP, which would put the button row above the engine box;
+       these two rules put it back. With the engine box alone the rule above stands and it takes
+       `zoneA3`, which is the only band row the `a34` template has for it. */
+    .analysis-app.bug.drop-engine.drop-controls .bug-tool-group > .analysis-engine-panel {
         grid-area: zoneA2;
+    }
+    .analysis-app.bug.drop-controls .bug-tool-group > .analysis-controls-panel {
+        grid-area: zoneA3;
     }
     /* ZONE B IS THE FALLBACK, AND ONLY FOR THE ENGINE BOX. Where zone A is too small — most often
        because the two boards are the same size and there is no band at all — the full-width row
@@ -729,11 +733,27 @@ body[data-variant='bughouse'][data-view='analysis'] {
 
            The band is therefore the slack — `TOOLS_MIN_ROWS` squares at full zoom, by construction,
            and more once a board is zoomed down, since the boards give back what they stop using. */
-        /* Seven rows now: the board row, TWO zone A rows — the band takes the controls and the
-           engine box when the move list has the full-width row below — and four zone B rows. The
-           zone A pair are `min-content`: a fragment there is its own height and nothing more, and
-           an empty one collapses. */
-        grid-template-rows: min-content min-content min-content minmax(0, 1fr) min-content min-content min-content;
+        /* Seven rows: the board row, TWO zone A rows — what the band takes when the move list
+           has the full-width row below — and four zone B rows.
+
+           THE ZONE A PAIR ARE `minmax(min-content, 0)`, AND THE `0` IS THE POINT. `min-content`
+           alone was not enough. The own stack SPANS the board row and both band rows, and grid
+           hands a spanning item's leftover to every spanned row whose MAX sizing function is
+           intrinsic — equally, and `min-content` is intrinsic. Measured on the analysis page at
+           768x1024, an own stack of 590 over rows of 295 + 40 + 75: each of the three rows was
+           given 60px it had no content for, so the band's two parts were drawn 60px apart with
+           another 60 below them; on the round page at 768x1024 an EMPTY band row was 55px tall.
+           A definite max takes the pair out of that distribution while `min-content` keeps each
+           row at its own part's height, and an empty one collapses to nothing. The leftover then
+           lands in the board row above, under the partner board, where it is the empty part of
+           zone A and reads as such — and the parts finish flush with the bottom of the own stack,
+           which is where zone B begins. Chromium and Firefox agree, at three own-stack sizes.
+
+           THAT IS ZONE A'S RULE AND NOT THIS HOME'S: whatever the band holds stacks at its
+           BOTTOM, with the slack above it, one part or several. The homes beside the boards
+           already do it another way — their first row is `minmax(0, 1fr)` and takes the slack by
+           being flexible — which is why this home is the only one that had to be told. */
+        grid-template-rows: min-content minmax(min-content, 0) minmax(min-content, 0) minmax(0, 1fr) min-content min-content min-content;
     }
     /* THE TOOLS' HOMES PLACE THEIR PARTS INDIVIDUALLY TOO, and the two regions are used at once.
        ------------------------------------------------------------------------------------
@@ -760,23 +780,26 @@ body[data-variant='bughouse'][data-view='analysis'] {
     }
     /* AND UP INTO THE BAND, which is the swap: with the list holding the full-width row, the band
        beside the partner board is free, and a fragment there costs the boards nothing at all. The
-       engine box goes first — it frees the most from the row the list is in. */
+       engine box goes first — it frees the most from the row the list is in.
+
+       THE ENGINE BOX IS ABOVE THE BUTTON ROW WHEREVER THE TWO SHARE THE BAND — Nikolay's rule,
+       2026-09-19, and it is about these two parts only, not about the band in general. It holds
+       whether the move list is beside them in the tools column or below them in zone B, so it is
+       stated once per home rather than derived from the order in which they drop. Which row each
+       takes when it is alone does not matter here: an empty band row collapses, so a lone part is
+       at the bottom of the band either way. */
     .analysis-app.bug.tools-below.drop-engine .bug-tool-group > .analysis-engine-panel {
-        grid-area: zoneA3;
-    }
-    .analysis-app.bug.tools-below.drop-controls .bug-tool-group > .analysis-controls-panel {
         grid-area: zoneA2;
     }
-    /* CONTENT HEIGHT, NOT THE ROW'S. The own stack spans the band's rows, so grid hands its
-       leftover to them — measured, a 40px button row drawn 88px tall and the engine box 122 against
-       its 74. The parts would then change size with the leftover rather than with their content,
-       which is the same instability the note on the zone A rows above records. Packed to the top of
-       the band instead, the slack collects at the bottom, where it is the empty part of zone A and
-       reads as such. */
-    .analysis-app.bug.tools-below .bug-tool-group > .analysis-controls-panel,
-    .analysis-app.bug.tools-below .bug-tool-group > .analysis-engine-panel {
-        align-self: start;
+    .analysis-app.bug.tools-below.drop-controls .bug-tool-group > .analysis-controls-panel {
+        grid-area: zoneA3;
     }
+    /* The `align-self: start` the two parts carried here is gone with the row sizing that made it
+       necessary. It existed because the band's rows were handed the own stack's leftover and the
+       parts stretched into it — a 40px button row drawn 88px tall, the engine box 122 against its
+       74 — so they changed size with the leftover rather than with their content. The rows are now
+       each their own part's height, so there is nothing left to stretch into and nothing to pack
+       against: see the note on `grid-template-rows` above. */
     .analysis-app.bug.tools-below .bug-parts > [role='tablist'] {
         grid-area: zoneB2;
     }
@@ -796,16 +819,17 @@ body[data-variant='bughouse'][data-view='analysis'] {
     .analysis-app.bug.tools-zonea .bug-parts > [role='tabpanel'] {
         grid-area: zoneA2;
     }
-    /* THE BAND'S OWN ORDER: the list takes the slack row, the controls and the engine box their own
-       content height under it. Same reading order as the column — list, controls, engine — so
-       nothing jumps when the home changes. */
+    /* THE BAND'S OWN ORDER: the list takes the slack row, the engine box and the controls their
+       own content height under it. The pair's order is the band's rule everywhere — engine box
+       above button row — so the column's reading order is the one thing that gives here: the list
+       stays on top, and the two parts below it are in the order they are in every other home. */
     .analysis-app.bug.tools-zonea .bug-tool-group > .analysis-moves-panel {
         grid-area: zoneA2;
     }
-    .analysis-app.bug.tools-zonea .bug-tool-group > .analysis-controls-panel {
+    .analysis-app.bug.tools-zonea .bug-tool-group > .analysis-engine-panel {
         grid-area: zoneA3;
     }
-    .analysis-app.bug.tools-zonea .bug-tool-group > .analysis-engine-panel {
+    .analysis-app.bug.tools-zonea .bug-tool-group > .analysis-controls-panel {
         grid-area: zoneA4;
     }
     /* AND DOWN INTO ZONE B, WHICH IS WHAT THE LIST IS SHORT OF. Every fragment that leaves the band
@@ -848,7 +872,7 @@ body[data-variant='bughouse'][data-view='analysis'] {
     /* The tab strip flows on into zone B — full width under both boards, where it sits in every
        other arrangement — leaving the whole of zone A to the panel above it. */
     /* THE STRIP TAKES THE LAST BAND SLOT, `zoneA5`, because the band now holds three parts above
-       it: the move list in `zoneA2`, the controls in `zoneA3`, the engine box in `zoneA4`. It read
+       it: the move list in `zoneA2`, the engine box in `zoneA3`, the controls in `zoneA4`. It read
        `zoneA3` while the whole panel was one box in `zoneA2` — correct then, and an overlap the
        moment the parts were placed individually: measured at 701x624, the strip and the button row
        both at 465,488, the tab labels drawn across the buttons.
@@ -1273,64 +1297,30 @@ body[data-variant='bughouse'][data-view='analysis'] {
     align-self: flex-end;
 }
 
-/* WHETHER THE NAME GETS A LINE OF ITS OWN, asked in CSS rather than measured.
+/* WHETHER THE NAME GETS A LINE OF ITS OWN IS NOT DECIDED HERE ANY MORE.
    ------------------------------------------------------------------------------------
-   Same question the round page's seatNamePlacement.ts answers: a name squeezed beside
-   the pocket gets whatever width the pocket leaves, and a line of its own is the full
-   width of the strip — but the line costs height, and at full zoom the stack is already
-   exactly the height it is given.
+   It was, for this page only: `--bug-name-outside`, arithmetic over the room the stack has
+   spare with the line's cost charged at the name's font CAP. The round page answered the
+   same question by measuring, in `seatNamePlacement.ts`, and the two disagreed — across the
+   264 rows of the layout survey, 33 partner stacks were granted a line by the measurement
+   that the arithmetic refused, because the cap charges 53.8px for a pair of lines that
+   really cost 31.9 to 40.6. Nowhere did the arithmetic grant one the measurement refused.
 
-   Here it needs no measuring and no observer, which is this page's standing rule. Both
-   sides of the comparison are lengths CSS already holds: the room is what the app's
-   height has left over the stack's ten squares, and the cost is bounded by the name's
-   own cap. So it is arithmetic — the same `min(1, round(down, ...))` the coordinate gap
-   uses to express a floor without a branch — and it cannot feed back into itself, because
-   neither --bug-app-h nor --bug-stack-sq moves when a name takes a line.
+   A stack is the same component on both pages, so the question is now asked once, by that
+   module, for both. What stays per page is what "outside" LOOKS like — this page's strips
+   need a full flex basis where the round page's name reaches the next line on its own — and
+   that half lives with the other seat rules, keyed on the classes the module sets.
 
-   The room is what the COORDINATES have not already claimed. Both are drawn from the same
-   spare height, and letting each take what the other leaves would be two claims on one
-   budget — the shape that had the round page's version oscillating at 12Hz. The gap is
-   settled first and this takes the remainder, one way only.
+   WHAT WAS LOST WITH IT, and it is worth naming: the arithmetic could not oscillate and
+   needed no observer, while the module runs from a `ResizeObserver` and has twice had to be
+   fixed for flipping. Nikolay's call, 2026-09-19: one implementation first, and the
+   oscillation question taken once, for both pages, when everything it depends on is settled.
 
-   The cost is the CAP, --bug-name-fs-max, not the rendered size: the rendered size is read
-   from a container query and asking for it here would be a length feeding the query it is
-   derived from. Over-estimating is the safe direction — too little room costs one seat a
-   line it might just have fitted, too much overflows the stack. */
-@media (aspect-ratio > 9/16) {
-    .analysis-app.bug .bug-own-stack,
-    .analysis-app.bug .bug-partner-stack {
-        /* The stack's own spare height, per column, keyed exactly as its square is.
-           The round page declares this too, but from --bug-tall-sq-a/-b in one mode and
-           --bug-sq in the other; --bug-stack-sq is both of those for whichever stack this
-           is, so one rule is right in both landscape modes. Portrait declares nothing and
-           keeps the 0px default: its stacks are sized from WIDTH, so height left over is
-           not a thing they have. */
-        --bug-coord-room: calc(10 * var(--bug-stack-allow) - 10 * var(--bug-stack-sq));
-    }
-}
-.analysis-app.bug .bug-own-stack,
-.analysis-app.bug .bug-partner-stack {
-    /* 1.6 of the font is the line box a name draws in — it carries a presence dot and a
-       rating beside the text, so it is well above the type's own line-height. */
-    --bug-name-line: calc(var(--bug-name-fs-max) * 1.6);
-    --bug-name-room: max(0px, calc(var(--bug-coord-room) - var(--bug-coord-gap)));
-    /* Two strips per stack, so the stack pays for the line twice or not at all. */
-    --bug-name-outside: min(1, round(down, var(--bug-name-room) / (2 * var(--bug-name-line)), 1));
-}
-/* PORTRAIT KEEPS EVERY NAME INSIDE ITS STRIP, which is what the round page does and now
-   what this page does too — the general arithmetic above already answers 0 here, because
-   portrait declares no --bug-coord-room: its stacks are sized from WIDTH, so leftover
-   height is not a quantity they have.
-
-   It is not merely that there is no room to spare. Portrait is now PINNED to the viewport
-   like the round page, and the own stack is exactly its ten squares — a strip, the board,
-   a strip. A name that left its strip would add a line at each end and push the stack past
-   the height it was given, which is the one thing a pinned layout cannot absorb. The round
-   page reaches the same conclusion by measuring: `spaceFor()` credits its own stack with
-   its own height and nothing more, so it can never take a line.
-
-   This overrode it to 1 for a while, on the reasoning that the page scrolled and a line
-   therefore cost nothing. That reasoning expired when portrait stopped scrolling. */
+   PORTRAIT STILL KEEPS EVERY NAME INSIDE ITS STRIP, and by the same reasoning the arithmetic
+   used: the page is pinned to the viewport and the own stack is exactly its ten squares, so a
+   name leaving its strip would add a line at each end and push the stack past the height it
+   was given. The module reaches it by measuring — `spaceFor()` credits a stack with its own
+   allowance and nothing more, which in portrait is exactly what it is already drawing. */
 /* NO BOX OF ITS OWN: the shared `.bug-parts { display: contents }` applies, so the panels and the
    tab list are grid items of `.bug-right-column` and can be placed individually — which is the
    whole mechanism. This was a flex column occupying a single `tools` area, and a single area is
@@ -3422,11 +3412,27 @@ body[data-variant='bughouse'][data-view='analysis'] {
 
            The band is therefore the slack — `TOOLS_MIN_ROWS` squares at full zoom, by construction,
            and more once a board is zoomed down, since the boards give back what they stop using. */
-        /* Seven rows now: the board row, TWO zone A rows — the band takes the controls and the
-           engine box when the move list has the full-width row below — and four zone B rows. The
-           zone A pair are `min-content`: a fragment there is its own height and nothing more, and
-           an empty one collapses. */
-        grid-template-rows: min-content min-content min-content minmax(0, 1fr) min-content min-content min-content;
+        /* Seven rows: the board row, TWO zone A rows — what the band takes when the move list
+           has the full-width row below — and four zone B rows.
+
+           THE ZONE A PAIR ARE `minmax(min-content, 0)`, AND THE `0` IS THE POINT. `min-content`
+           alone was not enough. The own stack SPANS the board row and both band rows, and grid
+           hands a spanning item's leftover to every spanned row whose MAX sizing function is
+           intrinsic — equally, and `min-content` is intrinsic. Measured on the analysis page at
+           768x1024, an own stack of 590 over rows of 295 + 40 + 75: each of the three rows was
+           given 60px it had no content for, so the band's two parts were drawn 60px apart with
+           another 60 below them; on the round page at 768x1024 an EMPTY band row was 55px tall.
+           A definite max takes the pair out of that distribution while `min-content` keeps each
+           row at its own part's height, and an empty one collapses to nothing. The leftover then
+           lands in the board row above, under the partner board, where it is the empty part of
+           zone A and reads as such — and the parts finish flush with the bottom of the own stack,
+           which is where zone B begins. Chromium and Firefox agree, at three own-stack sizes.
+
+           THAT IS ZONE A'S RULE AND NOT THIS HOME'S: whatever the band holds stacks at its
+           BOTTOM, with the slack above it, one part or several. The homes beside the boards
+           already do it another way — their first row is `minmax(0, 1fr)` and takes the slack by
+           being flexible — which is why this home is the only one that had to be told. */
+        grid-template-rows: min-content minmax(min-content, 0) minmax(min-content, 0) minmax(0, 1fr) min-content min-content min-content;
     }
     .round-app.bug.tools-below .bug-parts > [role='tabpanel'] {
         grid-area: zoneB1;
@@ -3999,6 +4005,24 @@ main.round.bug .pocket.bottom {
        inside it already scrolls. What four messages are worth is a claim on the SPARE height, made
        in `publishPresetSize()` from the numbers above — a budget, never a floor on the box. */
     min-height: 0;
+    /* AND THE SAME ON THE OTHER AXIS, FOR A MINIMUM NOBODY WROTE. The chat is a flex item, so its
+       `min-width` is `auto` — the automatic minimum, which resolves to the CONTENT's min-content
+       width. Its content includes a text input, and an `<input>` with no `size` attribute has an
+       intrinsic width of 20 characters: measured by cloning it at `width: max-content`, 201px at
+       this font, on every viewport. So the chat could never be narrower than 201px however narrow
+       its track was, and the tools track is routinely narrower — 190px at 844x390, 141px at
+       1024x768, 61px at 667x375. The chat was then wider than the tab panel that holds it and the
+       panel's `overflow: hidden` cut the right edge off the input, in 15 rows of the survey.
+
+       PROVED RATHER THAN ASSUMED: hiding the input drops the chat's min-content from 201 to the
+       panel's own width, and `min-width: 0` on the INPUT alone changes nothing — an item's own
+       minimum is not what its parent's automatic minimum is computed from. The chat is where the
+       minimum has to be refused, which is also where `min-height: 0` above refuses the other one.
+
+       The track is the authority on how wide the chat is, as the row is on how tall — and what the
+       chat NEEDS is said where every other part says it, as `--bug-part-min-w`, a claim the
+       placement code reads and never a floor on the box. */
+    min-width: 0;
 }
 
 /* Declared, so `--bug-chat-msg-advance` above describes what is really drawn. `margin-top` goes to
@@ -5116,29 +5140,37 @@ player.bug {
    which is a real, complete arrangement and the one the page has at full zoom anyway.
    Written the other way round, the same browser would give every name a line whether or
    not the stack had height for it, and the strip's `overflow: hidden` would eat it. */
-@container style(--bug-name-outside: 1) {
-    .analysis-app.bug .seat-strip0,
-    .analysis-app.bug .seat-strip1 {
-        flex-wrap: wrap;
-        /* Content height, not the one square --bug-strip-h pins it to: the strip now has
-           two rows and takes what they need. The same reasoning as the round page's. */
-        height: auto;
-        align-content: flex-start;
-    }
-    /* A full basis, which the round page does not need and this page does. There it is
-       the name's own min-content — a nowrap name beside a pocket AND a clock — that
-       forces the wrap; here the pocket is five squares of eight and a name would simply
-       fit beside it, so the line has to be asked for rather than fallen into. */
-    .analysis-app.bug .seat-strip0 > round-player0,
-    .analysis-app.bug .seat-strip1 > round-player1 {
-        flex: 1 1 100%;
-        height: auto;
-    }
-    /* Outside, not below: the name leaves a TOP strip upwards, so the pocket stays
-       against the board in both strips. */
-    .analysis-app.bug .seat-strip0 > round-player0 {
-        order: -1;
-    }
+/* THE NAME ON A LINE OF ITS OWN — this page's half of the arrangement.
+   ------------------------------------------------------------------------------------
+   The DECISION is the shared module's and arrives as `own-name-outside` / `partner-name-outside`
+   on the app, exactly as on the round page. What follows is this page's rendering of that state,
+   which is genuinely its own: there the name reaches the next line by itself, its `nowrap` text
+   making a min-content too wide to sit beside a pocket AND a clock, while here the pocket is five
+   squares of eight and a name would simply fit beside it — so the line has to be asked for.
+
+   This was a style query on `--bug-name-outside`, the page's own arithmetic. It is the same
+   arrangement, on the same classes as the round page, now that the question is asked once. */
+.analysis-app.bug.own-name-outside .own-seat,
+.analysis-app.bug.partner-name-outside .partner-seat {
+    flex-wrap: wrap;
+    /* Content height, not the one square --bug-strip-h pins it to: the strip now has
+       two rows and takes what they need. The same reasoning as the round page's. */
+    height: auto;
+    align-content: flex-start;
+}
+/* A full basis, which the round page does not need and this page does — see above. */
+.analysis-app.bug.own-name-outside .own-seat.seat-strip0 > round-player0,
+.analysis-app.bug.own-name-outside .own-seat.seat-strip1 > round-player1,
+.analysis-app.bug.partner-name-outside .partner-seat.seat-strip0 > round-player0,
+.analysis-app.bug.partner-name-outside .partner-seat.seat-strip1 > round-player1 {
+    flex: 1 1 100%;
+    height: auto;
+}
+/* Outside, not below: the name leaves a TOP strip upwards, so the pocket stays
+   against the board in both strips. */
+.analysis-app.bug.own-name-outside .own-seat.seat-strip0 > round-player0,
+.analysis-app.bug.partner-name-outside .partner-seat.seat-strip0 > round-player0 {
+    order: -1;
 }
 
 /* ===========================================================================================

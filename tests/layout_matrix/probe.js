@@ -10,8 +10,13 @@
  * the only half that can be changed. Everything here is read from what the page already publishes —
  * if something needed is not visible from here, that is a finding about the page, not a licence to
  * add a hook for the survey.
+ *
+ * `ctx` IS WHAT THE WALK ASKED FOR, not what the page reports: `{zoom: [a, b], minZoom}`. One check
+ * needs it — "both boards at their minimum are the same size" is a claim about the request, and a
+ * page at its floor looks exactly like a page that was asked for 39%. Everything else here is still
+ * read from the page alone, and the checks that need no context run with `ctx` absent.
  */
-() => {
+ctx => {
     const app = document.querySelector('.round-app.bug, .analysis-app.bug');
     if (app === null) return { ok: false, reason: 'no bughouse app on the page' };
 
@@ -333,7 +338,21 @@
             failures.push(`area ${name} is ${a.w}px wide and its occupants use ${x2 - x1}px — ${Math.round(slackW)}px unused`);
         }
         if (slackH >= 40 && slackH >= a.h * 0.25) {
-            failures.push(`area ${name} is ${a.h}px tall and its occupants use ${y2 - y1}px — ${Math.round(slackH)}px unused`);
+            /* THE PARTNER STACK'S OWN AREA IS THE ONE PLACE WHERE UNUSED HEIGHT IS THE DESIGN.
+               Zone A is defined as the height the partner board leaves in its column, so the
+               `stack` area is underfilled by exactly the band, and always — a failure there says
+               the layout is wrong for being itself. What a reviewer wants to know is how much
+               band there is and whether anything is in it, which is what the zone A areas say
+               on their own. So it is a warning here, and a failure everywhere else.
+
+               ONLY WHILE THE STACK IS ALONE IN ITS AREA. In the last resort the tools take that
+               area too, and height going unused under a panel there is an ordinary finding. */
+            const bandOnly =
+                name === 'stack' &&
+                a.occupants.every(o => (o.what || '').includes('bug-partner-stack'));
+            (bandOnly ? warnings : failures).push(
+                `area ${name} is ${a.h}px tall and its occupants use ${y2 - y1}px — ${Math.round(slackH)}px unused`,
+            );
         }
     }
 
@@ -540,10 +559,240 @@
         }
     }
 
+    /* THE TWO STACKS AT THE SAME BOARD SIZE SHOULD BE DRAWN THE SAME — Nikolay, 2026-09-19, on
+       `T1-C4-minxmin`: "if both are at minimum they should both have same size, which here seems to
+       be the case and is good, but also they should have the same state of the username".
+
+       WHAT THE SURVEY COULD NOT SEE. Every check until now asked about an area, a part, or a pair
+       of surfaces. A stack that is 45px taller than the other while holding the same board breaks
+       none of them: nothing overlaps, nothing overflows, and the height it takes is the height its
+       area gives it. Measured at 768x1024 with both boards at minimum zoom — 188x188 each — the own
+       stack came to 296.2 and the partner's to 251, because the own seat strips are 46.1px with the
+       username on a line of its own and the partner's are 23.5px with it squeezed beside the pocket.
+       Same board, different furniture, and the survey called the row clean.
+
+       THE NAME'S STATE IS READ FROM ITS WIDTH, not from a class: `own-name-outside` is set by
+       `seatNamePlacement.ts`, which runs on the round page only, while the stylesheet decides the
+       same thing a second way through `--bug-name-outside` per stack. A name on its own line is as
+       wide as the strip it is in; squeezed into the pocket row it gets what the pocket and the clock
+       leave, which is a fraction of it. Measuring the drawn result asks neither mechanism to be
+       right about the other.
+
+       ONLY WHERE THE BOARDS MATCH. Different board sizes are expected to carry different furniture
+       — the strips scale with the square, and a board too small to afford the extra line is the
+       rule working — so this asks its question only when the two boards are the same size. */
+    const seatFurniture = side => {
+        const strips = all(`.${side}-seat`).filter(shown);
+        const board = q(`.${side}-board cg-board`);
+        const state = strip => {
+            const name = strip.querySelector('round-player0, round-player1');
+            if (!name) return null;
+            const w = name.getBoundingClientRect().width;
+            const stripW = strip.getBoundingClientRect().width;
+            return stripW > 0 && w / stripW > 0.9 ? 'on its own line' : 'inline';
+        };
+        return {
+            board: board ? +board.getBoundingClientRect().height.toFixed(1) : 0,
+            strips: +strips.reduce((t, s) => t + s.getBoundingClientRect().height, 0).toFixed(1),
+            name: [...new Set(strips.map(state).filter(x => x !== null))].join(' + ') || 'none',
+        };
+    };
+    const seats = { own: seatFurniture('own'), partner: seatFurniture('partner') };
+    if (seats.own.board > 0 && seats.partner.board > 0
+        && Math.abs(seats.own.board - seats.partner.board) <= 1
+        && (seats.own.name !== seats.partner.name || Math.abs(seats.own.strips - seats.partner.strips) > 2)) {
+        failures.push(
+            `the two stacks are drawn differently at the same board size ` +
+            `(${Math.round(seats.own.board)}px): own strips ${seats.own.strips}px with the username ` +
+            `${seats.own.name}, partner strips ${seats.partner.strips}px with it ${seats.partner.name}`,
+        );
+    }
+
+    /* PORTRAIT: THE BAND BETWEEN THE BOARDS, AND WHAT SHOULD BE IN IT.
+       ------------------------------------------------------------------------------------
+       Nikolay, 2026-09-19, and it is the largest group of unaccepted rows in the survey. Portrait
+       stacks the partner board over the viewer's own, with the tools in a narrow track beside the
+       partner's; the partner board is the shorter of the two, so it leaves a BAND across the page
+       between the boards — 107px at 390x844, 147px on the analysis page — and everything that
+       could use it stays queued in the 221px track instead, ellipsised.
+
+       THE QUESTION IS ASKED OF THE BAND, NOT OF THE PART: is there room between the boards for
+       this part, and is the part somewhere else? A part is IN the band when its middle is between
+       the two stacks and it spans the page; anything else is beside the partner board.
+
+       THE PRESET ROWS ARE ASKED TWICE, because their arrangement is the answer: ten buttons across
+       the page is one row where the track has four rows of five, and two such rows is the whole
+       block. Ten across is possible when the page is wide enough for ten buttons at the size the
+       page itself will not go below — `--bug-preset-btn-min`, or WCAG's 24px where the page's own
+       floor is under it, since a row that fits only by drawing untappable buttons does not fit. */
+    const portraitBand = (() => {
+        if (mode !== 'portrait') return null;
+        const own = q('.bug-own-stack');
+        const partner = q('.bug-partner-stack');
+        if (!shown(own) || !shown(partner)) return null;
+        const o = own.getBoundingClientRect();
+        const pr = partner.getBoundingClientRect();
+        const width = app.getBoundingClientRect().width;
+        const band = { top: pr.bottom, bottom: o.top, width, height: o.top - pr.bottom };
+        if (band.height <= 0) return null;
+        const middleIn = el => {
+            const r = el.getBoundingClientRect();
+            return (r.top + r.bottom) / 2 > band.top && (r.top + r.bottom) / 2 < band.bottom;
+        };
+        const spansPage = el => el.getBoundingClientRect().width >= width - 4;
+        band.holds = el => middleIn(el) && spansPage(el);
+        band.free = band.height;
+        return band;
+    })();
+
+    if (portraitBand) {
+        const strip = q('.bug-round-tools-bar') || q('[role="tablist"]');
+        const parts = [
+            ['the tab strip is', strip],
+            ['the move-list controls are', q('.btn-controls') || q('.analysis-controls-panel')],
+            ['the engine box is', q('.analysis-engine-panel')],
+        ].filter(([, el]) => shown(el));
+
+        // What the band already carries comes off what is left to offer.
+        for (const [, el] of parts) {
+            if (portraitBand.holds(el)) portraitBand.free -= el.getBoundingClientRect().height;
+        }
+
+        for (const [name, el] of parts) {
+            if (portraitBand.holds(el)) continue;
+            const needs = el.getBoundingClientRect().height;
+            if (needs <= portraitBand.free) {
+                failures.push(
+                    `portrait: ${name} ${Math.round(el.getBoundingClientRect().width)}px wide beside ` +
+                    `the partner board while the band between the boards has ` +
+                    `${Math.round(portraitBand.free)}px free and it needs ${Math.round(needs)}px — ` +
+                    `it should take the full ${Math.round(portraitBand.width)}px there`,
+                );
+            }
+        }
+
+        /* THE PRESET ROWS, AND THE ARRANGEMENT THEY SHOULD REACH. */
+        const presetParts = ['.chatpresets-panel-1', '.chatpresets-panel-2'].map(q).filter(shown);
+        if (presetParts.length) {
+            const gap = published.presetGap === null ? 3 : published.presetGap;
+            const floor = Math.max(24, published.presetFloor === null ? 24 : published.presetFloor);
+            const tenAcross = (portraitBand.width - 9 * gap) / 10;
+            const stripH = shown(strip) ? strip.getBoundingClientRect().height : 0;
+            const tens = (fired.presetRowLengths || []).filter(n => n === 10).length;
+            /* THE STRONGEST ARRANGEMENT THE BAND CAN HOLD, not the first one tested. Both rows
+               of presets fitting implies one does, so reporting the one-row case where the band
+               has room for the whole block would understate what is being left unused. */
+            if (tenAcross >= floor) {
+                const rowH = tenAcross;
+                const drawn = (fired.presetRowLengths || []).join('+') || 'unplaced';
+                if (tens < 2 && stripH + 2 * rowH <= portraitBand.free) {
+                    failures.push(
+                        `portrait: the band between the boards has ${Math.round(portraitBand.free)}px ` +
+                        `free — room for the tab strip (${Math.round(stripH)}px) and TWO rows of ten ` +
+                        `presets at ${tenAcross.toFixed(1)}px (${Math.round(2 * rowH)}px, floor ` +
+                        `${floor.toFixed(1)}) — and the buttons are drawn ${drawn} beside the board`,
+                    );
+                } else if (tens < 1 && rowH <= portraitBand.free) {
+                    failures.push(
+                        `portrait: the band between the boards has ${Math.round(portraitBand.free)}px ` +
+                        `free and the page fits TEN presets across at ${tenAcross.toFixed(1)}px ` +
+                        `(floor ${floor.toFixed(1)}), which needs ${Math.round(rowH)}px — the buttons ` +
+                        `are drawn ${drawn} beside the board`,
+                    );
+                }
+            }
+        }
+    }
+
+    /* BOTH BOARDS AT THEIR MINIMUM ARE THE SAME SIZE — Nikolay, 2026-09-19: "both boards at
+       minimum zoom must have exact same size, the minimum zoom might be different in terms of
+       percents, but those percents are different because we have different caps for max zoom".
+
+       IT IS THE FLOOR'S OWN DEFINITION, so this is the rule already written down being checked
+       rather than a new one. `MIN_STACK_IN_LEFT_SQUARES` in squareUnit.ts is four squares OF THE
+       LEFT BOARD — a size, deliberately not a percentage, because "no less than 50%" lets one
+       board stop at half of a big square and the other at half of an already small one. Each
+       column converts that one size back into its own percentage, and the comment there says what
+       is expected of the result: "The two sliders therefore stop at different numbers AND AT THE
+       SAME BOARD SIZE, which is the whole point."
+
+       ASKED OF THE REQUEST, because the drawn page cannot tell a board at its floor from a board
+       at any other zoom. Only where the walk asked BOTH columns for their minimum.
+
+       A device pixel of tolerance: both squares are quantised down to whole device pixels
+       independently, so a difference smaller than that is not a difference in anything drawn. */
+    const atMinimum = ctx && ctx.zoom && ctx.zoom[0] === ctx.minZoom && ctx.zoom[1] === ctx.minZoom;
+    if (atMinimum) {
+        const ownBoard = q('.own-board cg-board');
+        const partnerBoard = q('.partner-board cg-board');
+        if (shown(ownBoard) && shown(partnerBoard)) {
+            const ownSq = ownBoard.getBoundingClientRect().height / 8;
+            const partnerSq = partnerBoard.getBoundingClientRect().height / 8;
+            if (Math.abs(ownSq - partnerSq) > 1 / (window.devicePixelRatio || 1)) {
+                failures.push(
+                    `both boards were zoomed to their minimum and are NOT the same size — own square ` +
+                    `${ownSq.toFixed(1)}px against the partner's ${partnerSq.toFixed(1)}px ` +
+                    `(${Math.round(ownSq * 8)}px of board against ${Math.round(partnerSq * 8)}px)`,
+                );
+            }
+        }
+    }
+
+    /* EVERY TAP TARGET AGAINST WCAG 2.2'S 24x24 CSS PIXELS (2.5.8, Target Size (Minimum)).
+       ------------------------------------------------------------------------------------
+       The figure is already this stylesheet's reference — `--bug-preset-btn-min` exists to clear
+       it, and its comment cites the 13.23px the buttons measured before it did. A page that draws
+       a 9.8px button is failing a published standard, which is a firmer thing to report than "that
+       looks small", and it is the check that finds a starved column without anyone inventing a
+       minimum: the page publishes its own floor, then goes under it, and the target size says by
+       how much it matters.
+
+       WITHOUT THE STANDARD'S EXCEPTIONS, deliberately, because they need judgement this cannot
+       make: a target is exempt where spacing leaves a 24px circle around it, where it is inline in
+       a sentence, or where its size is essential. So this counts what is under the line and names
+       the worst of them, and a reviewer decides. */
+    const tapTargets = all('button, [role="tab"], a[href], input:not([type="hidden"]), select')
+        .filter(shown)
+        .map(el => {
+            const r = el.getBoundingClientRect();
+            const name = (el.getAttribute('title') || el.textContent.trim() ||
+                          el.className.toString() || el.tagName).slice(0, 24);
+            return { what: name, w: +r.width.toFixed(1), h: +r.height.toFixed(1) };
+        });
+    const undersized = tapTargets
+        .filter(t => t.w < 24 || t.h < 24)
+        .sort((x, y) => x.w * x.h - y.w * y.h);
+    const describe = list => list.slice(0, 3).map(t => `${t.what} ${t.w}x${t.h}`).join(', ');
+    /* TWO TIERS, AND THE LINE BETWEEN THEM IS WHICH EXCEPTIONS COULD APPLY.
+       Measured first as one failure, which turned every row in the survey red: 264 of 264, and
+       1159 of the 1163 findings were a username link or a slider track — short in ONE dimension
+       and wide in the other, which is exactly the shape the standard's inline-and-spacing
+       exceptions are written for. A check that fires everywhere says nothing.
+
+       Under the minimum in BOTH dimensions is the other thing entirely: small every way, so no
+       exception reaches it, and it is where the real ones are — preset buttons at 9.8x9.8 in a
+       61px tools column, a multipv slider drawn 2px wide. Four rows, not 264. */
+    const tiny = undersized.filter(t => t.w < 24 && t.h < 24);
+    if (tiny.length) {
+        failures.push(
+            `${tiny.length} tap target(s) under WCAG's 24x24px minimum in BOTH dimensions — ` +
+            `smallest: ${describe(tiny)}`,
+        );
+    }
+    const narrow = undersized.filter(t => !(t.w < 24 && t.h < 24));
+    if (narrow.length) {
+        warnings.push(
+            `${narrow.length} of ${tapTargets.length} tap targets are under WCAG's 24px minimum ` +
+            `on one axis — smallest: ${describe(narrow)}`,
+        );
+    }
+
     return {
         ok: true,
         warnings,
         presetRowBoxes,
+        seats,
+        tapTargets: { total: tapTargets.length, undersized },
         // THE LAYOUT VIEWPORT, which is the one the stylesheet answered. `innerWidth` is the
         // visual viewport and reads LARGER than the device wherever the browser has zoomed out to
         // fit an overflowing page — a 810px tablet reported itself 960 wide. `fit.visual` keeps it.

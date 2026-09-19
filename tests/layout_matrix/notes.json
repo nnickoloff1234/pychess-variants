@@ -21,14 +21,29 @@
   "note": "this is bad, it is not a problem with the harness as it is not currently supposed to detect such problems, but is a real problem with the layout that in other screensizes look ok - see my note from the a previously accepted case, where i say it should be used as reference and then describe exactly this kind of problem with the preset buttons - here they do not take the full free space in terms of available width, in that accepted case they had margin/padding/gaps increased between the buttons so they took the full width, which is the expected arrangement",
   "accepted": true
  },
- "D6-C1-100xmin": "same problem with preset buttons not taking all available width but staying compacted without increasing the gaps between them",
- "P4-landscape-C1-100x100": "preset buttons are overlapped by partner board - i think in other places such problems have been correctly identified by the harness but not here - i think this requires fix in the harness first to detect them properly, then when we can trust the harness to detect them, we should think of ways to fix the problem itself",
+ "D6-C1-100xmin": {
+  "note": "same problem with preset buttons not taking all available width but staying compacted without increasing the gaps between them",
+  "accepted": true
+ },
+ "P4-landscape-C1-100x100": {
+  "note": "preset buttons are overlapped by partner board - i think in other places such problems have been correctly identified by the harness but not here - i think this requires fix in the harness first to detect them properly, then when we can trust the harness to detect them, we should think of ways to fix the problem itself",
+  "accepted": true
+ },
  "P6-C1-100x100": "same as other portrait mobile layouts where there is space for some/all preset buttons to flow under the partner board in zoneB and go on one row",
- "T1-landscape-C1-100xmin": "same problem with preset buttons centered instead of taking all the width using larger gaps between buttons",
+ "T1-landscape-C1-100xmin": {
+  "note": "same problem with preset buttons centered instead of taking all the width using larger gaps between buttons",
+  "accepted": true
+ },
  "T1-landscape-C1-100x100": "same problems with preset buttons centered instead of taking all width",
- "T2-landscape-C1-100xmin": "same problem with preset buttons centered and compact while there is free space to spread into",
+ "T2-landscape-C1-100xmin": {
+  "note": "same problem with preset buttons centered and compact while there is free space to spread into",
+  "accepted": true
+ },
  "T2-landscape-C1-100x100": "same problem with compacted centered preset buttons",
- "T3-landscape-C1-100xmin": "same problem with centered compacted preset buttons",
+ "T3-landscape-C1-100xmin": {
+  "note": "same problem with centered compacted preset buttons",
+  "accepted": true
+ },
  "T4-C1-100xmin": {
   "note": "again preset buttons are not spreading into whole width but are centered and compact, but this time it is a different layout and they are in zoneB. maybe also some rule for the size of the buttons should apply here to allow them to be smaller and go to 2 rows instead of 4 in this particular case only - similar resolutions already do that i wonder why it doesnt happen here",
   "accepted": true
@@ -42,13 +57,25 @@
   "accepted": true
  },
  "P1-C2-100x100": "tablist and control buttons for the movelist must expand into the free area - on the left, i believe zoneA or zoneB not sure how we defined the space under partner board and above own board in portrait - similar problems exist with preset buttons in other portrait layouts",
- "P1-landscape-C2-100x100": "there is enough space for the draw and resign button to fit in the tablist row if they were slightly smaller - i have seen other layouts where those two buttons got carried over on a new line and didnt comment then, because look like there genuinely was no space for them, but here we have to analyse with what rules do we determine the size of those buttons because they look visibly larger than the tablist items, they should probably follow similar size as the tablist buttons in all cases, which would allow them to stay on same row more often than not. worst case they might still get to flow out on the next line but ideally should happen and should be a last resort which here doesnt seem necessary",
+ "P1-landscape-C2-100x100": {
+  "note": "there is enough space for the draw and resign button to fit in the tablist row if they were slightly smaller - i have seen other layouts where those two buttons got carried over on a new line and didnt comment then, because look like there genuinely was no space for them, but here we have to analyse with what rules do we determine the size of those buttons because they look visibly larger than the tablist items, they should probably follow similar size as the tablist buttons in all cases, which would allow them to stay on same row more often than not. worst case they might still get to flow out on the next line but ideally should happen and should be a last resort which here doesnt seem necessary",
+  "accepted": true
+ },
  "P2-C2-100x100": "movelist control buttons and tablist items can flow in the space between the two baord - zone a/b/ whaetever it is called in this layout - same as previous cases",
- "P2-landscape-C2-100x100": "again resign and draw buttons too large and on new row while there is space. also the whole tools panel doesnt seem to occupy the full remaining width to the end of the screen, something i am sure we have definied for the short-landscape, i.e. mobile landscape layout",
+ "P2-landscape-C2-100x100": {
+  "note": "again resign and draw buttons too large and on new row while there is space. also the whole tools panel doesnt seem to occupy the full remaining width to the end of the screen, something i am sure we have definied for the short-landscape, i.e. mobile landscape layout",
+  "accepted": true
+ },
  "P3-C2-100x100": "again same problem with tablist and movelist control buttons in portrait not flowing to full width in the space between the two boards",
- "P3-landscape-C2-100x100": "again big resign and draw buttons on second line and not full width taken by the movelist in short landscape, which should always be the rule.",
+ "P3-landscape-C2-100x100": {
+  "note": "again big resign and draw buttons on second line and not full width taken by the movelist in short landscape, which should always be the rule.",
+  "accepted": true
+ },
  "P4-C2-100x100": "again portait mode problem with tablist and movelist control buttons not taking full width while they can, i.e. there is space in zone/ab/ the area between boards. if that area was smaller this would have been acceptable, i.e. shorter screen height, but here there is space, this space i believe should be defined as zonea or zoneb and used by those elements",
- "P4-landscape-C2-100x100": "not full remaining width used by the tools in short landscape again. also draw resign buttons still big here but luckily on same row",
+ "P4-landscape-C2-100x100": {
+  "note": "not full remaining width used by the tools in short landscape again. also draw resign buttons still big here but luckily on same row",
+  "accepted": true
+ },
  "P5-landscape-C2-100x100": "this should have triggered resizing the cap of the partner board to become smaller and let tablist and movelist control buttons flow under partner board and allow more space for the remaining tools panel - i.e. in this case the move list - we have such rule, wonder after what threshold it gets into effect. in fact i notice it has been triggered, the partner board is inedeed smaller at 100 zoom in this screenshot, just not small enough - we should review how we determine the cap of the zoom and make it enough to allow at least for the tablist and maybe more - requires experimenting and focus only on this, maybe a separate proposal - we will tackle this specially and after the more common problems",
  "P6-C2-100x100": "again portrait with lots of space between the board where the tablist and movelist control buttons can expand into",
  "P6-landscape-C2-100x100": {
@@ -71,20 +98,50 @@
  "P2-C4-100x100": "again tablist expands correctly in the free area, but movelist buttons and engine panel dont",
  "P3-C4-100x100": "again a portrait layout that has space between the board to accomomdate the movelist buttons and engine panel but doesnt",
  "P4-C4-100x100": "again movelist buttons and engine panel should expand in the free space between boards",
- "T1-C4-100x100": "lets make the rule that in this case correctly moved the engine and movelist buttons to zoneA also to arrange them in reverse order - i.e. movelest buttons below the engine panel. also they should stack one on top of the other without gap as in this screenshot - i.e. the free space between them is undesireable",
- "T2-C4-100xmin": "same case of movelist buttons and engine panel correctly moved to zoneA, but should switch places and space between them should disappear so they appear stacked without gap",
- "T3-C4-100xmin": "again correctly moved the movelist buttons and engine panel to zoneA, but need reordering and removing the gap between them",
- "T3-C4-100x100": "same problem with movelist buttons and engine panel in zoneA need reordering and gluing together",
- "T4-C4-100xmin": "same problem about movelist buttons and engine panel in zoneA needing reorder and gluing together",
- "T4-C4-100x100": "same problem about movelist buttons and engine panel in zoneA needing reorder and gluing together",
+ "T1-C4-100x100": {
+  "note": "lets make the rule that in this case correctly moved the engine and movelist buttons to zoneA also to arrange them in reverse order - i.e. movelest buttons below the engine panel. also they should stack one on top of the other without gap as in this screenshot - i.e. the free space between them is undesireable",
+  "accepted": true
+ },
+ "T2-C4-100xmin": {
+  "note": "same case of movelist buttons and engine panel correctly moved to zoneA, but should switch places and space between them should disappear so they appear stacked without gap",
+  "accepted": true
+ },
+ "T3-C4-100xmin": {
+  "note": "again correctly moved the movelist buttons and engine panel to zoneA, but need reordering and removing the gap between them",
+  "accepted": true
+ },
+ "T3-C4-100x100": {
+  "note": "same problem with movelist buttons and engine panel in zoneA need reordering and gluing together",
+  "accepted": true
+ },
+ "T4-C4-100xmin": {
+  "note": "same problem about movelist buttons and engine panel in zoneA needing reorder and gluing together",
+  "accepted": true
+ },
+ "T4-C4-100x100": {
+  "note": "same problem about movelist buttons and engine panel in zoneA needing reorder and gluing together",
+  "accepted": true
+ },
  "T5-C4-minxmin": {
   "note": "there is a lot of free space below the boards, i am accepting this because if i remember correctly we gave priority to besides position for tools if there is space but still wanted to note that this is something we might want to reconsider at later time, if this is the case, because so much free space remains below, still not a big deal because if user zooms in the boards it will be used, just thought noting it anyway , good for now",
   "accepted": true
  },
- "T5-C4-100xmin": "same problem about movelist buttons and engine panel in zoneA needing reorder and gluing together",
- "T5-C4-100x100": "same problem about movelist buttons and engine panel in zoneA needing reorder and gluing together",
- "T6-C4-100xmin": "same problem about movelist buttons and engine panel in zoneA needing reorder and gluing together",
- "T6-C4-100x100": "same problem about movelist buttons and engine panel in zoneA needing reorder and gluing together",
+ "T5-C4-100xmin": {
+  "note": "same problem about movelist buttons and engine panel in zoneA needing reorder and gluing together",
+  "accepted": true
+ },
+ "T5-C4-100x100": {
+  "note": "same problem about movelist buttons and engine panel in zoneA needing reorder and gluing together",
+  "accepted": true
+ },
+ "T6-C4-100xmin": {
+  "note": "same problem about movelist buttons and engine panel in zoneA needing reorder and gluing together",
+  "accepted": true
+ },
+ "T6-C4-100x100": {
+  "note": "same problem about movelist buttons and engine panel in zoneA needing reorder and gluing together",
+  "accepted": true
+ },
  "D1-C1-100x100": {
   "accepted": true
  },
@@ -611,6 +668,74 @@
   "accepted": true
  },
  "T6-C3-minxmin": {
+  "accepted": true
+ },
+ "P6-landscape-C1-100x100": {
+  "accepted": true
+ },
+ "P5-landscape-C1-100x100": "i am not accepting this for different reason now, we need to perfect the logic that decides how much to cap the partner board when there is no space for the tools panel. first we have to review the current logic, working idea right now is it should become small enough to allow for the tablist and two rows of preset buttons to fit under the partner board and hope this allow what remains in the tools area besides to have also enough width, which i think i reasonable hope",
+ "T1-C4-minxmin": "we need to review this - if both are at minimum they should both have same size, which here seems to be the case and is good, but also they should have the same state of the username - contracted in the strip vs expanded outside the pocket strip - in this case this is not the fact - left board has the username outside the pocket strip, which is good, but this is not happening for the partner board - maybe min zoom and max zoom for that board are identical and our logic incorrectly qualifies this as a max zoom and contracts the username inside, but i thought last we difeined the logic for whether a username can go outside based on whether there is enough space for that to happen, which should then in this case be triggered because there clearly is enough space. we have to investigate what in this particular state doesn't allow for partner board to expand the username on its own line and review the rule that causes this now.\n\nEDIT: seems my comment above is stlil valud in some sense, while the boards do really have the same size, the pocket strip and usernames are rendered differently causing the stacks to have different size, even though the boards inside the stack to match. see my other comment about this - this is not the only place this happens and we should improve the harness to detect those cases. ",
+ "P1-landscape-C1-100x100": {
+  "accepted": true
+ },
+ "P2-landscape-C1-100x100": {
+  "accepted": true
+ },
+ "P3-landscape-C1-100x100": {
+  "accepted": true
+ },
+ "T1-C1-minxmin": {
+  "accepted": true
+ },
+ "T2-C1-minxmin": {
+  "accepted": true
+ },
+ "T3-C1-minxmin": {
+  "accepted": true
+ },
+ "T4-C1-minxmin": {
+  "accepted": true
+ },
+ "T6-C1-minxmin": {
+  "accepted": true
+ },
+ "T1-C3-100xmin": {
+  "accepted": true
+ },
+ "T1-C3-100x100": {
+  "accepted": true
+ },
+ "T2-C3-100xmin": {
+  "accepted": true
+ },
+ "T2-C3-100x100": {
+  "accepted": true
+ },
+ "T3-C3-100xmin": {
+  "accepted": true
+ },
+ "T3-C3-100x100": {
+  "accepted": true
+ },
+ "T4-C3-100xmin": {
+  "accepted": true
+ },
+ "T4-C3-100x100": {
+  "accepted": true
+ },
+ "T5-C3-100xmin": {
+  "accepted": true
+ },
+ "T5-C3-100x100": {
+  "accepted": true
+ },
+ "T6-C3-100xmin": {
+  "accepted": true
+ },
+ "T6-C3-100x100": {
+  "accepted": true
+ },
+ "T2-C4-100x100": {
   "accepted": true
  }
 }

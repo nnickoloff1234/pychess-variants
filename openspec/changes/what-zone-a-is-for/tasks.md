@@ -119,10 +119,101 @@ mechanism, not a proposal of its own — see `design.md` "Findings".
       tablets. Both rows are identical and afford 7-30px; the page publishes 3, which is the floor
       showing through because nothing wrote a value for that arrangement. Same family as 1.22.
       Reproduction and the per-row affordances are in the survey's facts (`presetRowBoxes`).
-- [ ] 1.26 **An anonymous `DIV` paints outside itself in the tools column, 19 rows.** Never
-      diagnosed; may be the same shape as 1.20 or a fifth false positive. Identify it first.
+- [x] 1.26 **An anonymous `DIV` paints outside itself in the tools column — DIAGNOSED AND FIXED,
+      15 of the 19 rows.** The `DIV` is the tab panel and the thing painting outside it is THE CHAT.
+      The chat is a flex item, so its `min-width` is `auto` — the automatic minimum, which resolves
+      to its CONTENT's min-content width — and its content includes a text input. An `<input>` with
+      no `size` attribute has an intrinsic width of 20 characters: cloned at `width: max-content` it
+      measures 201px at this font, which is the painted width the survey reported in every one of
+      those rows. The tools track is routinely narrower — 190px at 844x390, 141px at 1024x768, 61px
+      at 667x375 — so the chat was wider than the panel holding it and the panel's `overflow:
+      hidden` cut the right edge off the input. At 667x375 the input's centre was off the viewport
+      entirely, which the hit test had been reporting separately as `chat input is covered by
+      nothing (outside the viewport)`: it could not be clicked at all.
+      Fixed with `min-width: 0` on `.bugroundchat`, beside the `min-height: 0` that refuses
+      `site.css`'s `15em` for the same reason — the track is the authority on how wide the chat is,
+      as the row is on how tall, and what the chat needs is declared as `--bug-part-min-w` like
+      every other part. ISOLATED FIRST, on the live page: hiding the input drops the chat to the
+      panel's width, `min-width: 0` on the INPUT alone changes nothing (an item's own minimum is not
+      what its parent's automatic minimum is computed from), and the chat rule and `width: 100%` on
+      the input fix it identically. 15 rows went clean, none newly failing.
+      THE REMAINDER IS A DIFFERENT CAUSE: `P5-landscape` (667x375) has a 61px tools column, and the
+      button rows in it — movelist controls at 103px, the engine box at 129px, the end-of-game block
+      at 75px — are icons that cannot shrink. That is the partner board's cap, parked by Nikolay for
+      a change of its own.
 - [ ] 1.27 **`T5-landscape-C1-100x100` gained `DIV (zoneA) overlaps chatpresets-panel`** when the
       preset rows started spreading — the only row the preset fixes made worse. Not yet looked at.
+- [x] 1.28 **The band spread its parts with the own stack's leftover instead of their own height —
+      FIXED.** In the `below` home zone A's two rows were `min-content`, and the own stack SPANS the
+      board row and both of them: grid hands a spanning item's leftover equally to every spanned row
+      whose MAX sizing function is intrinsic, and `min-content` is intrinsic. Measured at 768x1024,
+      an own stack of 590 over rows of 295 + 40 + 75 — each of the three rows was given 60px it had
+      no content for, so the engine box and the button row were drawn 60px apart with another 60
+      below them; on the round page at the same size an EMPTY band row was 55px tall. The pair are
+      now `minmax(min-content, 0)`: a definite max keeps them out of that distribution, `min-content`
+      keeps each row at its own part's height, and an empty one collapses. All the leftover lands in
+      the board row above, under the partner board, which is where the rule in 2.11 says it belongs.
+      Chromium and Firefox agree at three own-stack sizes, one of them short enough to show the move
+      list keeps exactly the height it has today. The `align-self: start` the parts carried here went
+      with it — there is no longer a row to stretch into.
+- [x] 1.29 **The engine box sat BELOW the button row wherever both were in the band — FIXED**, by
+      2.11's second half. The parts drop in the order tablist, engine, controls and each new one
+      takes the next row UP, which is what put the button row on top. Stated per home instead:
+      engine `zoneA2`, controls `zoneA3` in `below` and in `beside` once both have dropped; engine
+      `zoneA3`, controls `zoneA4` in `zonea`, under the move list. The engine box alone keeps
+      `zoneA3` in `beside` — the only band row that template has for it — and it does not matter,
+      because an empty band row collapses and a lone part is at the bottom of the band either way.
+- [x] 1.30 **The survey called the band a defect, in 40 rows.** `area stack is Npx tall and its
+      occupants use Npx` fired on the partner stack's OWN area — but zone A is defined as the height
+      the partner board leaves in its column, so that area is underfilled by exactly the band, and
+      always. The check was reporting the layout for being itself, and 1.28 would have added 48 more
+      of them by putting the slack where the rule wants it. Now a warning rather than a failure, and
+      only while the partner stack is alone in that area: the last resort puts the tools there too,
+      and height going unused under a panel is an ordinary finding. How much band there is and
+      whether anything is in it is what the zone A areas say on their own.
+- [x] 1.32 **THE SURVEY NOW COMPARES THE TWO STACKS — a class of defect it could not see.**
+      Nikolay, on `T1-C4-minxmin`: "if both are at minimum they should both have same size, which
+      here seems to be the case and is good, but also they should have the same state of the
+      username... the pocket strip and usernames are rendered differently causing the stacks to have
+      different size, even though the boards inside the stack match." Nothing in the survey asked
+      about that: every check was about an area, a part, or a pair of surfaces, and a stack 45px
+      taller than its twin breaks none of them — nothing overlaps, nothing overflows, and each stack
+      fits the area it was given. The new check asks its question ONLY where the two boards are the
+      same size, because different sizes are meant to carry different furniture, and it reads the
+      name's state from its DRAWN WIDTH rather than from a class — a name on its own line is as wide
+      as its strip, squeezed into the pocket row it gets a fraction of it — since two different
+      mechanisms decide it and neither can be trusted to speak for the other. The stacks' numbers are
+      recorded on every row as `seats`, whether or not the check fires.
+- [ ] 1.33 **The analysis page gives its two stacks different furniture at the same board size** —
+      found by 1.32; four rows when it was found, TWO NOW. `T3-C4-minxmin` and `T4-C4-minxmin` were
+      fixed by 2.12: their partner stacks had room for the line all along and were refused by the
+      cap the CSS rule charged. `T1-C4-minxmin` and `T6-C4-minxmin` remain, and they are the case
+      no implementation reaches — 44px of room against a line that really costs 45.2.
+      At `T1-C4-minxmin` both boards are 188x188 while the own strips are 46.1px each with the
+      username on a line of its own and the partner's are 23.5px with it inline — 45px of difference
+      from furniture alone. THE ROUND PAGE NEVER DISAGREES: in every equal-board row its two seats
+      reach the same answer, inline or outside together.
+      THE CAUSE, measured. Each page answers the question its own way — `seatNamePlacement.ts` by
+      measuring (round page only) and `--bug-name-outside` by arithmetic (both pages) — and the
+      arithmetic spends `--bug-coord-room`, which is `10 * (--bug-stack-allow - --bug-stack-sq)`:
+      the stack's spare height INSIDE ITS OWN ALLOWANCE. The partner board is width-capped at half
+      the own board's allowance (29.5px per square against 59), so at "minimum zoom" the two are
+      drawn the same size but stand at very different fractions of their own ceilings — the own
+      board at 40% of its allowance with 355px of room, the partner at 80% with 60px, just short of
+      the ~64px two name lines cost.
+      WHAT IS NOT DECIDED. The room the rule spends is the BOARD's; the room Nikolay is looking at
+      is the COLUMN's, and that column has 85px unused on the same row — the survey says so in its
+      own warning. Letting a stack spend the column was refused once, deliberately and with a
+      measurement (`spaceFor()`, "The room was never the board's to spend"), because at full zoom the
+      partner sits in a column taller than it may use. The band is also what zone A offers the tools,
+      so a name taking it is a name taking the tools' room. Nikolay to decide; not a fix to guess at.
+- [ ] 1.31 **Draw and resign are sized unlike the tabs they share a row with** — Nikolay, on the
+      four short-landscape `C2` rows: "there is enough space for the draw and resign button to fit in
+      the tablist row if they were slightly smaller ... they should probably follow similar size as
+      the tablist buttons in all cases, which would allow them to stay on same row more often than
+      not." The wrapping he saw is gone — 1.23 gave the track the width it was short of — but the
+      sizing rule he asked for is not written, and the survey has no check for it. Recorded here
+      because those rows are accepted now and the note went with them.
 
 ## 2. Decide zone A, per mode
 
@@ -164,6 +255,87 @@ mechanism, not a proposal of its own — see `design.md` "Findings".
       the main board's stack, Nikolay's number from 2026-09-05 — now that the WIDTH floor is 50%. A
       reader zooming their own partner board down is an explicit choice rather than the layout
       deciding, so the two may legitimately differ; it needs saying either way.
+
+- [x] 2.12 **ONE IMPLEMENTATION OF THE SEAT-NAME RULE, FOR BOTH PAGES — decided by Nikolay,
+      2026-09-19.** "this logic does not belong to page level - it belongs to the stack components
+      and they are the same in both pages more or less so maintaining two different implementations
+      for two different pages but same thing inside them makes no sense."
+      MEASURED FIRST, as he asked. Both rules were evaluated on every row of the survey — 528 stack
+      decisions — and they agree on 485. Every disagreement is the same one and runs one way: 33
+      partner stacks on the round page are granted a line by the measuring module that the CSS
+      arithmetic refuses, because the arithmetic charges the font's CAP (53.8px for the pair) where
+      the line really costs 31.9 to 40.6. Nowhere does the arithmetic grant one the module refuses.
+      The room the two compute is identical, and both decide per stack; the cost was the whole of
+      the difference.
+      DONE. `seatNamePlacement.ts` moved to `client/two-board/common/`, its app selector widened to
+      both pages, and `analysisCtrl` now calls it with `clearBoardBounds` — the invalidation the
+      round page always had for a board that MOVES inside its stack without resizing. The CSS
+      decision is deleted: `--bug-name-outside`, `--bug-name-room`, `--bug-name-line` and the
+      `@property` registration are gone, and the style query that rendered the state became
+      ordinary rules on the same two classes. What each page says "outside" LOOKS like stays its
+      own — the analysis page's strips need a full flex basis where the round page's name reaches
+      the next line by itself — which is the half that legitimately differs.
+      AND THE COST IS NOW MEASURED IN BOTH DIRECTIONS, which the move required rather than merely
+      allowed. The module charged a seat without the line twice its RENDERED font size: an
+      over-estimate on the round page, where the name sits at its 16.8px cap, and a wild
+      under-estimate on the analysis page, where the name's size comes from a container query and
+      falls with the strip — a name rendering near 5px would have been charged about 20px for a
+      line costing 45.2, granted it, measured the truth on the next pass and taken it back. That is
+      the 12Hz flip by a new route. `lineCost` now TRIES it: the class goes on, the strip is read,
+      the class comes off, and the caller decides against a real number. One forced layout per seat
+      that does not already have its line.
+      RESULT: 57 failing rows to 55, nothing newly failing, every row settling within three frames
+      and no `layout never settled` anywhere. The two rows that went clean are the ones the cap had
+      been refusing.
+      DEFERRED, DELIBERATELY: oscillation. The arithmetic could not oscillate and needed no
+      observer; the analysis page now has both. Nikolay: "we will address oscillation at the very
+      end when everything else is decided so at that point we know exactly what depends on what."
+
+- [x] 1.34 **TWO MORE CHECKS THE SURVEY DID NOT HAVE — the minimum-zoom invariant, and tap
+      targets.** Both are Nikolay's, 2026-09-19, and both came from rows reported as clean that he
+      could not accept.
+      THE FIRST IS A RULE THE CODE ALREADY STATES. `MIN_STACK_IN_LEFT_SQUARES` is four squares OF
+      THE LEFT BOARD — a size, not a percentage, "because a flat no-less-than-50% lets one board
+      shrink to half of a big square and the other to half of an already small one" — and each
+      column converts that one size back into its own percentage. The comment says what must
+      follow: "The two sliders therefore stop at different numbers AND AT THE SAME BOARD SIZE,
+      which is the whole point." So the check asserts exactly that, with one device pixel of
+      tolerance because the two squares are quantised independently. It has to be asked of the
+      REQUEST — a drawn page cannot tell a board sitting on its floor from one asked for 39% — so
+      the walk now hands the probe `{zoom, minZoom}` and the check runs only where both columns
+      were set to minimum.
+      THE SECOND IS WCAG 2.2's 24x24px target size (2.5.8), which this stylesheet already cites as
+      the reason `--bug-preset-btn-min` exists. Measured first as a plain failure and it turned
+      EVERY row red — 264 of 264, with 1056 of the 1163 findings the four username links (19-21px
+      tall, 70-190px wide) and 64 the multipv slider's track. Short on one axis and long on the
+      other is the shape the standard's inline and spacing exceptions are written for, so the check
+      is now two-tiered: under the minimum in BOTH dimensions is a FAILURE — small every way, no
+      exception reaches it — and under on one axis is a WARNING. Four rows fail: twenty preset
+      buttons at 9.8x9.8 in `P5-landscape-C1`'s 61px tools column, the same buttons a pixel under at
+      `D2-C1-minxmin`, and the multipv slider drawn 14.2px and 2px wide on two analysis rows. That
+      is the starved column detected at last, in a published standard's units rather than in a
+      number either of us invented.
+- [ ] 1.35 **At minimum zoom the two boards are NOT the same size — 45 rows**, found by 1.34 and not
+      yet fixed, on Nikolay's instruction that the harness comes first. Every `minxmin` row on all
+      six desktops and five of the tablets, in all four cases, and the partner board is consistently
+      the LARGER: `D1` 35.0 against 41.0 per square, `D4` 28.0 against 33.0, `D5` 50.0 against 58.0.
+      Where to look: `minZoomPercent()` computes `floorHeight` from `allowanceFor('a')` and divides
+      by `allowanceFor(boardName)` — both read from the viewport directly — while the page PUBLISHES
+      allowances that disagree with the second of those. At `D4-C1-minxmin` the published allowances
+      are equal (71 and 71), so the two minimum percentages should be equal too, and they come out
+      39 and 46. 34 of the 45 rows had been accepted before this check existed.
+
+- [x] 2.11 **How the parts sit in the band — ANSWERED by Nikolay, 2026-09-19.** Two rules, one
+      general and one not:
+      - **Whatever zone A holds stacks at the BOTTOM of the band, glued, with the slack above it** —
+        several parts or one, and a single part is bottom-aligned for the same reason. The band is
+        the space the partner board frees, so the empty part of it belongs under that board, where
+        it reads as the band not being full rather than as gaps between the parts.
+      - **The engine box is above the button row wherever both are in the band.** This one is about
+        those two parts only — it is not a rule about the band — and it holds whether the move list
+        is beside them in the tools column or below them in zone B.
+      Implemented in 1.28 and 1.29; the homes beside the boards already satisfied the first, their
+      first row being `minmax(0, 1fr)` and taking the slack by being flexible.
 
 - [x] 2.10 **How a part says what it needs — THE FRAMEWORK.** Each arrangeable part declares
       `--bug-part-min-w` / `--bug-part-min-h` in the stylesheet, beside the rules that produce its
@@ -429,19 +601,32 @@ running game".
       fell 38 -> 34, which with the new "tab Moves covered" rows points at the analysis page's parts
       being grid items in `zoneB`/`zoneA` rows at 50% zoom.
 
-## 6. Where this stands — 2026-09-13
+## 6. Where this stands — 2026-09-19
 
-WHAT IS DONE. The layout survey (`tests/layout_matrix`) is the instrument this change now works
-through, and it is trusted: four of its checks were wrong and were corrected or removed, a fifth was
-demoted to a warning. Its report carries per-row notes and an accepted flag (`notes.json`, 229 rows
-recorded, 187 accepted) and diffs against `baseline.json` so a fix is reviewed rather than believed.
-Findings 1.20 to 1.23 are fixed and confirmed on screen; 1.24 went upstream on its own. Two
-requirements were added to the delta spec, and `design.md` records how the instrument is used.
+WHAT IS DONE. The layout survey (`tests/layout_matrix`) is the instrument this change works through,
+and it is trusted: five of its checks were wrong and were corrected, removed or demoted to warnings.
+Its report carries per-row notes and an accepted flag (`notes.json`) and diffs against
+`baseline.json`, so a fix is reviewed rather than believed. Findings 1.20 to 1.24 are fixed and
+confirmed on screen, and 1.28 to 1.30 with them: zone A's rule — parts glued at the bottom of the
+band, slack above, engine box above the button row — is 2.11, and the run went from 122 failing rows
+to 63 with nothing newly failing and 59 rows going clean. 1.26 followed, the chat's inherited
+minimum: 15 more rows clean and again none newly failing. Then 2.12 put the seat-name rule in one
+place for both pages, which took two more rows with it — 55 failing at that point. The two checks in
+1.34 then took the count to 85, all of it work that was always there and unseen: 45 rows where two
+boards at their minimum are not the same size, and 4 where a tap target is under the accessibility
+floor in both dimensions.
 
 WHERE TO PICK UP. 1.25 first — it has a reproduction and is the remainder of a class already fixed
-twice. Then 1.26, which needs identifying before it can be judged. 1.27 is one row. The survey's
-remaining classes, by unaccepted rows: area slack (~38), the tools column's `DIV` (17), the
-unpublished gap (12), zone A declared and empty (12).
+twice: no preset gap is published at base zoom, so the rows sit compacted where they have 7-30px to
+spread into. Then 1.26, which needs identifying before it can be judged, and 1.27, which is one row.
+1.31 is Nikolay's, small, and has no check behind it yet.
+
+WHAT THE SURVEY STILL HAS OPEN, by unaccepted rows: the preset gap and the compacted rows at base
+zoom, the tools column's anonymous `DIV`, and PORTRAIT — where the space between the boards goes
+unused by every tool that could take it. Portrait is the biggest group and it is not this change's:
+`portrait-preset-panel-and-flow` holds it, and its premise needs rewriting first, because portrait
+is not without a zone. The analysis page in portrait already drops all three parts and gives the tab
+strip a full-width row of its own; the round page in portrait fires no drop at all.
 
 WHAT IS PARKED, DELIBERATELY. The clearance warning: of 141 findings, 108 were a 0.0px flush edge
 between a panel and a board, which is a grid track ending where the next begins. The real case (a
@@ -449,8 +634,8 @@ seat name overhanging its own stack by 1.7px, a preset button 3.3px below) reads
 than breaking, and separating the two needs a different question — is a surface drawn OUTSIDE its
 own part's box and close to a board.
 
-THE WORK SO FAR IS OUT. Fork master carries all of it (`8afa1ac90`); PR #2355 takes the layout and
-reconnect work to gbtami without the fork-only material, for Nikolay to review and merge.
+THE WORK SO FAR IS OUT. Fork master carries all of it; PR #2355 took the layout and reconnect work to
+gbtami without the fork-only material.
 
 ## 7. Record
 

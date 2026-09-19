@@ -18,7 +18,7 @@ from pathlib import Path
 
 from playwright.async_api import Error as PlaywrightError
 
-from .viewports import BASE_ZOOM, VIEWPORTS, ZOOMS, Case, Viewport, zoom_label
+from .viewports import BASE_ZOOM, MIN_ZOOM, VIEWPORTS, ZOOMS, Case, Viewport, zoom_label
 
 PROBE = (Path(__file__).parent / "probe.js").read_text()
 
@@ -354,10 +354,14 @@ async def capture(page, cdp, row: Row, shots_dir: Path) -> Row:
         # is nudged. The SECOND is recorded, because it is the state the viewport actually implies
         # and it is the same whichever viewport came before. A difference between the two is not
         # noise to be smoothed away — it is a finding, and it is reported as one.
-        before = await page.evaluate(PROBE)
+        # WHAT THE WALK ASKED FOR, handed to the probe: one check is about the REQUEST — two
+        # boards asked for their minimum must come out the same size — and a drawn page cannot
+        # tell a board at its floor from a board at any other zoom.
+        ctx = {"zoom": list(row.zoom), "minZoom": MIN_ZOOM}
+        before = await page.evaluate(PROBE, ctx)
         await page.evaluate(NUDGE)
         await settle(page)
-        row.facts = await page.evaluate(PROBE)
+        row.facts = await page.evaluate(PROBE, ctx)
 
         if isinstance(settled, dict):
             row.facts["settled"] = settled
