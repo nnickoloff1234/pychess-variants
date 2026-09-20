@@ -7,7 +7,7 @@
    carries, the hover and focus states — and the two states the game's end puts them in. The
    icon's rule inside a chat message is here too, because what it styles is the button.
 
-   What does not: WHERE the sets go. `drop-p1`, `drop-p2`, `drop-presets-b`, `tools-*` and the
+   What does not: WHERE the sets go. `drop-tools2`, `drop-tools3`, `drop-presets-b`, `tools-*` and the
    grid areas they name are the arrangement's, in `layout/`. Nor the numbers themselves:
    `--bug-preset-btn`, its floor and its ceiling are declared in `properties.css` and published
    from `toolsPlacement.ts`; this file only spends them. */

@@ -38,8 +38,8 @@
        Every landscape arrangement either page can be in, as a value rather than as a rule, so
        that the round page and the analysis page cannot drift into meaning different things by
        the same area name. They did drift: this page used to declare three rows — one zoneA and
-       one zoneB — and spell `drop-tablist` while meaning by it what the round page means by
-       `drop-tablist-b`. The class is chosen in toolsPlacement.ts against zone A's test or zone
+       one zoneB — and spell `drop-tools4` while meaning by it what the round page means by
+       `drop-tools4-b`. The class is chosen in toolsPlacement.ts against zone A's test or zone
        B's, so a page whose names disagree asks one zone's question and answers it in the
        other's space. Measured at 996x730: zone B correctly refused a 31.5px tab list into
        3.3px of room while zone A dropped it anyway, and it was drawn across board A's pocket.
@@ -232,15 +232,15 @@
        alone keeps `zoneA3`, which is the row its template has; see the pair's rule below.
 
        ZONE A, IN THE ORDER THE PARTS LEAVE. Each class is cumulative — `toolsPlacement.ts` only
-       sets `drop-engine` once `drop-tablist` is on — so the template and the areas can be stated
+       sets `drop-tools3` once `drop-tools4` is on — so the template and the areas can be stated
        per combination without a matrix. */
-    .analysis-app.bug.drop-tablist.drop-engine {
+    .analysis-app.bug.drop-tools4.drop-tools3 {
         grid-template-areas: var(--bug-zones-a34);
     }
-    .analysis-app.bug.drop-engine .bug-tool-group > .analysis-engine-panel {
+    .analysis-app.bug.drop-tools3 .bug-tool-group > .analysis-engine-panel {
         grid-area: zoneA3;
     }
-    .analysis-app.bug.drop-tablist.drop-engine.drop-controls {
+    .analysis-app.bug.drop-tools4.drop-tools3.drop-tools2 {
         grid-template-areas: var(--bug-zones-a234);
     }
     /* THE ENGINE BOX ON TOP, THE BUTTON ROW UNDER IT, ONCE BOTH ARE IN THE BAND — the same rule
@@ -249,10 +249,10 @@
        each new one takes the next row UP, which would put the button row above the engine box;
        these two rules put it back. With the engine box alone the rule above stands and it takes
        `zoneA3`, which is the only band row the `a34` template has for it. */
-    .analysis-app.bug.drop-engine.drop-controls .bug-tool-group > .analysis-engine-panel {
+    .analysis-app.bug.drop-tools3.drop-tools2 .bug-tool-group > .analysis-engine-panel {
         grid-area: zoneA2;
     }
-    .analysis-app.bug.drop-controls .bug-tool-group > .analysis-controls-panel {
+    .analysis-app.bug.drop-tools2 .bug-tool-group > .analysis-controls-panel {
         grid-area: zoneA3;
     }
     /* ZONE B IS THE FALLBACK, AND ONLY FOR THE ENGINE BOX. Where zone A is too small — most often
@@ -262,11 +262,11 @@
        would cost the boards more height than the buttons are worth. Where the tools' HOME is
        already zone B — `tools-below` — none of this applies: the whole panel is there and the
        parts are one box again. */
-    .analysis-app.bug.drop-engine-b .bug-tool-group > .analysis-engine-panel {
+    .analysis-app.bug.drop-tools3-b .bug-tool-group > .analysis-engine-panel {
         grid-area: zoneB1;
     }
-    /* DROPPED, in the round page's two stages. `drop-tablist` is decided by zone A's test in
-       toolsPlacement.ts and `drop-tablist-b` by zone B's, so each class must land its part in the
+    /* DROPPED, in the round page's two stages. `drop-tools4` is decided by zone A's test in
+       toolsPlacement.ts and `drop-tools4-b` by zone B's, so each class must land its part in the
        zone whose question was asked. This page spelled only the first and routed it to a zone-B
        row, which is the disagreement the shared vocabulary above exists to prevent: measured at
        996x730 with board A at full zoom, zone B correctly refused a 31.5px tab list into the
@@ -275,13 +275,13 @@
        claiming the whole budget.
 
        Zone A first: there is room under the SHORTER board long before there is room under both. */
-    .analysis-app.bug.drop-tablist .bug-parts > [role='tablist'] {
+    .analysis-app.bug.drop-tools4 .bug-parts > [role='tablist'] {
         grid-area: zoneA4;
     }
     /* Zone B keeps the base template: the part leaves row 4 for row 6, and the row it vacates
-       collapses on its own. The round page's `drop-tablist-b` states no template either, for
+       collapses on its own. The round page's `drop-tools4-b` states no template either, for
        exactly this reason. */
-    .analysis-app.bug.drop-tablist-b .bug-parts > [role='tablist'] {
+    .analysis-app.bug.drop-tools4-b .bug-parts > [role='tablist'] {
         grid-area: zoneB2;
     }
     /* THE TWO-COLUMN HOMES on this page. Two parts, so zone B's second row and zone A's lower
@@ -329,10 +329,10 @@
        stated once per home rather than derived from the order in which they drop. Which row each
        takes when it is alone does not matter here: an empty band row collapses, so a lone part is
        at the bottom of the band either way. */
-    .analysis-app.bug.tools-below.drop-engine .bug-tool-group > .analysis-engine-panel {
+    .analysis-app.bug.tools-below.drop-tools3 .bug-tool-group > .analysis-engine-panel {
         grid-area: zoneA2;
     }
-    .analysis-app.bug.tools-below.drop-controls .bug-tool-group > .analysis-controls-panel {
+    .analysis-app.bug.tools-below.drop-tools2 .bug-tool-group > .analysis-controls-panel {
         grid-area: zoneA3;
     }
     /* The `align-self: start` the two parts carried here is gone with the row sizing that made it
@@ -363,10 +363,10 @@
        the BOARDS its height, so the cheapest part goes first — 40px for the button row against 74
        for the engine box — where in the band, which costs nothing, the tallest goes first.
        Zone B's tenants keep their order: controls above the engine box, the strip below both. */
-    .analysis-app.bug.tools-zonea.drop-controls-b .bug-tool-group > .analysis-controls-panel {
+    .analysis-app.bug.tools-zonea.drop-tools2-b .bug-tool-group > .analysis-controls-panel {
         grid-area: zoneB1;
     }
-    .analysis-app.bug.tools-zonea.drop-engine-b .bug-tool-group > .analysis-engine-panel {
+    .analysis-app.bug.tools-zonea.drop-tools3-b .bug-tool-group > .analysis-engine-panel {
         grid-area: zoneB2;
     }
 
@@ -493,16 +493,16 @@
        template they swap has to be the element they sit on, and that is the app now.
        toolsPlacement.ts puts them wherever it measures, which is the same element by
        construction — see the note there about `display: contents` measuring zero. */
-    :is(.round-app, .analysis-app).bug.drop-tablist {
+    :is(.round-app, .analysis-app).bug.drop-tools4 {
         grid-template-areas: var(--bug-zones-a4);
     }
-    .round-app.bug.drop-tablist.drop-p2 {
+    .round-app.bug.drop-tools4.drop-tools3 {
         grid-template-areas: var(--bug-zones-a34);
     }
-    .round-app.bug.drop-tablist.drop-p2.drop-p1 {
+    .round-app.bug.drop-tools4.drop-tools3.drop-tools2 {
         grid-template-areas: var(--bug-zones-a234);
     }
-    .round-app.bug.drop-tablist .bug-parts > .bug-round-tools-bar {
+    .round-app.bug.drop-tools4 .bug-parts > .bug-round-tools-bar {
         grid-area: zoneA4;
     }
 
@@ -516,7 +516,7 @@
        What this replaces looked like a swap: the bar dropped into zone A, beside the partner
        board, while the presets jumped past it to the full width below — so on the way down the
        two traded places instead of filling one after the other. */
-    .round-app.bug.drop-tablist-b .bug-parts > .bug-round-tools-bar {
+    .round-app.bug.drop-tools4-b .bug-parts > .bug-round-tools-bar {
         grid-area: zoneB2;
     }
 
@@ -533,24 +533,24 @@
 
        The row is empty either way — the bar is in zone B — so putting it above costs nothing
        and keeps every area a rectangle. */
-    .round-app.bug.drop-tablist-b.drop-p2 {
+    .round-app.bug.drop-tools4-b.drop-tools3 {
         grid-template-areas: var(--bug-zones-a3);
     }
-    .round-app.bug.drop-tablist-b.drop-p2.drop-p1 {
+    .round-app.bug.drop-tools4-b.drop-tools3.drop-tools2 {
         grid-template-areas: var(--bug-zones-a23);
     }
-    .round-app.bug.drop-tablist-b.drop-p2 .bug-parts .chatpresets-panel-2 {
+    .round-app.bug.drop-tools4-b.drop-tools3 .bug-parts .chatpresets-panel-2 {
         grid-area: zoneA3;
     }
-    .round-app.bug.drop-tablist-b.drop-p2.drop-p1 .bug-parts .chatpresets-panel-1,
-    .round-app.bug.drop-tablist-b.drop-p2.drop-p1 .bug-parts > .bug-gameover {
+    .round-app.bug.drop-tools4-b.drop-tools3.drop-tools2 .bug-parts .chatpresets-panel-1,
+    .round-app.bug.drop-tools4-b.drop-tools3.drop-tools2 .bug-parts > .bug-gameover {
         grid-area: zoneA2;
     }
-    .round-app.bug.drop-tablist.drop-p2 .bug-parts .chatpresets-panel-2 {
+    .round-app.bug.drop-tools4.drop-tools3 .bug-parts .chatpresets-panel-2 {
         grid-area: zoneA3;
     }
-    .round-app.bug.drop-tablist.drop-p2.drop-p1 .bug-parts .chatpresets-panel-1,
-    .round-app.bug.drop-tablist.drop-p2.drop-p1 .bug-parts > .bug-gameover {
+    .round-app.bug.drop-tools4.drop-tools3.drop-tools2 .bug-parts .chatpresets-panel-1,
+    .round-app.bug.drop-tools4.drop-tools3.drop-tools2 .bug-parts > .bug-gameover {
         grid-area: zoneA2;
     }
 

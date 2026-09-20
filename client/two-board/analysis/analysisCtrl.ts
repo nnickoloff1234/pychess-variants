@@ -129,9 +129,9 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
            from there — see `declaredMin()`. */
         trackToolsPlacement(
             [
-                ['[role="tablist"]', 'drop-tablist'],
-                ['.analysis-engine-panel', 'drop-engine', 'drop-engine-b'],
-                ['.analysis-controls-panel', 'drop-controls', 'drop-controls-b'],
+                ['[role="tablist"]', 'drop-tools4'],
+                ['.analysis-engine-panel', 'drop-tools3', 'drop-tools3-b'],
+                ['.analysis-controls-panel', 'drop-tools2', 'drop-tools2-b'],
             ],
             '.analysis-app.bug',
             () => clearBoardBounds(this),

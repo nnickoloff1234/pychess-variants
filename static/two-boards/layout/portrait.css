@@ -259,21 +259,21 @@
        `toolsPlacement` puts them on the element whose template they swap, and with the merged
        column dissolved that element is the app. The same rules lived on `.partner-and-tools`
        while it had a box. */
-    :is(.round-app, .analysis-app).bug.drop-tablist {
+    :is(.round-app, .analysis-app).bug.drop-tools4 {
         grid-template-areas: 'stack      zoneTools1'
                              'stack      zoneTools2'
                              'stack      zoneTools3'
                              'zoneTools4 zoneTools4'
                              'ownstack   ownstack';
     }
-    :is(.round-app, .analysis-app).bug.drop-tablist.drop-p2 {
+    :is(.round-app, .analysis-app).bug.drop-tools4.drop-tools3 {
         grid-template-areas: 'stack      zoneTools1'
                              'stack      zoneTools2'
                              'zoneTools3 zoneTools3'
                              'zoneTools4 zoneTools4'
                              'ownstack   ownstack';
     }
-    :is(.round-app, .analysis-app).bug.drop-tablist.drop-p2.drop-p1 {
+    :is(.round-app, .analysis-app).bug.drop-tools4.drop-tools3.drop-tools2 {
         grid-template-areas: 'stack      zoneTools1'
                              'zoneTools2 zoneTools2'
                              'zoneTools3 zoneTools3'

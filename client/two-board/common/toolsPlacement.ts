@@ -15,24 +15,26 @@ import { notifyOnToolsHomeChange, toolsMinWidth } from '../squareUnit';
  *                         stack | zoneTools3
  *                         stack | zoneTools4
  *
- *   drop-tablist          stack | zoneTools1   the tab bar spans the full width,
+ *   drop-tools4           stack | zoneTools1   the tab bar spans the full width,
  *                         stack | zoneTools2   under both the board and the parts
  *                         stack | zoneTools3   above it
  *                         zoneTools4 zoneTools4
  *
- *   + drop-p2             stack | zoneTools1   the second preset part follows
+ *   + drop-tools3         stack | zoneTools1   the next part up follows
  *                         stack | zoneTools2
  *                         zoneTools3 zoneTools3
  *                         zoneTools4 zoneTools4
  *
- *   + drop-p1             stack | zoneTools1   and then the first
+ *   + drop-tools2         stack | zoneTools1   and then the one above that
  *                         zoneTools2 zoneTools2
  *                         zoneTools3 zoneTools3
  *                         zoneTools4 zoneTools4
  *
- * The class names still say `p1`/`p2`/`tablist` because they name the PART that
- * drops, which is a different question from where it lands; renaming them is its
- * own step and touches the droppable lists below.
+ * THE CLASSES NAME THE SLOT THAT WIDENS, not the part that moved into it. They used to name the
+ * part — `drop-tablist`, `drop-p2`, `drop-p1` on the round page and `drop-tablist`, `drop-engine`,
+ * `drop-controls` on the analysis page — which is two sets of names for one set of slots, so every
+ * rule about a slot had to be written twice, once per page. The parts differ and the slots do not:
+ * whatever a page puts in `zoneTools3`, `drop-tools3` is what widens it.
  *
  * `zoneTools1` never moves. It sits beside the board in every arrangement and
  * takes whatever height the others leave — the chat on the round page, the move
@@ -220,13 +222,13 @@ function declaredMin(el: HTMLElement): { width: number; height: number } {
    it has no chat and no presets. Everything else in this file is the same for both: what a part
    costs once dropped, the cumulative test, the classes, and the observer. */
 export const ROUND_DROPPABLE: Droppable = [
-    ['.bug-round-tools-bar', 'drop-tablist'],
-    ['.chatpresets-panel-2', 'drop-p2'],
+    ['.bug-round-tools-bar', 'drop-tools4'],
+    ['.chatpresets-panel-2', 'drop-tools3'],
     // Two elements share this area and never coexist: the first preset part while
     // the game is on, the end-of-game controls once it is not. Whichever is showing
     // is the one whose height decides, so the selector matches both and the heights
     // are summed — the other contributes nothing because it is not displayed.
-    ['.chatpresets-panel-1, .bug-gameover', 'drop-p1'],
+    ['.chatpresets-panel-1, .bug-gameover', 'drop-tools2'],
 ];
 
 /**
@@ -749,7 +751,7 @@ function place(container: HTMLElement, droppable: Droppable): void {
             if (zoneBClassName !== undefined) continue;
             column.classList.remove(className);
         }
-        column.classList.remove('drop-tablist-b', 'drop-presets-b');
+        column.classList.remove('drop-tools4-b', 'drop-presets-b');
 
         // The heights still have to be published, and they are simpler here than in the column
         // case: the app is the whole budget, and the boards get all of it except where the tools
@@ -921,9 +923,9 @@ function place(container: HTMLElement, droppable: Droppable): void {
     //
     // Asked anyway, it answered about a layout that is not on the page — `.bug-own-stack` is
     // outside the column there, so the taller stack was the partner's board alone — and then
-    // claimed the tools bar for a `drop-tablist-b` no rule matches. The bar stayed beside the
-    // board AND the zone A loop below skipped it as already taken, so `drop-tablist` never went
-    // on, and with it the `.drop-tablist.drop-p2` chain that drops the presets. Nothing moved in
+    // claimed the tools bar for a `drop-tools4-b` no rule matches. The bar stayed beside the
+    // board AND the zone A loop below skipped it as already taken, so `drop-tools4` never went
+    // on, and with it the `.drop-tools4.drop-tools3` chain that drops the presets. Nothing moved in
     // portrait or short landscape at any width.
     const group = hasZoneB ? column.querySelector<HTMLElement>(PRESETS_GROUP) : null;
     const b =
@@ -931,7 +933,7 @@ function place(container: HTMLElement, droppable: Droppable): void {
             ? zoneB(column, group, available, tallestStack(column), droppable[0][0])
             : { bar: false, presets: false, oneRow: false, tallest: 0, cost: 0 };
 
-    column.classList.toggle('drop-tablist-b', b.bar);
+    column.classList.toggle('drop-tools4-b', b.bar);
     column.classList.toggle('drop-presets-b', b.presets);
 
     // Each part drops only if every part before it in the order has dropped too,
@@ -1096,7 +1098,7 @@ function place(container: HTMLElement, droppable: Droppable): void {
 
         // AND THE STYLESHEET GETS A VETO, because a part asking for zone B is not the same as a
         // home that has a row to give it. The analysis page's controls panel declares
-        // `drop-controls-b`, but its rule is scoped to the `tools-zonea` home ON PURPOSE — see
+        // `drop-tools2-b`, but its rule is scoped to the `tools-zonea` home ON PURPOSE — see
         // `layout/landscape.css`: beside the boards the strip and the engine box are already in
         // zone B, and a third row there costs the boards more height than a row of buttons is
         // worth. So in every other home the class went on, nothing matched it, the part stayed in
@@ -1178,7 +1180,7 @@ function labelControls(app: HTMLElement): void {
     //
     // The class comes back off rather than being left set-but-inert. A class that says a
     // thing the page is not doing is the shape of bug this file has already produced once —
-    // `drop-tablist-b` sat on an element no rule matched, and the arrangement it claimed to
+    // `drop-tools4-b` sat on an element no rule matched, and the arrangement it claimed to
     // have made had not happened.
     if (getComputedStyle(bar).getPropertyValue(CONTROLS_LABELS).trim() === '0') {
         app.classList.remove('controls-labelled');
@@ -1191,7 +1193,7 @@ function labelControls(app: HTMLElement): void {
     // text, which is spending the tab row to caption two buttons. Dropped into zone A or zone B
     // the bar is most of the page and the room is genuinely spare, which is the case these
     // labels are for.
-    const dropped = app.classList.contains('drop-tablist') || app.classList.contains('drop-tablist-b');
+    const dropped = app.classList.contains('drop-tools4') || app.classList.contains('drop-tools4-b');
     if (!dropped) {
         app.classList.remove('controls-labelled');
         return;

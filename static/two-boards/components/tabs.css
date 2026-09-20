@@ -7,7 +7,7 @@
 
    What belongs here: how they are DRAWN — the tab's padding and its truncation, the button's
    size and colour, when a control shows its label, the panel's own height and direction against
-   `site.css`. What does not: WHERE any of them goes. `drop-tablist`, `tools-*`, `strip-in-zoneb`
+   `site.css`. What does not: WHERE any of them goes. `drop-tools4`, `tools-*`, `strip-in-zoneb`
    and the grid areas they name are the arrangement's, in `layout/`. */
 
 /* THE STRIP CLIPS, AND EACH PART NOW HAS TO SAY SO ITSELF.

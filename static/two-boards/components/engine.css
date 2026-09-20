@@ -4,7 +4,7 @@
    rows, `.infoBug`, the pv columns and a borrowed line, the Multiple-lines row — and the EVAL
    GAUGES, which hang off the stacks but are the engine's output and disappear with it.
 
-   What does not: WHERE the panel goes. `drop-engine`, `tools-below`, `tools-zonea` and the
+   What does not: WHERE the panel goes. `drop-tools3`, `tools-below`, `tools-zonea` and the
    grid areas they name are the arrangement's, in `layout/`. Nor `--bug-part-min-w`'s value for
    this part, which is a number and lives with the other numbers in `properties.css`. */
 

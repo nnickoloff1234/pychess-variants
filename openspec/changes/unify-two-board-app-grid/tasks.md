@@ -17,8 +17,13 @@ in section 3 is why it is not archived.
       `chat / p1 / p2 / tablist` named the same four slots, occupant for occupant.
 - [x] 1.5 Five landscape assignments deleted — `48f9b5dd6`. They existed to beat the shared rules
       while the vocabularies differed; afterwards they said the same thing.
-- [ ] 1.6 `drop-p1` / `drop-p2` / `drop-tablist` still speak the old vocabulary. They name the PART
-      that drops rather than where it lands, so this is its own step and reaches the droppable lists.
+- [x] 1.6 The drop classes name the SLOT that widens, not the part that moved into it: `drop-tools4`,
+      `drop-tools3`, `drop-tools2`. They were `drop-tablist` / `drop-p2` / `drop-p1` on the round
+      page and `drop-tablist` / `drop-engine` / `drop-controls` on the analysis page — two sets of
+      names for one set of slots, so every rule about a slot was written twice. The `-b` variants
+      follow: `drop-tools4-b`, `drop-tools3-b`, `drop-tools2-b`. `drop-presets-b` is left alone,
+      naming both preset panels rather than a slot.
+      104 occurrences across 7 files; 0 drop decisions changed once the names are mapped.
 
 ## 2. One grid per page
 
