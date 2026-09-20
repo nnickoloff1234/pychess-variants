@@ -2,7 +2,7 @@
 
 Portrait is a single column. The partner board and the tools share the region above, and the
 viewer's own board is the row below it — `grid-template-areas` measured at one column and two
-rows, 355.3px and 480.0px in a 386x835 viewport. `.bug-right-column` is a real grid there, not
+rows, 355.3px and 480.0px in a 386x835 viewport. `.partner-and-tools` is a real grid there, not
 `display: contents`, which is the difference that keeps every landscape-only rule away from it.
 
 Landscape now differs in two visible ways:
@@ -18,7 +18,7 @@ Landscape now differs in two visible ways:
 
 The measuring side is already portrait-safe. `toolsPlacement.ts` resolves the element it
 measures by asking whether the named container is `display: contents`, so in portrait it
-measures `.bug-right-column` itself. `seatNamePlacement.ts` and `partsWidth.ts` do the same.
+measures `.partner-and-tools` itself. `seatNamePlacement.ts` and `partsWidth.ts` do the same.
 Adding portrait zones therefore needs templates and droppable entries, not new machinery.
 
 ## Goals / Non-Goals

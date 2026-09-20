@@ -904,9 +904,9 @@ frees goes to the chat.
 357x788:
 
 ```
-.round-app.bug        grid-template-areas: "rightcol"  "ownstack"     one column, 355.6 wide
-                      rows: 343.5 (rightcol) + 444.5 (ownstack)
-.bug-right-column     grid-template-areas: "stack chat"              cols: 156.5 | 199.1
+.round-app.bug        grid-template-areas: "partnerAndTools"  "ownstack"     one column, 355.6 wide
+                      rows: 343.5 (partnerAndTools) + 444.5 (ownstack)
+.partner-and-tools    grid-template-areas: "stack chat"              cols: 156.5 | 199.1
                                            "stack p1"                rows: 133.9 chat
                                            "stack p2"                       84.8 p1
                                            "stack tablist"                   84.8 p2
@@ -914,7 +914,7 @@ frees goes to the chat.
 ```
 
 The zone vocabulary — `zoneA2..zoneA5`, `zoneB1..zoneB4` — belongs to the two LANDSCAPE templates.
-Portrait keeps its own names, `chat / p1 / p2 / tablist` inside `.bug-right-column`, and every one
+Portrait keeps its own names, `chat / p1 / p2 / tablist` inside `.partner-and-tools`, and every one
 of its rows is scoped to ONE of the column's two tracks: even the tab bar is `"stack tablist"`, the
 tools track only. **So the row shape this idea needs does not exist anywhere in portrait yet** — not
 as zone B, not as anything. It is a new area spanning both tracks, or it is nothing.
@@ -1099,10 +1099,10 @@ So the SE is where the idea would help most — and it is also the one place whe
 is **NOT FREE**, which is the thing to decide before designing it:
 
 ```
-today      rightcol height = max(partner stack 196, tools content 44+61+61+40 = 206) = 206
+today      partnerAndTools height = max(partner stack 196, tools content 44+61+61+40 = 206) = 206
            own board gets the rest: 370
 
-after      tools content = 44+61+40 = 145  ->  rightcol = max(196, 145) = 196   (-10)
+after      tools content = 44+61+40 = 145  ->  partnerAndTools = max(196, 145) = 196   (-10)
            the new full-width row adds ~36 below it                              (+36)
            so the own board pays ~27px: 370 -> ~343, and the chat goes 44 -> ~95
 ```

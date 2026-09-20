@@ -103,7 +103,7 @@ mechanism, not a proposal of its own — see `design.md` "Findings".
       five keeping the ten-across gap — 290px of row in a 584px box. FIXED — a pixel of slack.
 - [x] 1.22 **A published size survived the arrangement that published it.** The publisher is whichever
       element owns the tools, and an inner copy shadows the outer: the app carried 61px while
-      `.bug-right-column` still carried 46.67px from an arrangement that had ended. Four passes could
+      `.partner-and-tools` still carried 46.67px from an arrangement that had ended. Four passes could
       not shift it; only a reload could. FIXED — stale carriers are cleared on publish. NOT ONLY A
       SURVEY ARTEFACT: resizing a window or rotating a phone reaches a viewport the same way.
       Requirement in the delta spec.
@@ -452,7 +452,7 @@ running game".
       from 199.1 to 355.6 wide, the pitch from 40.3 to 35.6, the button from 37.4 to ~31 (clear of
       the 24px WCAG minimum), and the panel from 84.8 to ~36 — about 49px back to the chat.
       **PORTRAIT HAS NO ZONE A OR ZONE B**, confirmed by measurement: its areas are
-      `chat / p1 / p2 / tablist` inside `.bug-right-column`, and every row is scoped to one of the
+      `chat / p1 / p2 / tablist` inside `.partner-and-tools`, and every row is scoped to one of the
       two tracks — even the tab bar is `"stack tablist"`. So this needs a NEW area spanning both
       tracks (or portrait adopting the landscape vocabulary, which is a much bigger change and would
       have to say what zone A means when the boards are stacked). Full note, with the four things to
