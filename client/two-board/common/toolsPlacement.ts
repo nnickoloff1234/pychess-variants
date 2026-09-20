@@ -568,17 +568,24 @@ function place(container: HTMLElement, droppable: Droppable): void {
     //
     // Cleared rather than merely skipped, because these classes persist on the element across a
     // resize: the home can change under a arrangement that was correct a moment ago.
-    // ONLY WHERE THE CASCADE GOVERNS. `squareUnit.ts` publishes a home for every viewport, but only
-    // the flattened landscape template has the zones to honour it — short landscape and portrait
-    // keep arrangements of their own and place their parts by the drop classes below.
+    // ONLY WHERE THE CASCADE GOVERNS. `squareUnit.ts` publishes a home for every viewport, but a
+    // home the template cannot honour is a label: only a grid with full-width rows under BOTH
+    // boards can put a part anywhere but the strip beside one of them.
     //
-    // `flattened` asks the template, not the class: that is the same test the zone B logic already
-    // uses, and it is true of exactly the modes that have a zone B to move anything into. Gating on
-    // the class instead would have been a live hazard — short landscape computes a home from
-    // `--bug-tall-sq-a`, a variable it never draws with, so an unlucky viewport could have cleared
-    // its drop classes and returned with nothing to replace them.
-    const flattened = getComputedStyle(column).gridTemplateAreas.includes('zoneB');
-    if (flattened && !column.classList.contains('tools-beside')) {
+    // `hasZoneB` ASKS THE TEMPLATE, not the mode and not the home class. It was called `flattened`
+    // when the question was whether the merged column had been dissolved — every mode dissolves it
+    // now, so the old name says nothing. What it tests has not changed: does the grid being placed
+    // into name a zone B, which is a fact about the template in force and true of exactly the modes
+    // whose `drop-*-b` rules exist. Portrait names no such area; both landscape modes do.
+    //
+    // It says nothing about ROOM. Whether a zone B has height for anything is
+    // `budgetForZones(app) - tallestStack(app)`, asked separately wherever a part is charged.
+    //
+    // Reading the stylesheet rather than the home class was deliberate and stays so: short
+    // landscape computes a home from `--bug-tall-sq-a`, a variable it never draws with, so gating
+    // on the class could have cleared its drop classes and returned with nothing to replace them.
+    const hasZoneB = getComputedStyle(column).gridTemplateAreas.includes('zoneB');
+    if (hasZoneB && !column.classList.contains('tools-beside')) {
         // The parts whose only home is the tools column — the strip, the round page's presets —
         // have no place in these arrangements, so their classes go. The FRAGMENTS keep theirs: the
         // cascade below decides them for this home, and clearing them here would make every pass
@@ -734,17 +741,16 @@ function place(container: HTMLElement, droppable: Droppable): void {
     // measuring the box these decisions resize would make every answer depend on the last one,
     // and the two would chase each other forever. Where the column is a real box it is not
     // resized by any of this and can be measured directly.
-    // ASK THE TEMPLATE, NOT THE CONTAINER. This used to test whether the NAMED container had
-    // been dissolved — which every mode now is, since the wrapper that used to be a box is gone
-    // on the analysis page, which names the app itself. So the analysis page skipped zone B in
-    // every mode and never published the heights below: measured at 996x730 with a zoomed-out
-    // pair, a 639px tools panel beside a 460px board.
+    // THE BUDGET IS THE BUDGET, IN EVERY MODE. `--bug-app-h` is the viewport less the header and
+    // `squareUnit.ts` publishes it unconditionally, so there is nothing to gate: a mode either
+    // gets a number or it does not, and `clientHeight` is the fallback for the second case alone.
     //
-    // What actually matters is whether the grid being placed into HAS a zone B, which is a fact
-    // about the template in force and true of exactly the modes whose `drop-*-b` rules exist.
-    // Portrait and short landscape name no such area and are therefore untouched, which is the
-    // property the old test was reaching for by proxy.
-    const budget = flattened ? parseFloat(getComputedStyle(column).getPropertyValue(BUDGET)) : NaN;
+    // It used to be gated on `hasZoneB`, which is a fact about the template and has nothing to do
+    // with whether a published height can be trusted. The cost fell on portrait, the one mode the
+    // gate excluded: it measured its container instead, and when the merged column was dissolved
+    // that container became the app — three times taller than the box it replaced. The preset
+    // button went from height-limited to width-limited on the strength of it.
+    const budget = parseFloat(getComputedStyle(column).getPropertyValue(BUDGET));
     const available = Number.isFinite(budget) ? budget : column.clientHeight;
     const stackHeight = stack.getBoundingClientRect().height;
 
@@ -764,9 +770,9 @@ function place(container: HTMLElement, droppable: Droppable): void {
     // board AND the zone A loop below skipped it as already taken, so `drop-tablist` never went
     // on, and with it the `.drop-tablist.drop-p2` chain that drops the presets. Nothing moved in
     // portrait or short landscape at any width.
-    const group = flattened ? column.querySelector<HTMLElement>(PRESETS_GROUP) : null;
+    const group = hasZoneB ? column.querySelector<HTMLElement>(PRESETS_GROUP) : null;
     const b =
-        flattened && droppable.length > 0
+        hasZoneB && droppable.length > 0
             ? zoneB(column, group, available, tallestStack(column), droppable[0][0])
             : { bar: false, presets: false, oneRow: false, tallest: 0, cost: 0 };
 
@@ -869,7 +875,7 @@ function place(container: HTMLElement, droppable: Droppable): void {
         const inZoneA = column.classList.contains(className);
         const need = el ? Math.max(heightOf(column, selector), declaredMin(el).height) : 0;
         const fits =
-            flattened && el !== null && !inZoneA && zoneBUsed + need <= available - b.tallest;
+            hasZoneB && el !== null && !inZoneA && zoneBUsed + need <= available - b.tallest;
         column.classList.toggle(zoneBClassName, fits);
         if (fits) zoneBUsed += need;
     }
@@ -886,7 +892,7 @@ function place(container: HTMLElement, droppable: Droppable): void {
     // height, and publishing the old figure would leave them claiming space that is spoken for.
     // Every term still comes from measurements taken BEFORE any class was toggled, so nothing here
     // reads a layout this pass produced.
-    if (flattened && b.tallest > 0) {
+    if (hasZoneB && b.tallest > 0) {
         column.style.setProperty(CONTENT_HEIGHT, `${Math.min(available, b.tallest + zoneBUsed)}px`);
         column.style.setProperty(BOARDS_HEIGHT, `${available - zoneBUsed}px`);
     }
