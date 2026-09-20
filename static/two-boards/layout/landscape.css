@@ -286,7 +286,7 @@
        and pushed the app 8px past the viewport. `min-width: 0` does not reach a `min-content`
        track — the same trap the boards themselves hit — so the track has to be stated as a length.
        8.31 is the stack's own width in squares: eight files and the gauge's 0.31. */
-    .analysis-app.bug:is(.tools-below, .tools-zonea, .tools-lastresort) {
+    .analysis-app.bug:is(.tools-below, .tools-lastresort) {
         grid-template-columns: calc(var(--bug-tall-sq-a) * 8.31) calc(var(--bug-tall-sq-b) * 8.31) 0;
     }
 
@@ -335,31 +335,6 @@
     .analysis-app.bug.tools-below .bug-parts > [role='tablist'] {
         grid-area: zoneB2;
     }
-    /* THE BAND'S OWN ORDER: the list takes the slack row, the engine box and the controls their
-       own content height under it. The pair's order is the band's rule everywhere — engine box
-       above button row — so the column's reading order is the one thing that gives here: the list
-       stays on top, and the two parts below it are in the order they are in every other home. */
-    .analysis-app.bug.tools-zonea .bug-tool-group > .analysis-moves-panel {
-        grid-area: zoneA2;
-    }
-    .analysis-app.bug.tools-zonea .bug-tool-group > .analysis-engine-panel {
-        grid-area: zoneA3;
-    }
-    .analysis-app.bug.tools-zonea .bug-tool-group > .analysis-controls-panel {
-        grid-area: zoneA4;
-    }
-    /* AND DOWN INTO ZONE B, WHICH IS WHAT THE LIST IS SHORT OF. Every fragment that leaves the band
-       hands its height to the move list, which is the only part in there that can use it. The
-       CONTROLS go first, and the order is the opposite of zone A's on purpose: a zone B row costs
-       the BOARDS its height, so the cheapest part goes first — 40px for the button row against 74
-       for the engine box — where in the band, which costs nothing, the tallest goes first.
-       Zone B's tenants keep their order: controls above the engine box, the strip below both. */
-    .analysis-app.bug.tools-zonea.drop-tools2-b .bug-tool-group > .analysis-controls-panel {
-        grid-area: zoneB1;
-    }
-    .analysis-app.bug.tools-zonea.drop-tools3-b .bug-tool-group > .analysis-engine-panel {
-        grid-area: zoneB2;
-    }
 
     /* THE LAST RESORT: THE TOOLS TAKE THE BOARD'S COLUMN, AND THE BOARD TAKES ITS TURN IN IT.
        ------------------------------------------------------------------------------------
@@ -383,16 +358,6 @@
 
     /* The tab strip flows on into zone B — full width under both boards, where it sits in every
        other arrangement — leaving the whole of zone A to the panel above it. */
-    /* THE STRIP TAKES THE LAST BAND SLOT, `zoneA5`, because the band now holds three parts above
-       it: the move list in `zoneA2`, the engine box in `zoneA3`, the controls in `zoneA4`. It read
-       `zoneA3` while the whole panel was one box in `zoneA2` — correct then, and an overlap the
-       moment the parts were placed individually: measured at 701x624, the strip and the button row
-       both at 465,488, the tab labels drawn across the buttons.
-       The round page has always used `zoneA5` for its bar, for the same reason: its three panels
-       are above it. Same slot, same meaning, both pages. */
-    .analysis-app.bug.tools-zonea .bug-parts > [role='tablist'] {
-        grid-area: zoneA5;
-    }
     /* THE STRIP IS ITS CONTENT, NOT ITS ROW, WHEREVER IT SITS IN THE BAND.
        ------------------------------------------------------------------------------------
        And this one had teeth: `toolsPlacement` decides whether the strip can move to zone B by
@@ -401,8 +366,8 @@
        the test read `124 >= 264`, and the strip stayed in a 220px column with four tabs in it
        while the full width under both boards went unused. Packed to the top, the same test reads
        `124 >= 75` and the strip goes where it can be read. */
-    .round-app.bug:is(.tools-zonea, .tools-lastresort) .bug-parts > .bug-round-tools-bar,
-    .analysis-app.bug:is(.tools-zonea, .tools-lastresort) .bug-parts > [role='tablist'] {
+    .round-app.bug.tools-lastresort .bug-parts > .bug-round-tools-bar,
+    .analysis-app.bug.tools-lastresort .bug-parts > [role='tablist'] {
         align-self: start;
     }
     /* THE LAST RESORT'S STRIP GOES TO ZONE B TOO, when zone B can hold it. The tools have taken
@@ -415,12 +380,6 @@
     }
     .analysis-app.bug.tools-lastresort.strip-in-zoneb .bug-parts > [role='tablist'] {
         grid-area: zoneB1;
-    }
-    /* THE STRIP TAKES THE LAST ZONE B ROW, so the fragments that drop into zone B sit above it and
-       the strip stays the bottom of the page. Where it is the only thing in zone B the rows above
-       collapse and it is drawn directly under the boards, exactly as when it had `zoneB1`. */
-    .analysis-app.bug.tools-zonea.strip-in-zoneb .bug-parts > [role='tablist'] {
-        grid-area: zoneB3;
     }
 
 }
@@ -606,7 +565,7 @@
         grid-area: zoneB4;
     }
 
-    :is(.round-app, .analysis-app).bug:is(.tools-zonea, .tools-lastresort) {
+    :is(.round-app, .analysis-app).bug.tools-lastresort {
         grid-template-areas: var(--bug-zones-zonea);
         /* THE PANEL'S ROW TAKES THE SLACK, as `zoneTools1` does beside the boards. With every part
            row `auto`, none of them absorbs it and the own stack — which spans all five rows —
@@ -618,9 +577,6 @@
            overflowed — 220px of panels in 173px of zone A. Sharing, each row has a definite
            height, which is the other half of letting a button be limited by height. */
         grid-template-rows: min-content minmax(0, 1fr) minmax(0, auto) minmax(0, auto) min-content min-content min-content min-content;
-    }
-    :is(.round-app, .analysis-app).bug.tools-zonea .bug-parts > [role='tabpanel'] {
-        grid-area: zoneA2;
     }
 
     /* THE LAST RESORT: THE TOOLS TAKE THE BOARD'S COLUMN, AND THE BOARD TAKES ITS TURN IN IT.
@@ -644,20 +600,5 @@
     :is(.round-app, .analysis-app).bug.tools-lastresort .bug-parts > .bug-round-tools-bar,
     :is(.round-app, .analysis-app).bug.tools-lastresort .bug-parts > [role='tablist'] {
         grid-area: zoneA2;
-    }
-
-    .round-app.bug.tools-zonea .bug-parts .chatpresets-panel-1,
-    .round-app.bug.tools-zonea .bug-parts > .bug-gameover {
-        grid-area: zoneA3;
-    }
-    .round-app.bug.tools-zonea .bug-parts .chatpresets-panel-2,
-    .round-app.bug.tools-zonea .bug-parts .round-controls-panel {
-        grid-area: zoneA4;
-    }
-    .round-app.bug.tools-zonea .bug-parts > .bug-round-tools-bar {
-        grid-area: zoneA5;
-    }
-    .round-app.bug.tools-zonea.strip-in-zoneb .bug-parts > .bug-round-tools-bar {
-        grid-area: zoneB1;
     }
 }

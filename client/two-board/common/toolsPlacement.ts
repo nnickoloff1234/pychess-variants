@@ -811,47 +811,38 @@ function place(container: HTMLElement, droppable: Droppable): void {
            row and an engine box, while the full width under both boards held nothing but the tab
            strip.
 
-           So the home decides where the MOVE LIST goes — the band in `tools-zonea`, the full-width
-           row in `tools-below` — and the two fragments are then offered the OTHER region, one at a
-           time, while it has room. Every fragment that moves hands its height to the list.
+           So the move LIST holds the full-width row, which is the home's own — `tools-below` is
+           the only home left that has one — and the two fragments are then offered the BAND, one
+           at a time, while it has room. Every fragment that moves hands its height to the list,
+           and the part that frees the most of the list's row goes first: the engine box before
+           the controls, which is the `droppable` order.
 
-           THE ORDER IS OPPOSITE IN THE TWO DIRECTIONS, and that is not an inconsistency:
-
-             into the BAND, which costs the boards nothing, the part that frees the most from the
-             list's row goes first — the engine box before the controls, the `droppable` order;
-
-             into ZONE B, which takes its height from both boards, the CHEAPEST goes first — the
-             40px button row before the 74px engine box, the same list backwards.
+           THIS USED TO RUN BOTH WAYS. The `tools-zonea` home put the list in the BAND and offered
+           the fragments zone B, cheapest first — the 40px button row before the 74px engine box —
+           because a zone B row costs both boards its height where a band row costs nothing. That
+           home is gone (see `arrangement()`), and with it the only direction in which a fragment
+           moved DOWN into zone B from a placed home. The remaining direction never reverses, so
+           the region a part is offered no longer depends on which home asked.
 
            A fragment is an entry with a zone B class; the tab strip has none, because its own
            two homes are decided above by `strip-in-zoneb`. */
         const fragments = droppable.filter(([, , zoneBClassName]) => zoneBClassName !== undefined);
-        const inBand = column.classList.contains('tools-zonea');
         const lastResort = column.classList.contains('tools-lastresort');
-        const zoneBRoom = budgetForZones(column) - tallestStack(column);
-        // What zone B already owes the boards: the strip, where it has just been given a row there.
-        let regionUsed = inBand && column.classList.contains('strip-in-zoneb') ? stripHeight : 0;
         let bandUsed = 0;
-        for (const [selector, zoneAClassName, zoneBClassName] of inBand
-            ? [...fragments].reverse()
-            : fragments) {
+        for (const [selector, zoneAClassName, zoneBClassName] of fragments) {
             const el = column.querySelector<HTMLElement>(selector);
             const min = el ? declaredMin(el) : { width: 0, height: 0 };
             const need = el ? Math.max(heightOf(column, selector), min.height) : 0;
             const fits =
                 el !== null &&
                 !lastResort &&
-                (inBand
-                    ? regionUsed + need <= zoneBRoom
-                    : zoneA.width >= min.width && bandUsed + need <= zoneA.height);
-            // The class for the region it is moving TO; the other is cleared, so a part is never
-            // claimed by two regions after a home change.
-            column.classList.toggle(inBand ? (zoneBClassName as string) : zoneAClassName, fits);
-            column.classList.toggle(inBand ? zoneAClassName : (zoneBClassName as string), false);
-            if (fits) {
-                if (inBand) regionUsed += need;
-                else bandUsed += need;
-            }
+                zoneA.width >= min.width &&
+                bandUsed + need <= zoneA.height;
+            // Zone B's class is cleared either way, so a part is never claimed by two regions
+            // after a home change.
+            column.classList.toggle(zoneAClassName, fits);
+            column.classList.toggle(zoneBClassName as string, false);
+            if (fits) bandUsed += need;
         }
 
         const gameover = column.querySelector<HTMLElement>('.bug-gameover');
@@ -1101,11 +1092,12 @@ function place(container: HTMLElement, droppable: Droppable): void {
 
         // AND THE STYLESHEET GETS A VETO, because a part asking for zone B is not the same as a
         // home that has a row to give it. The analysis page's controls panel declares
-        // `drop-tools2-b`, but its rule is scoped to the `tools-zonea` home ON PURPOSE — see
-        // `layout/landscape.css`: beside the boards the strip and the engine box are already in
-        // zone B, and a third row there costs the boards more height than a row of buttons is
-        // worth. So in every other home the class went on, nothing matched it, the part stayed in
-        // the strip, and its height was charged to the boards anyway.
+        // `drop-tools2-b`, and NO RULE ANYWHERE MATCHES IT — see `layout/landscape.css`: the
+        // strip and the engine box are already in zone B, and a third row there costs the boards
+        // more height than a row of buttons is worth. (One rule did match it, in the `tools-zonea`
+        // home; that home and its rule are both gone, so the class is now inert everywhere.) So
+        // the class went on, nothing matched it, the part stayed in the strip, and its height was
+        // charged to the boards anyway.
         //
         // Measured on the analysis page at minimum zoom: the app was pinned 40px taller than
         // `tallestStack + zoneB`, and the 40 came out as dead space under the TALLER board —

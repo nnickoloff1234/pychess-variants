@@ -205,7 +205,7 @@
         :is(.round-app, .analysis-app).bug {
             --bug-tools-track: minmax(0, 20vw);
         }
-        :is(.round-app, .analysis-app).bug:is(.tools-below, .tools-zonea, .tools-lastresort) {
+        :is(.round-app, .analysis-app).bug:is(.tools-below, .tools-lastresort) {
             --bug-tools-track: 0;
         }
 }

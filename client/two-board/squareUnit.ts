@@ -171,7 +171,6 @@ const RIGHT_MIN_IN_LEFT_SQUARES = 0.5;
  * It is not a target. `arrangement()` uses it only in the one home whose existence depends on the
  * partner board being smaller, and takes the LARGER of it and what the width already forced.
  */
-const ZONE_A_MAX_PARTNER = 1 - TOOLS_MIN_ROWS / ROWS_IN_SHORT_LANDSCAPE;
 const TALL_COLUMN_GAP_FRACTION = 0.02;
 const TALL_COLUMN_GAP_COUNT = 2;
 
@@ -465,7 +464,7 @@ function stackSquares(): number {
  * reader's own zoom — which is an input, not an observation — so no board's size is ever derived
  * from a board's size.
  */
-export type ToolsHome = 'beside' | 'below' | 'zoneA' | 'lastResort';
+export type ToolsHome = 'beside' | 'below' | 'lastResort';
 
 interface Arrangement {
     home: ToolsHome;
@@ -554,7 +553,7 @@ function arrangement(dpr: number = window.devicePixelRatio): Arrangement {
      *
      * Measured on p2 at 701x624, dpr 1.125: `a` 54.227, the floor 27.114, the partner board's
      * allowance 26.672 — short by 0.441px, half a device pixel. The exact test failed, `below` and
-     * `zoneA` were both skipped, and the layout went to the LAST RESORT: the whole tools panel
+     * the `zoneA` home that then followed it were both skipped, and the layout went to the LAST RESORT: the whole tools panel
      * hidden behind the partner board's tab with a 222px strip, while zone A stood 275px tall and
      * 222 wide with room for every part of it.
      *
@@ -595,17 +594,18 @@ function arrangement(dpr: number = window.devicePixelRatio): Arrangement {
         const tallest = ROWS_IN_SHORT_LANDSCAPE * Math.max(drawnA, drawn(room));
         if (height - tallest >= TOOLS_MIN_ROWS * a) return { home: 'below', a, b: room };
 
-        // Zone A is what the partner board frees by being SHORTER, so this is the one home whose
-        // existence the partner board's size decides — and the largest board that still leaves the
-        // tools their rows is `ZONE_A_MAX_PARTNER`. Shrinking to exactly that is the rule's step 2
-        // again, in the height rather than the width: the partner board pays the tools' minimum,
-        // and no more than it has to.
-        const forZoneA = Math.min(room, ZONE_A_MAX_PARTNER * a);
-        const zoneAWidth = squares * drawn(forZoneA);
-        const zoneAHeight = ROWS_IN_SHORT_LANDSCAPE * Math.max(0, drawnA - drawn(forZoneA));
-        if (zoneAWidth >= toolsMin && zoneAHeight >= TOOLS_MIN_ROWS * a) {
-            return { home: 'zoneA', a, b: forZoneA };
-        }
+        /* AND THERE IS NO THIRD FALLBACK. A `zoneA` home stood here: shrink the partner board to
+           `ZONE_A_MAX_PARTNER` of the viewer's and put the WHOLE tools panel in the band that
+           frees, under the partner board. It was reachable — seven rows of the survey used it —
+           and it is not a layout worth reaching. The panel it has to hold is the chat, both preset
+           rows and the strip; the band it has to hold them in is what a board shrunk by three
+           tenths gives back, under a board that is itself the smaller of the two. Where the tools
+           have no column and no full-width row beneath both boards, the honest answer is the last
+           resort: the tools take the partner board's column and the board becomes a tab.
+
+           Note this is the only home the PARTNER BOARD's size decided rather than followed — it
+           shrank a board to make room for a panel. Nothing does that now: the boards take what the
+           viewport gives them and the tools arrange around what is left. */
     }
 
     // Step 4. The width cannot hold the pair with the partner board at or above its floor. It
@@ -624,7 +624,6 @@ function arrangement(dpr: number = window.devicePixelRatio): Arrangement {
  *
  *   'beside'      a column of their own, right of both boards — the only home with three columns
  *   'below'       the full-width row beneath both boards, zone B
- *   'zoneA'       the region the partner board frees by being smaller than the viewer's own
  *   'lastResort'  the tab strip alone in zone A, the partner board joining it as a tab
  */
 export function toolsHome(dpr: number = window.devicePixelRatio): ToolsHome {
@@ -713,7 +712,6 @@ export function clampZoom(boardName: BugBoardName, zoom: number): number {
 const TOOLS_HOME_CLASS: Record<ToolsHome, string> = {
     beside: 'tools-beside',
     below: 'tools-below',
-    zoneA: 'tools-zonea',
     lastResort: 'tools-lastresort',
 };
 
@@ -726,8 +724,8 @@ const TOOLS_HOME_CLASS: Record<ToolsHome, string> = {
  * size the width gave them, and the app keeps the height the last arrangement published — so
  * nothing fires and the arrangement stays the one the old home needed.
  *
- * Measured on p2 at 701x744: the home went from `below` to `zoneA` when the window lost 85px of
- * height, the boards did not move (they are capped by the WIDTH there, so the height changed
+ * Measured on p2 at 701x744, when a `zoneA` home still followed `below`: the home changed when
+ * the window lost 85px of height, the boards did not move (they are capped by the WIDTH there, so the height changed
  * nothing), and `--bug-app-content-h` stayed at the 769px the `below` home had published. The app
  * therefore stood 769px tall in a 744px viewport that cannot scroll, the tools panel ran 206px past
  * the bottom of zone A, and the tab strip — correctly placed in zone B, below it — was drawn off
