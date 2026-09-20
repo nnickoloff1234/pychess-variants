@@ -80,11 +80,33 @@ const PARTNER_HEIGHT_FRACTION = 0.2;
  * the width will be spent on BEFORE the grid exists, and the grid cannot be measured to find out
  * without the circularity this module avoids.
  */
-const TOOLS_MIN_SQUARES = 2;
+/* WHAT A TOOLS COLUMN IS FOR, AS A WIDTH: a row of five preset buttons, each big enough to hit.
+   ---------------------------------------------------------------------------------------------
+   This was two squares of the viewer's board, and that number had nothing to do with what a tool
+   needs. Its own note said how it was chosen: "the widest column that still leaves every ordinary
+   desktop the column it already has", which answers a question about desktops rather than about
+   tools. Measured on an iPhone SE in landscape: two squares came to 75px, the test passed by a
+   pixel, the column was built at 61, and the preset buttons inside it were drawn 9.8px square. A
+   threshold a region can meet while holding nothing is not a threshold.
+
+   FIVE BUTTONS, because a preset set is five fixed tracks and cannot wrap to fewer, and 24 because
+   that is WCAG's target size — about the smallest a fingertip can reliably hit. The presets decide
+   it rather than the controls' 13ch because IN THE LAST RESORT THE PRESETS CANNOT LEAVE: the chat
+   and the buttons share one tab there, so the column has to hold them rather than hoping the drop
+   machinery will take them somewhere else. A column that holds five tap targets holds the
+   controls as well.
+
+   A FIXED NUMBER OF PIXELS, not squares and not `ch`. A tap target is an absolute size — that is
+   the whole of what the standard says — so it does not scale with the board. */
+const PRESET_COLUMNS = 5;
+const TAP_TARGET_PX = 24;
+const PRESET_PITCH_FLOOR_PX = 3;
+const TOOLS_MIN_WIDTH_PX =
+    PRESET_COLUMNS * TAP_TARGET_PX + (PRESET_COLUMNS - 1) * PRESET_PITCH_FLOOR_PX;
 
 /**
  * THE HEIGHT THE TOOLS NEED to be worth a row of their own beneath both boards, in the same
- * squares of the left board that `TOOLS_MIN_SQUARES` counts across.
+ * squares of the left board, where the width beside them is a fixed number of pixels.
  *
  * Both numbers were read off what the layout actually has to spend rather than chosen — see
  * `toolsHome()`. Two squares is the widest column that still leaves every ordinary desktop the
@@ -498,7 +520,7 @@ function arrangement(dpr: number = window.devicePixelRatio): Arrangement {
         dpr,
     );
     const a = Math.min(squareUnit(height, ROWS_IN_SHORT_LANDSCAPE, dpr), widthCap);
-    const toolsMin = TOOLS_MIN_SQUARES * a;
+    const toolsMin = TOOLS_MIN_WIDTH_PX;
     const floor = RIGHT_MIN_IN_LEFT_SQUARES * a;
 
     /* THE FLOOR IS MET WITHIN ONE DEVICE PIXEL, and it has to be, because the cap and the floor
@@ -601,7 +623,7 @@ function allowanceFor(boardName: BugBoardName, dpr: number = window.devicePixelR
 }
 
 /**
- * What the tools are owed across a region, in pixels — `TOOLS_MIN_SQUARES` squares of the left
+ * What the tools are owed across a region, in pixels — a row of five tap targets, the left
  * board at full zoom.
  *
  * Exported so that `toolsPlacement` can ask the same question of a region it has MEASURED that
@@ -609,7 +631,7 @@ function allowanceFor(boardName: BugBoardName, dpr: number = window.devicePixelR
  * region wide enough to be worth choosing must be wide enough to be worth putting a part in.
  */
 export function toolsMinWidth(): number {
-    return TOOLS_MIN_SQUARES * allowanceFor('a');
+    return TOOLS_MIN_WIDTH_PX;
 }
 
 /**
@@ -772,7 +794,7 @@ export function publishSquareUnit(): void {
     const shortUnit = (budget: number) =>
         squareUnit((Math.max(0, budget) * FILES) / stackSquares(), FILES, window.devicePixelRatio);
     const shortBudget = availableWidth() - stackSquares() * sq - shortGaps;
-    const shortPaying = Math.min(sq, shortUnit(shortBudget - TOOLS_MIN_SQUARES * sq));
+    const shortPaying = Math.min(sq, shortUnit(shortBudget - TOOLS_MIN_WIDTH_PX));
     const shortRight =
         shortPaying >= RIGHT_MIN_IN_LEFT_SQUARES * sq ? shortPaying : Math.min(sq, shortUnit(shortBudget));
     style.setProperty(SHORT_LANDSCAPE_RIGHT_PROPERTY, `${shortRight}px`);
