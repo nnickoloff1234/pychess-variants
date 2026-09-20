@@ -319,8 +319,14 @@
 .round-app.bug {
     grid-area: main;
 }
+/* `partnerAndTools`, the only area name any template declares for this element — portrait's,
+   which is the one mode where it is placed at all. It said `rightcol` until the landscape
+   template that declared that name was deleted as dead, leaving a claim on an area that existed
+   nowhere. Harmless where it stood, because landscape dissolves this element and an item with no
+   box is never placed — and a trap for whoever gives it a box again, since naming an area no
+   template declares is how an item gets auto-placed into an implicit track. */
 .partner-and-tools {
-    grid-area: rightcol;
+    grid-area: partnerAndTools;
     display: grid;
     grid-template-rows: minmax(0, 1fr) auto auto auto;
     grid-template-areas: 'stack chat'

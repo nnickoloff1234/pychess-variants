@@ -117,7 +117,7 @@
         align-content: start;
     }
     /* The merged column's own two tracks, which is nearly all this page states about it:
-       `grid-area: rightcol`, `display: grid`, the zero minimums and the clipping all come
+       `grid-area: partnerAndTools`, `display: grid`, the zero minimums and the clipping all come
        from the shared `.partner-and-tools` rule the round page already carries, and the
        round page's own landscape block states exactly these two tracks and nothing more.
 
