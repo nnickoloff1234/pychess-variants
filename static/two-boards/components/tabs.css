@@ -368,9 +368,6 @@
     align-items: stretch;
     align-content: stretch;
     gap: 4px;
-    /* clear of the tab part above — without it the top button sits flush against
-       the chat's bottom edge */
-    margin-top: 8px;
     min-width: 0;
 }
 /* The button styling this element used to inherit from site.css's `.btn-controls`,
@@ -379,6 +376,16 @@
    element out of the column entirely and the flow was the stacking these buttons
    must not be fixed in. `flex: 1 1 auto` rather than site.css's `flex: 1`, so a
    button keeps its text's width instead of being forced to an equal share. */
+/* CLEAR OF THE TAB PART ABOVE — without it the top button sits flush against the chat's bottom
+   edge — AND ONLY WHERE THERE IS A BUTTON TO CLEAR. This was `margin-top` on the panel itself, and
+   while a game is on that panel is empty and paints nothing; but a grid item's MARGIN BOX is what
+   sizes an `auto` track, so the empty panel went on reserving its eight pixels. Measured at 412x915
+   in portrait: an 8px row between the tools panel and the tab strip, holding an element 0px tall,
+   in a band the move-list controls were 51px short of being able to use.
+   Keyed on `.game-over`, the same signal the pointer-events rule above uses. */
+.round-app.bug.game-over .bug-parts > .bug-gameover {
+    margin-top: 8px;
+}
 .bug-gameover > button {
     /* 0 0 auto, not 1 1 auto: the main axis is vertical here, so a growing button
        would grow TALLER rather than wider. The width comes from align-items above.
