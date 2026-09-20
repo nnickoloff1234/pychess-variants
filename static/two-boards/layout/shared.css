@@ -440,6 +440,37 @@ round-player1.bug {
    `.bug-parts` is a flex container and its children are flex items rather than grid
    items, so these names are simply ignored there. */
 .bug-parts > [role='tabpanel'] { grid-area: zoneTools1; }
+/* THE MOVES TAB'S THREE FRAGMENTS, ONE PER SLOT — and the dissolution that makes them items of
+   the app's grid rather than children of a box.
+   ------------------------------------------------------------------------------------------
+   `.bug-tool-group` wraps the parts of any tab that has more than one, so that the widget's
+   "one panel per tab" stays true. Dissolved, it forms no obstacle: each part is a grid item and
+   an area name is all it takes to move one.
+
+   IT BECOMES A REAL BOX AGAIN IN THE LAST RESORT, which is what the guard is for. There every
+   tools part shares the partner board's column, and that is only safe because the tab strip
+   guarantees exactly one of them is displayed — a guarantee that holds for PANELS and not for
+   these three, which are shown together. Three items in one named area do not stack, they
+   overlap.
+
+   Stated here rather than in `layout/landscape.css`, where it lived until portrait needed it:
+   portrait kept the group as a box and so had no way to place the parts at all — its
+   `zoneTools2` and `zoneTools3` were empty and zero-high while the cascade put drop classes on
+   the app that had nothing to move. */
+.analysis-app.bug:not(.tools-lastresort) .bug-tool-group {
+    display: contents;
+}
+.analysis-app.bug .bug-tool-group > .analysis-moves-panel {
+    grid-area: zoneTools1;
+    min-height: 0;
+}
+.analysis-app.bug .bug-tool-group > .analysis-controls-panel {
+    grid-area: zoneTools2;
+}
+.analysis-app.bug .bug-tool-group > .analysis-engine-panel {
+    grid-area: zoneTools3;
+}
+
 /* The analysis page's group of parts takes the panel's slot here too — see the landscape rules
    and `.bug-tool-group` below for what the element is. The round page has no group, so this
    selector matches nothing there. */

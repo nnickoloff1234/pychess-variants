@@ -207,24 +207,15 @@
        The MOVE LIST holds row 1 and never drops. That is not a preference either: row 1 is the
        only row no template takes, and the list is the one part that would be useless in a band
        four squares tall. It keeps `zoneTools1`'s `1fr` and the scroll that comes with it. */
-    .analysis-app.bug .bug-tool-group > .analysis-moves-panel {
-        grid-area: zoneTools1;
-        min-height: 0;
-    }
-    .analysis-app.bug .bug-tool-group > .analysis-controls-panel {
-        grid-area: zoneTools2;
-    }
-    .analysis-app.bug .bug-tool-group > .analysis-engine-panel {
-        grid-area: zoneTools3;
-    }
+    /* The three fragments' slots are stated once for every mode in `layout/shared.css` now, beside
+       the dissolution that makes them grid items at all. They were here, and portrait therefore had
+       neither: its parts stayed inside the group, its `zoneTools2` and `zoneTools3` were empty and
+       zero-high, and the drop classes the cascade put on the app had nothing to move. */
     /* THE GROUP IS DISSOLVED WHERE THE PARTS ARE PLACED INDIVIDUALLY, which is this home and only
        this home. `.bug-presets-group`'s rule, for `.bug-presets-group`'s reason: an element with
        no box forms no obstacle, so each part is a grid item of the app and an area name is all it
        takes to move one. It becomes a real box again in the homes below, where every part shares
        ONE area and a named area holds one item. */
-    .analysis-app.bug:not(.tools-lastresort) .bug-tool-group {
-        display: contents;
-    }
     /* TWO CLASS FAMILIES, ONE PER REGION, AND THEY MEAN THE SAME THING IN EVERY HOME:
        `drop-<part>` says that part is in ZONE A, `drop-<part>-b` says it is in ZONE B. The AREAS
        are the same in every home too — engine `zoneA2`, controls `zoneA3` once both are in the
