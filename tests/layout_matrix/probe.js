@@ -674,7 +674,16 @@ ctx => {
         const strip = q('.bug-round-tools-bar') || q('[role="tablist"]');
         const parts = [
             ['the tab strip is', strip],
-            ['the move-list controls are', q('.btn-controls') || q('.analysis-controls-panel')],
+            // THE PANEL, NOT THE BUTTONS INSIDE IT. What drops is the part, and the part is the
+            // panel; `.btn-controls` is the row of buttons within it and stays its own width
+            // wherever it lands. Measured at 412x915 with the part correctly dropped full width:
+            // the panel 411px, the buttons 103px, and this check still calling it "beside the
+            // partner board". The round page had no controls panel when this was written, which
+            // is why it fell back to the buttons.
+            [
+                'the move-list controls are',
+                q('.round-controls-panel') || q('.analysis-controls-panel') || q('.btn-controls'),
+            ],
             ['the engine box is', q('.analysis-engine-panel')],
         ].filter(([, el]) => shown(el));
 

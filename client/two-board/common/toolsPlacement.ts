@@ -223,7 +223,10 @@ function declaredMin(el: HTMLElement): { width: number; height: number } {
    costs once dropped, the cumulative test, the classes, and the observer. */
 export const ROUND_DROPPABLE: Droppable = [
     ['.bug-round-tools-bar', 'drop-tools4'],
-    ['.chatpresets-panel-2', 'drop-tools3'],
+    // Two elements share this slot and never coexist either: the second preset set while the Chat
+    // tab is showing, the move-list buttons while the Moves tab is. Whichever is displayed is the
+    // one whose height decides — `heightOf` counts only what is laid out.
+    ['.chatpresets-panel-2, .round-controls-panel', 'drop-tools3'],
     // Two elements share this area and never coexist: the first preset part while
     // the game is on, the end-of-game controls once it is not. Whichever is showing
     // is the one whose height decides, so the selector matches both and the heights

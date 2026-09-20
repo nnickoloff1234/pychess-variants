@@ -530,14 +530,16 @@
     .round-app.bug.drop-tools4-b.drop-tools3.drop-tools2 {
         grid-template-areas: var(--bug-zones-a23);
     }
-    .round-app.bug.drop-tools4-b.drop-tools3 .bug-parts .chatpresets-panel-2 {
+    .round-app.bug.drop-tools4-b.drop-tools3 .bug-parts .chatpresets-panel-2,
+    .round-app.bug.drop-tools4-b.drop-tools3 .bug-parts .round-controls-panel {
         grid-area: zoneA3;
     }
     .round-app.bug.drop-tools4-b.drop-tools3.drop-tools2 .bug-parts .chatpresets-panel-1,
     .round-app.bug.drop-tools4-b.drop-tools3.drop-tools2 .bug-parts > .bug-gameover {
         grid-area: zoneA2;
     }
-    .round-app.bug.drop-tools4.drop-tools3 .bug-parts .chatpresets-panel-2 {
+    .round-app.bug.drop-tools4.drop-tools3 .bug-parts .chatpresets-panel-2,
+    .round-app.bug.drop-tools4.drop-tools3 .bug-parts .round-controls-panel {
         grid-area: zoneA3;
     }
     .round-app.bug.drop-tools4.drop-tools3.drop-tools2 .bug-parts .chatpresets-panel-1,
@@ -596,7 +598,8 @@
     .round-app.bug.tools-below.drop-gameover-a .bug-parts > .bug-gameover {
         grid-area: zoneA2;
     }
-    .round-app.bug.tools-below .bug-parts .chatpresets-panel-2 {
+    .round-app.bug.tools-below .bug-parts .chatpresets-panel-2,
+    .round-app.bug.tools-below .bug-parts .round-controls-panel {
         grid-area: zoneB3;
     }
     .round-app.bug.tools-below .bug-parts > .bug-round-tools-bar {
@@ -647,7 +650,8 @@
     .round-app.bug.tools-zonea .bug-parts > .bug-gameover {
         grid-area: zoneA3;
     }
-    .round-app.bug.tools-zonea .bug-parts .chatpresets-panel-2 {
+    .round-app.bug.tools-zonea .bug-parts .chatpresets-panel-2,
+    .round-app.bug.tools-zonea .bug-parts .round-controls-panel {
         grid-area: zoneA4;
     }
     .round-app.bug.tools-zonea .bug-parts > .bug-round-tools-bar {

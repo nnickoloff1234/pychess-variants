@@ -173,7 +173,21 @@ export function roundView(model: PyChessModel): VNode[] {
             },
             {
                 label: _('Moves'),
-                parts: [{ content: [h('div.movelist-block', [movelistView.placeholder(), h('div#move-controls')])] }],
+                /* THE RECORD AND THE BUTTONS, two parts, as the analysis page's Moves tab already
+                   is — and for the same reason. A part is what the cascade can move; nested inside
+                   one panel the buttons were unreachable, so a band with room for them went unused
+                   however wide it was. The order is the drop queue's: the list never leaves, being
+                   useless in a band a few squares tall, so it holds the slot that never drops.
+                   The buttons take the second preset panel's slot. The two never coexist — the
+                   presets belong to the Chat tab and these to the Moves tab — which is the same
+                   sharing the end-of-game controls already have with the first preset panel. */
+                parts: [
+                    {
+                        panelClass: 'round-moves-panel',
+                        content: [h('div.movelist-block', [movelistView.placeholder()])],
+                    },
+                    { panelClass: 'round-controls-panel', content: [h('div#move-controls')] },
+                ],
             },
             {
                 label: _('Info'),
@@ -309,6 +323,11 @@ export function roundView(model: PyChessModel): VNode[] {
                         ? [h('div.bug-presets-group', [roundTabs.panel(1, 1), roundTabs.panel(1, 2)])]
                         : []),
                     roundTabs.panel(2, 0),
+                    // The Moves tab's SECOND part, and it has to be mounted by hand because this
+                    // page mounts panels by index where the analysis page maps over `parts`.
+                    // Declaring a part the view never mounts is silent: the element simply is not
+                    // there, and `#move-controls` -- which `movelist.ts` finds by id -- went with it.
+                    roundTabs.panel(2, 1),
                     roundTabs.panel(3, 0),
                     // Where the end-of-game controls are rendered, empty until
                     // there is a result. It belongs to no tab — it must show

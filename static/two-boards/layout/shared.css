@@ -476,7 +476,12 @@ round-player1.bug {
    selector matches nothing there. */
 .bug-parts > .bug-tool-group { grid-area: zoneTools1; }
 .bug-parts .chatpresets-panel-1 { grid-area: zoneTools2; }
-.bug-parts .chatpresets-panel-2 { grid-area: zoneTools3; }
+/* THE SECOND PRESET PANEL AND THE MOVE-LIST BUTTONS SHARE THIS SLOT, never coexisting: the
+   presets belong to the Chat tab and the buttons to the Moves tab, and the strip shows one tab
+   at a time. Same arrangement as `zoneTools2`, where the first preset panel shares with the
+   end-of-game controls. */
+.bug-parts .chatpresets-panel-2,
+.bug-parts .round-controls-panel { grid-area: zoneTools3; }
 .bug-parts > .bug-round-tools-bar { grid-area: zoneTools4; }
 /* The analysis page's tab list is the direct equivalent and drops the same way. Here it is a child
    of `.bug-parts`; the round page's is nested inside its tools bar, so the two selectors can never
