@@ -350,7 +350,70 @@ function zoneBHeight(app: HTMLElement): number {
  * placement: a row that moves to zone A or zone B keeps its buttons and simply re-wraps, which
  * is the whole point of fixing the size rather than letting each box dictate one.
  */
-function publishPresetSize(app: HTMLElement, region: { width: number; height: number }): void {
+/**
+ * What a preset panel would be in a region this wide: the button size that width allows, whether
+ * the two sets pair into one row of ten, and the padding a set adds around its buttons.
+ *
+ * THE FLOOR DECIDES WHETHER TEN IS AN OPTION AT ALL. `--bug-preset-btn-min` is a tap target, so a
+ * width that can only fit ten by going under it does not get ten — the panel keeps two rows of
+ * five and the region is not bought with buttons too small to hit.
+ */
+interface PresetFit {
+    button: number;
+    pairs: boolean;
+    pad: number;
+}
+
+function presetFitAt(app: HTMLElement, region: number): PresetFit | null {
+    let width = region;
+    const set = app.querySelector<HTMLElement>(SET);
+    if (set === null || !(width > 0)) return null;
+
+    const floor = resolvedLength(set, PRESET_FLOOR);
+    const ceiling = resolvedLength(set, PRESET_CEILING);
+    const gap = resolvedLength(set, PRESET_GAP_FLOOR) || 3;
+    const clamp = (size: number) => (ceiling > 0 ? Math.min(size, ceiling) : size);
+
+    // What a set adds around its buttons — measured from the set drawn now against the size
+    // published for it, so the answer follows the stylesheet rather than restating its padding.
+    const pad = Math.max(0, set.getBoundingClientRect().height - resolvedLength(set, PRESET_SIZE));
+
+    /* AND WHAT THE PANEL ADDS AROUND ITS ROW, which is the difference between the region a panel
+       is GIVEN and the width its buttons can actually use: the panel's own padding, and the flex
+       row's inside that. Sizing from the region alone overstates it by a pixel or two, and a
+       pixel is the whole margin here — ten buttons that want 410.4px of a 410px row do not pair,
+       so the panel keeps two rows of five and the drop it was charged for buys nothing.
+       Measured where the row is drawn now, so it needs no knowledge of the stylesheet. */
+    const flex = app.querySelector<HTMLElement>(PRESETS_FLEX);
+    const panel = flex?.closest<HTMLElement>('.chatpresets-panel');
+    let chrome = 0;
+    if (flex !== null && panel != null) {
+        const style = getComputedStyle(flex);
+        const usable =
+            flex.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+        chrome = Math.max(0, panel.getBoundingClientRect().width - usable);
+    }
+    width -= chrome;
+
+    /* A SECOND PIXEL OF SLACK FOR THE PAIRED ROW, and it is not superstition. `publishPresetGap`
+       decides how many buttons share a row by the same arithmetic, against the width of the flex
+       row as it is actually drawn — a measurement this one predicts rather than reads. Predicting
+       it to the pixel is not possible, and being a pixel over is not a near miss: the row falls
+       back to five, the panel keeps two rows, and the drop that was charged for one row buys
+       nothing. Measured at 412x915: ten buttons wanting 410.4px of a 410px row. */
+    const paired = SET_COLUMNS * PANEL_SETS;
+    const byTen = (width - 2 * FIT_SLACK - (paired - 1) * gap) / paired;
+    if (byTen >= floor) return { button: clamp(byTen), pairs: true, pad };
+
+    const byFive = (width - FIT_SLACK - (SET_COLUMNS - 1) * gap) / SET_COLUMNS;
+    return { button: Math.max(floor, clamp(byFive)), pairs: false, pad };
+}
+
+function publishPresetSize(
+    app: HTMLElement,
+    region: { width: number; height: number },
+    cap: number = Infinity,
+): number {
     // Resolved against a SET, not the app: the floor and the two pitches are declared on the
     // preset elements, so asking the app for them returns nothing.
     const set = app.querySelector<HTMLElement>(SET) ?? app;
@@ -375,6 +438,17 @@ function publishPresetSize(app: HTMLElement, region: { width: number; height: nu
     // The floor is applied AFTER the ceiling, so a window too small for even the floor still gets
     // the floor rather than a ceiling that has dropped below it.
     if (ceiling > 0) best = Math.max(floor, Math.min(best, ceiling));
+
+    /* AND NEVER BIGGER THAN THE OTHER REGION'S ANSWER. A panel that drops gets a row ten buttons
+       wide; one that stays keeps two rows of five in the strip. One size is published for both, so
+       it is the SMALLER of what the two regions allow — the larger fits only the region that
+       produced it, and mixed is the normal arrangement, not an edge case.
+
+       ONLY DOWNWARDS, and before the `widest` cap below rather than after it. That cap is allowed
+       to take the size UNDER the floor on purpose — see its note — and a cap of mine that reapplied
+       the floor undid it: measured, three landscape rows grew their buttons instead of shrinking
+       them and the row spilled out of the strip on both sides. */
+    if (Number.isFinite(cap)) best = Math.min(best, cap);
 
     /* AND NEVER WIDER THAN THE TRACK THE SET SITS IN — the one bound that outranks the floor.
      *
@@ -402,10 +476,16 @@ function publishPresetSize(app: HTMLElement, region: { width: number; height: nu
      *
      * So the stale copies go when the new one is written. The size is one number for the page.
      */
+    publishButton(app, best);
+    return best;
+}
+
+/** One size, on the app and nowhere under it. */
+function publishButton(app: HTMLElement, size: number): void {
     for (const carrier of app.querySelectorAll<HTMLElement>('[style*="--bug-preset-btn"]')) {
         carrier.style.removeProperty(PRESET_SIZE);
     }
-    app.style.setProperty(PRESET_SIZE, `${best}px`);
+    app.style.setProperty(PRESET_SIZE, `${size}px`);
 }
 
 /** Publishes ONE gap for every preset button on the page, the smallest any row can afford.
@@ -899,14 +979,12 @@ function place(container: HTMLElement, droppable: Droppable): void {
         .filter(track => track.endsWith('px'))
         .map(parseFloat);
     const toolsRegion = toolsRegionHeight(column);
-    publishPresetSize(column, {
-        width: toolsTrack.length > 0 ? toolsTrack[toolsTrack.length - 1] : column.clientWidth,
-        height: Number.isFinite(toolsRegion)
-            ? toolsRegion
-            : Number.isFinite(budget)
-              ? budget
-              : column.clientHeight,
-    });
+    const stripWidth = toolsTrack.length > 0 ? toolsTrack[toolsTrack.length - 1] : column.clientWidth;
+    const regionHeight = Number.isFinite(toolsRegion)
+        ? toolsRegion
+        : Number.isFinite(budget)
+          ? budget
+          : column.clientHeight;
 
     // Each part drops only if every part before it in the order has dropped too, and the parts
     // dropped so far still fit the space the right board freed. Cumulative, so they leave from
@@ -921,13 +999,49 @@ function place(container: HTMLElement, droppable: Droppable): void {
     // would have landed in something twice as wide.
     const zoneAWidth = toolsRegionWidth(column) || stack.getBoundingClientRect().width;
 
+    /* ONE BUTTON SIZE, THE SMALLER OF THE TWO REGIONS' ANSWERS.
+       ----------------------------------------------------------------------------------------
+       A preset panel sits in one of two places: the strip beside the board, five buttons to a row
+       and two rows; or a dropped row spanning the partner's column and the tools', where ten share
+       one row. One size is published for the whole page, so it has to suit both — and the smaller
+       answer suits both, while the larger fits only the region that produced it.
+
+       MIXED IS NORMAL AND WANTED. One panel dropped and paired while the other keeps its two rows
+       of five is the common portrait arrangement, and the transitional one in landscape while the
+       partner board is being zoomed out. Taking the minimum is what makes it expressible with a
+       single size; nothing here has to choose between the panels.
+
+       And it breaks the circle the old order was caught in. The size no longer depends on what
+       drops — it is a function of the two WIDTHS, both known before any decision — so a part can
+       be charged what it would really cost in the row it would land in. */
+    const wideFit = presetFitAt(column, zoneAWidth);
+    const presetButton = publishPresetSize(
+        column,
+        { width: stripWidth, height: regionHeight },
+        wideFit !== null && wideFit.pairs ? wideFit.button : Infinity,
+    );
+    const droppedPanelHeight =
+        wideFit !== null && wideFit.pairs ? presetButton + wideFit.pad : undefined;
+
     let zoneAUsed = 0;
     let previousDropped: boolean = true;
     for (const [selector, className] of droppable) {
         // The plain measured height. It used to be adjusted for the fact that a part's height
         // followed its width and therefore its placement — a loop that no longer exists, because
         // the preset size is settled from the tools' spare HEIGHT before any of this runs.
-        const height = heightOf(column, selector);
+        // WHAT IT WOULD COST WHERE IT WOULD LAND. `heightOf` measures a part where it is now, and
+        // for a preset panel that is two rows of five in the strip — while a dropped panel is one
+        // row of ten, at a size that is already settled above. Charging the measurement refused
+        // drops that would have fitted easily: measured at 412x915, 52.8 charged against a 50.8
+        // remainder for a row that would really have been 43.
+        const displayed = [...column.querySelectorAll<HTMLElement>(selector)].find(
+            part => part.offsetParent !== null,
+        );
+        const isPresetPanel = displayed?.querySelector(SET) != null;
+        const height =
+            isPresetPanel && droppedPanelHeight !== undefined
+                ? droppedPanelHeight
+                : heightOf(column, selector);
         // Zone B has already taken this part, so zone A must not claim it as well. Its height
         // is still charged there: zone B is a row of the same grid and costs the boards the
         // same space wherever in it the row sits.
@@ -958,6 +1072,8 @@ function place(container: HTMLElement, droppable: Droppable): void {
         column.classList.toggle(className, drops);
         previousDropped = drops || inZoneB;
     }
+
+
 
     // ZONE B IS THE FALLBACK, FOR THE PARTS THAT ASK FOR IT — a third entry in the `Droppable`
     // tuple, so a part opts in by naming the class that puts it there and every other part is
