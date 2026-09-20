@@ -238,6 +238,39 @@ const TALL_ALLOWANCE_PROPERTY: Record<BugBoardName, string> = {
  * over at module-evaluation time.
  */
 const scale: Record<BugBoardName, number> = { a: 1, b: 1 };
+/* WHAT WAS ASKED FOR, beside what is drawn. `scale` is the drawn value, the preference with this
+   window's floor applied; `requested` is the preference itself, which a resize must not rewrite.
+   Keeping both is what lets the floor be re-applied on every publish: clamping `scale` in place
+   would ratchet it upwards, so a window made small and then large again would never give the
+   boards back the size the reader chose. */
+const requested: Record<BugBoardName, number> = { a: 100, b: 100 };
+
+/* THE FLOOR RE-APPLIED TO BOTH COLUMNS, SETTLED RATHER THAN COMPUTED ONCE.
+   ---------------------------------------------------------------------------------------------
+   `minZoomPercent()` divides the floor SIZE by this column's allowance, and `arrangement()` gives
+   that allowance from the sizes currently DRAWN — so applying the answer changes the question. One
+   pass leaves the two columns on different squares: measured at 1920x955 with both at their
+   minimum, board A on 35px and board B on 41, because B's 46% was divided by one allowance and
+   multiplied by another.
+
+   Three passes, and it converges in two: each pass moves the drawn sizes towards the floor, and the
+   allowances follow them until neither moves. Stopped early when nothing changes, so the common
+   case — a window where the floor is not in force at all — costs one pass. A bounded loop rather
+   than a fixed point solved in closed form, because the arrangement is a chain of conditionals and
+   not an equation. */
+const SETTLE_PASSES = 3;
+
+function clampToFloor(): void {
+    for (let pass = 0; pass < SETTLE_PASSES; pass += 1) {
+        let moved = false;
+        for (const boardName of ['a', 'b'] as const) {
+            const next = clampZoom(boardName, requested[boardName]) / 100;
+            if (Math.abs(next - scale[boardName]) > 1e-6) moved = true;
+            scale[boardName] = next;
+        }
+        if (!moved) return;
+    }
+}
 
 /**
  * The same height, published for the page wrapper to take literally.
@@ -593,6 +626,11 @@ export function toolsMinWidth(): number {
  */
 export function minZoomPercent(boardName: BugBoardName): number {
     const dpr = window.devicePixelRatio;
+    // THE FLOOR IS A SIZE AND THE ANSWER IS A PERCENTAGE OF THIS COLUMN'S OWN ALLOWANCE, which is
+    // what makes the two columns land on the same square: `allowB * (4 * allowA / (10 * allowB))`
+    // is `0.4 * allowA` whichever column asks. It holds only while the allowance divided here is
+    // the one the percentage will be multiplied by later — and `arrangement()` answers from the
+    // sizes currently DRAWN, so both move as the boards do. See `clampToFloor()`, which settles it.
     const floorHeight = MIN_STACK_IN_LEFT_SQUARES * allowanceFor('a', dpr);
     const allowance = allowanceFor(boardName, dpr);
     if (!(allowance > 0)) return 0;
@@ -698,6 +736,16 @@ function zoomReachesBoards(): boolean {
 }
 
 export function publishSquareUnit(): void {
+    /* THE FLOOR IS RE-APPLIED HERE, on every publish, because the viewport it is computed from
+       changes without anyone touching a slider. It used to be applied only when the setting was
+       read or moved — at load and on a drag — so a window resized afterwards kept a zoom the new
+       layout no longer allows, and the two columns drifted apart: board A's floor is four of its
+       own squares and comes out at 40% of its allowance whatever the window, while board B's is
+       four of A's squares over B's allowance and moves with the ratio between them. Measured at
+       1920x955 with both columns at their minimum: 35px against 41px, where at load the same
+       viewport gives 35 and 35.
+       `minZoomPercent()` answers from a full-zoom arrangement, so this cannot feed on itself. */
+    clampToFloor();
     const style = document.documentElement.style;
     const sq = squareUnit(availableHeight());
     style.setProperty(CSS_PROPERTY, `${sq}px`);
@@ -810,7 +858,7 @@ let listening = false;
  * further is needed here.
  */
 export function trackSquareUnit(zoom: Record<BugBoardName, number>): void {
-    for (const boardName of ['a', 'b'] as const) scale[boardName] = zoom[boardName] / 100;
+    for (const boardName of ['a', 'b'] as const) requested[boardName] = zoom[boardName];
     publishSquareUnit();
     if (listening) return;
     listening = true;
@@ -826,6 +874,6 @@ export function trackSquareUnit(zoom: Record<BugBoardName, number>): void {
  * it out. Called by `boardSettings.updateZoom()`, which owns the value.
  */
 export function setBoardZoom(boardName: BugBoardName, zoom: number): void {
-    scale[boardName] = clampZoom(boardName, zoom) / 100;
+    requested[boardName] = zoom;
     publishSquareUnit();
 }
