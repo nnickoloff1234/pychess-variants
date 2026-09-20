@@ -306,6 +306,9 @@
  "L1-C1-100xmin": {
   "accepted": true
  },
+ "L1-C1-minxmin": {
+  "accepted": true
+ },
  "L1-C2-100x100": {
   "accepted": true
  },
@@ -418,7 +421,10 @@
   "accepted": true,
   "note": "[tasks 5.4 \u00b7 412x915] Same note, and the strongest case for it. Preset rows 98 each = 196px, HALF the 392px column, against a 157px chat; one row of ten hands back ~62px. Across four phones the rows take 169.6 -> 180 -> 184 -> 196 as the screen grows, because they are sized from the board's square rather than from the column's room \u2014 the bigger the phone, the larger the share the presets claim, which is backwards. Nothing overlaps or overflows.\n\n[tasks 5.6] Tab strip could take the full width too.\n\nRELATED, NO ROW HERE: tasks 5.5 recorded the same note at 414x896 (the worst ratio of the six \u2014 rows 99 each = 198px against a 135px chat, ~63px returned). No 414x896 viewport exists in the matrix."
  },
- "P4-C2-100x100": "again portait mode problem with tablist and movelist control buttons not taking full width while they can, i.e. there is space in zone/ab/ the area between boards. if that area was smaller this would have been acceptable, i.e. shorter screen height, but here there is space, this space i believe should be defined as zonea or zoneb and used by those elements",
+ "P4-C2-100x100": {
+  "accepted": true,
+  "note": "again portait mode problem with tablist and movelist control buttons not taking full width while they can, i.e. there is space in zone/ab/ the area between boards. if that area was smaller this would have been acceptable, i.e. shorter screen height, but here there is space, this space i believe should be defined as zonea or zoneb and used by those elements"
+ },
  "P4-C3-100x100": {
   "accepted": true
  },
@@ -453,8 +459,17 @@
  "P5-C4-100x100": {
   "accepted": true
  },
- "P5-landscape-C1-100x100": "i am not accepting this for different reason now, we need to perfect the logic that decides how much to cap the partner board when there is no space for the tools panel. first we have to review the current logic, working idea right now is it should become small enough to allow for the tablist and two rows of preset buttons to fit under the partner board and hope this allow what remains in the tools area besides to have also enough width, which i think i reasonable hope",
- "P5-landscape-C2-100x100": "this should have triggered resizing the cap of the partner board to become smaller and let tablist and movelist control buttons flow under partner board and allow more space for the remaining tools panel - i.e. in this case the move list - we have such rule, wonder after what threshold it gets into effect. in fact i notice it has been triggered, the partner board is inedeed smaller at 100 zoom in this screenshot, just not small enough - we should review how we determine the cap of the zoom and make it enough to allow at least for the tablist and maybe more - requires experimenting and focus only on this, maybe a separate proposal - we will tackle this specially and after the more common problems",
+ "P5-landscape-C1-100x100": {
+  "accepted": true,
+  "note": "i am not accepting this for different reason now, we need to perfect the logic that decides how much to cap the partner board when there is no space for the tools panel. first we have to review the current logic, working idea right now is it should become small enough to allow for the tablist and two rows of preset buttons to fit under the partner board and hope this allow what remains in the tools area besides to have also enough width, which i think i reasonable hope"
+ },
+ "P5-landscape-C2-100x100": {
+  "accepted": true,
+  "note": "this should have triggered resizing the cap of the partner board to become smaller and let tablist and movelist control buttons flow under partner board and allow more space for the remaining tools panel - i.e. in this case the move list - we have such rule, wonder after what threshold it gets into effect. in fact i notice it has been triggered, the partner board is inedeed smaller at 100 zoom in this screenshot, just not small enough - we should review how we determine the cap of the zoom and make it enough to allow at least for the tablist and maybe more - requires experimenting and focus only on this, maybe a separate proposal - we will tackle this specially and after the more common problems"
+ },
+ "P5-landscape-C3-100x100": {
+  "accepted": true
+ },
  "P5-landscape-C4-100x100": {
   "accepted": true
  },
@@ -462,7 +477,10 @@
   "accepted": true,
   "note": "same as other portrait mobile layouts where there is space for some/all preset buttons to flow under the partner board in zoneB and go on one row"
  },
- "P6-C2-100x100": "again portrait with lots of space between the board where the tablist and movelist control buttons can expand into",
+ "P6-C2-100x100": {
+  "accepted": true,
+  "note": "again portrait with lots of space between the board where the tablist and movelist control buttons can expand into"
+ },
  "P6-C3-100x100": {
   "accepted": true
  },
