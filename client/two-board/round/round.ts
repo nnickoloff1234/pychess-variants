@@ -264,61 +264,59 @@ export function roundView(model: PyChessModel): VNode[] {
                 // groups nothing. All of them land here for the moment, so the
                 // column looks exactly as it did; a later change is free to mount
                 // one of them somewhere else entirely.
-                // The second column, as one element rather than as two separately
-                // placed ones. A grid track is sized by its widest item, never by
-                // two items side by side, so a column that is "the right board plus
-                // the tools" has to be a single item holding both. It is also what
-                // the tools need in order to flow under the board later: floating
-                // happens among siblings in one container, not across grid items.
+                // THE PARTNER'S STACK AND THE TOOLS, as siblings of the viewer's stack rather
+                // than inside a wrapper of their own. `div.partner-and-tools` held them until the
+                // day every mode dissolved it: it was `display: contents` in landscape from the
+                // start, portrait stopped being the exception, and an element with no box in any
+                // mode is a level of nesting that nothing reads.
                 //
-                // The cost is that the two boards are no longer siblings in the
-                // app's grid, so switching them cannot be a grid-area swap — see
-                // switchBoardElements() and markRoles(), which both assumed it.
-                h('div.partner-and-tools', [
-                    // The board and its two strips are grouped; the tab parts are
-                    // not. That is the whole arrangement in one line.
+                // What it used to buy, and where that went: a grid track is sized by its widest
+                // item and never by two items side by side, so "the right board plus the tools"
+                // once had to be ONE item to size a column. The flattened templates size that
+                // column from the stack's own track instead, which is why the wrapper could go.
+                // The board and its two strips are grouped; the tab parts are
+                // not. That is the whole arrangement in one line.
+                //
+                // These three are one unit — they move together on a switch and
+                // size together — and three siblings cannot be floated as one
+                // thing, so the group has to exist for the board to be the
+                // fixed shape the parts arrange themselves around.
+                // The stack IS the panel — `panelClass` put `.bug-partner-stack` on the
+                // wrapper rather than inside it, so nothing gained a level and the grid area
+                // it has always occupied is still declared on the same element.
+                roundTabs.panel(PARTNER_BOARD_TAB, 0),
+                // The parts. Grouped only so that portrait has something to
+                // place: there the tools are one block in their own grid area,
+                // and free-standing parts auto-placed into the partner board's
+                // rows, which left the chat 20.7px tall.
+                //
+                // The landscape modes make this element `display: contents`, so
+                // it forms no box and each part is placed individually by the
+                // column — which is what lets one of them take the space under a
+                // shrunken board. Each mode dissolves whichever container it
+                // does not want: landscape this one, portrait the two around it.
+                h('div.bug-parts', [
+                    roundTabs.panel(1, 0),
+                    // The two preset rows, grouped. `display: contents` everywhere except
+                    // zone B, so normally they are placed individually exactly as before
+                    // and this element is not in the layout at all.
                     //
-                    // These three are one unit — they move together on a switch and
-                    // size together — and three siblings cannot be floated as one
-                    // thing, so the group has to exist for the board to be the
-                    // fixed shape the parts arrange themselves around.
-                    // The stack IS the panel — `panelClass` put `.bug-partner-stack` on the
-                    // wrapper rather than inside it, so nothing gained a level and the grid area
-                    // it has always occupied is still declared on the same element.
-                    roundTabs.panel(PARTNER_BOARD_TAB, 0),
-                    // The parts. Grouped only so that portrait has something to
-                    // place: there the tools are one block in their own grid area,
-                    // and free-standing parts auto-placed into the partner board's
-                    // rows, which left the chat 20.7px tall.
-                    //
-                    // The landscape modes make this element `display: contents`, so
-                    // it forms no box and each part is placed individually by the
-                    // column — which is what lets one of them take the space under a
-                    // shrunken board. Each mode dissolves whichever container it
-                    // does not want: landscape this one, portrait the two around it.
-                    h('div.bug-parts', [
-                        roundTabs.panel(1, 0),
-                        // The two preset rows, grouped. `display: contents` everywhere except
-                        // zone B, so normally they are placed individually exactly as before
-                        // and this element is not in the layout at all.
-                        //
-                        // It exists for the one arrangement that needs both of them to be ONE
-                        // item: a named grid area is a single rectangle and holds a single
-                        // item, so twenty buttons can only share a row under both boards if
-                        // the twenty are inside one box. In zone B the group becomes that box.
-                        ...(chatPresetsView
-                            ? [h('div.bug-presets-group', [roundTabs.panel(1, 1), roundTabs.panel(1, 2)])]
-                            : []),
-                        roundTabs.panel(2, 0),
-                        roundTabs.panel(3, 0),
-                        // Where the end-of-game controls are rendered, empty until
-                        // there is a result. It belongs to no tab — it must show
-                        // whichever tab is selected — so it is a sibling of the
-                        // parts rather than one of them, and it takes the place the
-                        // presets vacate at the same moment.
-                        h('div.bug-gameover'),
-                        h('div.bug-round-tools-bar', [roundTabs.tabList(), h('div#game-controls')]),
-                    ]),
+                    // It exists for the one arrangement that needs both of them to be ONE
+                    // item: a named grid area is a single rectangle and holds a single
+                    // item, so twenty buttons can only share a row under both boards if
+                    // the twenty are inside one box. In zone B the group becomes that box.
+                    ...(chatPresetsView
+                        ? [h('div.bug-presets-group', [roundTabs.panel(1, 1), roundTabs.panel(1, 2)])]
+                        : []),
+                    roundTabs.panel(2, 0),
+                    roundTabs.panel(3, 0),
+                    // Where the end-of-game controls are rendered, empty until
+                    // there is a result. It belongs to no tab — it must show
+                    // whichever tab is selected — so it is a sibling of the
+                    // parts rather than one of them, and it takes the place the
+                    // presets vacate at the same moment.
+                    h('div.bug-gameover'),
+                    h('div.bug-round-tools-bar', [roundTabs.tabList(), h('div#game-controls')]),
                 ]),
                 // h('div.material.material-bottom.' + variant.pieceFamily + '.disabled'),
             ],

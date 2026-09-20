@@ -55,18 +55,18 @@ import { notifyOnToolsHomeChange, toolsMinWidth } from '../squareUnit';
  * board and nothing ever widened.
  */
 
-/* The element that OWNS the arrangement: the one whose `grid-template-areas` the classes swap,
+const STACK = '.bug-partner-stack';
+/* THE ELEMENT THAT OWNS THE ARRANGEMENT: the one whose `grid-template-areas` the classes swap,
    and therefore the one whose height decides what fits. The two must be the same element or the
    test measures one box and the placement changes another.
 
-   The round page's merged column is a real box and owns its own areas. The analysis page dissolves
-   that column so every part is a grid item of the APP, which is where its areas live — and a
+   It is the app, on both pages, in every mode. There used to be a `.partner-and-tools` wrapper
+   holding the partner's stack and the tools, and the `container` parameter existed because that
+   wrapper was a real box on the round page and dissolved on the analysis page — and a
    `display: contents` element has no box at all: `clientHeight` reads 0, `available` is 0, and
-   nothing can ever drop. Silently, with no error. Hence a parameter rather than a constant. */
-const PARTNER_AND_TOOLS = '.partner-and-tools';
-const STACK = '.bug-partner-stack';
-/* The two pages' root elements. Only used to find the owner when the container named above
-   has been dissolved — an app is never `display: contents`, so this is where the walk stops. */
+   nothing can ever drop, silently and with no error. Every mode dissolved it in the end and the
+   element is gone; `owner()` survives it, because `.bug-parts` is still `display: contents` and
+   a caller may yet pass something inside it. */
 const APP = '.round-app.bug, .analysis-app.bug';
 /* Zone B's occupant and the second stack it has to clear. The group is `display: contents`
    until it lands there, so it is never measured — the panels inside it are. Asking the group
@@ -160,7 +160,7 @@ const TAB = '[role="tab"]';
 /**
  * The element that actually owns the arrangement, which is not always the one named.
  *
- * Tall landscape flattens the round page: `.partner-and-tools` becomes `display: contents` so
+ * Tall landscape flattens the round page: the tools' parts become grid items of the app, so
  * that a row can span both boards, and a dissolved element has no box — `clientHeight` reads
  * 0, `available` is 0, and nothing could ever drop. Silently, with no error. Its children are
  * grid items of the APP there, and the app is what holds the template the classes swap.
@@ -735,7 +735,7 @@ function place(container: HTMLElement, droppable: Droppable): void {
     // and the two would chase each other forever. Where the column is a real box it is not
     // resized by any of this and can be measured directly.
     // ASK THE TEMPLATE, NOT THE CONTAINER. This used to test whether the NAMED container had
-    // been dissolved — true on the round page, whose container is `.partner-and-tools`, and never
+    // been dissolved — which every mode now is, since the wrapper that used to be a box is gone
     // on the analysis page, which names the app itself. So the analysis page skipped zone B in
     // every mode and never published the heights below: measured at 996x730 with a zoomed-out
     // pair, a 639px tools panel beside a 460px board.
@@ -1009,7 +1009,7 @@ function placeStandingTab(): void {
 
 export function trackToolsPlacement(
     droppable: Droppable,
-    container: string = PARTNER_AND_TOOLS,
+    container: string = APP,
     onSettled?: () => void,
 ): void {
     const column = document.querySelector<HTMLElement>(container);

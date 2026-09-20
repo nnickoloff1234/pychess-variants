@@ -103,8 +103,8 @@ function squareOf(app: HTMLElement, boardSelector: string): number {
  * not against the stack's own height — the stack is what grows, so asking it how
  * tall it is would be asking the answer to include the question.
  *
- * The space is the column the stack sits in: `.partner-and-tools` for the partner,
- * the round app itself for the viewer's own board.
+ * The space is the rows the stack spans in the app's grid — the same question for both
+ * stacks, since the wrapper that used to hold the partner's is gone.
  */
 function spaceFor(app: HTMLElement, seat: HTMLElement): number {
     /* THE BOARD'S OWN ALLOWANCE FIRST, where the stylesheet publishes one.
@@ -125,39 +125,57 @@ function spaceFor(app: HTMLElement, seat: HTMLElement): number {
     const allow = stack ? parseFloat(getComputedStyle(stack).getPropertyValue('--bug-stack-allow')) : NaN;
     if (Number.isFinite(allow) && allow > 0) return allow * ROWS_PER_STACK;
 
-    // WHERE THE PAGE IS FLATTENED, BOTH STACKS SHARE ONE REGION and neither is in a column that
-    // can be measured. `.partner-and-tools` is still their ancestor but it is `display: contents`
-    // there — no box, `clientHeight` reads 0 — so the partner seat was told it had no room at
-    // all and could never take the line, while the own seat fell through to the app and kept
-    // getting one. That is the asymmetry this fixes.
+    // WHERE THE PAGE IS FLATTENED, BOTH STACKS SHARE ONE REGION, and the region is published
+    // rather than measured: it is the pinned budget less whatever zone B holds. The app's own
+    // height is no use for it — that follows the stacks, so asking it would be asking the answer
+    // to include the question.
+    const boards = parseFloat(getComputedStyle(app).getPropertyValue('--bug-boards-h'));
+    if (Number.isFinite(boards)) return boards;
+
+    // OTHERWISE, THE ROWS THE STACK SPANS. Both stacks are items of the app's grid now — the
+    // `.partner-and-tools` wrapper that used to be a box in portrait is gone — so the space a
+    // stack is given is the height of its own rows, which the resolved template states exactly.
     //
-    // The region is published rather than measured here: it is the pinned budget less whatever
-    // zone B holds, and the app's own height is no use for it — that now follows the stacks, so
-    // asking it would be asking the answer to include the question.
-    const dissolved = app.querySelector<HTMLElement>('.partner-and-tools');
-    if (dissolved && getComputedStyle(dissolved).display === 'contents') {
-        const boards = parseFloat(getComputedStyle(app).getPropertyValue('--bug-boards-h'));
-        if (Number.isFinite(boards)) return boards;
-    }
+    // This replaces two measurements of that wrapper: its `clientHeight` for the partner, and
+    // the app's height minus the wrapper's for the viewer's own board. The second was there
+    // because in portrait the wrapper sat ABOVE the own board rather than beside it, and
+    // counting the whole app credited the own stack with the partner's region as well — what
+    // let a phone's bottom board believe it had 835px for a 453px stack and take a line for its
+    // username. Asking the grid for the rows an item occupies answers both, in every mode, with
+    // no rule about which mode it is.
+    const rows = rowsSpanned(app, seat.closest<HTMLElement>('.bug-own-stack, .bug-partner-stack'));
+    return Number.isFinite(rows) ? rows : app.clientHeight;
+}
 
-    const column = seat.closest<HTMLElement>('.partner-and-tools');
-    if (column) return column.clientHeight;
+/**
+ * The height of the grid rows an item spans, from its container's RESOLVED template.
+ *
+ * `getComputedStyle` gives `grid-template-rows` in used pixels and `grid-template-areas` as the
+ * quoted row strings, so the two line up index for index: find the rows whose cells name this
+ * item's area, and sum them with the gaps between. NaN where the item is not placed by a named
+ * area, which is the caller's signal to fall back.
+ */
+function rowsSpanned(container: HTMLElement, el: HTMLElement | null): number {
+    if (el === null) return NaN;
+    const area = getComputedStyle(el).gridArea.split(' / ')[0].trim();
+    if (area === '' || area === 'auto') return NaN;
 
-    // The viewer's own stack is not in the merged column, so its space is the app —
-    // minus the column when the column is ABOVE it rather than beside it. In the
-    // landscape modes the two sit side by side and share the app's full height; in
-    // portrait the column takes the region above the own board, so counting the whole
-    // app credits the own stack with the column's height as well.
-    //
-    // That miscount is what let a phone's bottom board believe it had 835px for a
-    // 453px stack and take a line for its username. Measured, it has exactly its own
-    // height and can never take one — which is the intended behaviour, arrived at by
-    // measuring correctly rather than by a rule saying "not in portrait".
-    const merged = app.querySelector<HTMLElement>('.partner-and-tools');
-    if (!merged) return app.clientHeight;
+    const style = getComputedStyle(container);
+    const heights = style.gridTemplateRows.split(/\s+/).map(parseFloat);
+    const rows = (style.gridTemplateAreas.match(/"[^"]*"/g) ?? []).map(row =>
+        row.slice(1, -1).trim().split(/\s+/),
+    );
+    if (rows.length === 0 || rows.length !== heights.length) return NaN;
 
-    const beside = Math.abs(merged.clientHeight - app.clientHeight) < 2;
-    return beside ? app.clientHeight : app.clientHeight - merged.getBoundingClientRect().height;
+    const gap = parseFloat(style.rowGap) || 0;
+    let total = 0;
+    let spanned = 0;
+    rows.forEach((cells, i) => {
+        if (!cells.includes(area)) return;
+        total += heights[i];
+        spanned += 1;
+    });
+    return spanned > 0 ? total + (spanned - 1) * gap : NaN;
 }
 
 /**
@@ -241,7 +259,7 @@ export function trackSeatNamePlacement(onSettled?: () => void): void {
     observer?.disconnect();
     observer = new ResizeObserver(pass);
     observer.observe(app);
-    for (const selector of ['.partner-and-tools', '#mainboard cg-board', '#bugboard cg-board']) {
+    for (const selector of ['.bug-partner-stack', '#mainboard cg-board', '#bugboard cg-board']) {
         const el = app.querySelector<HTMLElement>(selector);
         if (el) observer.observe(el);
     }

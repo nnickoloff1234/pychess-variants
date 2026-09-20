@@ -47,21 +47,24 @@
 @media (aspect-ratio <= 9/16) {
     .analysis-app.bug {
         display: grid;
-        /* One column. "The player's own board is full width" is then structural rather than
-           something each area has to spell out. */
-        grid-template-columns: minmax(0, 1fr);
-        /* The merged block takes the region above and gets the slack with it, so the own
-           stack below stays flush with the bottom of the viewport whatever the two boards
-           work out to. */
-        /* THE SAME TWO ROWS THE ROUND PAGE DECLARES. The third row was `uleft`, and the
-           spectator placeholder that claimed it lives in the Info tab now.
-           With it gone the two pages' portrait ARRANGEMENTS are the same: identical areas,
-           columns, rows, width and centring. What still differs is not arrangement —
-           `display: grid`, which the round page picks up elsewhere, and a `row-gap`/`column-gap`
-           pair that are both zero anyway. This is the template that was waiting on that. */
-        grid-template-rows: minmax(0, 1fr) min-content;
-        grid-template-areas: 'partnerAndTools'
-                             'ownstack';
+        /* FIVE ROWS, TWO COLUMNS — the merged column's four rows and the player's own block
+           beneath them, in one grid. The partner stack spans the four; the own stack spans the
+           two columns. `minmax(0, 1fr)` on the first is where the slack goes, so the own block
+           stays flush with the bottom of the viewport whatever the two boards work out to, and
+           the three `auto` rows are their content's height.
+
+           This is the landscape shape with one column fewer. There the viewer's board is a
+           column beside the partner's; here it is a row beneath, so it spans instead. Every
+           other name is the same, which is the point of stating it here rather than inside a
+           box of its own. */
+        grid-template-columns: calc(var(--bug-portrait-partner-sq) * 8) minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr) auto auto auto min-content;
+        grid-template-areas: 'stack    zoneTools1'
+                             'stack    zoneTools2'
+                             'stack    zoneTools3'
+                             'stack    zoneTools4'
+                             'ownstack ownstack';
+        row-gap: 0;
         /* The app is exactly the width the full-width board can draw, and the sub-square
            remainder is spent OUTSIDE it — on the app rather than on any box within it, so
            every child starts at the same x and the leftover falls in the page margins where
@@ -70,25 +73,13 @@
         margin-inline: auto;
         row-gap: 0;
     }
-    /* A REAL BOX HERE, unlike landscape. Two tracks: the partner board's eight squares, then
-       whatever is left — which is where the tools go. That leftover is the whole point; it is
-       the space a square board a fifth of the viewport tall cannot use. */
-    /* THE DROP CLASS NOW LIVES ON THE APP, so this mode needs the arrangement keyed to it.
-       Landscape dissolves `.partner-and-tools` and states its areas on the app; portrait keeps that
-       column as a real grid, and the shared `.partner-and-tools.drop-tablist` rule stopped matching
-       the moment `toolsPlacement` began toggling the class on the app instead. Measured: the tab
-       list back at 219px in its own column instead of 384px full width.
-
-       The areas are the shared ones, restated against the app's class — `zoneTools2`/`zoneTools3`
-       hold nothing on
-       this page, and rows with no items in them collapse to zero. */
-    .analysis-app.bug.drop-tablist .partner-and-tools {
-        grid-template-areas:
-            'stack     zoneTools1'
-            'stack     zoneTools2'
-            'stack     zoneTools3'
-            'zoneTools4 zoneTools4';
-    }
+    /* NO RESTATEMENT FOR THIS PAGE ANY MORE. It needed one while portrait kept the merged
+       column as a real box: `toolsPlacement` put the drop class on the app, the shared rule was
+       keyed to the column, and the two stopped meeting — measured, the tab list back at 219px in
+       its own column instead of 384px full width. With the column dissolved both pages key their
+       drop templates to the app, together, further down this block. `zoneTools2`/`zoneTools3`
+       hold nothing on this page and rows with no items collapse to zero, which is why one set of
+       templates serves both. */
     /* NOTHING else for this page. Portrait's merged column is the round page's declaration for
        declaration, and this mode's own unscoped `.partner-and-tools` block below already states
        the two track widths and the zero gap for both pages. The block that stood here restated
@@ -168,30 +159,24 @@
         width: calc(var(--bug-portrait-sq) * 8);
         margin-inline: auto;
 
-        /* Every row is a whole number of that board's own square, so no track
-           reserves more than the board or strip inside it can occupy — the
-           quantised units are what make that exact. A strip is one square tall,
-           the same relation short landscape uses.
+        /* FIVE ROWS, TWO COLUMNS — the merged column's four rows and the player's own block
+           beneath them, in one grid. The partner stack spans the four; the own stack spans the
+           two columns. `minmax(0, 1fr)` on the first is where the slack goes, so the own block
+           stays flush with the bottom of the viewport whatever the two boards work out to, and
+           the three `auto` rows are their content's height.
 
-           Rows dropped as unoccupied: game-controls, offer, move-controls,
-           uboard, uleft. Only eight areas have an element in this mode, and
-           `under-board`/`under-left` are siblings of the round app, not children. */
-        grid-template-rows:
-                              minmax(0, 1fr)
-
-                              min-content;
-        /* The merged column takes the whole region above the player's own block, and
-           gets the slack with it: its first row is `minmax(0, 1fr)`, so the block
-           below stays flush with the bottom of the viewport whatever the two boards
-           work out to.
-
-           This is what the old template could not do. Its tools area was column 2
-           only, so the corner under the partner board — measured at 165.3 x 175.3 —
-           was a `.` that no part could ever reach. Inside the merged column that
-           space is simply where a part goes. */
-        grid-template-areas:
-                              'partnerAndTools'
-                              'ownstack';
+           This is the landscape shape with one column fewer. There the viewer's board is a
+           column beside the partner's; here it is a row beneath, so it spans instead. Every
+           other name is the same, which is the point of stating it here rather than inside a
+           box of its own. */
+        grid-template-columns: calc(var(--bug-portrait-partner-sq) * 8) minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr) auto auto auto min-content;
+        grid-template-areas: 'stack    zoneTools1'
+                             'stack    zoneTools2'
+                             'stack    zoneTools3'
+                             'stack    zoneTools4'
+                             'ownstack ownstack';
+        row-gap: 0;
         column-gap: 0;
     }
 
@@ -265,11 +250,35 @@
        exactly. The premise the rule was measured from — that a preset row spans the screen —
        stopped being true when portrait's parts were merged into the column. */
 
-    /* Widths of the merged column's two tracks — the only thing this mode does not
-       share. The partner board's eight squares, then whatever is left. */
-    .partner-and-tools {
-        grid-template-columns: calc(var(--bug-portrait-partner-sq) * 8) minmax(0, 1fr);
-        column-gap: 0px;
+    /* THE DROPPED ARRANGEMENTS, in the order parts leave the strip beside the board: the tab
+       bar first, then the presets from the bottom up. A dropped part spans BOTH columns — it
+       does not merely move under the partner board, it widens to the full width and sits under
+       whatever is still beside the board above it.
+
+       Keyed to the APP, as the landscape modes key theirs, because the classes are on the app:
+       `toolsPlacement` puts them on the element whose template they swap, and with the merged
+       column dissolved that element is the app. The same rules lived on `.partner-and-tools`
+       while it had a box. */
+    :is(.round-app, .analysis-app).bug.drop-tablist {
+        grid-template-areas: 'stack      zoneTools1'
+                             'stack      zoneTools2'
+                             'stack      zoneTools3'
+                             'zoneTools4 zoneTools4'
+                             'ownstack   ownstack';
+    }
+    :is(.round-app, .analysis-app).bug.drop-tablist.drop-p2 {
+        grid-template-areas: 'stack      zoneTools1'
+                             'stack      zoneTools2'
+                             'zoneTools3 zoneTools3'
+                             'zoneTools4 zoneTools4'
+                             'ownstack   ownstack';
+    }
+    :is(.round-app, .analysis-app).bug.drop-tablist.drop-p2.drop-p1 {
+        grid-template-areas: 'stack      zoneTools1'
+                             'zoneTools2 zoneTools2'
+                             'zoneTools3 zoneTools3'
+                             'zoneTools4 zoneTools4'
+                             'ownstack   ownstack';
     }
 
     /* Pockets carry the same rule short landscape settled on: a pocket piece is

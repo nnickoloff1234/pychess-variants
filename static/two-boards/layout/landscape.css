@@ -468,9 +468,6 @@
     body[data-variant='bughouse'] :is(.round-app, .analysis-app).bug {
         height: var(--bug-app-content-h, 100%);
     }
-    :is(.round-app, .analysis-app).bug .partner-and-tools {
-        display: contents;
-    }
 
     /* WHICH SLOT EACH PART OCCUPIES BESIDE THE BOARD is not stated here any more, because it is
        stated once for every mode in `layout/shared.css`: tab panel to `zoneTools1`, the preset

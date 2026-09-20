@@ -319,25 +319,13 @@
 .round-app.bug {
     grid-area: main;
 }
-/* `partnerAndTools`, the only area name any template declares for this element — portrait's,
-   which is the one mode where it is placed at all. It said `rightcol` until the landscape
-   template that declared that name was deleted as dead, leaving a claim on an area that existed
-   nowhere. Harmless where it stood, because landscape dissolves this element and an item with no
-   box is never placed — and a trap for whoever gives it a box again, since naming an area no
-   template declares is how an item gets auto-placed into an implicit track. */
-.partner-and-tools {
-    grid-area: partnerAndTools;
-    display: grid;
-    grid-template-rows: minmax(0, 1fr) auto auto auto;
-    grid-template-areas: 'stack zoneTools1'
-                         'stack zoneTools2'
-                         'stack zoneTools3'
-                         'stack zoneTools4';
-    row-gap: 0;
-    overflow: hidden;
-    min-width: 0;
-    min-height: 0;
-}
+/* THE WRAPPER IS GONE. `div.partner-and-tools` held the partner's stack and the tools' parts,
+   and every mode ended up dissolving it: landscape always did, portrait was the last to keep it
+   as a box, and an element with no box anywhere is a level of nesting nothing reads. Its children
+   are items of the app's grid directly now, which is what they were in landscape all along.
+   Nothing replaced its rules: the templates, the track widths and the clipping all described a
+   box, and they are stated on the app, per mode, where the boards and the tools are placed
+   together. */
 /* The stack takes its content height, not the height of the rows it spans.
    Stretched — the default for a grid item — it measured the full column at every
    zoom, so the space a smaller board frees never existed and nothing ever dropped. */
@@ -467,29 +455,9 @@ round-player1.bug {
    `.bug-parts` here; the round page's is nested inside its tools bar, so the two selectors cannot
    both match the same element. */
 
-/* The two dropped arrangements, in the order parts leave the strip beside the
-   board. A dropped part spans BOTH columns, which is the point: it does not merely
-   relocate under the board, it widens to the full column and sits under the parts
-   above it as well. toolsPlacement.ts adds each class only when the board's stack
-   still fits in what would be left. */
-.partner-and-tools.drop-tablist {
-    grid-template-areas: 'stack     zoneTools1'
-                         'stack     zoneTools2'
-                         'stack     zoneTools3'
-                         'zoneTools4 zoneTools4';
-}
-.partner-and-tools.drop-tablist.drop-p2 {
-    grid-template-areas: 'stack     zoneTools1'
-                         'stack     zoneTools2'
-                         'zoneTools3 zoneTools3'
-                         'zoneTools4 zoneTools4';
-}
-.partner-and-tools.drop-tablist.drop-p2.drop-p1 {
-    grid-template-areas: 'stack     zoneTools1'
-                         'zoneTools2 zoneTools2'
-                         'zoneTools3 zoneTools3'
-                         'zoneTools4 zoneTools4';
-}
+/* The dropped arrangements are stated per mode on the APP, which is the element the classes
+   now sit on — see `layout/portrait.css`. They used to be here, keyed to `.partner-and-tools`,
+   because portrait was the one mode where that element had a box to hold a template. */
 /* The viewer's own stack, the mirror of `.bug-partner-stack`. Block flow: strip,
    board, strip, in DOM order — which is why round.ts mounts them in that order and
    why a flip swaps the blocks INSIDE the strips rather than the strips themselves.

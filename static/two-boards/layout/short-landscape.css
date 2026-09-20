@@ -141,13 +141,10 @@
        This mode has no spare height — the stack fills the column — so in practice
        nothing ever reaches the space under the board here. The rules are the same
        as tall landscape's on purpose; only the outcome differs. */
-    /* DISSOLVED, as in the other landscape mode. A row spanning both boards can only be spanned
-       by an item of the grid that owns both board columns, so the merged column has to stop being
-       a box for the zones to exist at all. Its children become grid items of the app and are
-       placed by the shared rules. */
-    :is(.round-app, .analysis-app).bug .partner-and-tools {
-        display: contents;
-    }
+    /* DISSOLVED, like every other mode — stated once in `layout/shared.css` now that portrait
+       dissolves it too. A row spanning both boards can only be spanned by an item of the grid
+       that owns both board columns, which is why the merged column had to stop being a box here
+       before the zones could exist at all. */
     /* NOTHING ELSE FOR THAT ELEMENT HERE. It has no box in this mode — the rule above makes it
        `display: contents` — so a track list on it can never apply, and one used to: two columns
        sized `calc(var(--bug-sq-b) * 8) minmax(0, 1fr)`, with six lines arguing that the right
