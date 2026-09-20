@@ -927,6 +927,26 @@ function place(container: HTMLElement, droppable: Droppable): void {
         const fits =
             hasZoneB && el !== null && !inZoneA && zoneBUsed + need <= available - b.tallest;
         column.classList.toggle(zoneBClassName, fits);
+
+        // AND THE STYLESHEET GETS A VETO, because a part asking for zone B is not the same as a
+        // home that has a row to give it. The analysis page's controls panel declares
+        // `drop-controls-b`, but its rule is scoped to the `tools-zonea` home ON PURPOSE — see
+        // `layout/landscape.css`: beside the boards the strip and the engine box are already in
+        // zone B, and a third row there costs the boards more height than a row of buttons is
+        // worth. So in every other home the class went on, nothing matched it, the part stayed in
+        // the strip, and its height was charged to the boards anyway.
+        //
+        // Measured on the analysis page at minimum zoom: the app was pinned 40px taller than
+        // `tallestStack + zoneB`, and the 40 came out as dead space under the TALLER board —
+        // which then read, to anything measuring the region, as a band that could hold something.
+        //
+        // The computed area is the honest answer and the same one `zoneBHeight()` already trusts:
+        // if the part did not land in a zone B row, the home declined it, so take the class back
+        // off and charge nothing.
+        if (fits && el !== null && !getComputedStyle(el).gridArea.startsWith('zoneB')) {
+            column.classList.toggle(zoneBClassName, false);
+            continue;
+        }
         if (fits) zoneBUsed += need;
     }
 
