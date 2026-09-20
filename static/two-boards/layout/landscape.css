@@ -190,9 +190,6 @@
        are mounted inside `.bug-tool-group`, which is therefore the grid item that tab's single
        panel was. Every rule that places a panel places the group too, which is what makes
        fragmenting the tab a change that moves nothing. */
-    .analysis-app.bug .bug-parts > [role='tablist'] {
-        grid-area: zoneTools4;
-    }
     /* THE MOVES TAB'S THREE PARTS, ONE PER ROW — and the row each one gets is decided by the DROP
        ORDER, not by taste.
        ------------------------------------------------------------------------------------
@@ -475,28 +472,20 @@
         display: contents;
     }
 
-    /* WHICH SLOT EACH PART OCCUPIES BESIDE THE BOARD, top to bottom: chat, the two preset
-       rows, the tab bar. These win over the unscoped `.bug-parts > ...` assignments further
-       down the file — the ones short landscape and portrait still use — on specificity, so
-       both forms can coexist without either being weakened.
+    /* WHICH SLOT EACH PART OCCUPIES BESIDE THE BOARD is not stated here any more, because it is
+       stated once for every mode in `layout/shared.css`: tab panel to `zoneTools1`, the preset
+       rows and the end-of-game controls to `zoneTools2`/`zoneTools3`, the tools bar and the tab
+       list to `zoneTools4`.
 
-       The chat's slot takes every tab panel: only the selected one is displayed, so they
-       cannot overlap, and whichever is showing gets the row that absorbs the slack. */
-    :is(.round-app, .analysis-app).bug .bug-parts > [role='tabpanel'] {
-        grid-area: zoneTools1;
-    }
-    /* The first preset row and the end-of-game controls share a slot and never coexist —
-       the presets while the game is on, the controls once it is not. */
-    .round-app.bug .bug-parts .chatpresets-panel-1,
-    .round-app.bug .bug-parts > .bug-gameover {
-        grid-area: zoneTools2;
-    }
-    .round-app.bug .bug-parts .chatpresets-panel-2 {
-        grid-area: zoneTools3;
-    }
-    .round-app.bug .bug-parts > .bug-round-tools-bar {
-        grid-area: zoneTools4;
-    }
+       Five rules stood here saying exactly that, at a specificity chosen to beat those shared
+       assignments — which they had to, while portrait named the same four slots `chat / p1 / p2 /
+       tablist` and the shared rules spoke that vocabulary. One vocabulary later, they said what
+       they were overriding. The drop rules below are unaffected: they are more specific than
+       either form and move a part OUT of its slot, which is a different statement.
+
+       What remains on this page is only what genuinely differs: the Moves tab's three parts,
+       placed one per row below, because `.bug-tool-group` dissolves here and its children become
+       the grid items that its single panel was. */
 
     /* THE DROPPED ARRANGEMENTS, in the order parts leave the strip beside the board: the tab
        bar first, then the presets from the bottom up. A dropped part's row widens to zoneAN —
