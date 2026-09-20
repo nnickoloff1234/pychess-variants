@@ -533,6 +533,42 @@ function toolsRegionHeight(app: HTMLElement): number {
     return counted > 0 ? total + (counted - 1) * gap : NaN;
 }
 
+/**
+ * The width a part gets WHEN IT DROPS: the partner's column plus the tools', with the gap between
+ * them, read from the resolved template.
+ *
+ * Every drop template merges the two — `'ownstack zoneA4 zoneA4'` in landscape, `'zoneTools4
+ * zoneTools4'` in portrait — so a dropped part never has only the board's width. The cascade used
+ * to test a part's declared minimum against the PARTNER STACK's width alone, which is the width it
+ * has while it is still in the strip beside the board, and refused parts that would have had
+ * half the page.
+ *
+ * Zone B is wider again, adding the viewer's board's column. That is a different region with its
+ * own question and is not what this answers.
+ */
+function toolsRegionWidth(app: HTMLElement): number {
+    const style = getComputedStyle(app);
+    const widths = style.gridTemplateColumns.split(/\s+/).map(parseFloat);
+    const rows = (style.gridTemplateAreas.match(/"[^"]*"/g) ?? []).map(row =>
+        row.slice(1, -1).trim().split(/\s+/),
+    );
+    if (rows.length === 0 || widths.length === 0) return NaN;
+
+    const wanted = new Set<number>();
+    for (const cells of rows) {
+        cells.forEach((cell, i) => {
+            if (cell === 'stack' || cell.startsWith('zoneTools') || cell.startsWith('zoneA')) {
+                wanted.add(i);
+            }
+        });
+    }
+    const columns = [...wanted].filter(i => i < widths.length);
+    if (columns.length === 0) return NaN;
+
+    const gap = parseFloat(style.columnGap) || 0;
+    return columns.reduce((total, i) => total + widths[i], 0) + (columns.length - 1) * gap;
+}
+
 function tallestStack(app: HTMLElement): number {
     const stacks = [app.querySelector<HTMLElement>(OWN_STACK), app.querySelector<HTMLElement>(STACK)];
     return Math.max(...stacks.map(el => el?.getBoundingClientRect().height ?? 0));
@@ -836,9 +872,19 @@ function place(container: HTMLElement, droppable: Droppable): void {
     // above the bottom of the right stack, and the button was drawn over that board's pocket and
     // clock. `max(0, ...)` is the whole correction — a negative difference is not a small space,
     // it is no space.
-    const ownStackHeight =
-        column.querySelector<HTMLElement>(OWN_STACK)?.getBoundingClientRect().height ?? 0;
-    const zoneA = Math.max(0, ownStackHeight - partnerStackHeight);
+    // THE BAND IS WHAT THE TOOLS' REGION HAS LEFT OVER THE PARTNER STACK, in every mode.
+    //
+    // It used to be `ownStackHeight - partnerStackHeight`: how much shorter the partner stack is
+    // than the viewer's. That is the band only while the two stacks share a ROW, which is
+    // landscape's geometry and not portrait's — there the viewer's board is BELOW, so the
+    // difference is the height of the board being played on, and every part dropped into a band
+    // that was never there.
+    //
+    // `toolsRegionHeight - partnerStackHeight` is the same number wherever the stacks do share a
+    // row, because the tools' rows then span the board row and the taller stack sets its height.
+    // Where they do not, it is still the right question: how much of the tools' own block is not
+    // needed by the partner's stack. Nothing about the mode is asked.
+    const zoneA = Math.max(0, toolsRegionHeight(column) - partnerStackHeight);
 
     // THE PRESETS' REGION IS THE TOOLS' OWN, in both dimensions: as wide as the last track, as
     // tall as the rows the tools' slots occupy. The height used to be the BUDGET — the viewport
@@ -869,7 +915,11 @@ function place(container: HTMLElement, droppable: Droppable): void {
     // partner stack's width: zone A is the band under that stack, spanning its column and the
     // tools' — see the templates. A part whose content cannot be drawn in that width is not
     // helped by a band that is tall enough.
-    const zoneAWidth = stack.getBoundingClientRect().width;
+    // AND ITS WIDTH IS THE MERGED REGION'S, for the reason `toolsRegionWidth` gives: a dropped
+    // part spans the partner's column and the tools' together. The partner stack's width is what
+    // the part has BEFORE it drops, so testing a declared minimum against it refused parts that
+    // would have landed in something twice as wide.
+    const zoneAWidth = toolsRegionWidth(column) || stack.getBoundingClientRect().width;
 
     let zoneAUsed = 0;
     let previousDropped: boolean = true;
