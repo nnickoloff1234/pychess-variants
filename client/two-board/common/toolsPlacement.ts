@@ -745,7 +745,7 @@ function place(container: HTMLElement, droppable: Droppable): void {
     // exists at all. A row under BOTH boards needs the two stacks to be rows of one grid, which
     // is what `display: contents` on the column achieves and what its stylesheet block — the
     // same one that carries every `drop-*-b` rule — is scoped to. Everywhere else the boards are
-    // not in one grid: portrait stacks them as `rightcol` over `ownstack`, so the row a part
+    // not in one grid: portrait stacks them as `partnerAndTools` over `ownstack`, so the row a part
     // would drop into is under the TOP board only, which is what zone A already is.
     //
     // Asked anyway, it answered about a layout that is not on the page — `.bug-own-stack` is

@@ -60,7 +60,7 @@
            `display: grid`, which the round page picks up elsewhere, and a `row-gap`/`column-gap`
            pair that are both zero anyway. This is the template that was waiting on that. */
         grid-template-rows: minmax(0, 1fr) min-content;
-        grid-template-areas: 'rightcol'
+        grid-template-areas: 'partnerAndTools'
                              'ownstack';
         /* The app is exactly the width the full-width board can draw, and the sub-square
            remainder is spent OUTSIDE it — on the app rather than on any box within it, so
@@ -189,7 +189,7 @@
            was a `.` that no part could ever reach. Inside the merged column that
            space is simply where a part goes. */
         grid-template-areas:
-                              'rightcol'
+                              'partnerAndTools'
                               'ownstack';
         column-gap: 0;
     }
@@ -263,6 +263,21 @@
        overflowed its panel by 26.3px. The published value, 18.9px, filled the column to 106.7px
        exactly. The premise the rule was measured from — that a preset row spans the screen —
        stopped being true when portrait's parts were merged into the column. */
+
+    /* THE AREA IS `partnerAndTools` IN THIS MODE, not `rightcol`. The shared rule in
+       `layout/shared.css` still says `rightcol`, which is the name the landscape modes use and
+       the name this one is being renamed out of — so the claim is restated here rather than
+       changed there. "Right column" describes where the box sits in landscape and is wrong here
+       twice over: in portrait it is the TOP block, not a right column, and what it holds is the
+       partner's board and the tools, which is what the name now says.
+
+       SPECIFICITY, not file order. A bare `.bug-right-column` here would tie with the shared
+       rule at (0,1,0) and win only because `portrait.css` is linked after `shared.css` — the
+       kind of tie the stylesheet split already reversed three times. The app prefix makes it
+       (0,3,0) and the outcome no longer depends on which file loads first. */
+    :is(.round-app, .analysis-app).bug .bug-right-column {
+        grid-area: partnerAndTools;
+    }
 
     /* Widths of the merged column's two tracks — the only thing this mode does not
        share. The partner board's eight squares, then whatever is left. */
