@@ -386,6 +386,17 @@
 .round-app.bug.game-over .bug-parts > .bug-gameover {
     margin-top: 8px;
 }
+/* A CONTROLS PANEL LAYS ITS ROW ACROSS ITSELF. The panel is a flex container and, with no
+   direction stated, a ROW one — so its single child, the button row, sat at content width and the
+   buttons divided that instead of the panel. Measured at 412x915 with the part correctly dropped
+   full width: a 411px panel with a 103px row of 17px buttons inside it, which is the opposite of
+   what dropping is for. A column container stretches the child across the cross axis, and
+   `site.css` already gives each button `flex: 1` to divide it.
+   The analysis page has never had this: `tabs.css` gives its panels `flex-flow: column` a few
+   rules above, scoped to that page. */
+.round-app.bug .bug-parts > .round-controls-panel {
+    flex-flow: column;
+}
 .bug-gameover > button {
     /* 0 0 auto, not 1 1 auto: the main axis is vertical here, so a growing button
        would grow TALLER rather than wider. The width comes from align-items above.

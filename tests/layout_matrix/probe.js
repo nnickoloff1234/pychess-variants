@@ -670,6 +670,28 @@ ctx => {
         return band;
     })();
 
+    /* A ROW OF BUTTONS THAT DID NOT TAKE THE WIDTH IT WAS GIVEN.
+       The preset rows have had this check since they were compacted in a full-width row; the
+       move-list controls had none, so a panel dropped to 411px with a 103px row of 17px buttons
+       inside it was green. Same shape, same question: a part that widened and did not use the
+       width gained nothing by moving. The threshold is the presets': a quarter of the box and at
+       least 40px, so ordinary rounding and a button row that simply is short do not fire. */
+    for (const row of all('.round-controls-panel .btn-controls, .analysis-controls-panel .btn-controls')) {
+        if (!shown(row)) continue;
+        const panel = row.parentElement;
+        if (panel === null) continue;
+        const style = getComputedStyle(panel);
+        const inner =
+            panel.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+        const slack = inner - row.getBoundingClientRect().width;
+        if (slack >= 40 && slack >= inner * 0.25) {
+            failures.push(
+                `the move-list controls are ${Math.round(row.getBoundingClientRect().width)}px in a ` +
+                `${Math.round(inner)}px panel — ${Math.round(slack)}px unused, so the buttons sit compacted`,
+            );
+        }
+    }
+
     if (portraitBand) {
         const strip = q('.bug-round-tools-bar') || q('[role="tablist"]');
         const parts = [
