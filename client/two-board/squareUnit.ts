@@ -475,9 +475,30 @@ interface Arrangement {
     b: number;
 }
 
-/** The gaps between the three tracks, which the width has to pay for before either board does. */
+/* THE GAPS BETWEEN THE THREE TRACKS, which the width has to pay for before either board does —
+   and the two landscape modes do not spend the same amount.
+   ---------------------------------------------------------------------------------------------
+   Tall landscape separates the columns with `column-gap: 2vmin`. Short landscape uses
+   `--ranks-gutter`, which is the overhang of the rank labels — 15px, a 3px lead-in and a 12px
+   glyph box — because with the boards flush the left board's labels would otherwise land on the
+   right board. At an iPhone SE's 667x375 that is 15px per gap against 7.5, so the layout spends
+   30px where this function budgeted 15.
+
+   Fifteen pixels decided three separate outcomes before it was found: `columnFits` passing by one
+   pixel, a tools column judged worth having at 75 and built at 61, and the same column later
+   built at 121 when the test believed it had 136. A decision about width that is wrong about the
+   width by a gap is wrong about everything downstream.
+
+   READ FROM THE STYLESHEET WHERE IT CAN BE. `--ranks-right` is published for this mode and is the
+   same value the mode's own publisher already reads a few hundred lines below; the arithmetic is
+   the fallback for the modes that have no such property and for the first paint. */
 function columnGaps(): number {
-    return TALL_COLUMN_GAP_COUNT * TALL_COLUMN_GAP_FRACTION * Math.min(availableWidth(), availableHeight());
+    const tall = TALL_COLUMN_GAP_FRACTION * Math.min(availableWidth(), availableHeight());
+    const gutter = Math.abs(
+        parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ranks-right')) || 0,
+    );
+    const shortLandscape = window.matchMedia('(aspect-ratio > 9/16) and (height < 600px)').matches;
+    return TALL_COLUMN_GAP_COUNT * (shortLandscape && gutter > 0 ? gutter : tall);
 }
 
 /** The square a stack gets from a width budget: the budget is `stackSquares()` wide, not eight. */
