@@ -477,7 +477,7 @@ export function analysisView(model: PyChessModel): VNode[] {
                     boardLabel(ownBoard),
                 ]),
                 /* THE PARTNER'S BOARD AND THE TOOLS AS ONE GROUP, which is the round page's
-                   `.bug-right-column`, reused here for the reason that page introduced it:
+                   `.partner-and-tools`, reused here for the reason that page introduced it:
                    portrait needs the two as a single block so the tools can sit in the space
                    the small partner board leaves beside it, instead of taking a full-width row
                    of their own between the two boards and pushing the player's board off the
@@ -487,7 +487,7 @@ export function analysisView(model: PyChessModel): VNode[] {
                    partner stack and the tools go on being independent columns of the app's grid
                    exactly as before. Each mode dissolves the container it does not want — the
                    same trick, and the same wording, as the round page. */
-                h('div.bug-right-column', [
+                h('div.partner-and-tools', [
                     // The stack IS the panel — `panelClass` put `.bug-partner-stack` on the wrapper
                     // rather than inside it, so nothing gained a level and the grid area it has
                     // always occupied is still declared on the same element.

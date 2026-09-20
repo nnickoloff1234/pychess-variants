@@ -103,7 +103,7 @@ function squareOf(app: HTMLElement, boardSelector: string): number {
  * not against the stack's own height — the stack is what grows, so asking it how
  * tall it is would be asking the answer to include the question.
  *
- * The space is the column the stack sits in: `.bug-right-column` for the partner,
+ * The space is the column the stack sits in: `.partner-and-tools` for the partner,
  * the round app itself for the viewer's own board.
  */
 function spaceFor(app: HTMLElement, seat: HTMLElement): number {
@@ -126,7 +126,7 @@ function spaceFor(app: HTMLElement, seat: HTMLElement): number {
     if (Number.isFinite(allow) && allow > 0) return allow * ROWS_PER_STACK;
 
     // WHERE THE PAGE IS FLATTENED, BOTH STACKS SHARE ONE REGION and neither is in a column that
-    // can be measured. `.bug-right-column` is still their ancestor but it is `display: contents`
+    // can be measured. `.partner-and-tools` is still their ancestor but it is `display: contents`
     // there — no box, `clientHeight` reads 0 — so the partner seat was told it had no room at
     // all and could never take the line, while the own seat fell through to the app and kept
     // getting one. That is the asymmetry this fixes.
@@ -134,13 +134,13 @@ function spaceFor(app: HTMLElement, seat: HTMLElement): number {
     // The region is published rather than measured here: it is the pinned budget less whatever
     // zone B holds, and the app's own height is no use for it — that now follows the stacks, so
     // asking it would be asking the answer to include the question.
-    const dissolved = app.querySelector<HTMLElement>('.bug-right-column');
+    const dissolved = app.querySelector<HTMLElement>('.partner-and-tools');
     if (dissolved && getComputedStyle(dissolved).display === 'contents') {
         const boards = parseFloat(getComputedStyle(app).getPropertyValue('--bug-boards-h'));
         if (Number.isFinite(boards)) return boards;
     }
 
-    const column = seat.closest<HTMLElement>('.bug-right-column');
+    const column = seat.closest<HTMLElement>('.partner-and-tools');
     if (column) return column.clientHeight;
 
     // The viewer's own stack is not in the merged column, so its space is the app —
@@ -153,7 +153,7 @@ function spaceFor(app: HTMLElement, seat: HTMLElement): number {
     // 453px stack and take a line for its username. Measured, it has exactly its own
     // height and can never take one — which is the intended behaviour, arrived at by
     // measuring correctly rather than by a rule saying "not in portrait".
-    const merged = app.querySelector<HTMLElement>('.bug-right-column');
+    const merged = app.querySelector<HTMLElement>('.partner-and-tools');
     if (!merged) return app.clientHeight;
 
     const beside = Math.abs(merged.clientHeight - app.clientHeight) < 2;
@@ -241,7 +241,7 @@ export function trackSeatNamePlacement(onSettled?: () => void): void {
     observer?.disconnect();
     observer = new ResizeObserver(pass);
     observer.observe(app);
-    for (const selector of ['.bug-right-column', '#mainboard cg-board', '#bugboard cg-board']) {
+    for (const selector of ['.partner-and-tools', '#mainboard cg-board', '#bugboard cg-board']) {
         const el = app.querySelector<HTMLElement>(selector);
         if (el) observer.observe(el);
     }

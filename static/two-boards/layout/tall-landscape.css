@@ -81,7 +81,7 @@
            version of the same gap for as long as it has existed. See `.own-board`
            in the portrait block. */
         /* Two columns. The second is `max-content` — the right board and the tools
-           together, which is what .bug-right-column holds — rather than a board
+           together, which is what .partner-and-tools holds — rather than a board
            track and a tools track. A grid track is sized by its widest item and
            never by two items side by side, so the merge cannot be expressed as two
            separately placed items; the wrapper is what makes the sum available. */
@@ -123,7 +123,7 @@
            show as a band between the board and its pockets.
 
            No `max(scaleA, scaleB)` on the board row any more. That was needed when
-           both boards shared this row; board B now lives inside .bug-right-column,
+           both boards shared this row; board B now lives inside .partner-and-tools,
            which spans these rows as one item and sizes itself, so this row carries
            board A alone and taking the larger of the two only inflated it. */
         /* The leftover below full zoom — 156.96px at 80% zoom in a 767px app, measured —

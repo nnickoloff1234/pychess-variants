@@ -12,7 +12,7 @@
 
 /* THE STRIP CLIPS, AND EACH PART NOW HAS TO SAY SO ITSELF.
    ------------------------------------------------------------------------------------
-   `.bug-right-column` carried `overflow: hidden` and `min-width: 0` for exactly this, and the
+   `.partner-and-tools` carried `overflow: hidden` and `min-width: 0` for exactly this, and the
    flat grid dissolves that element — `display: contents` has no box, so its overflow applies to
    nothing and its former children are grid items with none of their own.
 

@@ -53,7 +53,7 @@ import { notifyOnToolsHomeChange, toolsMinWidth } from '../squareUnit';
    that column so every part is a grid item of the APP, which is where its areas live — and a
    `display: contents` element has no box at all: `clientHeight` reads 0, `available` is 0, and
    nothing can ever drop. Silently, with no error. Hence a parameter rather than a constant. */
-const ROUND_CONTAINER = '.bug-right-column';
+const PARTNER_AND_TOOLS = '.partner-and-tools';
 const STACK = '.bug-partner-stack';
 /* The two pages' root elements. Only used to find the owner when the container named above
    has been dissolved — an app is never `display: contents`, so this is where the walk stops. */
@@ -150,7 +150,7 @@ const TAB = '[role="tab"]';
 /**
  * The element that actually owns the arrangement, which is not always the one named.
  *
- * Tall landscape flattens the round page: `.bug-right-column` becomes `display: contents` so
+ * Tall landscape flattens the round page: `.partner-and-tools` becomes `display: contents` so
  * that a row can span both boards, and a dissolved element has no box — `clientHeight` reads
  * 0, `available` is 0, and nothing could ever drop. Silently, with no error. Its children are
  * grid items of the APP there, and the app is what holds the template the classes swap.
@@ -384,7 +384,7 @@ function publishPresetSize(app: HTMLElement, region: { width: number; height: nu
      *
      * Which element this is called with depends on the arrangement — the app in one mode, the right
      * column in another — and a value left on the inner one SHADOWS the outer for everything inside
-     * it. Measured after a walk across viewports: the app carried 61px, `.bug-right-column` still
+     * it. Measured after a walk across viewports: the app carried 61px, `.partner-and-tools` still
      * carried 46.67px from an arrangement that had ended, every set resolved 46.67, and the gap
      * `publishPresetGap()` computed from it was 31.48px against the 15.56 the row wanted — a row
      * spaced for a button twice the size, which is the compacted block a reviewer sees. It survived
@@ -725,7 +725,7 @@ function place(container: HTMLElement, droppable: Droppable): void {
     // and the two would chase each other forever. Where the column is a real box it is not
     // resized by any of this and can be measured directly.
     // ASK THE TEMPLATE, NOT THE CONTAINER. This used to test whether the NAMED container had
-    // been dissolved — true on the round page, whose container is `.bug-right-column`, and never
+    // been dissolved — true on the round page, whose container is `.partner-and-tools`, and never
     // on the analysis page, which names the app itself. So the analysis page skipped zone B in
     // every mode and never published the heights below: measured at 996x730 with a zoomed-out
     // pair, a 639px tools panel beside a 460px board.
@@ -999,7 +999,7 @@ function placeStandingTab(): void {
 
 export function trackToolsPlacement(
     droppable: Droppable,
-    container: string = ROUND_CONTAINER,
+    container: string = PARTNER_AND_TOOLS,
     onSettled?: () => void,
 ): void {
     const column = document.querySelector<HTMLElement>(container);

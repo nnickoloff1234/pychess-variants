@@ -1909,9 +1909,9 @@
   "facts": {
    "ok": true,
    "warnings": [
-    "bug-round-tools-bar (bug-right-column/tablist) sits flush against bug-own-stack \u2014 BUTTON and icon online icon-online",
-    "DIV (bug-right-column/chat) sits flush against bug-partner-stack \u2014 bugroundchat chat and CG-CONTAINER",
-    "chatpresets-panel chatpresets-panel-1 (bug-right-column/p1) sits flush against bug-partner-stack \u2014 bugchat p and CG-CONTAINER",
+    "bug-round-tools-bar (partner-and-tools/tablist) sits flush against bug-own-stack \u2014 BUTTON and icon online icon-online",
+    "DIV (partner-and-tools/chat) sits flush against bug-partner-stack \u2014 bugroundchat chat and CG-CONTAINER",
+    "chatpresets-panel chatpresets-panel-1 (partner-and-tools/p1) sits flush against bug-partner-stack \u2014 bugchat p and CG-CONTAINER",
     "4 of 30 tap targets are under WCAG's 24px minimum on one axis \u2014 smallest: MatrixPartner 117x23, MatrixPartner 118.2x23, MatrixCamera 118.9x23"
    ],
    "presetRowBoxes": [
@@ -2010,7 +2010,7 @@
      "h": 357,
      "occupants": [
       {
-       "what": "bug-right-column",
+       "what": "partner-and-tools",
        "area": "rightcol",
        "x": 0,
        "y": 0,
@@ -2047,7 +2047,7 @@
       }
      ]
     },
-    "bug-right-column/stack": {
+    "partner-and-tools/stack": {
      "x": 0,
      "y": 0,
      "w": 168,
@@ -2055,7 +2055,7 @@
      "occupants": [
       {
        "what": "bug-partner-stack",
-       "area": "bug-right-column/stack",
+       "area": "partner-and-tools/stack",
        "x": 0,
        "y": 0,
        "w": 168,
@@ -2069,7 +2069,7 @@
       }
      ]
     },
-    "bug-right-column/chat": {
+    "partner-and-tools/chat": {
      "x": 168,
      "y": 0,
      "w": 221,
@@ -2077,7 +2077,7 @@
      "occupants": [
       {
        "what": "DIV",
-       "area": "bug-right-column/chat",
+       "area": "partner-and-tools/chat",
        "x": 168,
        "y": 0,
        "w": 221,
@@ -2091,7 +2091,7 @@
       }
      ]
     },
-    "bug-right-column/p1": {
+    "partner-and-tools/p1": {
      "x": 168,
      "y": 130,
      "w": 221,
@@ -2099,7 +2099,7 @@
      "occupants": [
       {
        "what": "chatpresets-panel chatpresets-panel-1",
-       "area": "bug-right-column/p1",
+       "area": "partner-and-tools/p1",
        "x": 168,
        "y": 130,
        "w": 221,
@@ -2113,7 +2113,7 @@
       },
       {
        "what": "bug-gameover",
-       "area": "bug-right-column/p1",
+       "area": "partner-and-tools/p1",
        "x": 168,
        "y": 138,
        "w": 221,
@@ -2127,7 +2127,7 @@
       }
      ]
     },
-    "bug-right-column/p2": {
+    "partner-and-tools/p2": {
      "x": 168,
      "y": 224,
      "w": 221,
@@ -2135,7 +2135,7 @@
      "occupants": [
       {
        "what": "chatpresets-panel chatpresets-panel-2",
-       "area": "bug-right-column/p2",
+       "area": "partner-and-tools/p2",
        "x": 168,
        "y": 224,
        "w": 221,
@@ -2149,7 +2149,7 @@
       }
      ]
     },
-    "bug-right-column/tablist": {
+    "partner-and-tools/tablist": {
      "x": 168,
      "y": 317,
      "w": 221,
@@ -2157,7 +2157,7 @@
      "occupants": [
       {
        "what": "bug-round-tools-bar",
-       "area": "bug-right-column/tablist",
+       "area": "partner-and-tools/tablist",
        "x": 168,
        "y": 317,
        "w": 221,
@@ -2204,7 +2204,7 @@
    },
    "selectedTab": "Chat",
    "failures": [
-    "area bug-right-column/stack is 357px tall and its occupants use 250px \u2014 107px unused",
+    "area partner-and-tools/stack is 357px tall and its occupants use 250px \u2014 107px unused",
     "portrait: the tab strip is 221px wide beside the partner board while the band between the boards has 107px free and it needs 40px \u2014 it should take the full 389px there",
     "portrait: the band between the boards has 107px free and the page fits TEN presets across at 36.2px (floor 26.8), which needs 36px \u2014 the buttons are drawn 5+5+5+5 beside the board"
    ],
@@ -2240,9 +2240,9 @@
   "facts": {
    "ok": true,
    "warnings": [
-    "bug-round-tools-bar (bug-right-column/tablist) sits flush against bug-own-stack \u2014 BUTTON and icon online icon-online",
-    "DIV (bug-right-column/chat) sits flush against bug-partner-stack \u2014 bugroundchat chat and CG-CONTAINER",
-    "chatpresets-panel chatpresets-panel-1 (bug-right-column/p1) sits flush against bug-partner-stack \u2014 bugchat p and CG-CONTAINER",
+    "bug-round-tools-bar (partner-and-tools/tablist) sits flush against bug-own-stack \u2014 BUTTON and icon online icon-online",
+    "DIV (partner-and-tools/chat) sits flush against bug-partner-stack \u2014 bugroundchat chat and CG-CONTAINER",
+    "chatpresets-panel chatpresets-panel-1 (partner-and-tools/p1) sits flush against bug-partner-stack \u2014 bugchat p and CG-CONTAINER",
     "4 of 30 tap targets are under WCAG's 24px minimum on one axis \u2014 smallest: MatrixPartner 117x23, MatrixPartner 118.2x23, MatrixCamera 118.9x23"
    ],
    "presetRowBoxes": [
@@ -2341,7 +2341,7 @@
      "h": 362,
      "occupants": [
       {
-       "what": "bug-right-column",
+       "what": "partner-and-tools",
        "area": "rightcol",
        "x": 0,
        "y": 0,
@@ -2378,7 +2378,7 @@
       }
      ]
     },
-    "bug-right-column/stack": {
+    "partner-and-tools/stack": {
      "x": 0,
      "y": 0,
      "w": 168,
@@ -2386,7 +2386,7 @@
      "occupants": [
       {
        "what": "bug-partner-stack",
-       "area": "bug-right-column/stack",
+       "area": "partner-and-tools/stack",
        "x": 0,
        "y": 0,
        "w": 168,
@@ -2400,7 +2400,7 @@
       }
      ]
     },
-    "bug-right-column/chat": {
+    "partner-and-tools/chat": {
      "x": 169,
      "y": 0,
      "w": 224,
@@ -2408,7 +2408,7 @@
      "occupants": [
       {
        "what": "DIV",
-       "area": "bug-right-column/chat",
+       "area": "partner-and-tools/chat",
        "x": 169,
        "y": 0,
        "w": 224,
@@ -2422,7 +2422,7 @@
       }
      ]
     },
-    "bug-right-column/p1": {
+    "partner-and-tools/p1": {
      "x": 169,
      "y": 132,
      "w": 224,
@@ -2430,7 +2430,7 @@
      "occupants": [
       {
        "what": "chatpresets-panel chatpresets-panel-1",
-       "area": "bug-right-column/p1",
+       "area": "partner-and-tools/p1",
        "x": 169,
        "y": 132,
        "w": 224,
@@ -2444,7 +2444,7 @@
       },
       {
        "what": "bug-gameover",
-       "area": "bug-right-column/p1",
+       "area": "partner-and-tools/p1",
        "x": 169,
        "y": 140,
        "w": 224,
@@ -2458,7 +2458,7 @@
       }
      ]
     },
-    "bug-right-column/p2": {
+    "partner-and-tools/p2": {
      "x": 169,
      "y": 227,
      "w": 224,
@@ -2466,7 +2466,7 @@
      "occupants": [
       {
        "what": "chatpresets-panel chatpresets-panel-2",
-       "area": "bug-right-column/p2",
+       "area": "partner-and-tools/p2",
        "x": 169,
        "y": 227,
        "w": 224,
@@ -2480,7 +2480,7 @@
       }
      ]
     },
-    "bug-right-column/tablist": {
+    "partner-and-tools/tablist": {
      "x": 169,
      "y": 322,
      "w": 224,
@@ -2488,7 +2488,7 @@
      "occupants": [
       {
        "what": "bug-round-tools-bar",
-       "area": "bug-right-column/tablist",
+       "area": "partner-and-tools/tablist",
        "x": 169,
        "y": 322,
        "w": 224,
@@ -2535,7 +2535,7 @@
    },
    "selectedTab": "Chat",
    "failures": [
-    "area bug-right-column/stack is 362px tall and its occupants use 250px \u2014 112px unused",
+    "area partner-and-tools/stack is 362px tall and its occupants use 250px \u2014 112px unused",
     "preset gap is 3px but every row affords 7.3px \u2014 rows: 5x in 224px, 5x in 224px",
     "portrait: the tab strip is 224px wide beside the partner board while the band between the boards has 112px free and it needs 40px \u2014 it should take the full 392px there",
     "portrait: the band between the boards has 112px free and the page fits TEN presets across at 36.5px (floor 26.9), which needs 37px \u2014 the buttons are drawn 5+5+5+5 beside the board"
@@ -2572,9 +2572,9 @@
   "facts": {
    "ok": true,
    "warnings": [
-    "bug-round-tools-bar (bug-right-column/tablist) sits flush against bug-own-stack \u2014 BUTTON and icon online icon-online",
-    "DIV (bug-right-column/chat) sits flush against bug-partner-stack \u2014 bugroundchat chat and CG-CONTAINER",
-    "chatpresets-panel chatpresets-panel-1 (bug-right-column/p1) sits flush against bug-partner-stack \u2014 bugchat p and CG-CONTAINER",
+    "bug-round-tools-bar (partner-and-tools/tablist) sits flush against bug-own-stack \u2014 BUTTON and icon online icon-online",
+    "DIV (partner-and-tools/chat) sits flush against bug-partner-stack \u2014 bugroundchat chat and CG-CONTAINER",
+    "chatpresets-panel chatpresets-panel-1 (partner-and-tools/p1) sits flush against bug-partner-stack \u2014 bugchat p and CG-CONTAINER",
     "4 of 30 tap targets are under WCAG's 24px minimum on one axis \u2014 smallest: MatrixPartner 111.8x22, MatrixCamera 113.6x22, MatrixPartner 118.2x23"
    ],
    "presetRowBoxes": [
@@ -2673,7 +2673,7 @@
      "h": 350,
      "occupants": [
       {
-       "what": "bug-right-column",
+       "what": "partner-and-tools",
        "area": "rightcol",
        "x": -0.0,
        "y": 0,
@@ -2710,7 +2710,7 @@
       }
      ]
     },
-    "bug-right-column/stack": {
+    "partner-and-tools/stack": {
      "x": -0.0,
      "y": 0,
      "w": 160,
@@ -2718,7 +2718,7 @@
      "occupants": [
       {
        "what": "bug-partner-stack",
-       "area": "bug-right-column/stack",
+       "area": "partner-and-tools/stack",
        "x": -0.0,
        "y": 0,
        "w": 160,
@@ -2732,7 +2732,7 @@
       }
      ]
     },
-    "bug-right-column/chat": {
+    "partner-and-tools/chat": {
      "x": 160,
      "y": 0,
      "w": 200,
@@ -2740,7 +2740,7 @@
      "occupants": [
       {
        "what": "DIV",
-       "area": "bug-right-column/chat",
+       "area": "partner-and-tools/chat",
        "x": 160,
        "y": 0,
        "w": 200,
@@ -2754,7 +2754,7 @@
       }
      ]
     },
-    "bug-right-column/p1": {
+    "partner-and-tools/p1": {
      "x": 160,
      "y": 140,
      "w": 200,
@@ -2762,7 +2762,7 @@
      "occupants": [
       {
        "what": "chatpresets-panel chatpresets-panel-1",
-       "area": "bug-right-column/p1",
+       "area": "partner-and-tools/p1",
        "x": 160,
        "y": 140,
        "w": 200,
@@ -2776,7 +2776,7 @@
       },
       {
        "what": "bug-gameover",
-       "area": "bug-right-column/p1",
+       "area": "partner-and-tools/p1",
        "x": 160,
        "y": 148,
        "w": 200,
@@ -2790,7 +2790,7 @@
       }
      ]
     },
-    "bug-right-column/p2": {
+    "partner-and-tools/p2": {
      "x": 160,
      "y": 225,
      "w": 200,
@@ -2798,7 +2798,7 @@
      "occupants": [
       {
        "what": "chatpresets-panel chatpresets-panel-2",
-       "area": "bug-right-column/p2",
+       "area": "partner-and-tools/p2",
        "x": 160,
        "y": 225,
        "w": 200,
@@ -2812,7 +2812,7 @@
       }
      ]
     },
-    "bug-right-column/tablist": {
+    "partner-and-tools/tablist": {
      "x": 160,
      "y": 310,
      "w": 200,
@@ -2820,7 +2820,7 @@
      "occupants": [
       {
        "what": "bug-round-tools-bar",
-       "area": "bug-right-column/tablist",
+       "area": "partner-and-tools/tablist",
        "x": 160,
        "y": 310,
        "w": 200,
@@ -2867,7 +2867,7 @@
    },
    "selectedTab": "Chat",
    "failures": [
-    "area bug-right-column/stack is 350px tall and its occupants use 238px \u2014 112px unused",
+    "area partner-and-tools/stack is 350px tall and its occupants use 238px \u2014 112px unused",
     "portrait: the tab strip is 200px wide beside the partner board while the band between the boards has 112px free and it needs 40px \u2014 it should take the full 360px there",
     "portrait: the band between the boards has 112px free \u2014 room for the tab strip (40px) and TWO rows of ten presets at 33.3px (67px, floor 24.8) \u2014 and the buttons are drawn 5+5+5+5 beside the board"
    ],
@@ -2903,9 +2903,9 @@
   "facts": {
    "ok": true,
    "warnings": [
-    "bug-round-tools-bar (bug-right-column/tablist) sits flush against bug-own-stack \u2014 BUTTON and icon online icon-online",
-    "DIV (bug-right-column/chat) sits flush against bug-partner-stack \u2014 bugroundchat chat and CG-CONTAINER",
-    "chatpresets-panel chatpresets-panel-1 (bug-right-column/p1) sits flush against bug-partner-stack \u2014 bugchat p and CG-CONTAINER",
+    "bug-round-tools-bar (partner-and-tools/tablist) sits flush against bug-own-stack \u2014 BUTTON and icon online icon-online",
+    "DIV (partner-and-tools/chat) sits flush against bug-partner-stack \u2014 bugroundchat chat and CG-CONTAINER",
+    "chatpresets-panel chatpresets-panel-1 (partner-and-tools/p1) sits flush against bug-partner-stack \u2014 bugchat p and CG-CONTAINER",
     "4 of 30 tap targets are under WCAG's 24px minimum on one axis \u2014 smallest: MatrixPartner 118.2x23, MatrixPartner 118.2x23, MatrixCamera 120x23"
    ],
    "presetRowBoxes": [
@@ -3004,7 +3004,7 @@
      "h": 401,
      "occupants": [
       {
-       "what": "bug-right-column",
+       "what": "partner-and-tools",
        "area": "rightcol",
        "x": 0,
        "y": 0,
@@ -3041,7 +3041,7 @@
       }
      ]
     },
-    "bug-right-column/stack": {
+    "partner-and-tools/stack": {
      "x": 0,
      "y": 0,
      "w": 183,
@@ -3049,7 +3049,7 @@
      "occupants": [
       {
        "what": "bug-partner-stack",
-       "area": "bug-right-column/stack",
+       "area": "partner-and-tools/stack",
        "x": 0,
        "y": 0,
        "w": 183,
@@ -3063,7 +3063,7 @@
       }
      ]
     },
-    "bug-right-column/chat": {
+    "partner-and-tools/chat": {
      "x": 183,
      "y": 0,
      "w": 229,
@@ -3071,7 +3071,7 @@
      "occupants": [
       {
        "what": "DIV",
-       "area": "bug-right-column/chat",
+       "area": "partner-and-tools/chat",
        "x": 183,
        "y": 0,
        "w": 229,
@@ -3085,7 +3085,7 @@
       }
      ]
     },
-    "bug-right-column/p1": {
+    "partner-and-tools/p1": {
      "x": 183,
      "y": 167,
      "w": 229,
@@ -3093,7 +3093,7 @@
      "occupants": [
       {
        "what": "chatpresets-panel chatpresets-panel-1",
-       "area": "bug-right-column/p1",
+       "area": "partner-and-tools/p1",
        "x": 183,
        "y": 167,
        "w": 229,
@@ -3107,7 +3107,7 @@
       },
       {
        "what": "bug-gameover",
-       "area": "bug-right-column/p1",
+       "area": "partner-and-tools/p1",
        "x": 183,
        "y": 175,
        "w": 229,
@@ -3121,7 +3121,7 @@
       }
      ]
     },
-    "bug-right-column/p2": {
+    "partner-and-tools/p2": {
      "x": 183,
      "y": 264,
      "w": 229,
@@ -3129,7 +3129,7 @@
      "occupants": [
       {
        "what": "chatpresets-panel chatpresets-panel-2",
-       "area": "bug-right-column/p2",
+       "area": "partner-and-tools/p2",
        "x": 183,
        "y": 264,
        "w": 229,
@@ -3143,7 +3143,7 @@
       }
      ]
     },
-    "bug-right-column/tablist": {
+    "partner-and-tools/tablist": {
      "x": 183,
      "y": 361,
      "w": 229,
@@ -3151,7 +3151,7 @@
      "occupants": [
       {
        "what": "bug-round-tools-bar",
-       "area": "bug-right-column/tablist",
+       "area": "partner-and-tools/tablist",
        "x": 183,
        "y": 361,
        "w": 229,
@@ -3198,7 +3198,7 @@
    },
    "selectedTab": "Chat",
    "failures": [
-    "area bug-right-column/stack is 401px tall and its occupants use 269px \u2014 132px unused",
+    "area partner-and-tools/stack is 401px tall and its occupants use 269px \u2014 132px unused",
     "preset gap is 3px but every row affords 8.6px \u2014 rows: 5x in 229px, 5x in 229px",
     "portrait: the tab strip is 229px wide beside the partner board while the band between the boards has 131px free and it needs 40px \u2014 it should take the full 411px there",
     "portrait: the band between the boards has 131px free \u2014 room for the tab strip (40px) and TWO rows of ten presets at 38.4px (77px, floor 28.3) \u2014 and the buttons are drawn 5+5+5+5 beside the board"
@@ -3235,10 +3235,10 @@
   "facts": {
    "ok": true,
    "warnings": [
-    "bug-round-tools-bar (bug-right-column/tablist) sits flush against bug-own-stack \u2014 BUTTON and icon online icon-online",
-    "DIV (bug-right-column/chat) sits flush against bug-partner-stack \u2014 bugroundchat chat and CG-CONTAINER",
-    "chatpresets-panel chatpresets-panel-1 (bug-right-column/p1) comes within 0.5px of bug-partner-stack \u2014 bugchat p and CG-CONTAINER",
-    "chatpresets-panel chatpresets-panel-2 (bug-right-column/p2) comes within 0.5px of bug-partner-stack \u2014 bugchat sit and CG-CONTAINER",
+    "bug-round-tools-bar (partner-and-tools/tablist) sits flush against bug-own-stack \u2014 BUTTON and icon online icon-online",
+    "DIV (partner-and-tools/chat) sits flush against bug-partner-stack \u2014 bugroundchat chat and CG-CONTAINER",
+    "chatpresets-panel chatpresets-panel-1 (partner-and-tools/p1) comes within 0.5px of bug-partner-stack \u2014 bugchat p and CG-CONTAINER",
+    "chatpresets-panel chatpresets-panel-2 (partner-and-tools/p2) comes within 0.5px of bug-partner-stack \u2014 bugchat sit and CG-CONTAINER",
     "4 of 30 tap targets are under WCAG's 24px minimum on one axis \u2014 smallest: MatrixPartner 93.4x18, MatrixCamera 94.9x18, MatrixPartner 118.2x23"
    ],
    "presetRowBoxes": [
@@ -3337,7 +3337,7 @@
      "h": 202,
      "occupants": [
       {
-       "what": "bug-right-column",
+       "what": "partner-and-tools",
        "area": "rightcol",
        "x": 1,
        "y": 0,
@@ -3374,7 +3374,7 @@
       }
      ]
     },
-    "bug-right-column/stack": {
+    "partner-and-tools/stack": {
      "x": 1,
      "y": 0,
      "w": 132,
@@ -3382,7 +3382,7 @@
      "occupants": [
       {
        "what": "bug-partner-stack",
-       "area": "bug-right-column/stack",
+       "area": "partner-and-tools/stack",
        "x": 1,
        "y": 0,
        "w": 132,
@@ -3396,7 +3396,7 @@
       }
      ]
     },
-    "bug-right-column/chat": {
+    "partner-and-tools/chat": {
      "x": 134,
      "y": 0,
      "w": 240,
@@ -3404,7 +3404,7 @@
      "occupants": [
       {
        "what": "DIV",
-       "area": "bug-right-column/chat",
+       "area": "partner-and-tools/chat",
        "x": 134,
        "y": 0,
        "w": 240,
@@ -3418,7 +3418,7 @@
       }
      ]
     },
-    "bug-right-column/p1": {
+    "partner-and-tools/p1": {
      "x": 134,
      "y": 40,
      "w": 240,
@@ -3426,7 +3426,7 @@
      "occupants": [
       {
        "what": "chatpresets-panel chatpresets-panel-1",
-       "area": "bug-right-column/p1",
+       "area": "partner-and-tools/p1",
        "x": 134,
        "y": 40,
        "w": 240,
@@ -3440,7 +3440,7 @@
       },
       {
        "what": "bug-gameover",
-       "area": "bug-right-column/p1",
+       "area": "partner-and-tools/p1",
        "x": 134,
        "y": 48,
        "w": 240,
@@ -3454,7 +3454,7 @@
       }
      ]
     },
-    "bug-right-column/p2": {
+    "partner-and-tools/p2": {
      "x": 134,
      "y": 101,
      "w": 240,
@@ -3462,7 +3462,7 @@
      "occupants": [
       {
        "what": "chatpresets-panel chatpresets-panel-2",
-       "area": "bug-right-column/p2",
+       "area": "partner-and-tools/p2",
        "x": 134,
        "y": 101,
        "w": 240,
@@ -3476,7 +3476,7 @@
       }
      ]
     },
-    "bug-right-column/tablist": {
+    "partner-and-tools/tablist": {
      "x": 134,
      "y": 162,
      "w": 240,
@@ -3484,7 +3484,7 @@
      "occupants": [
       {
        "what": "bug-round-tools-bar",
-       "area": "bug-right-column/tablist",
+       "area": "partner-and-tools/tablist",
        "x": 134,
        "y": 162,
        "w": 240,
@@ -3563,9 +3563,9 @@
   "facts": {
    "ok": true,
    "warnings": [
-    "bug-round-tools-bar (bug-right-column/tablist) sits flush against bug-own-stack \u2014 BUTTON and icon online icon-online",
-    "DIV (bug-right-column/chat) sits flush against bug-partner-stack \u2014 bugroundchat chat and CG-CONTAINER",
-    "chatpresets-panel chatpresets-panel-1 (bug-right-column/p1) sits flush against bug-partner-stack \u2014 bugchat p and CG-CONTAINER",
+    "bug-round-tools-bar (partner-and-tools/tablist) sits flush against bug-own-stack \u2014 BUTTON and icon online icon-online",
+    "DIV (partner-and-tools/chat) sits flush against bug-partner-stack \u2014 bugroundchat chat and CG-CONTAINER",
+    "chatpresets-panel chatpresets-panel-1 (partner-and-tools/p1) sits flush against bug-partner-stack \u2014 bugchat p and CG-CONTAINER",
     "4 of 30 tap targets are under WCAG's 24px minimum on one axis \u2014 smallest: MatrixPartner 118.2x23, MatrixPartner 118.2x23, MatrixCamera 120x23"
    ],
    "presetRowBoxes": [
@@ -3664,7 +3664,7 @@
      "h": 395,
      "occupants": [
       {
-       "what": "bug-right-column",
+       "what": "partner-and-tools",
        "area": "rightcol",
        "x": 0,
        "y": 0,
@@ -3701,7 +3701,7 @@
       }
      ]
     },
-    "bug-right-column/stack": {
+    "partner-and-tools/stack": {
      "x": 0,
      "y": 0,
      "w": 184,
@@ -3709,7 +3709,7 @@
      "occupants": [
       {
        "what": "bug-partner-stack",
-       "area": "bug-right-column/stack",
+       "area": "partner-and-tools/stack",
        "x": 0,
        "y": 0,
        "w": 184,
@@ -3723,7 +3723,7 @@
       }
      ]
     },
-    "bug-right-column/chat": {
+    "partner-and-tools/chat": {
      "x": 184,
      "y": 0,
      "w": 245,
@@ -3731,7 +3731,7 @@
      "occupants": [
       {
        "what": "DIV",
-       "area": "bug-right-column/chat",
+       "area": "partner-and-tools/chat",
        "x": 184,
        "y": 0,
        "w": 245,
@@ -3745,7 +3745,7 @@
       }
      ]
     },
-    "bug-right-column/p1": {
+    "partner-and-tools/p1": {
      "x": 184,
      "y": 149,
      "w": 245,
@@ -3753,7 +3753,7 @@
      "occupants": [
       {
        "what": "chatpresets-panel chatpresets-panel-1",
-       "area": "bug-right-column/p1",
+       "area": "partner-and-tools/p1",
        "x": 184,
        "y": 149,
        "w": 245,
@@ -3767,7 +3767,7 @@
       },
       {
        "what": "bug-gameover",
-       "area": "bug-right-column/p1",
+       "area": "partner-and-tools/p1",
        "x": 184,
        "y": 157,
        "w": 245,
@@ -3781,7 +3781,7 @@
       }
      ]
     },
-    "bug-right-column/p2": {
+    "partner-and-tools/p2": {
      "x": 184,
      "y": 252,
      "w": 245,
@@ -3789,7 +3789,7 @@
      "occupants": [
       {
        "what": "chatpresets-panel chatpresets-panel-2",
-       "area": "bug-right-column/p2",
+       "area": "partner-and-tools/p2",
        "x": 184,
        "y": 252,
        "w": 245,
@@ -3803,7 +3803,7 @@
       }
      ]
     },
-    "bug-right-column/tablist": {
+    "partner-and-tools/tablist": {
      "x": 184,
      "y": 355,
      "w": 245,
@@ -3811,7 +3811,7 @@
      "occupants": [
       {
        "what": "bug-round-tools-bar",
-       "area": "bug-right-column/tablist",
+       "area": "partner-and-tools/tablist",
        "x": 184,
        "y": 355,
        "w": 245,
@@ -3858,7 +3858,7 @@
    },
    "selectedTab": "Chat",
    "failures": [
-    "area bug-right-column/stack is 395px tall and its occupants use 271px \u2014 124px unused",
+    "area partner-and-tools/stack is 395px tall and its occupants use 271px \u2014 124px unused",
     "preset gap is 3px but every row affords 12.6px \u2014 rows: 5x in 245px, 5x in 245px",
     "portrait: the tab strip is 245px wide beside the partner board while the band between the boards has 125px free and it needs 40px \u2014 it should take the full 429px there",
     "portrait: the band between the boards has 125px free \u2014 room for the tab strip (40px) and TWO rows of ten presets at 40.2px (80px, floor 29.5) \u2014 and the buttons are drawn 5+5+5+5 beside the board"
@@ -22728,8 +22728,8 @@
   "facts": {
    "ok": true,
    "warnings": [
-    "bug-round-tools-bar (bug-right-column/tablist) sits flush against bug-own-stack \u2014 BUTTON and icon online icon-online",
-    "DIV (bug-right-column/chat) sits flush against bug-partner-stack \u2014 movelist-block and CG-CONTAINER",
+    "bug-round-tools-bar (partner-and-tools/tablist) sits flush against bug-own-stack \u2014 BUTTON and icon online icon-online",
+    "DIV (partner-and-tools/chat) sits flush against bug-partner-stack \u2014 movelist-block and CG-CONTAINER",
     "4 of 15 tap targets are under WCAG's 24px minimum on one axis \u2014 smallest: MatrixPartner 117x23, MatrixPartner 118.2x23, MatrixCamera 118.9x23"
    ],
    "presetRowBoxes": [],
@@ -22815,7 +22815,7 @@
      "h": 357,
      "occupants": [
       {
-       "what": "bug-right-column",
+       "what": "partner-and-tools",
        "area": "rightcol",
        "x": 0,
        "y": 0,
@@ -22852,7 +22852,7 @@
       }
      ]
     },
-    "bug-right-column/stack": {
+    "partner-and-tools/stack": {
      "x": 0,
      "y": 0,
      "w": 168,
@@ -22860,7 +22860,7 @@
      "occupants": [
       {
        "what": "bug-partner-stack",
-       "area": "bug-right-column/stack",
+       "area": "partner-and-tools/stack",
        "x": 0,
        "y": 0,
        "w": 168,
@@ -22874,7 +22874,7 @@
       }
      ]
     },
-    "bug-right-column/chat": {
+    "partner-and-tools/chat": {
      "x": 168,
      "y": 0,
      "w": 221,
@@ -22882,7 +22882,7 @@
      "occupants": [
       {
        "what": "DIV",
-       "area": "bug-right-column/chat",
+       "area": "partner-and-tools/chat",
        "x": 168,
        "y": 0,
        "w": 221,
@@ -22896,7 +22896,7 @@
       }
      ]
     },
-    "bug-right-column/p1": {
+    "partner-and-tools/p1": {
      "x": 168,
      "y": 309,
      "w": 221,
@@ -22904,7 +22904,7 @@
      "occupants": [
       {
        "what": "bug-gameover",
-       "area": "bug-right-column/p1",
+       "area": "partner-and-tools/p1",
        "x": 168,
        "y": 317,
        "w": 221,
@@ -22918,14 +22918,14 @@
       }
      ]
     },
-    "bug-right-column/p2": {
+    "partner-and-tools/p2": {
      "x": 168,
      "y": 317,
      "w": 221,
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/tablist": {
+    "partner-and-tools/tablist": {
      "x": 168,
      "y": 317,
      "w": 221,
@@ -22933,7 +22933,7 @@
      "occupants": [
       {
        "what": "bug-round-tools-bar",
-       "area": "bug-right-column/tablist",
+       "area": "partner-and-tools/tablist",
        "x": 168,
        "y": 317,
        "w": 221,
@@ -22975,7 +22975,7 @@
    },
    "selectedTab": "Moves",
    "failures": [
-    "area bug-right-column/stack is 357px tall and its occupants use 250px \u2014 107px unused",
+    "area partner-and-tools/stack is 357px tall and its occupants use 250px \u2014 107px unused",
     "portrait: the tab strip is 221px wide beside the partner board while the band between the boards has 107px free and it needs 40px \u2014 it should take the full 389px there",
     "portrait: the move-list controls are 221px wide beside the partner board while the band between the boards has 107px free and it needs 40px \u2014 it should take the full 389px there"
    ],
@@ -23011,8 +23011,8 @@
   "facts": {
    "ok": true,
    "warnings": [
-    "bug-round-tools-bar (bug-right-column/tablist) sits flush against bug-own-stack \u2014 BUTTON and icon online icon-online",
-    "DIV (bug-right-column/chat) sits flush against bug-partner-stack \u2014 movelist-block and CG-CONTAINER",
+    "bug-round-tools-bar (partner-and-tools/tablist) sits flush against bug-own-stack \u2014 BUTTON and icon online icon-online",
+    "DIV (partner-and-tools/chat) sits flush against bug-partner-stack \u2014 movelist-block and CG-CONTAINER",
     "4 of 15 tap targets are under WCAG's 24px minimum on one axis \u2014 smallest: MatrixPartner 117x23, MatrixPartner 118.2x23, MatrixCamera 118.9x23"
    ],
    "presetRowBoxes": [],
@@ -23098,7 +23098,7 @@
      "h": 362,
      "occupants": [
       {
-       "what": "bug-right-column",
+       "what": "partner-and-tools",
        "area": "rightcol",
        "x": 0,
        "y": 0,
@@ -23135,7 +23135,7 @@
       }
      ]
     },
-    "bug-right-column/stack": {
+    "partner-and-tools/stack": {
      "x": 0,
      "y": 0,
      "w": 168,
@@ -23143,7 +23143,7 @@
      "occupants": [
       {
        "what": "bug-partner-stack",
-       "area": "bug-right-column/stack",
+       "area": "partner-and-tools/stack",
        "x": 0,
        "y": 0,
        "w": 168,
@@ -23157,7 +23157,7 @@
       }
      ]
     },
-    "bug-right-column/chat": {
+    "partner-and-tools/chat": {
      "x": 169,
      "y": 0,
      "w": 224,
@@ -23165,7 +23165,7 @@
      "occupants": [
       {
        "what": "DIV",
-       "area": "bug-right-column/chat",
+       "area": "partner-and-tools/chat",
        "x": 169,
        "y": 0,
        "w": 224,
@@ -23179,7 +23179,7 @@
       }
      ]
     },
-    "bug-right-column/p1": {
+    "partner-and-tools/p1": {
      "x": 169,
      "y": 314,
      "w": 224,
@@ -23187,7 +23187,7 @@
      "occupants": [
       {
        "what": "bug-gameover",
-       "area": "bug-right-column/p1",
+       "area": "partner-and-tools/p1",
        "x": 169,
        "y": 322,
        "w": 224,
@@ -23201,14 +23201,14 @@
       }
      ]
     },
-    "bug-right-column/p2": {
+    "partner-and-tools/p2": {
      "x": 169,
      "y": 322,
      "w": 224,
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/tablist": {
+    "partner-and-tools/tablist": {
      "x": 169,
      "y": 322,
      "w": 224,
@@ -23216,7 +23216,7 @@
      "occupants": [
       {
        "what": "bug-round-tools-bar",
-       "area": "bug-right-column/tablist",
+       "area": "partner-and-tools/tablist",
        "x": 169,
        "y": 322,
        "w": 224,
@@ -23258,7 +23258,7 @@
    },
    "selectedTab": "Moves",
    "failures": [
-    "area bug-right-column/stack is 362px tall and its occupants use 250px \u2014 112px unused",
+    "area partner-and-tools/stack is 362px tall and its occupants use 250px \u2014 112px unused",
     "portrait: the tab strip is 224px wide beside the partner board while the band between the boards has 112px free and it needs 40px \u2014 it should take the full 392px there",
     "portrait: the move-list controls are 224px wide beside the partner board while the band between the boards has 112px free and it needs 40px \u2014 it should take the full 392px there"
    ],
@@ -23294,8 +23294,8 @@
   "facts": {
    "ok": true,
    "warnings": [
-    "bug-round-tools-bar (bug-right-column/tablist) sits flush against bug-own-stack \u2014 BUTTON and icon online icon-online",
-    "DIV (bug-right-column/chat) sits flush against bug-partner-stack \u2014 movelist-block and CG-CONTAINER",
+    "bug-round-tools-bar (partner-and-tools/tablist) sits flush against bug-own-stack \u2014 BUTTON and icon online icon-online",
+    "DIV (partner-and-tools/chat) sits flush against bug-partner-stack \u2014 movelist-block and CG-CONTAINER",
     "4 of 15 tap targets are under WCAG's 24px minimum on one axis \u2014 smallest: MatrixPartner 111.8x22, MatrixCamera 113.6x22, MatrixPartner 118.2x23"
    ],
    "presetRowBoxes": [],
@@ -23381,7 +23381,7 @@
      "h": 350,
      "occupants": [
       {
-       "what": "bug-right-column",
+       "what": "partner-and-tools",
        "area": "rightcol",
        "x": -0.0,
        "y": 0,
@@ -23418,7 +23418,7 @@
       }
      ]
     },
-    "bug-right-column/stack": {
+    "partner-and-tools/stack": {
      "x": -0.0,
      "y": 0,
      "w": 160,
@@ -23426,7 +23426,7 @@
      "occupants": [
       {
        "what": "bug-partner-stack",
-       "area": "bug-right-column/stack",
+       "area": "partner-and-tools/stack",
        "x": -0.0,
        "y": 0,
        "w": 160,
@@ -23440,7 +23440,7 @@
       }
      ]
     },
-    "bug-right-column/chat": {
+    "partner-and-tools/chat": {
      "x": 160,
      "y": 0,
      "w": 200,
@@ -23448,7 +23448,7 @@
      "occupants": [
       {
        "what": "DIV",
-       "area": "bug-right-column/chat",
+       "area": "partner-and-tools/chat",
        "x": 160,
        "y": 0,
        "w": 200,
@@ -23462,7 +23462,7 @@
       }
      ]
     },
-    "bug-right-column/p1": {
+    "partner-and-tools/p1": {
      "x": 160,
      "y": 302,
      "w": 200,
@@ -23470,7 +23470,7 @@
      "occupants": [
       {
        "what": "bug-gameover",
-       "area": "bug-right-column/p1",
+       "area": "partner-and-tools/p1",
        "x": 160,
        "y": 310,
        "w": 200,
@@ -23484,14 +23484,14 @@
       }
      ]
     },
-    "bug-right-column/p2": {
+    "partner-and-tools/p2": {
      "x": 160,
      "y": 310,
      "w": 200,
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/tablist": {
+    "partner-and-tools/tablist": {
      "x": 160,
      "y": 310,
      "w": 200,
@@ -23499,7 +23499,7 @@
      "occupants": [
       {
        "what": "bug-round-tools-bar",
-       "area": "bug-right-column/tablist",
+       "area": "partner-and-tools/tablist",
        "x": 160,
        "y": 310,
        "w": 200,
@@ -23541,7 +23541,7 @@
    },
    "selectedTab": "Moves",
    "failures": [
-    "area bug-right-column/stack is 350px tall and its occupants use 238px \u2014 112px unused",
+    "area partner-and-tools/stack is 350px tall and its occupants use 238px \u2014 112px unused",
     "portrait: the tab strip is 200px wide beside the partner board while the band between the boards has 112px free and it needs 40px \u2014 it should take the full 360px there",
     "portrait: the move-list controls are 200px wide beside the partner board while the band between the boards has 112px free and it needs 40px \u2014 it should take the full 360px there"
    ],
@@ -23577,8 +23577,8 @@
   "facts": {
    "ok": true,
    "warnings": [
-    "bug-round-tools-bar (bug-right-column/tablist) sits flush against bug-own-stack \u2014 BUTTON and icon online icon-online",
-    "DIV (bug-right-column/chat) sits flush against bug-partner-stack \u2014 movelist-block and CG-CONTAINER",
+    "bug-round-tools-bar (partner-and-tools/tablist) sits flush against bug-own-stack \u2014 BUTTON and icon online icon-online",
+    "DIV (partner-and-tools/chat) sits flush against bug-partner-stack \u2014 movelist-block and CG-CONTAINER",
     "4 of 15 tap targets are under WCAG's 24px minimum on one axis \u2014 smallest: MatrixPartner 118.2x23, MatrixPartner 118.2x23, MatrixCamera 120x23"
    ],
    "presetRowBoxes": [],
@@ -23664,7 +23664,7 @@
      "h": 401,
      "occupants": [
       {
-       "what": "bug-right-column",
+       "what": "partner-and-tools",
        "area": "rightcol",
        "x": 0,
        "y": 0,
@@ -23701,7 +23701,7 @@
       }
      ]
     },
-    "bug-right-column/stack": {
+    "partner-and-tools/stack": {
      "x": 0,
      "y": 0,
      "w": 183,
@@ -23709,7 +23709,7 @@
      "occupants": [
       {
        "what": "bug-partner-stack",
-       "area": "bug-right-column/stack",
+       "area": "partner-and-tools/stack",
        "x": 0,
        "y": 0,
        "w": 183,
@@ -23723,7 +23723,7 @@
       }
      ]
     },
-    "bug-right-column/chat": {
+    "partner-and-tools/chat": {
      "x": 183,
      "y": 0,
      "w": 229,
@@ -23731,7 +23731,7 @@
      "occupants": [
       {
        "what": "DIV",
-       "area": "bug-right-column/chat",
+       "area": "partner-and-tools/chat",
        "x": 183,
        "y": 0,
        "w": 229,
@@ -23745,7 +23745,7 @@
       }
      ]
     },
-    "bug-right-column/p1": {
+    "partner-and-tools/p1": {
      "x": 183,
      "y": 353,
      "w": 229,
@@ -23753,7 +23753,7 @@
      "occupants": [
       {
        "what": "bug-gameover",
-       "area": "bug-right-column/p1",
+       "area": "partner-and-tools/p1",
        "x": 183,
        "y": 361,
        "w": 229,
@@ -23767,14 +23767,14 @@
       }
      ]
     },
-    "bug-right-column/p2": {
+    "partner-and-tools/p2": {
      "x": 183,
      "y": 361,
      "w": 229,
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/tablist": {
+    "partner-and-tools/tablist": {
      "x": 183,
      "y": 361,
      "w": 229,
@@ -23782,7 +23782,7 @@
      "occupants": [
       {
        "what": "bug-round-tools-bar",
-       "area": "bug-right-column/tablist",
+       "area": "partner-and-tools/tablist",
        "x": 183,
        "y": 361,
        "w": 229,
@@ -23824,7 +23824,7 @@
    },
    "selectedTab": "Moves",
    "failures": [
-    "area bug-right-column/stack is 401px tall and its occupants use 269px \u2014 132px unused",
+    "area partner-and-tools/stack is 401px tall and its occupants use 269px \u2014 132px unused",
     "portrait: the tab strip is 229px wide beside the partner board while the band between the boards has 131px free and it needs 40px \u2014 it should take the full 411px there",
     "portrait: the move-list controls are 229px wide beside the partner board while the band between the boards has 131px free and it needs 40px \u2014 it should take the full 411px there"
    ],
@@ -23860,8 +23860,8 @@
   "facts": {
    "ok": true,
    "warnings": [
-    "bug-round-tools-bar (bug-right-column/tablist) sits flush against bug-own-stack \u2014 BUTTON and icon online icon-online",
-    "DIV (bug-right-column/chat) sits flush against bug-partner-stack \u2014 movelist-block and CG-CONTAINER",
+    "bug-round-tools-bar (partner-and-tools/tablist) sits flush against bug-own-stack \u2014 BUTTON and icon online icon-online",
+    "DIV (partner-and-tools/chat) sits flush against bug-partner-stack \u2014 movelist-block and CG-CONTAINER",
     "4 of 15 tap targets are under WCAG's 24px minimum on one axis \u2014 smallest: MatrixPartner 93.4x18, MatrixCamera 94.9x18, MatrixPartner 118.2x23"
    ],
    "presetRowBoxes": [],
@@ -23947,7 +23947,7 @@
      "h": 202,
      "occupants": [
       {
-       "what": "bug-right-column",
+       "what": "partner-and-tools",
        "area": "rightcol",
        "x": 1,
        "y": 0,
@@ -23984,7 +23984,7 @@
       }
      ]
     },
-    "bug-right-column/stack": {
+    "partner-and-tools/stack": {
      "x": 1,
      "y": 0,
      "w": 132,
@@ -23992,7 +23992,7 @@
      "occupants": [
       {
        "what": "bug-partner-stack",
-       "area": "bug-right-column/stack",
+       "area": "partner-and-tools/stack",
        "x": 1,
        "y": 0,
        "w": 132,
@@ -24006,7 +24006,7 @@
       }
      ]
     },
-    "bug-right-column/chat": {
+    "partner-and-tools/chat": {
      "x": 134,
      "y": 0,
      "w": 240,
@@ -24014,7 +24014,7 @@
      "occupants": [
       {
        "what": "DIV",
-       "area": "bug-right-column/chat",
+       "area": "partner-and-tools/chat",
        "x": 134,
        "y": 0,
        "w": 240,
@@ -24028,7 +24028,7 @@
       }
      ]
     },
-    "bug-right-column/p1": {
+    "partner-and-tools/p1": {
      "x": 134,
      "y": 154,
      "w": 240,
@@ -24036,7 +24036,7 @@
      "occupants": [
       {
        "what": "bug-gameover",
-       "area": "bug-right-column/p1",
+       "area": "partner-and-tools/p1",
        "x": 134,
        "y": 162,
        "w": 240,
@@ -24050,14 +24050,14 @@
       }
      ]
     },
-    "bug-right-column/p2": {
+    "partner-and-tools/p2": {
      "x": 134,
      "y": 162,
      "w": 240,
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/tablist": {
+    "partner-and-tools/tablist": {
      "x": 134,
      "y": 162,
      "w": 240,
@@ -24065,7 +24065,7 @@
      "occupants": [
       {
        "what": "bug-round-tools-bar",
-       "area": "bug-right-column/tablist",
+       "area": "partner-and-tools/tablist",
        "x": 134,
        "y": 162,
        "w": 240,
@@ -24139,8 +24139,8 @@
   "facts": {
    "ok": true,
    "warnings": [
-    "bug-round-tools-bar (bug-right-column/tablist) sits flush against bug-own-stack \u2014 BUTTON and icon online icon-online",
-    "DIV (bug-right-column/chat) sits flush against bug-partner-stack \u2014 movelist-block and CG-CONTAINER",
+    "bug-round-tools-bar (partner-and-tools/tablist) sits flush against bug-own-stack \u2014 BUTTON and icon online icon-online",
+    "DIV (partner-and-tools/chat) sits flush against bug-partner-stack \u2014 movelist-block and CG-CONTAINER",
     "4 of 15 tap targets are under WCAG's 24px minimum on one axis \u2014 smallest: MatrixPartner 118.2x23, MatrixPartner 118.2x23, MatrixCamera 120x23"
    ],
    "presetRowBoxes": [],
@@ -24226,7 +24226,7 @@
      "h": 395,
      "occupants": [
       {
-       "what": "bug-right-column",
+       "what": "partner-and-tools",
        "area": "rightcol",
        "x": 0,
        "y": 0,
@@ -24263,7 +24263,7 @@
       }
      ]
     },
-    "bug-right-column/stack": {
+    "partner-and-tools/stack": {
      "x": 0,
      "y": 0,
      "w": 184,
@@ -24271,7 +24271,7 @@
      "occupants": [
       {
        "what": "bug-partner-stack",
-       "area": "bug-right-column/stack",
+       "area": "partner-and-tools/stack",
        "x": 0,
        "y": 0,
        "w": 184,
@@ -24285,7 +24285,7 @@
       }
      ]
     },
-    "bug-right-column/chat": {
+    "partner-and-tools/chat": {
      "x": 184,
      "y": 0,
      "w": 245,
@@ -24293,7 +24293,7 @@
      "occupants": [
       {
        "what": "DIV",
-       "area": "bug-right-column/chat",
+       "area": "partner-and-tools/chat",
        "x": 184,
        "y": 0,
        "w": 245,
@@ -24307,7 +24307,7 @@
       }
      ]
     },
-    "bug-right-column/p1": {
+    "partner-and-tools/p1": {
      "x": 184,
      "y": 347,
      "w": 245,
@@ -24315,7 +24315,7 @@
      "occupants": [
       {
        "what": "bug-gameover",
-       "area": "bug-right-column/p1",
+       "area": "partner-and-tools/p1",
        "x": 184,
        "y": 355,
        "w": 245,
@@ -24329,14 +24329,14 @@
       }
      ]
     },
-    "bug-right-column/p2": {
+    "partner-and-tools/p2": {
      "x": 184,
      "y": 355,
      "w": 245,
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/tablist": {
+    "partner-and-tools/tablist": {
      "x": 184,
      "y": 355,
      "w": 245,
@@ -24344,7 +24344,7 @@
      "occupants": [
       {
        "what": "bug-round-tools-bar",
-       "area": "bug-right-column/tablist",
+       "area": "partner-and-tools/tablist",
        "x": 184,
        "y": 355,
        "w": 245,
@@ -24386,7 +24386,7 @@
    },
    "selectedTab": "Moves",
    "failures": [
-    "area bug-right-column/stack is 395px tall and its occupants use 271px \u2014 124px unused",
+    "area partner-and-tools/stack is 395px tall and its occupants use 271px \u2014 124px unused",
     "portrait: the tab strip is 245px wide beside the partner board while the band between the boards has 125px free and it needs 40px \u2014 it should take the full 429px there",
     "portrait: the move-list controls are 245px wide beside the partner board while the band between the boards has 125px free and it needs 40px \u2014 it should take the full 429px there"
    ],
@@ -41157,9 +41157,9 @@
   "facts": {
    "ok": true,
    "warnings": [
-    "bug-round-tools-bar (bug-right-column/tablist) sits flush against bug-own-stack \u2014 SPAN and user-link",
-    "DIV (bug-right-column/chat) sits flush against bug-partner-stack \u2014 movelist-block and CG-CONTAINER",
-    "bug-gameover (bug-right-column/p1) sits flush against bug-partner-stack \u2014 rematch and CG-CONTAINER",
+    "bug-round-tools-bar (partner-and-tools/tablist) sits flush against bug-own-stack \u2014 SPAN and user-link",
+    "DIV (partner-and-tools/chat) sits flush against bug-partner-stack \u2014 movelist-block and CG-CONTAINER",
+    "bug-gameover (partner-and-tools/p1) sits flush against bug-partner-stack \u2014 rematch and CG-CONTAINER",
     "4 of 16 tap targets are under WCAG's 24px minimum on one axis \u2014 smallest: MatrixPartner 117x23, MatrixPartner 118.2x23, MatrixCamera 118.9x23"
    ],
    "presetRowBoxes": [],
@@ -41247,7 +41247,7 @@
      "h": 357,
      "occupants": [
       {
-       "what": "bug-right-column",
+       "what": "partner-and-tools",
        "area": "rightcol",
        "x": 0,
        "y": 0,
@@ -41284,7 +41284,7 @@
       }
      ]
     },
-    "bug-right-column/stack": {
+    "partner-and-tools/stack": {
      "x": 0,
      "y": 0,
      "w": 168,
@@ -41292,7 +41292,7 @@
      "occupants": [
       {
        "what": "bug-partner-stack",
-       "area": "bug-right-column/stack",
+       "area": "partner-and-tools/stack",
        "x": 0,
        "y": 0,
        "w": 168,
@@ -41306,7 +41306,7 @@
       }
      ]
     },
-    "bug-right-column/chat": {
+    "partner-and-tools/chat": {
      "x": 168,
      "y": 0,
      "w": 221,
@@ -41314,7 +41314,7 @@
      "occupants": [
       {
        "what": "DIV",
-       "area": "bug-right-column/chat",
+       "area": "partner-and-tools/chat",
        "x": 168,
        "y": 0,
        "w": 221,
@@ -41328,7 +41328,7 @@
       }
      ]
     },
-    "bug-right-column/p1": {
+    "partner-and-tools/p1": {
      "x": 168,
      "y": 193,
      "w": 221,
@@ -41336,7 +41336,7 @@
      "occupants": [
       {
        "what": "bug-gameover",
-       "area": "bug-right-column/p1",
+       "area": "partner-and-tools/p1",
        "x": 168,
        "y": 201,
        "w": 221,
@@ -41350,14 +41350,14 @@
       }
      ]
     },
-    "bug-right-column/p2": {
+    "partner-and-tools/p2": {
      "x": 168,
      "y": 329,
      "w": 221,
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/tablist": {
+    "partner-and-tools/tablist": {
      "x": 168,
      "y": 329,
      "w": 221,
@@ -41365,7 +41365,7 @@
      "occupants": [
       {
        "what": "bug-round-tools-bar",
-       "area": "bug-right-column/tablist",
+       "area": "partner-and-tools/tablist",
        "x": 168,
        "y": 329,
        "w": 221,
@@ -41407,7 +41407,7 @@
    },
    "selectedTab": "Moves",
    "failures": [
-    "area bug-right-column/stack is 357px tall and its occupants use 250px \u2014 107px unused",
+    "area partner-and-tools/stack is 357px tall and its occupants use 250px \u2014 107px unused",
     "portrait: the tab strip is 221px wide beside the partner board while the band between the boards has 107px free and it needs 29px \u2014 it should take the full 389px there",
     "portrait: the move-list controls are 221px wide beside the partner board while the band between the boards has 107px free and it needs 40px \u2014 it should take the full 389px there"
    ],
@@ -41443,9 +41443,9 @@
   "facts": {
    "ok": true,
    "warnings": [
-    "bug-round-tools-bar (bug-right-column/tablist) sits flush against bug-own-stack \u2014 SPAN and user-link",
-    "DIV (bug-right-column/chat) sits flush against bug-partner-stack \u2014 movelist-block and CG-CONTAINER",
-    "bug-gameover (bug-right-column/p1) sits flush against bug-partner-stack \u2014 rematch and CG-CONTAINER",
+    "bug-round-tools-bar (partner-and-tools/tablist) sits flush against bug-own-stack \u2014 SPAN and user-link",
+    "DIV (partner-and-tools/chat) sits flush against bug-partner-stack \u2014 movelist-block and CG-CONTAINER",
+    "bug-gameover (partner-and-tools/p1) sits flush against bug-partner-stack \u2014 rematch and CG-CONTAINER",
     "4 of 16 tap targets are under WCAG's 24px minimum on one axis \u2014 smallest: MatrixPartner 117x23, MatrixPartner 118.2x23, MatrixCamera 118.9x23"
    ],
    "presetRowBoxes": [],
@@ -41533,7 +41533,7 @@
      "h": 362,
      "occupants": [
       {
-       "what": "bug-right-column",
+       "what": "partner-and-tools",
        "area": "rightcol",
        "x": 0,
        "y": 0,
@@ -41570,7 +41570,7 @@
       }
      ]
     },
-    "bug-right-column/stack": {
+    "partner-and-tools/stack": {
      "x": 0,
      "y": 0,
      "w": 168,
@@ -41578,7 +41578,7 @@
      "occupants": [
       {
        "what": "bug-partner-stack",
-       "area": "bug-right-column/stack",
+       "area": "partner-and-tools/stack",
        "x": 0,
        "y": 0,
        "w": 168,
@@ -41592,7 +41592,7 @@
       }
      ]
     },
-    "bug-right-column/chat": {
+    "partner-and-tools/chat": {
      "x": 169,
      "y": 0,
      "w": 224,
@@ -41600,7 +41600,7 @@
      "occupants": [
       {
        "what": "DIV",
-       "area": "bug-right-column/chat",
+       "area": "partner-and-tools/chat",
        "x": 169,
        "y": 0,
        "w": 224,
@@ -41614,7 +41614,7 @@
       }
      ]
     },
-    "bug-right-column/p1": {
+    "partner-and-tools/p1": {
      "x": 169,
      "y": 197,
      "w": 224,
@@ -41622,7 +41622,7 @@
      "occupants": [
       {
        "what": "bug-gameover",
-       "area": "bug-right-column/p1",
+       "area": "partner-and-tools/p1",
        "x": 169,
        "y": 205,
        "w": 224,
@@ -41636,14 +41636,14 @@
       }
      ]
     },
-    "bug-right-column/p2": {
+    "partner-and-tools/p2": {
      "x": 169,
      "y": 333,
      "w": 224,
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/tablist": {
+    "partner-and-tools/tablist": {
      "x": 169,
      "y": 333,
      "w": 224,
@@ -41651,7 +41651,7 @@
      "occupants": [
       {
        "what": "bug-round-tools-bar",
-       "area": "bug-right-column/tablist",
+       "area": "partner-and-tools/tablist",
        "x": 169,
        "y": 333,
        "w": 224,
@@ -41693,7 +41693,7 @@
    },
    "selectedTab": "Moves",
    "failures": [
-    "area bug-right-column/stack is 362px tall and its occupants use 250px \u2014 112px unused",
+    "area partner-and-tools/stack is 362px tall and its occupants use 250px \u2014 112px unused",
     "portrait: the tab strip is 224px wide beside the partner board while the band between the boards has 112px free and it needs 29px \u2014 it should take the full 392px there",
     "portrait: the move-list controls are 224px wide beside the partner board while the band between the boards has 112px free and it needs 40px \u2014 it should take the full 392px there"
    ],
@@ -41729,9 +41729,9 @@
   "facts": {
    "ok": true,
    "warnings": [
-    "bug-round-tools-bar (bug-right-column/tablist) sits flush against bug-own-stack \u2014 SPAN and user-link",
-    "DIV (bug-right-column/chat) sits flush against bug-partner-stack \u2014 movelist-block and CG-CONTAINER",
-    "bug-gameover (bug-right-column/p1) sits flush against bug-partner-stack \u2014 rematch and CG-CONTAINER",
+    "bug-round-tools-bar (partner-and-tools/tablist) sits flush against bug-own-stack \u2014 SPAN and user-link",
+    "DIV (partner-and-tools/chat) sits flush against bug-partner-stack \u2014 movelist-block and CG-CONTAINER",
+    "bug-gameover (partner-and-tools/p1) sits flush against bug-partner-stack \u2014 rematch and CG-CONTAINER",
     "4 of 16 tap targets are under WCAG's 24px minimum on one axis \u2014 smallest: MatrixPartner 111.8x22, MatrixCamera 113.6x22, MatrixPartner 118.2x23"
    ],
    "presetRowBoxes": [],
@@ -41819,7 +41819,7 @@
      "h": 350,
      "occupants": [
       {
-       "what": "bug-right-column",
+       "what": "partner-and-tools",
        "area": "rightcol",
        "x": -0.0,
        "y": 0,
@@ -41856,7 +41856,7 @@
       }
      ]
     },
-    "bug-right-column/stack": {
+    "partner-and-tools/stack": {
      "x": -0.0,
      "y": 0,
      "w": 160,
@@ -41864,7 +41864,7 @@
      "occupants": [
       {
        "what": "bug-partner-stack",
-       "area": "bug-right-column/stack",
+       "area": "partner-and-tools/stack",
        "x": -0.0,
        "y": 0,
        "w": 160,
@@ -41878,7 +41878,7 @@
       }
      ]
     },
-    "bug-right-column/chat": {
+    "partner-and-tools/chat": {
      "x": 160,
      "y": 0,
      "w": 200,
@@ -41886,7 +41886,7 @@
      "occupants": [
       {
        "what": "DIV",
-       "area": "bug-right-column/chat",
+       "area": "partner-and-tools/chat",
        "x": 160,
        "y": 0,
        "w": 200,
@@ -41900,7 +41900,7 @@
       }
      ]
     },
-    "bug-right-column/p1": {
+    "partner-and-tools/p1": {
      "x": 160,
      "y": 185,
      "w": 200,
@@ -41908,7 +41908,7 @@
      "occupants": [
       {
        "what": "bug-gameover",
-       "area": "bug-right-column/p1",
+       "area": "partner-and-tools/p1",
        "x": 160,
        "y": 193,
        "w": 200,
@@ -41922,14 +41922,14 @@
       }
      ]
     },
-    "bug-right-column/p2": {
+    "partner-and-tools/p2": {
      "x": 160,
      "y": 321,
      "w": 200,
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/tablist": {
+    "partner-and-tools/tablist": {
      "x": 160,
      "y": 321,
      "w": 200,
@@ -41937,7 +41937,7 @@
      "occupants": [
       {
        "what": "bug-round-tools-bar",
-       "area": "bug-right-column/tablist",
+       "area": "partner-and-tools/tablist",
        "x": 160,
        "y": 321,
        "w": 200,
@@ -41979,7 +41979,7 @@
    },
    "selectedTab": "Moves",
    "failures": [
-    "area bug-right-column/stack is 350px tall and its occupants use 238px \u2014 112px unused",
+    "area partner-and-tools/stack is 350px tall and its occupants use 238px \u2014 112px unused",
     "portrait: the tab strip is 200px wide beside the partner board while the band between the boards has 112px free and it needs 29px \u2014 it should take the full 360px there",
     "portrait: the move-list controls are 200px wide beside the partner board while the band between the boards has 112px free and it needs 40px \u2014 it should take the full 360px there"
    ],
@@ -42015,8 +42015,8 @@
   "facts": {
    "ok": true,
    "warnings": [
-    "bug-round-tools-bar (bug-right-column/tablist) sits flush against bug-own-stack \u2014 SPAN and user-link",
-    "DIV (bug-right-column/chat) sits flush against bug-partner-stack \u2014 movelist-block and CG-CONTAINER",
+    "bug-round-tools-bar (partner-and-tools/tablist) sits flush against bug-own-stack \u2014 SPAN and user-link",
+    "DIV (partner-and-tools/chat) sits flush against bug-partner-stack \u2014 movelist-block and CG-CONTAINER",
     "4 of 16 tap targets are under WCAG's 24px minimum on one axis \u2014 smallest: MatrixPartner 118.2x23, MatrixPartner 118.2x23, MatrixCamera 120x23"
    ],
    "presetRowBoxes": [],
@@ -42104,7 +42104,7 @@
      "h": 401,
      "occupants": [
       {
-       "what": "bug-right-column",
+       "what": "partner-and-tools",
        "area": "rightcol",
        "x": 0,
        "y": 0,
@@ -42141,7 +42141,7 @@
       }
      ]
     },
-    "bug-right-column/stack": {
+    "partner-and-tools/stack": {
      "x": 0,
      "y": 0,
      "w": 183,
@@ -42149,7 +42149,7 @@
      "occupants": [
       {
        "what": "bug-partner-stack",
-       "area": "bug-right-column/stack",
+       "area": "partner-and-tools/stack",
        "x": 0,
        "y": 0,
        "w": 183,
@@ -42163,7 +42163,7 @@
       }
      ]
     },
-    "bug-right-column/chat": {
+    "partner-and-tools/chat": {
      "x": 183,
      "y": 0,
      "w": 229,
@@ -42171,7 +42171,7 @@
      "occupants": [
       {
        "what": "DIV",
-       "area": "bug-right-column/chat",
+       "area": "partner-and-tools/chat",
        "x": 183,
        "y": 0,
        "w": 229,
@@ -42185,7 +42185,7 @@
       }
      ]
     },
-    "bug-right-column/p1": {
+    "partner-and-tools/p1": {
      "x": 183,
      "y": 236,
      "w": 229,
@@ -42193,7 +42193,7 @@
      "occupants": [
       {
        "what": "bug-gameover",
-       "area": "bug-right-column/p1",
+       "area": "partner-and-tools/p1",
        "x": 183,
        "y": 244,
        "w": 229,
@@ -42207,14 +42207,14 @@
       }
      ]
     },
-    "bug-right-column/p2": {
+    "partner-and-tools/p2": {
      "x": 183,
      "y": 372,
      "w": 229,
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/tablist": {
+    "partner-and-tools/tablist": {
      "x": 183,
      "y": 372,
      "w": 229,
@@ -42222,7 +42222,7 @@
      "occupants": [
       {
        "what": "bug-round-tools-bar",
-       "area": "bug-right-column/tablist",
+       "area": "partner-and-tools/tablist",
        "x": 183,
        "y": 372,
        "w": 229,
@@ -42264,7 +42264,7 @@
    },
    "selectedTab": "Moves",
    "failures": [
-    "area bug-right-column/stack is 401px tall and its occupants use 269px \u2014 132px unused",
+    "area partner-and-tools/stack is 401px tall and its occupants use 269px \u2014 132px unused",
     "portrait: the tab strip is 229px wide beside the partner board while the band between the boards has 131px free and it needs 29px \u2014 it should take the full 411px there",
     "portrait: the move-list controls are 229px wide beside the partner board while the band between the boards has 131px free and it needs 40px \u2014 it should take the full 411px there"
    ],
@@ -42300,9 +42300,9 @@
   "facts": {
    "ok": true,
    "warnings": [
-    "bug-round-tools-bar (bug-right-column/tablist) sits flush against bug-own-stack \u2014 SPAN and user-link",
-    "DIV (bug-right-column/chat) sits flush against bug-partner-stack \u2014 movelist-block and CG-CONTAINER",
-    "bug-gameover (bug-right-column/p1) sits flush against bug-partner-stack \u2014 rematch and CG-CONTAINER",
+    "bug-round-tools-bar (partner-and-tools/tablist) sits flush against bug-own-stack \u2014 SPAN and user-link",
+    "DIV (partner-and-tools/chat) sits flush against bug-partner-stack \u2014 movelist-block and CG-CONTAINER",
+    "bug-gameover (partner-and-tools/p1) sits flush against bug-partner-stack \u2014 rematch and CG-CONTAINER",
     "4 of 16 tap targets are under WCAG's 24px minimum on one axis \u2014 smallest: MatrixPartner 93.4x18, MatrixCamera 94.9x18, MatrixPartner 118.2x23"
    ],
    "presetRowBoxes": [],
@@ -42390,7 +42390,7 @@
      "h": 202,
      "occupants": [
       {
-       "what": "bug-right-column",
+       "what": "partner-and-tools",
        "area": "rightcol",
        "x": 1,
        "y": 0,
@@ -42427,7 +42427,7 @@
       }
      ]
     },
-    "bug-right-column/stack": {
+    "partner-and-tools/stack": {
      "x": 1,
      "y": 0,
      "w": 132,
@@ -42435,7 +42435,7 @@
      "occupants": [
       {
        "what": "bug-partner-stack",
-       "area": "bug-right-column/stack",
+       "area": "partner-and-tools/stack",
        "x": 1,
        "y": 0,
        "w": 132,
@@ -42449,7 +42449,7 @@
       }
      ]
     },
-    "bug-right-column/chat": {
+    "partner-and-tools/chat": {
      "x": 134,
      "y": 0,
      "w": 240,
@@ -42457,7 +42457,7 @@
      "occupants": [
       {
        "what": "DIV",
-       "area": "bug-right-column/chat",
+       "area": "partner-and-tools/chat",
        "x": 134,
        "y": 0,
        "w": 240,
@@ -42471,7 +42471,7 @@
       }
      ]
     },
-    "bug-right-column/p1": {
+    "partner-and-tools/p1": {
      "x": 134,
      "y": 37,
      "w": 240,
@@ -42479,7 +42479,7 @@
      "occupants": [
       {
        "what": "bug-gameover",
-       "area": "bug-right-column/p1",
+       "area": "partner-and-tools/p1",
        "x": 134,
        "y": 45,
        "w": 240,
@@ -42493,14 +42493,14 @@
       }
      ]
     },
-    "bug-right-column/p2": {
+    "partner-and-tools/p2": {
      "x": 134,
      "y": 173,
      "w": 240,
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/tablist": {
+    "partner-and-tools/tablist": {
      "x": 134,
      "y": 173,
      "w": 240,
@@ -42508,7 +42508,7 @@
      "occupants": [
       {
        "what": "bug-round-tools-bar",
-       "area": "bug-right-column/tablist",
+       "area": "partner-and-tools/tablist",
        "x": 134,
        "y": 173,
        "w": 240,
@@ -42582,8 +42582,8 @@
   "facts": {
    "ok": true,
    "warnings": [
-    "bug-round-tools-bar (bug-right-column/tablist) sits flush against bug-own-stack \u2014 SPAN and user-link",
-    "DIV (bug-right-column/chat) sits flush against bug-partner-stack \u2014 movelist-block and CG-CONTAINER",
+    "bug-round-tools-bar (partner-and-tools/tablist) sits flush against bug-own-stack \u2014 SPAN and user-link",
+    "DIV (partner-and-tools/chat) sits flush against bug-partner-stack \u2014 movelist-block and CG-CONTAINER",
     "4 of 16 tap targets are under WCAG's 24px minimum on one axis \u2014 smallest: MatrixPartner 118.2x23, MatrixPartner 118.2x23, MatrixCamera 120x23"
    ],
    "presetRowBoxes": [],
@@ -42671,7 +42671,7 @@
      "h": 395,
      "occupants": [
       {
-       "what": "bug-right-column",
+       "what": "partner-and-tools",
        "area": "rightcol",
        "x": 0,
        "y": 0,
@@ -42708,7 +42708,7 @@
       }
      ]
     },
-    "bug-right-column/stack": {
+    "partner-and-tools/stack": {
      "x": 0,
      "y": 0,
      "w": 184,
@@ -42716,7 +42716,7 @@
      "occupants": [
       {
        "what": "bug-partner-stack",
-       "area": "bug-right-column/stack",
+       "area": "partner-and-tools/stack",
        "x": 0,
        "y": 0,
        "w": 184,
@@ -42730,7 +42730,7 @@
       }
      ]
     },
-    "bug-right-column/chat": {
+    "partner-and-tools/chat": {
      "x": 184,
      "y": 0,
      "w": 245,
@@ -42738,7 +42738,7 @@
      "occupants": [
       {
        "what": "DIV",
-       "area": "bug-right-column/chat",
+       "area": "partner-and-tools/chat",
        "x": 184,
        "y": 0,
        "w": 245,
@@ -42752,7 +42752,7 @@
       }
      ]
     },
-    "bug-right-column/p1": {
+    "partner-and-tools/p1": {
      "x": 184,
      "y": 231,
      "w": 245,
@@ -42760,7 +42760,7 @@
      "occupants": [
       {
        "what": "bug-gameover",
-       "area": "bug-right-column/p1",
+       "area": "partner-and-tools/p1",
        "x": 184,
        "y": 239,
        "w": 245,
@@ -42774,14 +42774,14 @@
       }
      ]
     },
-    "bug-right-column/p2": {
+    "partner-and-tools/p2": {
      "x": 184,
      "y": 367,
      "w": 245,
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/tablist": {
+    "partner-and-tools/tablist": {
      "x": 184,
      "y": 367,
      "w": 245,
@@ -42789,7 +42789,7 @@
      "occupants": [
       {
        "what": "bug-round-tools-bar",
-       "area": "bug-right-column/tablist",
+       "area": "partner-and-tools/tablist",
        "x": 184,
        "y": 367,
        "w": 245,
@@ -42831,7 +42831,7 @@
    },
    "selectedTab": "Moves",
    "failures": [
-    "area bug-right-column/stack is 395px tall and its occupants use 271px \u2014 124px unused",
+    "area partner-and-tools/stack is 395px tall and its occupants use 271px \u2014 124px unused",
     "portrait: the tab strip is 245px wide beside the partner board while the band between the boards has 125px free and it needs 29px \u2014 it should take the full 429px there",
     "portrait: the move-list controls are 245px wide beside the partner board while the band between the boards has 125px free and it needs 40px \u2014 it should take the full 429px there"
    ],
@@ -59821,8 +59821,8 @@
   "facts": {
    "ok": true,
    "warnings": [
-    "DIV (bug-right-column/tablist) comes within 0.4px of bug-own-stack \u2014 SPAN and user-link",
-    "bug-tool-group (bug-right-column/chat) sits flush against bug-partner-stack \u2014 movelist-block and anal-clock top bug activ",
+    "DIV (partner-and-tools/tablist) comes within 0.4px of bug-own-stack \u2014 SPAN and user-link",
+    "bug-tool-group (partner-and-tools/chat) sits flush against bug-partner-stack \u2014 movelist-block and anal-clock top bug activ",
     "5 of 16 tap targets are under WCAG's 24px minimum on one axis \u2014 smallest: MatrixPartner 43.7x8, MatrixCamera 44.3x8, slider 94.4x18"
    ],
    "presetRowBoxes": [],
@@ -59915,7 +59915,7 @@
      "h": 357,
      "occupants": [
       {
-       "what": "bug-right-column",
+       "what": "partner-and-tools",
        "area": "rightcol",
        "x": 0,
        "y": 0,
@@ -59959,7 +59959,7 @@
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/stack": {
+    "partner-and-tools/stack": {
      "x": 0,
      "y": 0,
      "w": 168,
@@ -59967,7 +59967,7 @@
      "occupants": [
       {
        "what": "bug-partner-stack",
-       "area": "bug-right-column/stack",
+       "area": "partner-and-tools/stack",
        "x": 0,
        "y": 0,
        "w": 168,
@@ -59981,7 +59981,7 @@
       }
      ]
     },
-    "bug-right-column/chat": {
+    "partner-and-tools/chat": {
      "x": 168,
      "y": 0,
      "w": 221,
@@ -59989,7 +59989,7 @@
      "occupants": [
       {
        "what": "bug-tool-group",
-       "area": "bug-right-column/chat",
+       "area": "partner-and-tools/chat",
        "x": 168,
        "y": 0,
        "w": 221,
@@ -60003,21 +60003,21 @@
       }
      ]
     },
-    "bug-right-column/p1": {
+    "partner-and-tools/p1": {
      "x": 168,
      "y": 329,
      "w": 221,
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/p2": {
+    "partner-and-tools/p2": {
      "x": 168,
      "y": 329,
      "w": 221,
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/tablist": {
+    "partner-and-tools/tablist": {
      "x": 0,
      "y": 329,
      "w": 389,
@@ -60025,7 +60025,7 @@
      "occupants": [
       {
        "what": "DIV",
-       "area": "bug-right-column/tablist",
+       "area": "partner-and-tools/tablist",
        "x": 0,
        "y": 329,
        "w": 389,
@@ -60067,7 +60067,7 @@
    },
    "selectedTab": "Moves",
    "failures": [
-    "area bug-right-column/stack is 329px tall and its occupants use 210px \u2014 119px unused",
+    "area partner-and-tools/stack is 329px tall and its occupants use 210px \u2014 119px unused",
     "portrait: the move-list controls are 221px wide beside the partner board while the band between the boards has 119px free and it needs 40px \u2014 it should take the full 389px there",
     "portrait: the engine box is 221px wide beside the partner board while the band between the boards has 119px free and it needs 73px \u2014 it should take the full 389px there"
    ],
@@ -60103,8 +60103,8 @@
   "facts": {
    "ok": true,
    "warnings": [
-    "DIV (bug-right-column/tablist) comes within 0.3px of bug-own-stack \u2014 SPAN and user-link",
-    "bug-tool-group (bug-right-column/chat) sits flush against bug-partner-stack \u2014 movelist-block and anal-clock top bug activ",
+    "DIV (partner-and-tools/tablist) comes within 0.3px of bug-own-stack \u2014 SPAN and user-link",
+    "bug-tool-group (partner-and-tools/chat) sits flush against bug-partner-stack \u2014 movelist-block and anal-clock top bug activ",
     "5 of 16 tap targets are under WCAG's 24px minimum on one axis \u2014 smallest: MatrixPartner 43.7x8, MatrixCamera 44.3x8, slider 96.9x18"
    ],
    "presetRowBoxes": [],
@@ -60197,7 +60197,7 @@
      "h": 362,
      "occupants": [
       {
-       "what": "bug-right-column",
+       "what": "partner-and-tools",
        "area": "rightcol",
        "x": 0,
        "y": 0,
@@ -60241,7 +60241,7 @@
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/stack": {
+    "partner-and-tools/stack": {
      "x": 0,
      "y": 0,
      "w": 168,
@@ -60249,7 +60249,7 @@
      "occupants": [
       {
        "what": "bug-partner-stack",
-       "area": "bug-right-column/stack",
+       "area": "partner-and-tools/stack",
        "x": 0,
        "y": 0,
        "w": 168,
@@ -60263,7 +60263,7 @@
       }
      ]
     },
-    "bug-right-column/chat": {
+    "partner-and-tools/chat": {
      "x": 169,
      "y": 0,
      "w": 224,
@@ -60271,7 +60271,7 @@
      "occupants": [
       {
        "what": "bug-tool-group",
-       "area": "bug-right-column/chat",
+       "area": "partner-and-tools/chat",
        "x": 169,
        "y": 0,
        "w": 224,
@@ -60285,21 +60285,21 @@
       }
      ]
     },
-    "bug-right-column/p1": {
+    "partner-and-tools/p1": {
      "x": 169,
      "y": 333,
      "w": 224,
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/p2": {
+    "partner-and-tools/p2": {
      "x": 169,
      "y": 333,
      "w": 224,
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/tablist": {
+    "partner-and-tools/tablist": {
      "x": 0,
      "y": 333,
      "w": 392,
@@ -60307,7 +60307,7 @@
      "occupants": [
       {
        "what": "DIV",
-       "area": "bug-right-column/tablist",
+       "area": "partner-and-tools/tablist",
        "x": 0,
        "y": 333,
        "w": 392,
@@ -60349,7 +60349,7 @@
    },
    "selectedTab": "Moves",
    "failures": [
-    "area bug-right-column/stack is 333px tall and its occupants use 210px \u2014 123px unused",
+    "area partner-and-tools/stack is 333px tall and its occupants use 210px \u2014 123px unused",
     "portrait: the move-list controls are 224px wide beside the partner board while the band between the boards has 123px free and it needs 40px \u2014 it should take the full 392px there",
     "portrait: the engine box is 224px wide beside the partner board while the band between the boards has 123px free and it needs 73px \u2014 it should take the full 392px there"
    ],
@@ -60385,8 +60385,8 @@
   "facts": {
    "ok": true,
    "warnings": [
-    "DIV (bug-right-column/tablist) comes within 0.8px of bug-own-stack \u2014 SPAN and user-link",
-    "bug-tool-group (bug-right-column/chat) sits flush against bug-partner-stack \u2014 movelist-block and anal-clock top bug activ",
+    "DIV (partner-and-tools/tablist) comes within 0.8px of bug-own-stack \u2014 SPAN and user-link",
+    "bug-tool-group (partner-and-tools/chat) sits flush against bug-partner-stack \u2014 movelist-block and anal-clock top bug activ",
     "5 of 16 tap targets are under WCAG's 24px minimum on one axis \u2014 smallest: MatrixPartner 41.8x8, MatrixCamera 42.3x8, slider 73.7x18"
    ],
    "presetRowBoxes": [],
@@ -60479,7 +60479,7 @@
      "h": 350,
      "occupants": [
       {
-       "what": "bug-right-column",
+       "what": "partner-and-tools",
        "area": "rightcol",
        "x": -0.0,
        "y": 0,
@@ -60523,7 +60523,7 @@
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/stack": {
+    "partner-and-tools/stack": {
      "x": -0.0,
      "y": 0,
      "w": 160,
@@ -60531,7 +60531,7 @@
      "occupants": [
       {
        "what": "bug-partner-stack",
-       "area": "bug-right-column/stack",
+       "area": "partner-and-tools/stack",
        "x": -0.0,
        "y": 0,
        "w": 160,
@@ -60545,7 +60545,7 @@
       }
      ]
     },
-    "bug-right-column/chat": {
+    "partner-and-tools/chat": {
      "x": 160,
      "y": 0,
      "w": 200,
@@ -60553,7 +60553,7 @@
      "occupants": [
       {
        "what": "bug-tool-group",
-       "area": "bug-right-column/chat",
+       "area": "partner-and-tools/chat",
        "x": 160,
        "y": 0,
        "w": 200,
@@ -60567,21 +60567,21 @@
       }
      ]
     },
-    "bug-right-column/p1": {
+    "partner-and-tools/p1": {
      "x": 160,
      "y": 321,
      "w": 200,
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/p2": {
+    "partner-and-tools/p2": {
      "x": 160,
      "y": 321,
      "w": 200,
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/tablist": {
+    "partner-and-tools/tablist": {
      "x": -0.0,
      "y": 321,
      "w": 360,
@@ -60589,7 +60589,7 @@
      "occupants": [
       {
        "what": "DIV",
-       "area": "bug-right-column/tablist",
+       "area": "partner-and-tools/tablist",
        "x": -0.0,
        "y": 321,
        "w": 360,
@@ -60631,7 +60631,7 @@
    },
    "selectedTab": "Moves",
    "failures": [
-    "area bug-right-column/stack is 321px tall and its occupants use 200px \u2014 121px unused",
+    "area partner-and-tools/stack is 321px tall and its occupants use 200px \u2014 121px unused",
     "portrait: the move-list controls are 200px wide beside the partner board while the band between the boards has 121px free and it needs 40px \u2014 it should take the full 360px there",
     "portrait: the engine box is 200px wide beside the partner board while the band between the boards has 121px free and it needs 72px \u2014 it should take the full 360px there"
    ],
@@ -60667,8 +60667,8 @@
   "facts": {
    "ok": true,
    "warnings": [
-    "DIV (bug-right-column/tablist) comes within 0.5px of bug-own-stack \u2014 SPAN and user-link",
-    "bug-tool-group (bug-right-column/chat) sits flush against bug-partner-stack \u2014 movelist-block and anal-clock top bug activ",
+    "DIV (partner-and-tools/tablist) comes within 0.5px of bug-own-stack \u2014 SPAN and user-link",
+    "bug-tool-group (partner-and-tools/chat) sits flush against bug-partner-stack \u2014 movelist-block and anal-clock top bug activ",
     "5 of 16 tap targets are under WCAG's 24px minimum on one axis \u2014 smallest: MatrixPartner 47.4x8, MatrixCamera 48.1x8, slider 101.1x18"
    ],
    "presetRowBoxes": [],
@@ -60761,7 +60761,7 @@
      "h": 401,
      "occupants": [
       {
-       "what": "bug-right-column",
+       "what": "partner-and-tools",
        "area": "rightcol",
        "x": 0,
        "y": 0,
@@ -60805,7 +60805,7 @@
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/stack": {
+    "partner-and-tools/stack": {
      "x": 0,
      "y": 0,
      "w": 183,
@@ -60813,7 +60813,7 @@
      "occupants": [
       {
        "what": "bug-partner-stack",
-       "area": "bug-right-column/stack",
+       "area": "partner-and-tools/stack",
        "x": 0,
        "y": 0,
        "w": 183,
@@ -60827,7 +60827,7 @@
       }
      ]
     },
-    "bug-right-column/chat": {
+    "partner-and-tools/chat": {
      "x": 183,
      "y": 0,
      "w": 229,
@@ -60835,7 +60835,7 @@
      "occupants": [
       {
        "what": "bug-tool-group",
-       "area": "bug-right-column/chat",
+       "area": "partner-and-tools/chat",
        "x": 183,
        "y": 0,
        "w": 229,
@@ -60849,21 +60849,21 @@
       }
      ]
     },
-    "bug-right-column/p1": {
+    "partner-and-tools/p1": {
      "x": 183,
      "y": 372,
      "w": 229,
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/p2": {
+    "partner-and-tools/p2": {
      "x": 183,
      "y": 372,
      "w": 229,
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/tablist": {
+    "partner-and-tools/tablist": {
      "x": 0,
      "y": 372,
      "w": 411,
@@ -60871,7 +60871,7 @@
      "occupants": [
       {
        "what": "DIV",
-       "area": "bug-right-column/tablist",
+       "area": "partner-and-tools/tablist",
        "x": 0,
        "y": 372,
        "w": 411,
@@ -60913,7 +60913,7 @@
    },
    "selectedTab": "Moves",
    "failures": [
-    "area bug-right-column/stack is 372px tall and its occupants use 229px \u2014 143px unused",
+    "area partner-and-tools/stack is 372px tall and its occupants use 229px \u2014 143px unused",
     "portrait: the move-list controls are 229px wide beside the partner board while the band between the boards has 143px free and it needs 40px \u2014 it should take the full 411px there",
     "portrait: the engine box is 229px wide beside the partner board while the band between the boards has 143px free and it needs 73px \u2014 it should take the full 411px there"
    ],
@@ -60949,9 +60949,9 @@
   "facts": {
    "ok": true,
    "warnings": [
-    "DIV (bug-right-column/tablist) comes within 0.6px of bug-own-stack \u2014 SPAN and user-link",
-    "bug-tool-group (bug-right-column/chat) sits flush against bug-partner-stack \u2014 movelist-block and anal-clock top bug activ",
-    "DIV (bug-right-column/tablist) comes within 4.8px of bug-partner-stack \u2014 SPAN and anal-clock bottom bug",
+    "DIV (partner-and-tools/tablist) comes within 0.6px of bug-own-stack \u2014 SPAN and user-link",
+    "bug-tool-group (partner-and-tools/chat) sits flush against bug-partner-stack \u2014 movelist-block and anal-clock top bug activ",
+    "DIV (partner-and-tools/tablist) comes within 4.8px of bug-partner-stack \u2014 SPAN and anal-clock bottom bug",
     "5 of 16 tap targets are under WCAG's 24px minimum on one axis \u2014 smallest: MatrixPartner 34.9x5, MatrixCamera 35.3x5, MatrixPartner 94x18"
    ],
    "presetRowBoxes": [],
@@ -61044,7 +61044,7 @@
      "h": 202,
      "occupants": [
       {
-       "what": "bug-right-column",
+       "what": "partner-and-tools",
        "area": "rightcol",
        "x": 1,
        "y": 0,
@@ -61088,7 +61088,7 @@
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/stack": {
+    "partner-and-tools/stack": {
      "x": 1,
      "y": 0,
      "w": 132,
@@ -61096,7 +61096,7 @@
      "occupants": [
       {
        "what": "bug-partner-stack",
-       "area": "bug-right-column/stack",
+       "area": "partner-and-tools/stack",
        "x": 1,
        "y": 0,
        "w": 132,
@@ -61110,7 +61110,7 @@
       }
      ]
     },
-    "bug-right-column/chat": {
+    "partner-and-tools/chat": {
      "x": 134,
      "y": 0,
      "w": 240,
@@ -61118,7 +61118,7 @@
      "occupants": [
       {
        "what": "bug-tool-group",
-       "area": "bug-right-column/chat",
+       "area": "partner-and-tools/chat",
        "x": 134,
        "y": 0,
        "w": 240,
@@ -61132,21 +61132,21 @@
       }
      ]
     },
-    "bug-right-column/p1": {
+    "partner-and-tools/p1": {
      "x": 134,
      "y": 173,
      "w": 240,
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/p2": {
+    "partner-and-tools/p2": {
      "x": 134,
      "y": 173,
      "w": 240,
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/tablist": {
+    "partner-and-tools/tablist": {
      "x": 1,
      "y": 173,
      "w": 372,
@@ -61154,7 +61154,7 @@
      "occupants": [
       {
        "what": "DIV",
-       "area": "bug-right-column/tablist",
+       "area": "partner-and-tools/tablist",
        "x": 1,
        "y": 173,
        "w": 372,
@@ -61196,8 +61196,8 @@
    },
    "selectedTab": "Moves",
    "failures": [
-    "bug-right-column in rightcol paints 3px outside itself (box 372x202, painted 372x205)",
-    "bug-partner-stack in bug-right-column/stack paints 4px outside itself (box 132x165, painted 132x172)"
+    "partner-and-tools in rightcol paints 3px outside itself (box 372x202, painted 372x205)",
+    "bug-partner-stack in partner-and-tools/stack paints 4px outside itself (box 132x165, painted 132x172)"
    ],
    "settled": {
     "settled": true,
@@ -61231,8 +61231,8 @@
   "facts": {
    "ok": true,
    "warnings": [
-    "DIV (bug-right-column/tablist) comes within 0.4px of bug-own-stack \u2014 SPAN and user-link",
-    "bug-tool-group (bug-right-column/chat) sits flush against bug-partner-stack \u2014 movelist-block and anal-clock top bug activ",
+    "DIV (partner-and-tools/tablist) comes within 0.4px of bug-own-stack \u2014 SPAN and user-link",
+    "bug-tool-group (partner-and-tools/chat) sits flush against bug-partner-stack \u2014 movelist-block and anal-clock top bug activ",
     "5 of 16 tap targets are under WCAG's 24px minimum on one axis \u2014 smallest: MatrixPartner 47.6x8, MatrixCamera 48.3x8, slider 117.3x18"
    ],
    "presetRowBoxes": [],
@@ -61325,7 +61325,7 @@
      "h": 395,
      "occupants": [
       {
-       "what": "bug-right-column",
+       "what": "partner-and-tools",
        "area": "rightcol",
        "x": 0,
        "y": 0,
@@ -61369,7 +61369,7 @@
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/stack": {
+    "partner-and-tools/stack": {
      "x": 0,
      "y": 0,
      "w": 184,
@@ -61377,7 +61377,7 @@
      "occupants": [
       {
        "what": "bug-partner-stack",
-       "area": "bug-right-column/stack",
+       "area": "partner-and-tools/stack",
        "x": 0,
        "y": 0,
        "w": 184,
@@ -61391,7 +61391,7 @@
       }
      ]
     },
-    "bug-right-column/chat": {
+    "partner-and-tools/chat": {
      "x": 184,
      "y": 0,
      "w": 245,
@@ -61399,7 +61399,7 @@
      "occupants": [
       {
        "what": "bug-tool-group",
-       "area": "bug-right-column/chat",
+       "area": "partner-and-tools/chat",
        "x": 184,
        "y": 0,
        "w": 245,
@@ -61413,21 +61413,21 @@
       }
      ]
     },
-    "bug-right-column/p1": {
+    "partner-and-tools/p1": {
      "x": 184,
      "y": 367,
      "w": 245,
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/p2": {
+    "partner-and-tools/p2": {
      "x": 184,
      "y": 367,
      "w": 245,
      "h": 0,
      "occupants": []
     },
-    "bug-right-column/tablist": {
+    "partner-and-tools/tablist": {
      "x": 0,
      "y": 367,
      "w": 429,
@@ -61435,7 +61435,7 @@
      "occupants": [
       {
        "what": "DIV",
-       "area": "bug-right-column/tablist",
+       "area": "partner-and-tools/tablist",
        "x": 0,
        "y": 367,
        "w": 429,
@@ -61477,7 +61477,7 @@
    },
    "selectedTab": "Moves",
    "failures": [
-    "area bug-right-column/stack is 367px tall and its occupants use 230px \u2014 137px unused",
+    "area partner-and-tools/stack is 367px tall and its occupants use 230px \u2014 137px unused",
     "portrait: the move-list controls are 245px wide beside the partner board while the band between the boards has 136px free and it needs 40px \u2014 it should take the full 429px there",
     "portrait: the engine box is 245px wide beside the partner board while the band between the boards has 136px free and it needs 73px \u2014 it should take the full 429px there"
    ],

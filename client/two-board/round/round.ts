@@ -221,7 +221,7 @@ export function roundView(model: PyChessModel): VNode[] {
             },
             [
                 // The viewer's own board and its two strips as one unit, exactly as the
-                // partner's are grouped in `.bug-right-column`. They used to be three
+                // partner's are grouped in `.partner-and-tools`. They used to be three
                 // separate items of the app's grid, stacked by three named rows —
                 // which is a grid doing, for one board, what a container already does
                 // for the other. The asymmetry cost more than the rows: anything a
@@ -274,7 +274,7 @@ export function roundView(model: PyChessModel): VNode[] {
                 // The cost is that the two boards are no longer siblings in the
                 // app's grid, so switching them cannot be a grid-area swap — see
                 // switchBoardElements() and markRoles(), which both assumed it.
-                h('div.bug-right-column', [
+                h('div.partner-and-tools', [
                     // The board and its two strips are grouped; the tab parts are
                     // not. That is the whole arrangement in one line.
                     //

@@ -11,7 +11,7 @@
 
 /* The gap itself: the board's box carries it, so the strip below is pushed and the board is
    not resized. On the board box rather than on a grid row because the two stacks live in
-   different containers — the viewer's in the app's grid, the partner's in .bug-right-column —
+   different containers — the viewer's in the app's grid, the partner's in .partner-and-tools —
    and a row could only ever have served one of them.
 
    `display: block` is load-bearing here, not tidying, and for the second time in this file.

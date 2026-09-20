@@ -145,20 +145,15 @@
        by an item of the grid that owns both board columns, so the merged column has to stop being
        a box for the zones to exist at all. Its children become grid items of the app and are
        placed by the shared rules. */
-    :is(.round-app, .analysis-app).bug .bug-right-column {
+    :is(.round-app, .analysis-app).bug .partner-and-tools {
         display: contents;
     }
-    /* Only what this mode does not share — see the top-level rule for the rest. */
-    .bug-right-column {
-        /* `--bug-sq-b`, not `--bug-sq`: THE RIGHT BOARD IS THE ONE THAT YIELDS.
-           This mode forces both boards to the full height, so when the width cannot hold two
-           of them beside the tools' half-square the shortfall has to come from somewhere, and
-           the answer is the same as tall landscape's — never the viewer's own board.
-           `squareUnit.ts` publishes this unit already quantised; it equals `--bug-sq` whenever
-           the width is sufficient, which is most of the time. */
-        grid-template-columns: calc(var(--bug-sq-b) * 8) minmax(0, 1fr);
-        column-gap: 0px;
-    }
+    /* NOTHING ELSE FOR THAT ELEMENT HERE. It has no box in this mode — the rule above makes it
+       `display: contents` — so a track list on it can never apply, and one used to: two columns
+       sized `calc(var(--bug-sq-b) * 8) minmax(0, 1fr)`, with six lines arguing that the right
+       board is the one that yields. The argument is sound and is still in force; it simply is not
+       this rule's to make. `--bug-sq-b` reaches the partner board through `properties.css`, which
+       maps `--bug-stack-sq` to it for this mode, so the stack sizes itself and no track has to. */
 
     /* THIS MODE'S SPARE HEIGHT — the same expression the desktop mode uses, over this mode's
        own unit. It comes to the quantisation remainder and nothing else, measured 4.3px at

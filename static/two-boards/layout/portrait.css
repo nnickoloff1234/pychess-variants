@@ -2,7 +2,7 @@
    ------------------------------------------------------------------------------------
    `@media (aspect-ratio <= 9/16)`. The one mode that is not two boards side by side: a merged
    column on top — the partner stack in one track, the tools in the other — and the viewer's own
-   board across the full width below it. `.bug-right-column` is a real grid here, which is what
+   board across the full width below it. `.partner-and-tools` is a real grid here, which is what
    the `drop-*` templates in this file swap between. */
 
 /* Both sides of the merge changed this hunk, and each change is kept: the fork widened
@@ -23,7 +23,7 @@
    The round page's answer, reused: the partner board and the tools are ONE block that takes
    the region above, and inside it the tools occupy the space beside the small board rather
    than below it. The player's own stack is the last row and sits flush on the bottom edge.
-   `.bug-right-column` is that block — the round page's element, its class, and its
+   `.partner-and-tools` is that block — the round page's element, its class, and its
    `grid-area: stack` / `align-self: start` rules for the stack inside it apply unchanged. */
 
 /* Both sides of the merge changed this hunk, and each change is kept: the fork widened
@@ -42,7 +42,7 @@
    The round page's answer, reused: the partner board and the tools are ONE block that takes
    the region above, and inside it the tools occupy the space beside the small board rather
    than below it. The player's own stack is the last row and sits flush on the bottom edge.
-   `.bug-right-column` is that block — the round page's element, its class, and its
+   `.partner-and-tools` is that block — the round page's element, its class, and its
    `grid-area: stack` / `align-self: start` rules for the stack inside it apply unchanged. */
 @media (aspect-ratio <= 9/16) {
     .analysis-app.bug {
@@ -74,14 +74,14 @@
        whatever is left — which is where the tools go. That leftover is the whole point; it is
        the space a square board a fifth of the viewport tall cannot use. */
     /* THE DROP CLASS NOW LIVES ON THE APP, so this mode needs the arrangement keyed to it.
-       Landscape dissolves `.bug-right-column` and states its areas on the app; portrait keeps that
-       column as a real grid, and the shared `.bug-right-column.drop-tablist` rule stopped matching
+       Landscape dissolves `.partner-and-tools` and states its areas on the app; portrait keeps that
+       column as a real grid, and the shared `.partner-and-tools.drop-tablist` rule stopped matching
        the moment `toolsPlacement` began toggling the class on the app instead. Measured: the tab
        list back at 219px in its own column instead of 384px full width.
 
        The areas are the shared ones, restated against the app's class — `p1`/`p2` name nothing on
        this page, and rows with no items in them collapse to zero. */
-    .analysis-app.bug.drop-tablist .bug-right-column {
+    .analysis-app.bug.drop-tablist .partner-and-tools {
         grid-template-areas:
             'stack chat'
             'stack p1'
@@ -89,7 +89,7 @@
             'tablist tablist';
     }
     /* NOTHING else for this page. Portrait's merged column is the round page's declaration for
-       declaration, and this mode's own unscoped `.bug-right-column` block below already states
+       declaration, and this mode's own unscoped `.partner-and-tools` block below already states
        the two track widths and the zero gap for both pages. The block that stood here restated
        all of it and renamed the areas, which is what stopped anything dropping. */
     /* Its content height, not the height of the row it spans. Stretched — the default for a
@@ -271,17 +271,17 @@
        twice over: in portrait it is the TOP block, not a right column, and what it holds is the
        partner's board and the tools, which is what the name now says.
 
-       SPECIFICITY, not file order. A bare `.bug-right-column` here would tie with the shared
+       SPECIFICITY, not file order. A bare `.partner-and-tools` here would tie with the shared
        rule at (0,1,0) and win only because `portrait.css` is linked after `shared.css` — the
        kind of tie the stylesheet split already reversed three times. The app prefix makes it
        (0,3,0) and the outcome no longer depends on which file loads first. */
-    :is(.round-app, .analysis-app).bug .bug-right-column {
+    :is(.round-app, .analysis-app).bug .partner-and-tools {
         grid-area: partnerAndTools;
     }
 
     /* Widths of the merged column's two tracks — the only thing this mode does not
        share. The partner board's eight squares, then whatever is left. */
-    .bug-right-column {
+    .partner-and-tools {
         grid-template-columns: calc(var(--bug-portrait-partner-sq) * 8) minmax(0, 1fr);
         column-gap: 0px;
     }

@@ -118,7 +118,7 @@
     }
     /* The merged column's own two tracks, which is nearly all this page states about it:
        `grid-area: rightcol`, `display: grid`, the zero minimums and the clipping all come
-       from the shared `.bug-right-column` rule the round page already carries, and the
+       from the shared `.partner-and-tools` rule the round page already carries, and the
        round page's own landscape block states exactly these two tracks and nothing more.
 
        The AREAS are re-stated because they are the second real difference: the round page's
@@ -127,11 +127,11 @@
        block holding its own tab list, so its column is a single row of two areas. */
     /* Only the two track widths, which is all the round page's landscape block states too. The
        areas, the rows, the zero minimums and the clipping come from the shared
-       `.bug-right-column` rule. The gauge's share of the stack track is the one real difference. */
+       `.partner-and-tools` rule. The gauge's share of the stack track is the one real difference. */
     /* ONE GRID FOR THE WHOLE PAGE, which is what lets a part move between the boards and the
        space under them.
        ------------------------------------------------------------------------------------
-       `.bug-right-column` is DISSOLVED here, so the partner stack, the tab panels and the tab
+       `.partner-and-tools` is DISSOLVED here, so the partner stack, the tab panels and the tab
        list stop being its children and become grid items of the app alongside the own stack —
        `.bug-parts` already does the same for its own children. Every arrangeable thing is then a
        sibling in one grid, and an area name is all it takes to move one.
@@ -471,7 +471,7 @@
     body[data-variant='bughouse'] :is(.round-app, .analysis-app).bug {
         height: var(--bug-app-content-h, 100%);
     }
-    :is(.round-app, .analysis-app).bug .bug-right-column {
+    :is(.round-app, .analysis-app).bug .partner-and-tools {
         display: contents;
     }
 
@@ -503,7 +503,7 @@
        the partner board's column plus the tools — which is exactly the span it had before
        this page was flattened, so nothing about the dropped look changes here.
 
-       The classes are on the APP rather than on `.bug-right-column` because the element whose
+       The classes are on the APP rather than on `.partner-and-tools` because the element whose
        template they swap has to be the element they sit on, and that is the app now.
        toolsPlacement.ts puts them wherever it measures, which is the same element by
        construction — see the note there about `display: contents` measuring zero. */

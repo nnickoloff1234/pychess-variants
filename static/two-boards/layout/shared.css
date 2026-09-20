@@ -152,7 +152,7 @@
    defect it exists to prevent: a unit is a whole number of device pixels per square, so
    multiplying it by a zoom fraction un-quantises it, chessgroundx floors the product
    again and keeps the difference. The zoom is already inside --bug-tall-sq-a/-b. */
-/* Descendant, not child: both now sit inside `.bug-right-column`. In landscape that
+/* Descendant, not child: both now sit inside `.partner-and-tools`. In landscape that
    wrapper is `display: contents`, so they are still grid ITEMS of the app and take these
    areas — but `display: contents` changes layout, never the DOM, so a `>` combinator
    stopped matching and both boards lost their area. */
@@ -252,7 +252,7 @@
    was given. The module reaches it by measuring — `spaceFor()` credits a stack with its own
    allowance and nothing more, which in portrait is exactly what it is already drawing. */
 /* NO BOX OF ITS OWN: the shared `.bug-parts { display: contents }` applies, so the panels and the
-   tab list are grid items of `.bug-right-column` and can be placed individually — which is the
+   tab list are grid items of `.partner-and-tools` and can be placed individually — which is the
    whole mechanism. This was a flex column occupying a single `tools` area, and a single area is
    exactly what nothing can drop out of. */
 .analysis-app.bug .bug-parts { min-width: 0; }
@@ -319,7 +319,7 @@
 .round-app.bug {
     grid-area: main;
 }
-.bug-right-column {
+.partner-and-tools {
     grid-area: rightcol;
     display: grid;
     grid-template-rows: minmax(0, 1fr) auto auto auto;
@@ -466,19 +466,19 @@ round-player1.bug {
    relocate under the board, it widens to the full column and sits under the parts
    above it as well. toolsPlacement.ts adds each class only when the board's stack
    still fits in what would be left. */
-.bug-right-column.drop-tablist {
+.partner-and-tools.drop-tablist {
     grid-template-areas: 'stack chat'
                          'stack p1'
                          'stack p2'
                          'tablist tablist';
 }
-.bug-right-column.drop-tablist.drop-p2 {
+.partner-and-tools.drop-tablist.drop-p2 {
     grid-template-areas: 'stack chat'
                          'stack p1'
                          'p2 p2'
                          'tablist tablist';
 }
-.bug-right-column.drop-tablist.drop-p2.drop-p1 {
+.partner-and-tools.drop-tablist.drop-p2.drop-p1 {
     grid-template-areas: 'stack chat'
                          'p1 p1'
                          'p2 p2'

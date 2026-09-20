@@ -65,7 +65,7 @@ ctx => {
        marker left to inherit reports its own content size instead of the cell's.
 
        EVERY GRID WITH NAMED AREAS IS SURVEYED, not just the app. Portrait publishes no zone A or B
-       at app level — its areas are `chat`/`p1`/`p2`/`tablist` inside `.bug-right-column` — so a
+       at app level — its areas are `chat`/`p1`/`p2`/`tablist` inside `.partner-and-tools` — so a
        survey that stopped at the app could not see the space those parts leave unused, which is
        most of what a reviewer notices there. Areas are keyed `container/area` below the app. */
     const gridContainers = [app, ...all('*')].filter(el => {
@@ -398,7 +398,7 @@ ctx => {
             if (placed[i].rec.area === placed[j].rec.area) continue; // sharing an area is deliberate
             // A nested grid's areas live inside one of the outer grid's occupants, so every pair
             // of an ancestor and its descendant overlaps by construction. 102 of those on the run
-            // that added nested grids, all of them `.bug-right-column` over its own children.
+            // that added nested grids, all of them `.partner-and-tools` over its own children.
             if (placed[i].el.contains(placed[j].el) || placed[j].el.contains(placed[i].el)) continue;
             const gap = 1; // a shared edge is not an overlap
             const over =
