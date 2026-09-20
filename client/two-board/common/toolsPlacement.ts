@@ -494,6 +494,45 @@ function resolvedLength(context: HTMLElement, property: string): number {
 }
 
 /** The taller of the two stacks, which is the height everything else is charged against. */
+/**
+ * The height the TOOLS' OWN REGION has — the rows of the grid in force whose cells name a slot a
+ * tools part can occupy.
+ *
+ * WHY NOT THE BUDGET, which is what this replaced. `--bug-app-h` is the viewport less the header:
+ * the height the whole page has to spend, boards included. The tools never get that and have not
+ * for a long time — their region follows the boards, which follow the zoom, and in portrait it is
+ * only the block beside the partner board with the viewer's whole board below it. Sizing preset
+ * buttons against the budget told them they had the height of a region that does not exist, so
+ * `min(byWidth, byHeight)` never bound on height and the width alone decided.
+ *
+ * `zoneTools*` and `zoneA*` together, because they are the same region seen in two drop states:
+ * a part in the strip beside the board and a part widened under it occupy rows of the same block.
+ * Counting both makes the answer stable as parts drop, which a measurement feeding a decision
+ * about dropping had better be. `zoneB*` is deliberately excluded: a full-width row under both
+ * boards is a different region with a different width, and what belongs there is its own question.
+ *
+ * Read from the resolved template, so it needs no mode test: `getComputedStyle` gives the row
+ * heights in used pixels and the areas as quoted row strings, and the two line up index for index.
+ */
+function toolsRegionHeight(app: HTMLElement): number {
+    const style = getComputedStyle(app);
+    const heights = style.gridTemplateRows.split(/\s+/).map(parseFloat);
+    const rows = (style.gridTemplateAreas.match(/"[^"]*"/g) ?? []).map(row =>
+        row.slice(1, -1).trim().split(/\s+/),
+    );
+    if (rows.length === 0 || rows.length !== heights.length) return NaN;
+
+    const gap = parseFloat(style.rowGap) || 0;
+    let total = 0;
+    let counted = 0;
+    rows.forEach((cells, i) => {
+        if (!cells.some(cell => cell.startsWith('zoneTools') || cell.startsWith('zoneA'))) return;
+        total += heights[i];
+        counted += 1;
+    });
+    return counted > 0 ? total + (counted - 1) * gap : NaN;
+}
+
 function tallestStack(app: HTMLElement): number {
     const stacks = [app.querySelector<HTMLElement>(OWN_STACK), app.querySelector<HTMLElement>(STACK)];
     return Math.max(...stacks.map(el => el?.getBoundingClientRect().height ?? 0));
@@ -752,7 +791,7 @@ function place(container: HTMLElement, droppable: Droppable): void {
     // button went from height-limited to width-limited on the strength of it.
     const budget = parseFloat(getComputedStyle(column).getPropertyValue(BUDGET));
     const available = Number.isFinite(budget) ? budget : column.clientHeight;
-    const stackHeight = stack.getBoundingClientRect().height;
+    const partnerStackHeight = stack.getBoundingClientRect().height;
 
     // Zone B first — see `zoneB`. The classes go on the same element as every other
     // arrangement class, which is the one whose template they swap.
@@ -797,19 +836,30 @@ function place(container: HTMLElement, droppable: Droppable): void {
     // above the bottom of the right stack, and the button was drawn over that board's pocket and
     // clock. `max(0, ...)` is the whole correction — a negative difference is not a small space,
     // it is no space.
-    const ownHeight = column.querySelector<HTMLElement>(OWN_STACK)?.getBoundingClientRect().height ?? 0;
-    const zoneA = Math.max(0, ownHeight - stackHeight);
+    const ownStackHeight =
+        column.querySelector<HTMLElement>(OWN_STACK)?.getBoundingClientRect().height ?? 0;
+    const zoneA = Math.max(0, ownStackHeight - partnerStackHeight);
 
-    // Beside the boards the presets' region is the tools strip: as tall as the app, as wide as
-    // the last track. Published BEFORE the drop cascade below, because the cascade charges parts
-    // by their height and that height is now a consequence of this number.
+    // THE PRESETS' REGION IS THE TOOLS' OWN, in both dimensions: as wide as the last track, as
+    // tall as the rows the tools' slots occupy. The height used to be the BUDGET — the viewport
+    // less the header — which is the page's allowance and never the tools'. Their region follows
+    // the boards and the boards follow the zoom; in portrait it is the block beside the partner
+    // board, with the viewer's whole board below it and none of that height theirs to use.
+    //
+    // Published BEFORE the drop cascade below, because the cascade charges parts by their height
+    // and that height is a consequence of this number.
     const toolsTrack = getComputedStyle(column)
         .gridTemplateColumns.split(/\s+/)
         .filter(track => track.endsWith('px'))
         .map(parseFloat);
+    const toolsRegion = toolsRegionHeight(column);
     publishPresetSize(column, {
         width: toolsTrack.length > 0 ? toolsTrack[toolsTrack.length - 1] : column.clientWidth,
-        height: Number.isFinite(budget) ? budget : column.clientHeight,
+        height: Number.isFinite(toolsRegion)
+            ? toolsRegion
+            : Number.isFinite(budget)
+              ? budget
+              : column.clientHeight,
     });
 
     // Each part drops only if every part before it in the order has dropped too, and the parts
