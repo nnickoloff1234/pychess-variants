@@ -329,10 +329,10 @@
     grid-area: partnerAndTools;
     display: grid;
     grid-template-rows: minmax(0, 1fr) auto auto auto;
-    grid-template-areas: 'stack chat'
-                         'stack p1'
-                         'stack p2'
-                         'stack tablist';
+    grid-template-areas: 'stack zoneTools1'
+                         'stack zoneTools2'
+                         'stack zoneTools3'
+                         'stack zoneTools4';
     row-gap: 0;
     overflow: hidden;
     min-width: 0;
@@ -451,44 +451,44 @@ round-player1.bug {
 /* Which area each part occupies in the merged column. Inert in portrait, where
    `.bug-parts` is a flex container and its children are flex items rather than grid
    items, so these names are simply ignored there. */
-.bug-parts > [role='tabpanel'] { grid-area: chat; }
+.bug-parts > [role='tabpanel'] { grid-area: zoneTools1; }
 /* The analysis page's group of parts takes the panel's slot here too — see the landscape rules
    and `.bug-tool-group` below for what the element is. The round page has no group, so this
    selector matches nothing there. */
-.bug-parts > .bug-tool-group { grid-area: chat; }
-.bug-parts .chatpresets-panel-1 { grid-area: p1; }
-.bug-parts .chatpresets-panel-2 { grid-area: p2; }
-.bug-parts > .bug-round-tools-bar { grid-area: tablist; }
+.bug-parts > .bug-tool-group { grid-area: zoneTools1; }
+.bug-parts .chatpresets-panel-1 { grid-area: zoneTools2; }
+.bug-parts .chatpresets-panel-2 { grid-area: zoneTools3; }
+.bug-parts > .bug-round-tools-bar { grid-area: zoneTools4; }
 /* The analysis page's tab list is the direct equivalent and drops the same way. Here it is a child
    of `.bug-parts`; the round page's is nested inside its tools bar, so the two selectors can never
    match the same element. */
-.bug-parts > [role='tablist'] { grid-area: tablist; }
+.bug-parts > [role='tablist'] { grid-area: zoneTools4; }
 /* The analysis page's tab list is the direct equivalent and drops the same way. It is a child of
    `.bug-parts` here; the round page's is nested inside its tools bar, so the two selectors cannot
    both match the same element. */
-.bug-parts > [role='tablist'] { grid-area: tablist; }
+
 /* The two dropped arrangements, in the order parts leave the strip beside the
    board. A dropped part spans BOTH columns, which is the point: it does not merely
    relocate under the board, it widens to the full column and sits under the parts
    above it as well. toolsPlacement.ts adds each class only when the board's stack
    still fits in what would be left. */
 .partner-and-tools.drop-tablist {
-    grid-template-areas: 'stack chat'
-                         'stack p1'
-                         'stack p2'
-                         'tablist tablist';
+    grid-template-areas: 'stack     zoneTools1'
+                         'stack     zoneTools2'
+                         'stack     zoneTools3'
+                         'zoneTools4 zoneTools4';
 }
 .partner-and-tools.drop-tablist.drop-p2 {
-    grid-template-areas: 'stack chat'
-                         'stack p1'
-                         'p2 p2'
-                         'tablist tablist';
+    grid-template-areas: 'stack     zoneTools1'
+                         'stack     zoneTools2'
+                         'zoneTools3 zoneTools3'
+                         'zoneTools4 zoneTools4';
 }
 .partner-and-tools.drop-tablist.drop-p2.drop-p1 {
-    grid-template-areas: 'stack chat'
-                         'p1 p1'
-                         'p2 p2'
-                         'tablist tablist';
+    grid-template-areas: 'stack     zoneTools1'
+                         'zoneTools2 zoneTools2'
+                         'zoneTools3 zoneTools3'
+                         'zoneTools4 zoneTools4';
 }
 /* The viewer's own stack, the mirror of `.bug-partner-stack`. Block flow: strip,
    board, strip, in DOM order — which is why round.ts mounts them in that order and

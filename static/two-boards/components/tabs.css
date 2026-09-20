@@ -335,13 +335,13 @@
    selector. The styling is restated below instead, and nothing here argues with
    another stylesheet. */
 /* WHILE THE GAME IS ON THIS ELEMENT MUST NOT CATCH A CLICK.
-   It shares `grid-area: p1` with the first preset panel on purpose — the end-of-game
+   It shares `grid-area: zoneTools2` with the first preset panel on purpose — the end-of-game
    controls take the place the presets vacate, and `.game-over .chatpresets` hides them at
    the same moment. But sharing a cell means overlapping in it, and a grid item stretches
    to its cell whether or not it has anything in it. So for the whole game this element is
    an invisible, empty box lying across all ten buttons of the first preset group, and
    `document.elementFromPoint()` on any of them returned `DIV.bug-gameover`, not the
-   button. The second group is in `p2` and was never affected, which is exactly how the
+   button. The second group is in `zoneTools3` and was never affected, which is exactly how the
    symptom presented: the first ten dead, the second ten fine.
 
    `pointer-events` rather than `display: none`, deliberately. It fails safe: if the
@@ -351,7 +351,7 @@
     pointer-events: none;
 }
 .bug-parts > .bug-gameover {
-    grid-area: p1;
+    grid-area: zoneTools2;
     display: flex;
     /* A COLUMN that wraps. Stacked is the arrangement these want — three wide text
        buttons read as a list — so the main axis is vertical and one sits above the

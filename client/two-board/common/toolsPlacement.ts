@@ -2,31 +2,41 @@ import { notifyOnToolsHomeChange, toolsMinWidth } from '../squareUnit';
 /**
  * Which arrangement the merged second column is in.
  *
- * The column holds the partner board's stack and the tools' parts. Four
- * arrangements, in the order things leave the strip beside the board:
+ * The column holds the partner board's stack and the tools' parts, in the four
+ * slots `zoneTools1..4` — the SAME four the landscape modes place beside the
+ * board, occupant for occupant. Portrait used to name them `chat / p1 / p2 /
+ * tablist`; one vocabulary now, so a slot means the same thing in every mode and
+ * the drop rules below are not portrait-only rules in portrait-only words.
  *
- *   (none)                stack | chat        everything stays beside the board
- *                         stack | p1
- *                         stack | p2
- *                         stack | tablist
+ * Four arrangements, in the order things leave the strip beside the board:
  *
- *   drop-tablist          stack | chat        the tab bar spans the full width,
- *                         stack | p1          under both the board and the parts
- *                         stack | p2          above it
- *                         tablist tablist
+ *   (none)                stack | zoneTools1   everything stays beside the board
+ *                         stack | zoneTools2
+ *                         stack | zoneTools3
+ *                         stack | zoneTools4
  *
- *   + drop-p2             stack | chat        the second preset part follows
- *                         stack | p1
- *                         p2 p2
- *                         tablist tablist
+ *   drop-tablist          stack | zoneTools1   the tab bar spans the full width,
+ *                         stack | zoneTools2   under both the board and the parts
+ *                         stack | zoneTools3   above it
+ *                         zoneTools4 zoneTools4
  *
- *   + drop-p1             stack | chat        and then the first
- *                         p1 p1
- *                         p2 p2
- *                         tablist tablist
+ *   + drop-p2             stack | zoneTools1   the second preset part follows
+ *                         stack | zoneTools2
+ *                         zoneTools3 zoneTools3
+ *                         zoneTools4 zoneTools4
  *
- * The chat never moves. It sits beside the board in every arrangement and takes
- * whatever height the others leave, which is what "fills the column" means here.
+ *   + drop-p1             stack | zoneTools1   and then the first
+ *                         zoneTools2 zoneTools2
+ *                         zoneTools3 zoneTools3
+ *                         zoneTools4 zoneTools4
+ *
+ * The class names still say `p1`/`p2`/`tablist` because they name the PART that
+ * drops, which is a different question from where it lands; renaming them is its
+ * own step and touches the droppable lists below.
+ *
+ * `zoneTools1` never moves. It sits beside the board in every arrangement and
+ * takes whatever height the others leave — the chat on the round page, the move
+ * list on the analysis page — which is what "fills the column" means here.
  *
  * A dropped preset part is wider, and being wider it is SHORTER: its two sets of
  * five buttons stop stacking and share a row. So dropping only makes the decision

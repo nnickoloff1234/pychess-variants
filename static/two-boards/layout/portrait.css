@@ -79,14 +79,15 @@
        the moment `toolsPlacement` began toggling the class on the app instead. Measured: the tab
        list back at 219px in its own column instead of 384px full width.
 
-       The areas are the shared ones, restated against the app's class — `p1`/`p2` name nothing on
+       The areas are the shared ones, restated against the app's class — `zoneTools2`/`zoneTools3`
+       hold nothing on
        this page, and rows with no items in them collapse to zero. */
     .analysis-app.bug.drop-tablist .partner-and-tools {
         grid-template-areas:
-            'stack chat'
-            'stack p1'
-            'stack p2'
-            'tablist tablist';
+            'stack     zoneTools1'
+            'stack     zoneTools2'
+            'stack     zoneTools3'
+            'zoneTools4 zoneTools4';
     }
     /* NOTHING else for this page. Portrait's merged column is the round page's declaration for
        declaration, and this mode's own unscoped `.partner-and-tools` block below already states

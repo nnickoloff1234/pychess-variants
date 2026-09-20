@@ -65,7 +65,7 @@ ctx => {
        marker left to inherit reports its own content size instead of the cell's.
 
        EVERY GRID WITH NAMED AREAS IS SURVEYED, not just the app. Portrait publishes no zone A or B
-       at app level — its areas are `chat`/`p1`/`p2`/`tablist` inside `.partner-and-tools` — so a
+       at app level — its areas are `zoneTools1..4` inside `.partner-and-tools` — so a
        survey that stopped at the app could not see the space those parts leave unused, which is
        most of what a reviewer notices there. Areas are keyed `container/area` below the app. */
     const gridContainers = [app, ...all('*')].filter(el => {
