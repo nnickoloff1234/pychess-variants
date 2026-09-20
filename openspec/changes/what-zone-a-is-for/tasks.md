@@ -642,3 +642,12 @@ gbtami without the fork-only material.
 - [ ] 6.1 Fold the decisions into `bughouse-round-layout`, replacing this change's acceptance criteria
       with the rules actually chosen — and keep the findings' requirements, which are not criteria but
       facts about where a size may be stated.
+
+## 9. Zone A's room is measured by a side-by-side formula
+
+- [ ] 9.1 `max(0, ownStackHeight - partnerStackHeight)` — `toolsPlacement.ts` — means "how much
+      shorter is the partner stack" only while the two stacks share a ROW. Portrait puts the
+      viewer's board below, so the difference is that board, and everything drops into a band that
+      is not there. Fourteen rows carry an overlap because of it.
+      Being fixed in `unify-two-board-app-grid` (its task 3.4), where the dissolve exposed it.
+      Recorded here because what zone A is, and how its room is measured, is this change's subject.

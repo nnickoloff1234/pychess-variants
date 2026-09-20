@@ -74,6 +74,7 @@ about.
 
 - **WHEN** the grouping shows two properties that appear to be the same quantity under two names
 - **THEN** the pair SHALL be recorded for the renaming change that follows
+  (`unify-two-board-app-grid`, opened 2026-09-20)
 - **AND** they SHALL NOT be merged in this change, because merging is a behaviour change
 
 ### Requirement: The page shell is its own file and states its purpose briefly

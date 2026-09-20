@@ -1,3 +1,12 @@
+> **SCOPE MOVED, 2026-09-20.** The structural half of this change is being done in
+> `unify-two-board-app-grid`: portrait now dissolves the merged column, states its arrangement on
+> the app in five rows, and drops its parts through the same cascade the landscape modes use. Read
+> that change first — what is written below about portrait "keeping an arrangement of its own" was
+> true when it was written and is not now.
+>
+> What remains here is the band's own design: where a full-width row belongs between the two
+> boards, and what goes in it.
+
 ## Context
 
 Portrait is a single column. The partner board and the tools share the region above, and the
