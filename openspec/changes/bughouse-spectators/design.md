@@ -29,11 +29,17 @@ call is missing.
 
 ## Decisions
 
-### Decision 1: the round page is a one-line fix, the analysis page is a question
+### Decision 1: it is not a one-line fix, and that is what frees the naming
 
-Uncommenting `this.onMsgSpectators(msg)` in the two-board socket is the whole round-page change —
-the element, the styling and the renderer all exist. The analysis page cannot be fixed the same way
-because it has nothing to receive the message with.
+This said "uncommenting `this.onMsgSpectators(msg)` is the whole round-page change". It is not.
+`onMsgSpectators` is `private` on `GameController`, and the two-board controllers do not extend
+that class — `RoundControllerBughouse extends TwoBoardController`. There is no inherited method
+behind the comment, so the round page needs a small implementation of its own: a widget that owns
+its node and patches it, following `AnalysisClockView`, plus `renderSpectators`'s parsing lifted
+out of `gameCtrl` where two consumers justify it.
+
+The consequence is the good part. Nothing about the single-board page's markup has to be kept, so
+the element is named for what it is rather than for where it used to sit.
 
 ### Decision 2: an empty element still costs a template row
 
@@ -41,6 +47,18 @@ because it has nothing to receive the message with.
 empty, so it costs nothing visually — but it is a row every future template has to carry, and one
 more name for a reader to account for. If the analysis page is never going to fill it, the row and
 the element should go from that page rather than being copied forward.
+
+### Decision 3: the element goes in the Info tab, not in an area
+
+`spectators#spectators`, a child of the Info tab's panel, on both pages. A tab panel lays out its
+own children, so no template names the element and nothing can auto-place it — which is what every
+previous arrangement got wrong in a different way: a row on the round page's shell, a row in two of
+the analysis page's templates, a `display: none` in the modes that could not afford the row, and
+implicit columns whose gaps took 30px off the tools in the one mode that had neither.
+
+`under-left` was a position in the single-board page's shell, not a description of anything here.
+The analysis page keeps the placeholder even though it can never fill it: it costs nothing now, and
+both pages agreeing on where the feature appears is worth more than one fewer element.
 
 ## Risks / Trade-offs
 
@@ -52,6 +70,11 @@ the element should go from that page rather than being copied forward.
 
 ## Open Questions
 
-- Was the handler commented out to fix something, or left over from the copy?
-- Does the analysis page want spectators at all? A finished game has none; a game in progress being
-  watched does, and that is the same question `analysis-page-presence-websocket` asks about the dots.
+- ~~Was the handler commented out to fix something, or left over from the copy?~~ Moot: there was
+  never a handler to call. Whatever the comment meant, the work is the same.
+- ~~Does the analysis page want spectators at all?~~ It cannot have them without a socket, and it
+  keeps the placeholder regardless — see Decision 3. Whether it gains a socket stays with
+  `analysis-page-presence-websocket`.
+- What should a spectator list look like inside a tab panel? The single-board page's centred
+  wrapping row was styled for a full-width strip under the board. Unanswered until 3.1 renders
+  something.

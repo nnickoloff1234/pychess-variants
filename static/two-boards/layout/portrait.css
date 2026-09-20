@@ -53,10 +53,15 @@
         /* The merged block takes the region above and gets the slack with it, so the own
            stack below stays flush with the bottom of the viewport whatever the two boards
            work out to. */
-        grid-template-rows: minmax(0, 1fr) min-content min-content;
+        /* THE SAME TWO ROWS THE ROUND PAGE DECLARES. The third row was `uleft`, and the
+           spectator placeholder that claimed it lives in the Info tab now.
+           With it gone the two pages' portrait ARRANGEMENTS are the same: identical areas,
+           columns, rows, width and centring. What still differs is not arrangement —
+           `display: grid`, which the round page picks up elsewhere, and a `row-gap`/`column-gap`
+           pair that are both zero anyway. This is the template that was waiting on that. */
+        grid-template-rows: minmax(0, 1fr) min-content;
         grid-template-areas: 'rightcol'
-                             'ownstack'
-                             'uleft';
+                             'ownstack';
         /* The app is exactly the width the full-width board can draw, and the sub-square
            remainder is spent OUTSIDE it — on the app rather than on any box within it, so
            every child starts at the same x and the leftover falls in the page margins where

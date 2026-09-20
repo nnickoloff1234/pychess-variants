@@ -295,7 +295,6 @@
     flex: 1 1 auto;
     min-height: 0;
 }
-.analysis-app.bug > under-left { grid-area: uleft; min-width: 0; }
 /* What `.bug-round-tools` used to carry, now carried by the column itself.
    That element is gone: it was a grid item pinned to its own track, and a block
    formatting context besides, so nothing inside it could ever reach the space

@@ -116,14 +116,16 @@
            the merged column's content wanted — invisible while the tools sat in one fixed area
            that could not grow, and the second thing to fail once they are placed individually.
            `1fr` gives the column a definite height to divide, which is what lets a panel scroll
-           inside it instead of pushing the row past the viewport. `uleft` keeps its own auto row. */
-        grid-template-rows: minmax(0, 1fr) auto;
-        /* uleft gets a row of its own. Without one it is auto-placed and opens an IMPLICIT
-           COLUMN — measured as a seven-column grid where five were declared, which is what
-           pushed the tools off their track. There is no `uboard` row any more: the chart and
-           FEN & PGN are tabs of the tools panel now, so nothing is mounted under the boards. */
-        grid-template-areas: 'ownstack rightcol'
-                             'uleft uleft';
+           inside it instead of pushing the row past the viewport. */
+        grid-template-rows: minmax(0, 1fr);
+        /* ONE ROW, one item per column, and nothing beneath them. The `uleft` row that used to
+           follow is gone with the element that claimed it: the spectator placeholder sits inside
+           the Info tab now, so no template on either page names it and the implicit-column trap
+           that row existed to prevent — a seven-column grid where five were declared, which
+           pushed the tools off their track — cannot arise. There is no `uboard` row either: the
+           chart and FEN & PGN are tabs of the tools panel, so nothing is mounted under the
+           boards. */
+        grid-template-areas: 'ownstack rightcol';
         column-gap: 2vmin;
         grid-row-gap: 0;
         justify-content: center;

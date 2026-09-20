@@ -324,7 +324,12 @@ body[data-variant='bughouse'][data-view='analysis'] {
            centres the pair once they are content-sized. */
         grid-template-columns: minmax(0, max-content) minmax(0, max-content);
         justify-content: center;
-        grid-template-rows: fit-content(0) fit-content(0) fit-content(0);
-        grid-template-areas: 'app app' 'uleft uboard' 'side side';
+        /* TWO ROWS. The middle one was 'uleft uboard' and neither name has an element any
+           more: `under-board` was never emitted by this page (see round.ts), and the spectator
+           placeholder that claimed `uleft` now sits inside the Info tab. An unoccupied row is
+           free, but a NAMED one is an invitation to place something there again, which is the
+           mistake this page has already made twice. */
+        grid-template-rows: fit-content(0) fit-content(0);
+        grid-template-areas: 'app app' 'side side';
       }
 }

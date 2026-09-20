@@ -237,7 +237,16 @@ export function analysisView(model: PyChessModel): VNode[] {
             ...(isAnalysisBoard
                 ? [{ label: _('Variant'), parts: [{ content: [variantSelector(model)] }] }]
                 : [
-                      { label: _('Info'), parts: [{ content: [gameInfoView.placeholder()] }] },
+                      {
+                          label: _('Info'),
+                          /* The spectator list, in the same home the round page gives it and for
+                             the reasons recorded there. This page cannot even receive one — it
+                             opens no websocket at all — so the placeholder is here for parity
+                             rather than for content, and it costs a template nothing now. */
+                          parts: [
+                              { content: [gameInfoView.placeholder(), h('spectators#spectators')] },
+                          ],
+                      },
                       { label: _('Chat'), parts: [{ content: [h('div#roundchat')] }] },
                   ]),
         /* MOVE TIMES IS A GAME'S TAB, not this page's. The blank board has no recorded game
@@ -514,7 +523,6 @@ export function analysisView(model: PyChessModel): VNode[] {
                         toolsTabs.tabList(),
                     ]),
                 ]),
-                h('under-left#spectators'),
             ],
         ),
     ];

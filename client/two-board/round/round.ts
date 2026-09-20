@@ -175,7 +175,22 @@ export function roundView(model: PyChessModel): VNode[] {
                 label: _('Moves'),
                 parts: [{ content: [h('div.movelist-block', [movelistView.placeholder(), h('div#move-controls')])] }],
             },
-            { label: _('Info'), parts: [{ content: [gameInfoView.placeholder()] }] },
+            {
+                label: _('Info'),
+                /* THE SPECTATOR LIST LIVES HERE, not in a row of the page's grid. As
+                   `under-left#spectators` it was a child of `main.round.bug` claiming a `uleft`
+                   area, which every template then had to name: a row of its own in tall landscape
+                   and in portrait, a `display: none` in the two modes that could not afford it,
+                   and — on the analysis page, where the same element sat inside the app — implicit
+                   tracks whose gaps took 30px off the tools. An element nobody has ever seen cost
+                   four rules and a guarantee.
+                   Inside a tab panel it is laid out by the panel and named by no template at all.
+                   Nothing fills it yet: the two-board socket drops the `spectators` message (see
+                   `socket/sockets.ts`), so this is the placeholder in its final home, waiting for
+                   the handler. The tag is its own name now rather than a position in a grid that
+                   no longer has a place for it. */
+                parts: [{ content: [gameInfoView.placeholder(), h('spectators#spectators')] }],
+            },
         ],
         _('Round tabs'),
     );
@@ -312,7 +327,6 @@ export function roundView(model: PyChessModel): VNode[] {
                 // h('div.material.material-bottom.' + variant.pieceFamily + '.disabled'),
             ],
         ),
-        h('under-left#spectators'),
         // NO `under-board`. It was carried over from the one-board round view and nothing on this
         // page has ever filled it: `.ctable-container` and `#janggi-setup-buttons` are populated by
         // `client/roundCtrl.ts`, the ONE-board controller, and this page runs

@@ -107,30 +107,21 @@
         }
 }
 @media (aspect-ratio > 9/16) {
-        /* THE SPECTATOR LIST, HIDDEN HERE AS THE ROUND PAGE HIDES IT — and it is not cosmetic.
+        /* THE SPECTATOR LIST IS NOT HIDDEN HERE ANY MORE, because it is no longer in the way.
            ------------------------------------------------------------------------------------
-           `<under-left id="spectators">` is a child of the app on this page, where the round page's
-           is a sibling, and it asks for `grid-area: uleft` — an area this template has not named
-           since the page was flattened. An item whose named area does not exist is AUTO-PLACED, and
-           auto-placement past the last explicit column MINTS IMPLICIT ONES.
+           What stood here: `<under-left id="spectators">` was a child of the app on this page and
+           asked for `grid-area: uleft`, an area this template stopped naming when the page was
+           flattened. An item whose named area does not exist is AUTO-PLACED, and auto-placement
+           past the last explicit column MINTS IMPLICIT ONES. The cost was not those tracks, which
+           are 0px wide, but their GAPS: measured at 997x750, five columns where three were
+           declared, four `column-gap`s at 15px instead of two, and the extra 30px came off the
+           only track that yields — leaving the tools 6.55px against the 34.3px half-square they
+           are promised. An empty, invisible element had eaten the whole guarantee before either
+           board was asked to give anything up.
 
-           The cost is not those tracks, which are 0px wide; it is their GAPS. Measured at 997x750:
-           five columns where three were declared, so four `column-gap`s at 15px instead of two, and
-           the extra 30px came off the only track that yields — leaving the tools 6.55px against the
-           34.3px half-square they are promised. An empty, invisible element had eaten the whole
-           guarantee before either board was asked to give anything up.
-
-           `display: none` rather than a zone of its own, because that is the answer the round page
-           already reached for the same element in this same mode — see its note, which also records
-           that a real home in the tools column is the thing on this screen most worth revisiting.
-           Two pages hiding it for one reason is the parity; two pages inventing separate homes for
-           it would be the drift this block exists to end.
-
-           Landscape only. Portrait names a `uleft` area and places it there, so the unscoped rule
-           further down this file stays right for that mode. */
-        .analysis-app.bug > under-left {
-            display: none;
-        }
+           Hiding it was the round page's answer and this page copied it. Both are gone: the
+           placeholder is a child of the Info tab's panel now, laid out by the panel and named by
+           no template, so there is nothing to hide and nothing to auto-place. */
 }
 @media (aspect-ratio <= 9/16) {
         .analysis-app.bug .bug-partner-stack {
@@ -225,20 +216,13 @@
         }
 }
 @media (aspect-ratio > 9/16) and (height >= 600px) {
-        /* `under-left` is the spectator strip, and it sits in an auto row of
-           main.round.bug, so it takes its height off the app's `1fr` before the app
-           sees it — measured at 49.6px, which left the app 717.41px of its 767 and put
-           the seat strips 43px past its own bottom edge.
-
-           Short landscape and portrait already hide it. Doing the same here keeps one
-           rule for all three modes, but it is the mode where a spectator list is most
-           worth having, so this is the thing on this screen most worth revisiting now
-           that `under-board` has been removed rather than hidden. Unlike that box, this
-           one is real: the round page does receive a spectator list. Giving it a home
-           inside the tools column would settle it. */
-        body[data-variant='bughouse'] main.round.bug > under-left {
-            display: none;
-        }
+        /* THE SPECTATOR STRIP IS GONE FROM THIS GRID, so the rule that hid it is too.
+           It used to sit in an auto row of main.round.bug and take its height off the app's
+           `1fr` before the app saw it — measured at 49.6px, which left the app 717.41px of its
+           767 and put the seat strips 43px past its own bottom edge. Every mode hid it, which
+           is what made a spectator list unreachable in the one mode with room for it.
+           "Giving it a home inside the tools column would settle it" is what the note here used
+           to say, and that is what happened: it is a child of the Info tab's panel now. */
 }
 :is(.round-app, .analysis-app).bug .bug-partner-stack {
     overflow: visible;
