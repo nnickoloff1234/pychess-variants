@@ -17,6 +17,14 @@ PORTRAIT_MAX_ASPECT = 9 / 16
 # The page zooms only in tall landscape: `(aspect-ratio > 9/16) and (height >= 600px)`.
 ZOOM_MIN_HEIGHT = 600
 
+# THE ZOOM THAT REACHES THE LAST RESORT, and why no other does. `arrangement()` refuses zone A when
+# `ROWS * (drawnA - drawn(forZoneA)) < TOOLS_MIN_ROWS * a`; with `forZoneA` capped at
+# `ZONE_A_MAX_PARTNER` that is `3a * scale < 3a`, false at full zoom and true only below it. The
+# `below` home is tried first and fails above `scale ~ 0.7`. So the last resort lives in the band
+# 0.7 < scale < 1, and a set of 100% and the minimum steps straight over it — which is why the
+# matrix had 0 rows in that home while the stylesheet carries a dozen rules for it.
+LAST_RESORT_ZOOM = (85, 100)
+
 
 @dataclass(frozen=True)
 class Viewport:
@@ -26,6 +34,10 @@ class Viewport:
     height: int
     dpr: float
     kind: str  # desktop | phone | tablet
+    # Visits `LAST_RESORT_ZOOM` as well as the usual set. Declared per viewport rather than for
+    # everything, because the home needs a shape narrow enough to lose the tools' column AND a
+    # part-way zoom; adding the zoom to the shared list would cost every row for the sake of two.
+    last_resort: bool = False
 
     @property
     def aspect(self) -> float:
@@ -63,6 +75,12 @@ DESKTOP = [
     Viewport("D4", "16:10 laptop", 1440, 775, 1, "desktop"),
     Viewport("D5", "QHD desktop", 2560, 1315, 1, "desktop"),
     Viewport("D6", '14" MacBook Pro class', 1512, 857, 2, "desktop"),
+    # THE ONE SHAPE THAT REACHES THE LAST RESORT, found by sweeping the home against viewport and
+    # zoom: this one and 760x600 are the two in the swept range, and both need the boards zoomed
+    # part-way. Not a popular device — a small window on a laptop — but the home is reachable in
+    # the product and the stylesheet carries a dozen rules for it, so a row that visits it is worth
+    # more than one that repeats a shape already covered.
+    Viewport("L1", "small laptop window, the tools' last resort", 820, 640, 1, "desktop", True),
 ]
 
 # Portrait is the upright orientation for both mobile classes; each is also walked rotated.
@@ -150,8 +168,19 @@ def assert_spans_thresholds() -> None:
     assert any(v.width <= 700 for v in VIEWPORTS), "nothing narrow enough to squeeze the tools"
     assert any(v.width >= 1900 for v in VIEWPORTS), "nothing wide enough to keep the tools a column"
 
+    assert any(v.last_resort for v in VIEWPORTS), "nothing visits the tools' last resort"
+
     keys = [v.key for v in VIEWPORTS]
     assert len(keys) == len(set(keys)), "duplicate viewport key"
+
+
+def zooms_for(v: Viewport) -> list[tuple[int, int]]:
+    """The zooms one viewport is visited at: the shared set where it zooms at all, plus the
+    part-way one where it is the shape that reaches the last resort."""
+    zooms = list(ZOOMS) if v.zooms else [BASE_ZOOM]
+    if v.last_resort:
+        zooms.append(LAST_RESORT_ZOOM)
+    return zooms
 
 
 def planned_rows() -> list[tuple[Viewport, Case, tuple[int, int]]]:
@@ -159,6 +188,6 @@ def planned_rows() -> list[tuple[Viewport, Case, tuple[int, int]]]:
     rows = []
     for v in VIEWPORTS:
         for c in CASES:
-            for z in ZOOMS if v.zooms else [BASE_ZOOM]:
+            for z in zooms_for(v):
                 rows.append((v, c, z))
     return rows

@@ -25,7 +25,7 @@ from variants import VARIANTS
 from server import make_app
 
 from . import driver, report
-from .viewports import BASE_ZOOM, CASES, VIEWPORTS, ZOOMS, assert_spans_thresholds
+from .viewports import CASES, VIEWPORTS, assert_spans_thresholds, zooms_for
 
 CAMERA = "MatrixCamera"
 PARTNER = "MatrixPartner"
@@ -53,9 +53,7 @@ async def run(out_dir: Path, viewports, cases) -> Path:
         flag = "!" if row.error or (row.facts.get("failures") if row.facts else None) else " "
         print(f"  {flag} {rows_done:>3}/{total} {row.key}", flush=True)
 
-    total = sum(
-        len([z for z in (ZOOMS if v.zooms else [BASE_ZOOM])]) for v in viewports for _ in cases
-    )
+    total = sum(len(zooms_for(v)) for v in viewports for _ in cases)
 
     async with async_playwright() as playwright:
         browser = await driver._launch(playwright)

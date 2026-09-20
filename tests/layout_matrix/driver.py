@@ -18,7 +18,17 @@ from pathlib import Path
 
 from playwright.async_api import Error as PlaywrightError
 
-from .viewports import BASE_ZOOM, MIN_ZOOM, VIEWPORTS, ZOOMS, Case, Viewport, zoom_label
+from .viewports import (
+    BASE_ZOOM,
+    LAST_RESORT_ZOOM,
+    MIN_ZOOM,
+    VIEWPORTS,
+    ZOOMS,
+    Case,
+    Viewport,
+    zoom_label,
+    zooms_for,
+)
 
 PROBE = (Path(__file__).parent / "probe.js").read_text()
 
@@ -391,8 +401,8 @@ async def capture(page, cdp, row: Row, shots_dir: Path) -> Row:
 async def walk(page, cdp, case: Case, shots_dir: Path, viewports=None, on_row=None) -> list[Row]:
     """One case across every viewport, grouped by zoom so a reload is paid three times, not 30."""
     rows: list[Row] = []
-    for zoom in ZOOMS:
-        targets = [v for v in (viewports or VIEWPORTS) if v.zooms or zoom == BASE_ZOOM]
+    for zoom in (*ZOOMS, LAST_RESORT_ZOOM):
+        targets = [v for v in (viewports or VIEWPORTS) if zoom in zooms_for(v)]
         if not targets:
             continue
         await set_zoom(page, zoom)
