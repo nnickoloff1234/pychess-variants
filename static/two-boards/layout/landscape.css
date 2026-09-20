@@ -85,16 +85,15 @@
 
     .analysis-app.bug {
         display: grid;
-        /* TWO COLUMNS, `'ownstack rightcol'` — the round page's landscape template, with the
-           partner's board and the tools merged into the second one exactly as they are
-           there. This was three flat columns for a while, which put the same three things
-           in the same places but made this page a different SHAPE from the round page for
-           no reason anyone could state; every rule about the pair then had to be written
-           twice, once against two app columns and once against three.
+        /* THE TRACKS ONLY. This page's rows and areas are stated further down this block, with
+           `--bug-zones-strip` and the drop templates that replace it — look there, not here.
 
-           Each track holds a stack, and a stack here is board PLUS its gauge — the `* 0.31`
-           the round page's identical track does not carry, and one of this page's three
-           real differences from it. */
+           A `grid-template-areas: 'ownstack rightcol'` and a `grid-template-rows: minmax(0, 1fr)`
+           used to stand in this rule. Both were dead: the same selector restates both fifty lines
+           below, in the same media block, so the later rule won every time. The areas line was
+           worse than dead, because it described TWO columns beside a `grid-template-columns` that
+           declares three — a fossil of the arrangement this page had before its parts were placed
+           individually, left where a reader would take it for the current shape. */
         /* Three tracks: each board sized by its own stack, then the tools taking what is left
            up to this mode's cap. The stacks size themselves from `--bug-stack-sq`, so no board
            width is written here — the track only has to ask the stack how wide it already is.
@@ -112,20 +111,6 @@
            left — 554 | 282.6 | 101, the round page's bargain, reached without restating the
            board's arithmetic the way that page has to. */
         grid-template-columns: min-content min-content var(--bug-tools-track);
-        /* THE BOARD ROW IS BOUNDED, as the round page's is. `min-content` let the row take whatever
-           the merged column's content wanted — invisible while the tools sat in one fixed area
-           that could not grow, and the second thing to fail once they are placed individually.
-           `1fr` gives the column a definite height to divide, which is what lets a panel scroll
-           inside it instead of pushing the row past the viewport. */
-        grid-template-rows: minmax(0, 1fr);
-        /* ONE ROW, one item per column, and nothing beneath them. The `uleft` row that used to
-           follow is gone with the element that claimed it: the spectator placeholder sits inside
-           the Info tab now, so no template on either page names it and the implicit-column trap
-           that row existed to prevent — a seven-column grid where five were declared, which
-           pushed the tools off their track — cannot arise. There is no `uboard` row either: the
-           chart and FEN & PGN are tabs of the tools panel, so nothing is mounted under the
-           boards. */
-        grid-template-areas: 'ownstack rightcol';
         column-gap: 2vmin;
         grid-row-gap: 0;
         justify-content: center;
@@ -178,7 +163,17 @@
         grid-template-areas: var(--bug-zones-strip);
         /* The first row absorbs the slack; the rest are their content's height, which is zero
            for the rows this page has no part for. Two `1fr` rows split the height evenly and
-           drew a five-button bar 276px tall. */
+           drew a five-button bar 276px tall.
+
+           THE BOARD ROW IS BOUNDED, as the round page's is, and that is what `minmax(0, 1fr)`
+           buys: `min-content` let the row take whatever the merged column's content wanted —
+           invisible while the tools sat in one fixed area that could not grow, and the second
+           thing to fail once they were placed individually. A definite height is what lets a
+           panel scroll inside the column instead of pushing the row past the viewport.
+
+           There is no row under these: no `uleft`, because the spectator placeholder that
+           claimed it sits inside the Info tab now, and no `uboard`, because the chart and
+           FEN & PGN are tabs of the tools panel. Nothing is mounted under the boards. */
         grid-template-rows: minmax(0, 1fr) auto auto auto auto auto;
     }
     /* Higher specificity than the unscoped `.bug-parts > [role=...]` assignments further down the
