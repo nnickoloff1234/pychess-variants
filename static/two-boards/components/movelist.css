@@ -12,7 +12,7 @@
    to, and placed by `layout/`. */
 
 /* The movelist fills what the engine panel and the controls leave, the same relationship
-   `main.round.bug .movelist-block` has inside the round page's Moves panel.
+   `.round-app.bug .movelist-block` has inside the round page's Moves panel.
 
    THE HEIGHT PAIR IS THE LOAD-BEARING HALF, not the flex. analysis.css pins this element to
    `--movelist-max-height` (8rem) under `max-width: 799px and (orientation: portrait)` — a
@@ -44,22 +44,22 @@
    (`.analysis-app.bug .bug-parts`, and the `minmax(0, max-content)` on the parts track): what
    does not fit is clipped, and the page's own width is never negotiable. An unusable tools
    column is a deliberate outcome here; a horizontally scrolling page is not. */
-main.round.bug .movelist-block,
-main.round.bug .movelist-block #movelist {
+.round-app.bug .movelist-block,
+.round-app.bug .movelist-block #movelist {
   flex: 1;
   min-width: 0;
 }
 @media (aspect-ratio <= 9/16) {
-      main.round.bug #movelist {
+      .round-app.bug #movelist {
         font-size: 1.1em;
       }
 }
 @media (min-width: 800px) {
-      main.round.bug #movelist {
+      .round-app.bug #movelist {
         font-size: 0.68vw; /*  magic number that looks good and resizes itself with container */
       }
 }
-main.round.bug #movelist {
+.round-app.bug #movelist {
   display: flex;
   height: 100%;
   max-height: unset;
@@ -127,12 +127,12 @@ move-bug {
 
    The padding goes with it: 6px was a constant beside a length that scales, so at a small font it
    was eating a fifth of the cell. In `ch` it is the same fraction of a character at every size. */
-main.round.bug #movelist,
+.round-app.bug #movelist,
 .analysis-app.bug #movelist {
     container-type: inline-size;
     --bug-move-counter-w: 1.72em;
 }
-main.round.bug move-bug,
+.round-app.bug move-bug,
 .analysis-app.bug move-bug {
     font-size: min(4.2cqi, 16px);
     padding-left: 0.4ch;
@@ -173,7 +173,7 @@ move-bug.active + .bugchatpopup {
    of failure: a long enough pair of names overflows any width. `anywhere` breaks the token
    instead, and is preferred to `break-word` because it also lets the line box shrink, so the
    block reports a min-content width the column can actually satisfy. */
-main.round.bug #movelist .status,
+.round-app.bug #movelist .status,
 .analysis-app.bug #movelist .status {
     overflow-wrap: anywhere;
 }

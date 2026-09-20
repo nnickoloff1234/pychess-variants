@@ -311,6 +311,14 @@
    The zero minimums are what let this column be driven to nothing: a grid item's
    automatic minimum size would otherwise hold it open, and this column yielding is
    precisely what keeps both boards on screen at narrow widths. */
+/* THE ROUND APP CLAIMS `main`, which is the one area `#main-wrap.bug` declares — the same
+   area `.analysis-app` has always claimed (`analysis.css`). Without this it inherits
+   `grid-area: app` from `round.css`, whose parent was the `main.round.bug` shell: that shell is
+   gone, no template names `app` any more, and an item whose area does not exist is auto-placed
+   into an implicit track. The two pages now place their app the same way, from the same area. */
+.round-app.bug {
+    grid-area: main;
+}
 .bug-right-column {
     grid-area: rightcol;
     display: grid;

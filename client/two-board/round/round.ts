@@ -198,10 +198,6 @@ export function roundView(model: PyChessModel): VNode[] {
     registerStandingTab(roundTabs, PARTNER_BOARD_TAB);
 
     return [
-        // left in place but empty: the game-info placeholder it used to hold is
-        // now the Info panel's content. Whether an empty aside should still
-        // render is a layout question this change does not open.
-        h('aside.sidebar-first'),
         h(
             'div.round-app.bug',
             {
@@ -334,12 +330,19 @@ export function roundView(model: PyChessModel): VNode[] {
         // two-board ANALYSIS page emits no `under-board` and wants for nothing, which is the same
         // point made twice.
         //
-        // Two empty divs are not free. `main.round.bug` gave them a 34px row plus two 11px gaps
-        // below the app, so in short landscape the document came out 603px against a 551px
-        // viewport — 52px hanging off the bottom, unseen only because `body`'s `overflow-y: hidden`
-        // propagates to the viewport. Portrait and tall landscape each carried a `display: none`
-        // to buy that space back; with the element gone, all three modes are the same and those
-        // rules are deleted.
+        // Two empty divs are not free. The `main.round.bug` shell gave them a 34px row plus two
+        // 11px gaps below the app, so in short landscape the document came out 603px against a
+        // 551px viewport — 52px hanging off the bottom, unseen only because `body`'s
+        // `overflow-y: hidden` propagates to the viewport. Portrait and tall landscape each
+        // carried a `display: none` to buy that space back; with the element gone, all three
+        // modes are the same and those rules are deleted.
+        //
+        // NO `aside.sidebar-first` EITHER, and no shell to hold one. The one-board page fills that
+        // aside with the game info and the chat; this page moved both into tabs and kept the empty
+        // box, which was the only reason `main.round.bug` needed a grid at all — two children to
+        // place instead of one. It also announced an empty `complementary` landmark to anyone
+        // navigating by landmark, which is worse than free. The app is the wrapper's only child
+        // now, on both pages, and the wrapper is the `<main>`.
         //
         // A crosstable here would be worth having — the stylesheet's comments call its absence a
         // cost. But it was never a cost this markup was paying: nothing was ever drawn in it, so

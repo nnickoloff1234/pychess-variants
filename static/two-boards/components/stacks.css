@@ -217,7 +217,7 @@
 }
 @media (aspect-ratio > 9/16) and (height >= 600px) {
         /* THE SPECTATOR STRIP IS GONE FROM THIS GRID, so the rule that hid it is too.
-           It used to sit in an auto row of main.round.bug and take its height off the app's
+           It used to sit in an auto row of the `main.round.bug` shell and take its height off the app's
            `1fr` before the app saw it — measured at 49.6px, which left the app 717.41px of its
            767 and put the seat strips 43px past its own bottom edge. Every mode hid it, which
            is what made a spectator list unreachable in the one mode with room for it.

@@ -473,8 +473,7 @@
        prefix makes it (0,2,1) and the outcome no longer depends on which file loads first.
        Found by comparing SCREENSHOTS between the runs — no check changed, because a 3px stack is
        not a finding; the pixels are. */
-    body[data-variant='bughouse'] :is(.round-app, .analysis-app).bug,
-    body[data-variant='bughouse'] main.round.bug {
+    body[data-variant='bughouse'] :is(.round-app, .analysis-app).bug {
         height: var(--bug-app-content-h, 100%);
     }
     :is(.round-app, .analysis-app).bug .bug-right-column {

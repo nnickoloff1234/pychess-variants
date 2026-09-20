@@ -115,9 +115,9 @@
 /* *****************************************************************************************
  * extensions.css
  ******************************************************************************************* */
-main.round.bug .pocket.top {
+.round-app.bug .pocket.top {
   margin-bottom: unset;
 }
-main.round.bug .pocket.bottom {
+.round-app.bug .pocket.bottom {
   margin-top: unset;
 }

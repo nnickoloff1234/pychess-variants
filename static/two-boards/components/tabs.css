@@ -123,7 +123,7 @@
    that ended its life as `.bug-offer-dialog` (now removed entirely), back when that
    element wrapped the tools panel's parts. That selector no longer matches now that the movelist is a
    panel's child, and a fixed height is the opposite of what a panel wants, so it
-   is gone; `main.round.bug .movelist-block`'s `flex: 1` still applies and fills
+   is gone; `.round-app.bug .movelist-block`'s `flex: 1` still applies and fills
    the panel. */
 /* `.bug-round-tools` is the page's own element (round.ts) and carries the column
    itself; the widget contributes only #round-tabs-tablist and one panel per tab

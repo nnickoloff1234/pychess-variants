@@ -115,23 +115,13 @@ body[data-variant='bughouse'][data-view='analysis'] {
            not something these rules took away. */
         body[data-variant='bughouse'][data-view='round'] #main-wrap {
             height: 100%;
-            /* minmax(0, 1fr) for the same reason as main.round.bug below: a bare `1fr`
-               is minmax(AUTO, 1fr), so this row grew to the round page's min-content
-               and carried the whole chain past the viewport — main.round and the app
-               both inherited 919px in an 835px viewport. The cap has to be at every
-               level between the body and the app, or the lowest bare fr wins. */
+            /* minmax(0, 1fr), not a bare `1fr`, which is minmax(AUTO, 1fr): this row grew to
+               the round page's min-content and carried the whole chain past the viewport —
+               919px in an 835px viewport. The cap has to be at every level between the body
+               and the app, or the lowest bare fr wins. There is one level fewer now: the
+               `main.round.bug` shell that sat between this element and the app is gone, and
+               this element is the `<main>` itself. */
             grid-template-rows: minmax(0, 1fr);
-        }
-        body[data-variant='bughouse'] main.round.bug {
-            height: 100%;
-            /* minmax(0, 1fr), not a bare `1fr`. A bare fr is minmax(AUTO, 1fr), whose
-               minimum is the item's min-content — so the round app could force this
-               row past the viewport instead of being capped by it, and then its own
-               slack row grew to fit rather than absorbing. Seen when the chat presets
-               gained a size floor: the app went to 919px in an 835px viewport and the
-               slack row to 233px. With a zero minimum the app is capped, its slack row
-               absorbs, and the tools column scrolls its own content as intended. */
-            grid-template-rows: minmax(0, 1fr) auto auto auto;
         }
 }
 @media (aspect-ratio > 9/16) and (height < 600px) {
@@ -139,9 +129,9 @@ body[data-variant='bughouse'][data-view='analysis'] {
             display: none;
         }
         /* The wrapper must FILL the width in this mode, and the `min-width: 800px`
-           rule above stops it: that rule gives main.round.bug two content-sized
-           columns and centres them, which is what the desktop mode wants, but this
-           mode is also wider than 800px so it matches too.
+           rule below stops it: that rule gives `#main-wrap.bug` a content-sized column
+           and centres it, which is what the desktop mode wants, but this mode is also
+           wider than 800px so it matches too.
 
            A content-sized wrapper makes this mode's `1fr` tools column inert — a
            fractional track can only distribute space that already exists — so the
@@ -158,45 +148,22 @@ body[data-variant='bughouse'][data-view='analysis'] {
            already states: the containing wrapper's own track has to fill the
            available width or the fractional column achieves nothing.
 
-           The body prefix is for specificity, not decoration. The `min-width: 800px`
-           rule is `main.round.bug` too and sits LATER in this file, so at equal
-           specificity it would win and this would silently do nothing — it did,
-           first time round. Overriding only the columns here rather than excluding
-           this mode from that block, because the rows and areas it also sets are
-           still wanted. */
-        body[data-variant='bughouse'] main.round.bug {
-            /* THE APP'S OWN TRACK FILLS, which `max-content` only did by accident.
-               -------------------------------------------------------------------------------
-               This rule was written so the wrapper fills the width, and it does whenever the
-               app's natural width EXCEEDS the viewport: `minmax(0, max-content)` then clamps to
-               what is available. It fails in the other direction, and this mode reaches that
-               direction easily. The height is what is scarce here, so a short viewport gives a
-               small square unit — measured 636x295: `--bug-sq` 29.34px, each board 8 squares =
-               234.7px, and the app's content came to 599.75px inside a 636px viewport.
+           The `1fr` lives on `#main-wrap` in the rule above, because the `main.round.bug` shell
+           that used to carry it is gone and the app is this element's only child. What the
+           shell's second track was for — an `aside.sidebar-first` and an `under-left`, both
+           empty — went with it, so there is one track and nothing to leave over.
 
-               The 36.25px left over went to the SECOND track, which holds nothing: the app's
-               only siblings here are a zero-height `aside.sidebar-first` and a `display: none`
-               `under-left`. Meanwhile the tools column inside the app is a `1fr` of that
-               content-sized box, and a fractional track can only distribute space that already
-               exists — so it resolved to 115.35px instead of 151.60px, and the movelist's
-               content box to 107px. The game-over status line needs 121px, so the movelist grew
-               a HORIZONTAL SCROLLBAR. One track, two symptoms.
-
-               `1fr` on the APP's track states what the comment below already required of this
-               mode: the containing wrapper's own track has to fill the available width, or the
-               fractional column inside it achieves nothing. The second track stays content-sized
-               — `max-content` is 0 while nothing is placed there, and still grows if something
-               ever is. NOT a second `1fr`, which would split the width evenly and hand half of
-               it to the empty column: measured 318px each, worse than what it replaced. */
-            grid-template-columns: minmax(0, 1fr) minmax(0, max-content);
-            justify-content: stretch;
-            /* Zero, as tall landscape already sets for the same reason: the rows after the app
-               are empty, and a gap between empty rows is still charged. With `under-board`
-               removed the tracks came out `546.719px 0px 0px` and the two remaining gaps still
-               added 22.05px, leaving the document 569px against a 551px viewport. The gaps
-               separate nothing, so they cost nothing now. */
-            row-gap: 0;
-        }
+           WHAT WAS MEASURED, kept because it is why the track is fractional at all. The shell's
+           first track was `minmax(0, max-content)`, which fills only when the app's natural
+           width EXCEEDS the viewport. This mode reaches the other direction easily: height is
+           what is scarce, so a short viewport gives a small square unit — at 636x295, `--bug-sq`
+           29.34px, each board 8 squares = 234.7px, the app's content 599.75px inside a 636px
+           viewport. The 36.25px left over went to the second track, which held nothing.
+           Meanwhile the tools column inside the app is a `1fr` of that content-sized box, and a
+           fractional track can only distribute space that already exists — so it resolved to
+           115.35px instead of 151.60px and the movelist's content box to 107px. The game-over
+           status line needs 121px, so the movelist grew a HORIZONTAL SCROLLBAR. One track, two
+           symptoms. */
         /* This mode budgets the whole viewport height for the boards, so the page
            itself must not scroll. html keeps overflow:visible, so the viewport takes its
            overflow from body.
@@ -281,15 +248,6 @@ body[data-variant='bughouse'][data-view='analysis'] {
             height: var(--bug-app-h);
             grid-template-rows: minmax(0, 1fr);
         }
-        body[data-variant='bughouse'] main.round.bug {
-            height: 100%;
-            /* Zero, because the three gaps between these four rows charged 16.54px each
-               against the app's `1fr` — 49.6px, which is why the app was getting 717.41
-               of its 767 and its seat strips ran past its own bottom edge. The other
-               three rows are empty in this mode, so the gaps separate nothing. */
-            row-gap: 0;
-            grid-template-rows: minmax(0, 1fr) auto auto auto;
-        }
 }
 #main-wrap.bug {
   display: grid;
@@ -298,38 +256,27 @@ body[data-variant='bughouse'][data-view='analysis'] {
   margin-top: var(--site-header-margin);
 }
 @media (min-width: 800px) {
-      /* Scoped to main.round.bug. `.bug` is carried by #main-wrap.bug and the round
-         app as well, and this template describes only the round page's own areas —
-         so the wrapper, which declares a single 'main' area, was being given three
-         rows and ended 743px below its only child.
+      /* CENTRED, CONTENT-SIZED, one item. This is what the `main.round.bug` shell used to do
+         with two content-sized columns and `justify-content: center` — it had two children to
+         centre, the app and an empty `aside.sidebar-first`. Both the aside and the shell are
+         gone; the app is this element's only child and this is the `<main>` itself, so the
+         centring belongs here.
 
-         The grid-template-columns this rule used to carry is gone rather than fixed.
-         It read `2 * minmax(...) minmax(240px, 400px)`, which is not valid grid
-         syntax — `2 *` is not a multiplier — so the parser discarded the whole
-         declaration and these columns never applied. It was also incoherent: the
-         areas below are main.round's, while the columns were copied from
-         `.round-app`'s single-board rule in round.css. Deleting it preserves exactly
-         what renders today; inventing valid values would invent new behaviour.
+         `minmax(0, max-content)`, not `auto`: an auto track stretches to fill, which would make
+         the app full width instead of its content's width and leave the boards hard against the
+         left edge. Short landscape overrides this with `1fr` from its own body-prefixed rule,
+         which outranks this one whatever the file order — that is the mode where filling is
+         exactly what is wanted, for the reasons its block records.
 
-         The `side` row was a hardcoded 743px. Nothing derives that number, and it is
-         wrong both ways: too much for an empty aside — which is what this page has
-         had since the game-info panel moved into the Info tab — and arbitrary for a
-         populated one. It now sizes to its content like the two rows above it. */
-      main.round.bug {
-        /* Two columns, because that is what the areas below describe. Without this,
-           `.round` in site.css supplies THREE — a sidebar/board/panel set written for
-           the single-board page — and the bughouse areas only ever name two of them.
-           The third track then sat empty on the right and, since it absorbed the
-           leftover width, pinned everything to the left edge. `justify-content`
-           centres the pair once they are content-sized. */
-        grid-template-columns: minmax(0, max-content) minmax(0, max-content);
+         The rows and areas that stood here are gone rather than fixed. They read
+         `'app app' 'uleft uboard' 'side side'`, and none of those names has an element any
+         more: the aside is deleted, `under-board` was never emitted by this page, and the
+         spectator placeholder that claimed `uleft` lives in the Info tab. The app claims
+         `main`, the one area `#main-wrap.bug` declares, via `.round-app.bug` in
+         `layout/shared.css` — `round.css` asks for `app`, which is the single-board page's
+         shell talking. */
+      #main-wrap.bug {
+        grid-template-columns: minmax(0, max-content);
         justify-content: center;
-        /* TWO ROWS. The middle one was 'uleft uboard' and neither name has an element any
-           more: `under-board` was never emitted by this page (see round.ts), and the spectator
-           placeholder that claimed `uleft` now sits inside the Info tab. An unoccupied row is
-           free, but a NAMED one is an invitation to place something there again, which is the
-           mistake this page has already made twice. */
-        grid-template-rows: fit-content(0) fit-content(0);
-        grid-template-areas: 'app app' 'side side';
       }
 }
