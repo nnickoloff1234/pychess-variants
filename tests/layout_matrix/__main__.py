@@ -24,7 +24,7 @@ from variants import VARIANTS
 
 from server import make_app
 
-from . import driver, report
+from . import driver, notes_sweep, report
 from .viewports import CASES, VIEWPORTS, assert_spans_thresholds, zooms_for
 
 CAMERA = "MatrixCamera"
@@ -101,6 +101,19 @@ async def run(out_dir: Path, viewports, cases) -> Path:
         "game": game_id,
         "seconds": round(time.perf_counter() - started, 1),
     }
+    # THE BROWSER'S TICKS, BEFORE THE SEED IS TAKEN. A review pass lives in `localStorage` until it
+    # is exported, and each run's report has a store of its own — so anything ticked since the last
+    # export is collected here or orphaned. Never fatal: a sweep that cannot read the profile is a
+    # missing convenience, not a failed run.
+    try:
+        swept_ok, swept_notes = notes_sweep.merge_into(Path(__file__).parent / "notes.json")
+        if swept_ok or swept_notes:
+            print(
+                f"swept from the browser: {swept_ok} acceptances, {swept_notes} notes", flush=True
+            )
+    except Exception as sweep_failed:  # noqa: BLE001 - the run is worth more than the sweep
+        print(f"note sweep skipped: {sweep_failed}", flush=True)
+
     path = report.write(rows, out_dir, meta)
     failing = sum(1 for r in rows if r.error or (r.facts.get("failures") if r.facts else None))
     print(f"\n{len(rows)} rows, {failing} with a failing check, {meta['seconds']}s")

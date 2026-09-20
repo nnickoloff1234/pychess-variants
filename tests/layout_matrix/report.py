@@ -277,7 +277,14 @@ SCRIPT = """
     if (!counter) return;
     const ok = checks.filter(c => c.checked).length;
     const noted = checks.filter(c => (effective(c.dataset.accept) || '').trim() && !c.checked).length;
-    counter.textContent = `${noted} noted · ${ok} accepted`;
+    /* AND HOW MANY OF THOSE ARE ONLY HERE. What the seed does not already carry lives in this
+       page's `localStorage` and nowhere else — a store this report has to itself, keyed to its own
+       generation time — so it is lost the moment the next run is read instead. Shown beside the
+       counts rather than as a warning, because the sweep collects it too; this is what tells you
+       whether the Download is worth a click yet. */
+    const unsaved = checks.filter(c => c.checked && !SEED_OK[c.dataset.accept]).length;
+    counter.textContent = `${noted} noted · ${ok} accepted`
+      + (unsaved ? ` · ${unsaved} not yet in notes.json` : '');
   };
   count();
 

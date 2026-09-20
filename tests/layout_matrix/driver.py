@@ -19,7 +19,6 @@ from pathlib import Path
 from playwright.async_api import Error as PlaywrightError
 
 from .viewports import (
-    BASE_ZOOM,
     LAST_RESORT_ZOOM,
     MIN_ZOOM,
     VIEWPORTS,
