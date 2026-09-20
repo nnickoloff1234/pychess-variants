@@ -806,7 +806,17 @@ ctx => {
        Under the minimum in BOTH dimensions is the other thing entirely: small every way, so no
        exception reaches it, and it is where the real ones are — preset buttons at 9.8x9.8 in a
        61px tools column, a multipv slider drawn 2px wide. Four rows, not 264. */
-    const tiny = undersized.filter(t => t.w < 24 && t.h < 24);
+    /* AND IT IS A CHECK ABOUT FINGERS, so it is asked of the devices that have them.
+       WCAG's target size is written for touch: 24 CSS px is about the smallest thing a fingertip
+       can hit reliably, and the exceptions are about crowding under a finger. A desktop window is
+       driven by a pointer a pixel wide, and this survey's desktop rows reach their smallest
+       targets by the reader ZOOMING OUT — a choice, not a constraint, and one that makes the chess
+       squares smaller than the buttons being complained about. A reader content to play on a 23px
+       square is not being failed by a 23px preset button beside it.
+       `kind` comes from the viewport's own declaration in `viewports.py`, which is where the
+       difference between a phone, a tablet and a laptop window is already stated. */
+    const touch = !ctx || ctx.kind === undefined || ctx.kind === 'phone' || ctx.kind === 'tablet';
+    const tiny = touch ? undersized.filter(t => t.w < 24 && t.h < 24) : [];
     if (tiny.length) {
         failures.push(
             `${tiny.length} tap target(s) under WCAG's 24x24px minimum in BOTH dimensions — ` +

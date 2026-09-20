@@ -366,7 +366,8 @@ async def capture(page, cdp, row: Row, shots_dir: Path) -> Row:
         # WHAT THE WALK ASKED FOR, handed to the probe: one check is about the REQUEST — two
         # boards asked for their minimum must come out the same size — and a drawn page cannot
         # tell a board at its floor from a board at any other zoom.
-        ctx = {"zoom": list(row.zoom), "minZoom": MIN_ZOOM}
+        # `kind` because one check is about fingers: see the tap-target tier in `probe.js`.
+        ctx = {"zoom": list(row.zoom), "minZoom": MIN_ZOOM, "kind": row.viewport.kind}
         before = await page.evaluate(PROBE, ctx)
         await page.evaluate(NUDGE)
         await settle(page)
