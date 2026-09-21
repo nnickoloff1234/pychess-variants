@@ -1291,7 +1291,31 @@ export function trackToolsPlacement(
     // resizes when the mode does — observe both, so neither kind of change is missed.
     observer.observe(owner(column));
     if (owner(column) !== column) observer.observe(column);
-    for (const selector of [STACK, ...droppable.map(([selector]) => selector)]) {
+    /* BOTH STACKS, because this file reads both and only watched one.
+       ------------------------------------------------------------------------------------
+       `place()` measures the own stack — see the zone A band, which is what the own stack has
+       that the partner's does not — and the tools' region is a sum of grid rows the own stack
+       spans. So the own stack's height is an input here. It was not observed, and the partner's
+       was.
+
+       What writes it is another module. `seatNamePlacement` decides whether a username is drawn
+       inside its stack or outside it, and publishes `own-name-outside` / `partner-name-outside`;
+       moving a name out makes its stack shorter. Nothing else reports that: in portrait the app
+       is pinned to the viewport, a part changing rows resizes nothing, and the partner stack need
+       not move at all.
+
+       Measured arriving at a 390x844 phone from the 820x640 window where the tools are in their
+       last resort: `toolsPlacement` ran with `partner-name-outside` already set and
+       `own-name-outside` not yet, read a 357.281px region, sized the preset button at 36.00px and
+       dropped the second preset row. `seatNamePlacement` then set `own-name-outside`, the own
+       stack lost its username's line, the region became 315.656px — 41.625px less — and the
+       button should have been 31.98px with the row kept. No observer here watched anything that
+       had changed, so the pass that would have noticed never ran and the wrong arrangement
+       stood. Every other route to that viewport reached the right answer because some unrelated
+       resize happened to fire a pass after the class landed.
+
+       This is the existing rule applied, not a new one: observe what you read. */
+    for (const selector of [OWN_STACK, STACK, ...droppable.map(([selector]) => selector)]) {
         for (const el of owner(column).querySelectorAll<HTMLElement>(selector)) observer.observe(el);
     }
 }
