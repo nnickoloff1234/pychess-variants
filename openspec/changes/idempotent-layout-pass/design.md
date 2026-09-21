@@ -75,22 +75,55 @@ leaves the answer dependent on the iteration count; bookkeeping between observer
 trigger a question about what has already run. The invariant does neither: it makes the second
 pass produce what the first did, so nothing has to know a second pass happened.
 
-### Widths, not the region's height, size the preset button
+### The cut is the grid template, not the region's height
 
-`publishPresetSize(column, { width, height }, cap)` takes a height today, and the height is
-`toolsRegionHeight()` — the sum of the template rows the tools occupy, which is exactly what a
-drop changes. This is the edge behind both measured failures:
+The first draft of this design said the fix was to size the preset button from the two widths
+rather than from a region height. Instrumenting the cycle showed that is not enough, and the
+reason is worth stating because it is the whole defect in one line: **the widths come from the
+same place the height does.**
 
-- at `P1` the strip's 40.62px row is inside the region, so the first pass sizes the button at
-  36.00px, drops two parts, and the region it measured no longer exists;
-- on the analysis page at 904x686 the same edge has enough gain to reverse, and the button
-  alternates 27.75 ↔ 9.93 while the engine panel alternates zone A ↔ zone B.
+`stripWidth` is the last px track of `getComputedStyle(column).gridTemplateColumns`; `zoneAWidth`
+is `toolsRegionWidth()`, the same property; `regionHeight` and `zoneA` are sums over
+`gridTemplateRows`. The `drop-*` classes select which `grid-template-areas` / `-columns` / `-rows`
+is in force. So every region the cascade measures against is a projection of the cascade's own
+last answer.
 
-The file already states the intended rule — *"the size no longer depends on what drops — it is a
-function of the two WIDTHS, both known before any decision"*. The height is there to stop a button
-growing taller than the region it sits in. That cap has to be re-expressed against something the
-drops do not move: the region as the template defines it with nothing dropped, or the app budget
-less the taller stack, both of which are squareUnit's outputs rather than `place()`'s.
+The measured orbit, analysis page 904x686, board A at zoom 71.0938:
+
+| | regionHeight | stripWidth | zoneA | btn | engine panel |
+|---|---|---|---|---|---|
+| X | 626.00 | 61.67 | `NaN` | 9.93 | zone B (`drop-tools3-b`) |
+| Y | 514.57 | 150.77 | 81.21 | 27.75 | zone A (`drop-tools3`) |
+
+Read it as a loop and it is not subtle: in X the engine is out of the tools column, so the column
+is 61.67 wide, so the button is 9.93, so the panel measures 133.69 tall — and zone A refuses it,
+so it stays in zone B. Applying that writes a template in which the tools DO have rows, so Y
+measures a 150.77 column, a 27.75 button and a 74.77 panel, which fits zone A — and applying THAT
+writes X's template back.
+
+So the rule is: `place()` reads no resolved grid template, for width or for height. The regions
+have to be derived from what squareUnit publishes — the square sizes, the budget — and from the
+declared track definitions, not from the tracks as resolved under the classes `place()` just set.
+
+### Two faults that give the cycle its gain
+
+Both were found by instrumenting, and both are worth fixing whatever else changes.
+
+`toolsRegionHeight()` returns `NaN` when no row of the template in force names a tools slot. It
+has two consumers and only one checks:
+
+```ts
+const zoneA = Math.max(0, toolsRegionHeight(column) - partnerStackHeight);   // NaN, unguarded
+const regionHeight = Number.isFinite(toolsRegion) ? toolsRegion : budget;    // guarded
+```
+
+`Math.max(0, NaN)` is `NaN`, and every comparison against `NaN` is false — so in state X the zone
+A test does not refuse the engine panel because it does not fit, it refuses it because the
+question could not be answered. That is what makes X reachable at all.
+
+And the guarded consumer's fallback is the app's whole budget: 626px offered as "the tools'
+region" where the real one is 514.57. A fallback should be a region the tools could actually have;
+this one is larger than any of them.
 
 ### A part is charged what it would cost where it is going
 
@@ -139,9 +172,12 @@ pass after it.
 
 ## Open Questions
 
-- What replaces the height cap on the preset button: the undropped region from the template, or
-  the app budget less the taller stack? Both are outside `place()`'s own writes; which is the
-  truer statement of "a button may not be taller than where it sits" is not yet settled.
+- What the regions are derived from once the template is off limits. The candidates are the
+  declared track definitions (the custom properties the templates are built from, which no class
+  rewrites) and arithmetic from squareUnit's published squares and budget. The first keeps one
+  statement of the layout; the second does not depend on CSS at all. Not yet settled.
+- What `toolsRegionHeight()` should return instead of `NaN`, given a fallback must be a region the
+  tools could genuinely have and the current one is larger than any of them.
 - Should `toolsPlacement` stop observing the parts once re-entry is harmless? It would save frames,
   but a part's CONTENT can change — a chat message, the move list growing — and that is a real
   trigger. Answer after the invariant holds.

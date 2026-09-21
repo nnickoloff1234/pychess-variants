@@ -13,12 +13,16 @@ its native 1.15625 steps reaches a period-2 limit cycle at zoom 71.0938 that run
 further input:
 
 ```
-drop-tools3-b   --bug-preset-btn 9.93px     engine panel in zone B
-drop-tools3     --bug-preset-btn 27.75px    engine panel in zone A
-drop-tools3-b   --bug-preset-btn 9.93px     ...
+X  regionHeight=626.00  stripWidth= 61.67  zoneA=NaN    btn= 9.93   engine panel to zone B
+Y  regionHeight=514.57  stripWidth=150.77  zoneA=81.21  btn=27.75   engine panel to zone A
+X  ...
 ```
 
-The page pegs a core and draws boards over each other while it runs.
+The page pegs a core and draws boards over each other while it runs. Every input that differs
+between the two states is read from the resolved grid template, and the `drop-*` classes each pass
+writes are what rewrite it: the pass decides, the decision changes the template, and the next pass
+reads the new template and decides the opposite. The engine panel is not undecided — it is being
+asked two different questions in alternation.
 
 **It settles on the wrong answer.** Arriving at the `P1` phone viewport (390x844) from `L1`
 (820x640, the tools' last resort), the arrangement stops one pass short: `drop-tools4,drop-tools3`
@@ -42,13 +46,22 @@ twice.
 - Establish one invariant for the layout pass: **a pass SHALL read nothing that a pass writes.**
   With it, a second pass on an unchanged viewport is a no-op by construction, extra passes are
   harmless whatever their order, and neither a limit cycle nor a one-pass lag can exist.
-- Cut the four feedback edges that break it today:
-  - the preset button size is computed from a region height that the drops change — it becomes a
-    function of the two widths alone, which is what `toolsPlacement.ts` already documents it as;
+- Cut the feedback edges that break it today. The root one is that **`place()` reads the resolved
+  grid template** — `gridTemplateRows` for the region's height, `gridTemplateColumns` for its
+  width — and the `drop-*` classes it writes rewrite exactly those templates:
+  - `stripWidth`, `zoneAWidth`, `regionHeight` and `zoneA` all come from the template and SHALL
+    come from quantities the placement does not rewrite instead;
+  - the preset button size follows from those widths, so it moves with them — sizing it "from the
+    widths" is not sufficient while the widths are themselves outputs;
   - a part's cost is `heightOf()`, its height where it currently sits — it becomes the height the
     part would have in the region being considered;
-  - the tab strip's height is measured wherever the strip currently is — same treatment;
-  - the tools region is read from the resolved grid template, which the `drop-*` classes rewrite.
+  - the tab strip's height is measured wherever the strip currently is — same treatment.
+- Fix two faults found while measuring the cycle, both of which give it its gain:
+  - `toolsRegionHeight()` returns `NaN` when no row names a tools slot, and `zoneA` uses it
+    unguarded — `Math.max(0, NaN)` is `NaN`, so every zone A comparison is silently false and a
+    part is refused because the question could not be answered, not because it did not fit;
+  - the one guarded consumer falls back to the whole app budget as "the tools' region" (626px
+    against a true 514.57px in the measured cycle), which is not a conservative fallback.
 - Clear `strip-in-zoneb` on every pass rather than only in the branch that sets it, so no class
   survives a mode change that cannot recompute it.
 - Teach the layout matrix to detect non-convergence directly: run the arrangement forward N passes

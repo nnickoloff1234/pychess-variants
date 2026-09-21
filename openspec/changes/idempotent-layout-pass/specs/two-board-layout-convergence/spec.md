@@ -35,28 +35,50 @@ again cannot move it.
 - **THEN** the arrangement SHALL be the one that viewport implies, and SHALL equal the arrangement
   reached by loading that viewport directly
 
-### Requirement: The preset button size SHALL be a function of widths alone
+### Requirement: The placement SHALL NOT read the resolved grid template
 
-One preset button size is published for the whole page and both regions a preset panel can occupy
-— the strip beside the board, five to a row, and a dropped row spanning the partner's column and
-the tools' together, ten to a row. The size SHALL be computed from those two WIDTHS, both of which
-are known before any placement decision, and SHALL NOT be computed from the height of a region
-whose rows the placement decisions add or remove.
+The regions a part is measured against — the tools' column width, the band's width, the region's
+height, zone A's height — SHALL be derived from quantities the placement does not write. They
+SHALL NOT be read back from `gridTemplateColumns` or `gridTemplateRows`, because the `drop-*`
+classes the placement writes are what select the template those properties resolve to.
 
-A height input is what closes the loop: the tab strip's row is inside the tools region, dropping
-the strip removes it, the region shrinks, and a size computed from the region changes underneath
-the decision that caused it.
+This is the edge that closes the loop. Measured on the analysis page at 904x686, zoom 71.0938:
+`stripWidth` alternates 61.67 and 150.77 and the region's height 626.00 and 514.57, purely
+according to whether the engine panel is in the tools column or in zone B — which is the decision
+being taken from those numbers.
 
-#### Scenario: Dropping a part does not resize the buttons
+The preset button size follows from the region widths, so it inherits the same defect: publishing
+it "from the widths" is not sufficient while the widths are themselves outputs.
 
-- **WHEN** any part is moved between the tools column, zone A and zone B
-- **THEN** `--bug-preset-btn` SHALL be unchanged
+#### Scenario: Dropping a part does not change the region a decision is taken from
+
+- **WHEN** a part is moved between the tools column, zone A and zone B
+- **THEN** the region widths and heights the next pass measures against SHALL be unchanged, and
+  `--bug-preset-btn` SHALL be unchanged
 
 #### Scenario: The WCAG floor still binds
 
 - **WHEN** the widths available admit a button below the tap-target floor on a touch device
 - **THEN** the published size SHALL be the floor, as it is today, and the arrangement SHALL give
   way instead
+
+### Requirement: A region that cannot be measured SHALL NOT read as a region that is full
+
+`toolsRegionHeight()` returns a non-finite value when no row of the template names a tools slot.
+Every consumer SHALL test for that before using it. A comparison against a non-finite region
+SHALL NOT be allowed to decide a placement, because `Math.max(0, NaN)` is `NaN` and every
+comparison against it is false — a part is then refused for being unmeasurable rather than for not
+fitting, which is how the measured cycle pushes the engine panel into zone B.
+
+Where a fallback is used it SHALL be a region the tools could genuinely have. The app's whole
+budget is not one: measured at 904x686 the fallback offered 626px where the tools' real region was
+514.57px.
+
+#### Scenario: An unmeasurable region refuses nothing silently
+
+- **WHEN** the tools' region cannot be summed from the template in force
+- **THEN** no placement decision SHALL be taken from that value, and the arrangement SHALL be the
+  same as if the region had been computed by the means that replaces it
 
 ### Requirement: A part SHALL be charged what it would cost where it is being considered
 

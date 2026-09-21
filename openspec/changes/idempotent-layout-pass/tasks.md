@@ -12,15 +12,22 @@
       an accident of walk order.
 - [ ] 1.5 Record the pre-fix run as the baseline the later diffs are read against.
 
-## 2. Cut the preset-size edge
+## 2. Stop reading the resolved grid template
 
-- [ ] 2.1 Determine what the height input to `publishPresetSize` is actually capping, and restate
-      that cap against a quantity `place()` does not write — the undropped template region or the
-      budget less the taller stack. Settle the open question in `design.md` and record which.
-- [ ] 2.2 Compute the published preset button size from the two widths alone.
-- [ ] 2.3 Confirm the WCAG tap-target floor still binds on touch rows, and that the arrangement —
+- [ ] 2.1 Fix the `NaN` first, on its own commit — it is a defect regardless of the rest. Guard
+      `zoneA` as `regionHeight` is guarded, and replace the whole-budget fallback with a region
+      the tools could genuinely have. Re-run the reproduction and record whether the cycle
+      survives.
+- [ ] 2.2 Decide what the regions are derived from once `gridTemplateColumns` / `gridTemplateRows`
+      are off limits — the declared track definitions, or arithmetic from squareUnit's published
+      squares and budget. Settle the open question in `design.md` and record which and why.
+- [ ] 2.3 Derive `stripWidth`, `zoneAWidth`, `regionHeight` and `zoneA` that way, so no region the
+      cascade measures against is a projection of the cascade's own last answer.
+- [ ] 2.4 The preset button size then follows from regions that no longer move; confirm it is
+      stable across a drop.
+- [ ] 2.5 Confirm the WCAG tap-target floor still binds on touch rows, and that the arrangement —
       not the button — gives way when the floor cannot be met.
-- [ ] 2.4 Full survey. Diff every row's home, drops and published sizes against 1.5; account for
+- [ ] 2.6 Full survey. Diff every row's home, drops and published sizes against 1.5; account for
       each difference before continuing.
 
 ## 3. Cut the measured-in-place edges
