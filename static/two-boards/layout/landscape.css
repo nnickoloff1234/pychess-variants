@@ -571,12 +571,20 @@
            row `auto`, none of them absorbs it and the own stack — which spans all five rows —
            distributes the leftover among them, EMPTY ONES INCLUDED: measured on the analysis page,
            rows 2-5 came to 253px while the panel and the tab strip used 144, the other 109 going
-           to two rows with nothing in them. */
-        /* THE PART ROWS SHARE ZONE A rather than each taking its content's height. `min-content`
-           rows let every part draw at whatever size its width implied and the region simply
-           overflowed — 220px of panels in 173px of zone A. Sharing, each row has a definite
-           height, which is the other half of letting a button be limited by height. */
-        grid-template-rows: min-content minmax(0, 1fr) minmax(0, auto) minmax(0, auto) min-content min-content min-content min-content;
+           to two rows with nothing in them.
+
+           AND IN THIS HOME THE PANEL'S ROW IS `stack`, NOT `zoneA2`. The slack sat on row 2
+           because this template was shared with the `tools-zonea` home, where row 2 held the
+           panel; here row 2 holds the TAB STRIP and `stack` holds everything else — every tools
+           panel and the partner board, taking its turn as a tab. So the strip was handed all of
+           it: measured at 820x640, `zoneA2` 540px tall around a 40px strip while the panel above
+           it had 40, and at 100xmin 300px against a 31px strip. Both are in the survey, eleven
+           rows of it, and every one of them is this row.
+
+           The strip's row is `min-content` for the same reason it is packed to the top — see
+           `align-self: start` above: what `toolsPlacement` measures to decide whether zone B can
+           take it has to be the strip, not the row it was given. */
+        grid-template-rows: minmax(0, 1fr) min-content minmax(0, auto) minmax(0, auto) min-content min-content min-content min-content;
     }
 
     /* THE LAST RESORT: THE TOOLS TAKE THE BOARD'S COLUMN, AND THE BOARD TAKES ITS TURN IN IT.
