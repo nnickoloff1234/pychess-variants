@@ -482,11 +482,23 @@
        again: the layout oscillated between the two every frame.
 
        The row is empty either way — the bar is in zone B — so putting it above costs nothing
-       and keeps every area a rectangle. */
-    .round-app.bug.drop-tools4-b.drop-tools3 {
+       and keeps every area a rectangle.
+
+       AND BOTH PAGES NEED IT, which is why these two name both. They read `.round-app` alone
+       until now, and the analysis page reached the same combination — its tab list in zone B,
+       its engine box asked into `zoneA3` — with no template that declares a `zoneA3`. The base
+       `--bug-zones-strip` stayed in force, the engine box fell into an implicit column exactly
+       as described above, and the page oscillated exactly as described above: measured on the
+       analysis page at 904x686 with board A at 72.375 and board B at 99.5, the engine box
+       alternating `zoneA3` at 62x134 with `zoneB1` at 904x75, forever.
+
+       The slot numbers mean the same thing on both pages — 4 the strip, 3 the engine box or the
+       second preset row, 2 the controls — so this was one rule wearing one page's name. The
+       fix for the round page dates from the note above; the analysis page never got it. */
+    :is(.round-app, .analysis-app).bug.drop-tools4-b.drop-tools3 {
         grid-template-areas: var(--bug-zones-a3);
     }
-    .round-app.bug.drop-tools4-b.drop-tools3.drop-tools2 {
+    :is(.round-app, .analysis-app).bug.drop-tools4-b.drop-tools3.drop-tools2 {
         grid-template-areas: var(--bug-zones-a23);
     }
     .round-app.bug.drop-tools4-b.drop-tools3 .bug-parts .chatpresets-panel-2,
