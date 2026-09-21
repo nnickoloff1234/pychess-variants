@@ -315,6 +315,32 @@
 .analysis-app.bug .bug-own-stack { --bug-stack-sq: var(--bug-tall-sq-a); --bug-stack-allow: var(--bug-tall-allow-a); }
 .analysis-app.bug .bug-partner-stack { --bug-stack-sq: var(--bug-tall-sq-b); --bug-stack-allow: var(--bug-tall-allow-b); }
 @media (aspect-ratio <= 9/16) {
+        /* THE VIEWER'S OWN BOARD IS ALWAYS AT ITS CAP HERE, so it publishes one.
+           ------------------------------------------------------------------------------
+           `--bug-stack-allow` is a board's square AT FULL ZOOM, and `seatNamePlacement`
+           reads it as the room the stack has: ten of them is the tallest stack that board
+           can draw, so at full zoom the answer is exactly its own height and a username
+           cannot afford a line of its own. Portrait published none, for the stated reason
+           that its stacks are sized from WIDTH rather than from a zoom — but the own
+           board's square IS the full width over eight files, and there is no slider on it.
+           It is at its cap by construction, in the same way both boards are in short
+           landscape. Not publishing it said the opposite.
+
+           What the fallback did instead was ask the grid for the rows the stack spans, and
+           the own stack's row in portrait is `min-content` — the stack's own height. So the
+           room reported already contained the line whenever the line was there: once out,
+           always out. Measured on an iPhone SE 2/3, 375x667: both names outside, the own
+           stack 506px where ten squares is 465 and the partner's 197 where ten squares is
+           165, for a total of 703px in a 667px viewport. The partner stack was handed the
+           161px its tools needed beside it and painted 36px over the board below.
+
+           THE PARTNER BOARD STILL PUBLISHES NONE, deliberately. Its stack shares its rows
+           with the tools, so when the tools are taller than the stack there is real room
+           beside it and the name should take its line — which is what the fallback answers
+           correctly. Only the own board is at a cap it can never be below. */
+        .bug-own-stack {
+            --bug-stack-allow: var(--bug-portrait-sq);
+        }
         .analysis-app.bug .bug-own-stack { --bug-stack-sq: var(--bug-portrait-sq); }
         .analysis-app.bug .bug-partner-stack { --bug-stack-sq: var(--bug-portrait-partner-sq); }
 }
