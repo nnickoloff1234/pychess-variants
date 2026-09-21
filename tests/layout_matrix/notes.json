@@ -303,7 +303,13 @@
  "D6-C4-minxmin": {
   "accepted": true
  },
+ "L1-C1-100x100": {
+  "accepted": true
+ },
  "L1-C1-100xmin": {
+  "accepted": true
+ },
+ "L1-C1-85x100": {
   "accepted": true
  },
  "L1-C1-minxmin": {
@@ -315,10 +321,19 @@
  "L1-C2-100xmin": {
   "accepted": true
  },
+ "L1-C2-85x100": {
+  "accepted": true
+ },
  "L1-C2-minxmin": {
   "accepted": true
  },
+ "L1-C3-100x100": {
+  "accepted": true
+ },
  "L1-C3-100xmin": {
+  "accepted": true
+ },
+ "L1-C3-85x100": {
   "accepted": true
  },
  "L1-C3-minxmin": {
@@ -330,7 +345,28 @@
  "L1-C4-100xmin": {
   "accepted": true
  },
+ "L1-C4-85x100": {
+  "accepted": true
+ },
  "L1-C4-minxmin": {
+  "accepted": true
+ },
+ "L1-C5-100x100": {
+  "accepted": true
+ },
+ "L1-C5-85x100": {
+  "accepted": true
+ },
+ "L1-C6-100x100": {
+  "accepted": true
+ },
+ "L1-C6-85x100": {
+  "accepted": true
+ },
+ "L1-C7-100x100": {
+  "accepted": true
+ },
+ "L1-C7-85x100": {
   "accepted": true
  },
  "P1-C1-100x100": {
