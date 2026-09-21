@@ -193,10 +193,14 @@ one mind.
   current one is a different number, and some rows may legitimately move. Mitigation: diff every
   row's home and drops against the run before the change and account for each difference, which is
   the routine this work has used throughout.
-- **The cross-module ordering is not a cycle and is being left.** `seatNamePlacement` writes
-  classes that change stack heights `toolsPlacement` reads, but nothing in those classes depends
-  on the tools. If that proves wrong, the invariant names it as a defect rather than leaving it to
-  be rediscovered.
+- **The cross-module ordering was NOT safe to leave, and this is where it was wrong.** An earlier
+  draft said `seatNamePlacement` writing stack heights that `toolsPlacement` reads is an ordering
+  question rather than a defect. It was the whole of the stale-arrangement failure: the own stack
+  is an input to `place()` and was not observed, so the answer depended on whether the name class
+  landed before or after the pass. Fixed in `ca2019af9` by observing the own stack. The lesson
+  stands for the rest of the map: **reading a quantity you do not observe is the same defect as
+  reading a quantity you write** — both make the result depend on what else happened to run — and
+  the map in task 8 has to record both kinds of edge.
 - **The convergence check costs frames on every row.** N extra passes per row across 286 rows.
   Mitigation: N small, and only the published state is compared.
 

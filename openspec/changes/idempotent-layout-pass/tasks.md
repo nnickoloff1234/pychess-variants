@@ -8,9 +8,13 @@
 - [ ] 1.3 Add the oscillating shape to the matrix: analysis page, 904x686, board A at ~72.375 and
       board B at ~99.5 — stated values, not a sweep, since the band is off the slider's step grid
       and needs both boards off their extremes. Confirm the row FAILS before any fix.
-- [ ] 1.4 Add the lagging transition: the phone viewport entered directly from the last-resort
-      viewport. Confirm it reproduces the existing `P1` finding as a declared row rather than as
-      an accident of walk order.
+- [x] 1.4 The lagging transition — the phone viewport entered directly from the last-resort
+      viewport — is walked by the matrix's own order today and was fixed in `ca2019af9`. Keep a
+      declared row for it so it does not depend on walk order remaining what it is.
+- [ ] 1.4a Add the "reads what it does not observe" check implied by that fix: for each module
+      that arranges, assert the elements it measures are a subset of the elements it observes.
+      This is checkable from the code rather than from a rendered page, so it may belong in a
+      unit test rather than in the survey.
 - [ ] 1.5 Add the undeclared-area check: for every tracked part, assert the area its computed
       `grid-area` names appears in the computed `grid-template-areas`. Run it against the commit
       before `790702ed8` and confirm it catches the analysis page's missing template, which was

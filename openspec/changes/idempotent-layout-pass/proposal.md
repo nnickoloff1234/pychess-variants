@@ -28,14 +28,23 @@ writes are what rewrite it: the pass decides, the decision changes the template,
 reads the new template and decides the opposite. The engine panel is not undecided — it is being
 asked two different questions in alternation.
 
-**It settles on the wrong answer.** Arriving at the `P1` phone viewport (390x844) from `L1`
-(820x640, the tools' last resort), the arrangement stops one pass short: `drop-tools4,drop-tools3`
-with a 36.00px preset button, where the viewport implies `drop-tools4` with 31.98px. The
-difference is 40.62px — the tab strip's own row, which is inside the region the preset size is
-computed from, and which dropping the strip removes. Nothing re-triggers, because the drop
-rearranges rows inside an app whose own size did not change. Three survey rows report it; arriving
-at the same viewport from `D1` or `T1` gives the right answer, by luck, because unrelated passes
-fire there.
+**It settled on the wrong answer** — fixed in `ca2019af9`, and recorded here because what it
+turned out to be is the reason this proposal exists. Arriving at the `P1` phone viewport (390x844)
+from `L1` (820x640, the tools' last resort), the arrangement stopped one pass short:
+`drop-tools4,drop-tools3` with a 36.00px preset button, where the viewport implies `drop-tools4`
+with 31.98px.
+
+The cause was NOT internal to the cascade. `place()` reads the own stack — zone A is the band the
+own stack has that the partner's does not — but observed only the partner's. `seatNamePlacement`,
+a different module, then published `own-name-outside`, the own stack lost its username's line, and
+the tools' region went from 357.281px to 315.656px, 41.625px less, at which the button is 31.98px
+and the row stays. Nothing `toolsPlacement` watched had changed, so the correcting pass never ran.
+
+Two things about that are worth keeping. The first is that a module reading a quantity it does not
+observe is the same defect as a module reading a quantity it writes — both make the answer depend
+on what else happened to run. The second is that it was diagnosed wrongly twice before it was
+measured: attributed first to the drop cascade's hysteresis and then to the tab strip's own row,
+40.62px, whose closeness to 41.625 is a coincidence.
 
 A third symptom has the same shape: `strip-in-zoneb` is toggled inside a branch portrait never
 enters, so it survives a resize into portrait and the final class state depends on which viewport
