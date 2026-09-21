@@ -88,7 +88,7 @@ is `toolsRegionWidth()`, the same property; `regionHeight` and `zoneA` are sums 
 is in force. So every region the cascade measures against is a projection of the cascade's own
 last answer.
 
-The measured orbit, analysis page 904x686, board A at zoom 71.0938:
+The measured orbit, analysis page 904x686, board A near 72.4 with board B near 99.5:
 
 | | regionHeight | stripWidth | zoneA | btn | engine panel |
 |---|---|---|---|---|---|
@@ -163,6 +163,19 @@ that found the cycle by hand.
   be rediscovered.
 - **The convergence check costs frames on every row.** N extra passes per row across 286 rows.
   Mitigation: N small, and only the published state is compared.
+
+### The reproduction is narrower than the survey's zoom grid
+
+Confirmed by hand on the sliders at A=72.375, B=99.5. Neither value is on the 1.15625 step grid,
+and both boards have to be off their extremes: two full on-grid sweeps of board A with board B
+pinned at 100 did not enter the cycle, having stepped over the band. A survey that only visits
+100, the minimum, and one part-way step cannot be relied on to find a defect of this shape by
+chance — which is the argument for walking the stated values as a declared row, and for the
+convergence check being a per-row test rather than a sweep.
+
+One earlier claim is withdrawn: a `62x134` engine panel spilling 72px, reported as a separate
+stable failure just above the cycle, is one PHASE OF THIS ORBIT sampled twice in the same phase.
+There is no distinct prelude defect; the three-column arrangement at that zoom is correct.
 
 ## Migration Plan
 

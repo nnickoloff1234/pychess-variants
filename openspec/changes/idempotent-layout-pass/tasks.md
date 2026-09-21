@@ -5,8 +5,9 @@
       one or more intermediate states. Name the distinct states of the orbit in the finding.
 - [ ] 1.2 Keep the stale-until-nudged finding distinct from the cycle finding, so a lag is never
       reported as an oscillation or the reverse.
-- [ ] 1.3 Add the oscillating shape to the matrix: analysis page, 904x686, board A swept down its
-      slider's own 1.15625 steps. Confirm the row FAILS before any fix, at zoom 71.0938.
+- [ ] 1.3 Add the oscillating shape to the matrix: analysis page, 904x686, board A at ~72.375 and
+      board B at ~99.5 — stated values, not a sweep, since the band is off the slider's step grid
+      and needs both boards off their extremes. Confirm the row FAILS before any fix.
 - [ ] 1.4 Add the lagging transition: the phone viewport entered directly from the last-resort
       viewport. Confirm it reproduces the existing `P1` finding as a declared row rather than as
       an accident of walk order.

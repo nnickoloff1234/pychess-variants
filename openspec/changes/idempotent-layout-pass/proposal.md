@@ -8,9 +8,8 @@ of the viewport AND of what the previous pass happened to leave behind.
 
 Two consequences are already measured, and they are the same defect at two gains.
 
-**It does not converge.** On the analysis page at 904x686, driving the board A zoom slider down in
-its native 1.15625 steps reaches a period-2 limit cycle at zoom 71.0938 that runs forever with no
-further input:
+**It does not converge.** On the analysis page at 904x686, with board A near 72.4 and board B near
+99.5, the arrangement enters a period-2 limit cycle that runs forever with no further input:
 
 ```
 X  regionHeight=626.00  stripWidth= 61.67  zoneA=NaN    btn= 9.93   engine panel to zone B
@@ -18,7 +17,12 @@ Y  regionHeight=514.57  stripWidth=150.77  zoneA=81.21  btn=27.75   engine panel
 X  ...
 ```
 
-The page pegs a core and draws boards over each other while it runs. Every input that differs
+The page pegs a core and draws boards over each other while it runs.
+
+The band is narrow and does not sit on the slider's 1.15625 step grid, and it needs BOTH boards off
+their extremes — a sweep of board A alone, on-grid, with board B pinned at 100, steps over it. It
+was found by hand on the sliders, and the matrix row that walks it has to use the values above
+rather than a sweep. Every input that differs
 between the two states is read from the resolved grid template, and the `drop-*` classes each pass
 writes are what rewrite it: the pass decides, the decision changes the template, and the next pass
 reads the new template and decides the opposite. The engine panel is not undecided — it is being

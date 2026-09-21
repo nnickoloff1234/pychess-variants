@@ -34,9 +34,14 @@ A defect the survey cannot reach is a defect that comes back. The matrix SHALL i
 viewport, zoom and page that reproduce each known convergence failure, so that a fix is proved by
 the survey rather than by a note.
 
-The two are the analysis page at 904x686 with board A zoomed down in its slider's own steps, which
-reaches a period-2 cycle at 71.0938; and the phone viewport reached immediately after the tools'
-last resort, which settles one pass short.
+The two are the analysis page at 904x686 with board A near 72.4 and board B near 99.5, which is a
+period-2 cycle; and the phone viewport reached immediately after the tools' last resort, which
+settles one pass short.
+
+The first SHALL be walked at stated zoom values rather than found by sweeping. The band is narrow,
+does not fall on the zoom slider's step grid, and needs both boards off their extremes: a sweep of
+one board on-grid with the other pinned at 100 steps over it, which is how it escaped two runs of
+the survey's own zoom set.
 
 #### Scenario: The oscillating shape is walked
 
