@@ -80,24 +80,26 @@ budget is not one: measured at 904x686 the fallback offered 626px where the tool
 - **THEN** no placement decision SHALL be taken from that value, and the arrangement SHALL be the
   same as if the region had been computed by the means that replaces it
 
-### Requirement: A part SHALL be charged what it would cost where it is being considered
+### Requirement: A part's cost SHALL NOT be a measurement
 
 The cascade decides a part's placement by comparing what it needs against what a region has left.
-That need SHALL be the height the part would have IN THE REGION BEING CONSIDERED, computed from
-the part's content and the published sizes. It SHALL NOT be the part's currently laid-out height,
-which is a function of where the previous pass put it.
+What it needs SHALL be the part's declaration — see `two-board-component-sizing` — and SHALL NOT
+be its measured height, whether measured where it sits or modelled for where it is going.
 
-#### Scenario: A preset panel is charged its dropped height
+An earlier draft of this requirement said the part should be charged the height it WOULD have in
+the region being considered. That is still a measurement, and it still has to be stable to be
+safe. The declaration is a constant, so it is stable by construction.
 
-- **WHEN** a preset panel that is currently two rows of five in the strip is considered for a
-  dropped row of ten
-- **THEN** the height charged SHALL be the one-row height, not the two-row height it has now
+#### Scenario: The same part costs the same in consecutive passes
 
-#### Scenario: The tab strip is charged its own height
+- **WHEN** the cascade evaluates a part, applies its decision, and evaluates it again
+- **THEN** the cost charged SHALL be identical in both passes, whatever the decision moved
 
-- **WHEN** the strip is considered for zone B
-- **THEN** the height charged SHALL be the strip's content height wherever the strip currently
-  sits, and SHALL NOT include a row it has been stretched into
+#### Scenario: No measured box reaches a placement decision
+
+- **WHEN** a placement decision is taken
+- **THEN** no term in it SHALL derive from a part's laid-out box, its wrapped content height, or
+  a track sized by that content
 
 ### Requirement: A class SHALL be cleared by every pass that cannot compute it
 

@@ -50,16 +50,25 @@ twice.
 - Establish one invariant for the layout pass: **a pass SHALL read nothing that a pass writes.**
   With it, a second pass on an unchanged viewport is a no-op by construction, extra passes are
   harmless whatever their order, and neither a limit cycle nor a one-pass lag can exist.
-- Cut the feedback edges that break it today. The root one is that **`place()` reads the resolved
-  grid template** — `gridTemplateRows` for the region's height, `gridTemplateColumns` for its
-  width — and the `drop-*` classes it writes rewrite exactly those templates:
-  - `stripWidth`, `zoneAWidth`, `regionHeight` and `zoneA` all come from the template and SHALL
-    come from quantities the placement does not rewrite instead;
-  - the preset button size follows from those widths, so it moves with them — sizing it "from the
-    widths" is not sufficient while the widths are themselves outputs;
-  - a part's cost is `heightOf()`, its height where it currently sits — it becomes the height the
-    part would have in the region being considered;
-  - the tab strip's height is measured wherever the strip currently is — same treatment.
+- **The primary cut: the cascade compares DECLARATIONS, never MEASUREMENTS.** A part states what
+  it needs, in CSS, as a constant; the cascade compares that against a region and never asks the
+  part how tall it happens to be right now. This is what actually kills the class of defect. The
+  mechanism already exists and is already overridden — the engine panel declares
+  `--bug-part-min-w: 19ch; --bug-part-min-h: 3.2em`, and `const need = Math.max(height,
+  min.height)` makes the measurement win every time (90px in the tools column, 134px in the
+  implicit track, against a declared 45). Had the declaration decided, the measured oscillation
+  could not have formed: 45px fits the 81.21px band in both phases, so the decision is a constant
+  and the second pass writes nothing.
+- Cut the remaining feedback edge: **`place()` reads the resolved grid template** —
+  `gridTemplateRows` for a region's height, `gridTemplateColumns` for its width — and the `drop-*`
+  classes it writes are what select that template. `stripWidth`, `zoneAWidth`, `regionHeight` and
+  `zoneA` all come from it and SHALL come from quantities the placement does not rewrite.
+- Give every droppable part an honest declaration, because today only two selectors have one — the
+  engine panel and the analysis controls panel — and everything else resolves to `0` by design.
+  Flipping to declaration-only before that inventory exists would make every undeclared part cost
+  nothing, fit everywhere and drop always.
+- Settle what a part does when it is given its declared minimum and its content wants more. Today
+  the cascade promises a part its measured height, so nothing ever has to cope with being smaller.
 - Fix two faults found while measuring the cycle, both of which give it its gain:
   - `toolsRegionHeight()` returns `NaN` when no row names a tools slot, and `zoneA` uses it
     unguarded — `Math.max(0, NaN)` is `NaN`, so every zone A comparison is silently false and a
@@ -78,6 +87,20 @@ twice.
   on an unchanged viewport and fail the row if the state ever revisits an earlier one. The existing
   stale-until-nudged check finds lag; it cannot see a cycle, because both of its probes sit inside
   the orbit.
+- **Open a component-by-component review**, which is the larger half of this change and the reason
+  it is scoped as one. For every component that takes part in a layout: which of its sizes the
+  placement logic uses — real, current, minimum, declared — what determines its actual size,
+  content or container, and how it can change the dimensions of another component or the area
+  template in force. The output is a dependency map, and then a stated rule per component.
+  The map is what turns "we fixed the oscillation we found" into "we know where the others are".
+- **Review the declared area templates for redundancy first.** There are ten
+  `grid-template-areas` selections in `layout/landscape.css` drawing on `--bug-zones-*`, and the
+  survey walks a handful of combinations of them. Reducing the set before mapping how they switch
+  saves the mapping work, and the analysis page's missing template — one page having a rule its
+  twin did not — is itself evidence that the set is not held in one mind.
+- Record two defects found while measuring, which are **not** understood yet and are listed so they
+  are not lost: the unguarded `NaN` from `toolsRegionHeight()`, and `strip-in-zoneb` surviving a
+  resize into portrait. Both are expected to be answered by the review rather than before it.
 - **No behaviour is being redesigned.** Every arrangement the layout chooses today for a settled
   viewport is the arrangement it must still choose; what changes is that it reaches it on the
   first pass rather than on the third or never.
@@ -87,6 +110,9 @@ twice.
 ### New Capabilities
 - `two-board-layout-convergence`: the arrangement pass is idempotent — what it reads, what it may
   not read, what a repeated pass must produce, and what the observers are therefore allowed to be.
+- `two-board-component-sizing`: what a component declares, what determines its actual size, what
+  it may do to another component's size or to the template in force, and the dependency map that
+  has to exist before any of that can be asserted.
 
 ### Modified Capabilities
 - `bughouse-layout-matrix`: the survey gains a convergence check per row, and the two
@@ -101,4 +127,16 @@ twice.
   `toolsPlacement` reads; the ordering is in scope, the cycle is not believed to be.
 - `tests/layout_matrix/` — `probe.js`, `driver.py`, `viewports.py` for the convergence check and
   the two reproduction rows.
+- `static/two-boards/components/*.css` and `properties.css` — every droppable part needs a
+  declared minimum, and today two selectors have one.
+- `static/two-boards/layout/*.css` — the `--bug-zones-*` inventory and whatever the redundancy
+  review removes.
 - No server, database, or protocol surface is touched.
+
+## Scope note
+
+This is days of work, not one sitting, and it is deliberately scoped as a programme rather than a
+fix. The measured oscillation is already fixed separately (`790702ed8`) by giving the analysis page
+the template its twin had; nothing here is urgent in the sense that the page is broken today. What
+is open is that the mechanism which produced it is intact, unmapped, and has produced the same
+class of defect twice.

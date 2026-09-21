@@ -148,6 +148,42 @@ point of it because the page is genuinely stable for three frame pairs between f
 convergence check therefore drives N passes and looks for a state that returns — the same test
 that found the cycle by hand.
 
+### Declarations beat modelled measurements
+
+The sharpest cut is not the template read — it is that a part's cost is a measurement at all.
+Instrumenting the oscillation showed the decision reversing on the engine panel's own height: 90px
+in the tools column, 134px in a 56px implicit track, because its content wraps. The cascade
+charged 74.77 — the height where the part WAS — to decide whether it fitted a region where it
+would be 134. Neither state is a fixed point of that decision.
+
+The part already declares what it needs: `--bug-part-min-w: 19ch; --bug-part-min-h: 3.2em`, about
+45px. `const need = Math.max(height, min.height)` makes the measurement win every time, so the
+declaration has never been the operative number for this part. Compare the declaration alone and
+45 ≤ 81.21 holds in both phases: the decision is a constant, the second pass writes nothing, and
+the chain dies whatever the template says.
+
+This re-ranks the work. An earlier draft made "charge the part what it would cost where it is
+going" the requirement — but that is still a measurement, and a modelled one, so it still has to
+be proved stable. A declaration is stable by construction. It costs an inventory: only two
+selectors declare anything today, and the initial value is 0, so flipping the comparison before
+every droppable part has an honest declaration would make the undeclared ones free.
+
+### Why this is a programme and not a fix
+
+The oscillation that started this is already fixed, in `790702ed8`, by giving the analysis page the
+template its twin had. Nothing on the page is broken today. What is open is that the same
+mechanism produced the same class of defect twice — once on each page — and that both were found
+by hand rather than by the survey.
+
+So the work that matters is the map: for every component, which of its sizes the placement uses,
+what determines its actual size, and what it can change about another component or about the
+template in force. Content-sized content inside a content-sized container is the shape both known
+oscillations took; that shape can be looked for rather than waited for.
+
+The template inventory comes first because it is the cheapest step that can shrink everything
+after it, and because one page having a rule its twin lacked is evidence the set is not held in
+one mind.
+
 ## Risks / Trade-offs
 
 - **The cap re-expressed wrongly makes buttons overflow their region.** The height input is doing
@@ -184,6 +220,13 @@ attributed. The two reproductions are added to the matrix FIRST, so they fail be
 pass after it.
 
 ## Open Questions
+
+- Which components are legitimately sized by their content and must stay that way — the move list
+  and the chat log take spare room by design — and how they declare "what I will accept" rather
+  than "what I need".
+- Whether a component harness (isolated components, and a visualisation of every area template and
+  reachable arrangement) is worth building, and whether it complements or replaces the layout
+  matrix. Deliberately not started before the map exists.
 
 - What the regions are derived from once the template is off limits. The candidates are the
   declared track definitions (the custom properties the templates are built from, which no class
