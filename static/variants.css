@@ -206,13 +206,13 @@ div.guide .catalogued-variant-rules h1 {
 .community-variant-card-head {
     display: flex;
     gap: 0.75rem;
-    align-items: start;
-    justify-content: space-between;
+    align-items: flex-start;
+    min-width: 0;
 }
 
 .community-variant-card-title {
     display: flex;
-    gap: 0.75rem;
+    gap: 0.35rem 0.75rem;
     align-items: baseline;
     flex-wrap: wrap;
     min-width: 0;
@@ -225,7 +225,7 @@ div.guide .catalogued-variant-rules h1 {
     flex: 0 0 auto;
     width: 2rem;
     height: 2rem;
-    margin-left: 0.5rem;
+    margin: 0;
     border: 1px solid transparent;
     border-radius: 999px;
     background: transparent;
@@ -584,34 +584,33 @@ div.guide .catalogued-variant-rules h1 {
 
 .community-variant-card--with-preview {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) clamp(7.5rem, 18vw, 11rem);
-    gap: 0.85rem 1rem;
-    align-items: center;
+    grid-template-columns: minmax(0, 1fr) clamp(11rem, 26vw, 15rem);
+    gap: 0.85rem 1.15rem;
+    align-items: start;
 }
 
 .community-variant-card--with-preview .community-variant-card-head {
-    grid-column: 1 / -1;
+    grid-column: 1;
+    grid-row: 1;
 }
 
 .community-variant-card-main {
     min-width: 0;
 }
 
-.community-variant-card-preview {
-    display: block;
-    justify-self: end;
-    width: 100%;
-    max-width: 11rem;
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    overflow: hidden;
-    background: var(--bg-color2);
-    box-shadow: var(--base-shadow);
-    line-height: 0;
+.community-variant-card--with-preview .community-variant-card-main {
+    grid-column: 1;
+    grid-row: 2;
 }
 
-.community-variant-card-preview:hover {
-    border-color: var(--link-hover);
+.community-variant-card-preview {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: stretch;
+    justify-self: end;
+    width: 100%;
+    max-width: 15rem;
+    line-height: 0;
 }
 
 .catalogued-start-board-figure {
@@ -624,11 +623,24 @@ div.guide .catalogued-variant-rules h1 {
 
 .catalogued-start-board-preview {
     width: 100%;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    overflow: hidden;
-    background: var(--bg-color2);
-    box-shadow: var(--base-shadow);
+    line-height: 0;
+}
+
+.catalogued-start-board-preview:empty {
+    aspect-ratio: var(--catalogued-board-ratio, 1);
+}
+
+.community-variant-card-preview .cg-wrap {
+    --mini-board-width: 100%;
+}
+
+.catalogued-start-board-preview .cg-wrap {
+    width: 100%;
+    max-width: 100%;
+}
+
+.catalogued-start-board-preview.with-pockets {
+    padding-block: calc(var(--cg-height) / var(--catalogued-board-ranks, 8));
 }
 
 .catalogued-start-board-figure figcaption {
@@ -637,53 +649,21 @@ div.guide .catalogued-variant-rules h1 {
     text-align: center;
 }
 
-.catalogued-start-board-svg {
-    display: block;
-    width: 100%;
-    height: auto;
-}
-
-.catalogued-start-board-light {
-    fill: #f0d9b5;
-}
-
-.catalogued-start-board-dark {
-    fill: #b58863;
-}
-
-.catalogued-start-board-piece {
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    font-weight: 800;
-    paint-order: stroke fill;
-    pointer-events: none;
-}
-
-.catalogued-start-board-piece-white {
-    fill: #ffffff;
-    stroke: rgba(0, 0, 0, 0.62);
-    stroke-width: 1.8px;
-}
-
-.catalogued-start-board-piece-black {
-    fill: #1f1f1f;
-    stroke: rgba(255, 255, 255, 0.72);
-    stroke-width: 1.5px;
-}
-
-.catalogued-start-board-piece-neutral,
-.catalogued-start-board-piece-hidden {
-    fill: var(--font-color);
-    stroke: rgba(255, 255, 255, 0.58);
-    stroke-width: 1.4px;
-}
-
 @media (max-width: 699px) {
     .community-variant-card--with-preview {
         grid-template-columns: 1fr;
     }
 
+    .community-variant-card--with-preview .community-variant-card-head,
+    .community-variant-card--with-preview .community-variant-card-main,
     .community-variant-card-preview {
+        grid-column: auto;
+        grid-row: auto;
+    }
+
+    .community-variant-card-preview {
+        align-self: start;
         justify-self: start;
-        width: min(11rem, 100%);
+        width: min(12rem, 100%);
     }
 }
