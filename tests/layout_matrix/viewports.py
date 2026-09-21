@@ -123,13 +123,38 @@ class Case:
     state: str  # live | over | analysis
     tab: str  # the tab label to select
     describes: str
+    # Planned only where the tools reach their last resort — see `plans()`. The partner board is a
+    # TAB in that home and in no other: everywhere else it is detached from the strip and drawn
+    # beside the viewer's own board, so selecting it would leave the page exactly as the case this
+    # one is derived from left it, and the row would be a duplicate with a different key.
+    last_resort_only: bool = False
 
+
+# The partner board's tab carries the same label on both pages.
+BOARD_TAB = "Partner board"
 
 CASES = [
     Case("C1", "round", "live", "Chat", "round page during a game, chat shown"),
     Case("C2", "round", "live", "Moves", "round page during a game, movelist shown"),
     Case("C3", "round", "over", "Moves", "round page after the game has ended"),
     Case("C4", "analysis", "analysis", "Moves", "analysis page, movelist shown"),
+    # THE OTHER HALF OF THE LAST RESORT. The home is the one place where the partner board shares
+    # a column with the tools, taking its turn as a tab, and every row above selects one of the
+    # TOOLS' tabs — so the board's own turn, which is half of what the home does, was never once
+    # drawn in 280 rows. There are three and not four because C1 and C2 differ only by which tab
+    # is selected: with the board's tab selected they would be the same page twice.
+    Case(
+        "C5", "round", "live", BOARD_TAB, "round page during a game, the partner board shown", True
+    ),
+    Case(
+        "C6",
+        "round",
+        "over",
+        BOARD_TAB,
+        "round page after the game has ended, the partner board shown",
+        True,
+    ),
+    Case("C7", "analysis", "analysis", BOARD_TAB, "analysis page, the partner board shown", True),
 ]
 
 # Named by the two boards' zoom percentages, left then right. The asymmetric one is the reason the
@@ -169,6 +194,11 @@ def assert_spans_thresholds() -> None:
     assert any(v.width >= 1900 for v in VIEWPORTS), "nothing wide enough to keep the tools a column"
 
     assert any(v.last_resort for v in VIEWPORTS), "nothing visits the tools' last resort"
+    # A case nothing plans is a case nobody reads. The board-tab cases are the only ones the
+    # product does not reach on its own, so they are the ones worth asserting for.
+    planned = {c.key for _, c, _ in planned_rows()}
+    for case in CASES:
+        assert case.key in planned, f"case {case.key} is declared but never planned"
 
     keys = [v.key for v in VIEWPORTS]
     assert len(keys) == len(set(keys)), "duplicate viewport key"
@@ -183,11 +213,23 @@ def zooms_for(v: Viewport) -> list[tuple[int, int]]:
     return zooms
 
 
+# The two zooms at which the last resort is actually reached: full, and the part-way step that
+# `LAST_RESORT_ZOOM` exists for. The minimum steps past the home — the partner board gets so small
+# that the tools fit beside it again — so a board-tab row there would not be in the home it is
+# asking about.
+LAST_RESORT_ZOOMS = (BASE_ZOOM, LAST_RESORT_ZOOM)
+
+
+def plans(v: Viewport, c: Case, z: tuple[int, int]) -> bool:
+    """Whether the walk visits one combination. The product is the rule and this is the exception:
+    a case that only makes sense in one arrangement is planned only where that arrangement is."""
+    if z not in zooms_for(v):
+        return False
+    if c.last_resort_only:
+        return v.last_resort and z in LAST_RESORT_ZOOMS
+    return True
+
+
 def planned_rows() -> list[tuple[Viewport, Case, tuple[int, int]]]:
     """Every combination the run will visit, in no particular order — the driver orders them."""
-    rows = []
-    for v in VIEWPORTS:
-        for c in CASES:
-            for z in zooms_for(v):
-                rows.append((v, c, z))
-    return rows
+    return [(v, c, z) for v in VIEWPORTS for c in CASES for z in zooms_for(v) if plans(v, c, z)]

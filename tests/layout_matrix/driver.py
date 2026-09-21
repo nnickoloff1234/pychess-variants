@@ -25,8 +25,8 @@ from .viewports import (
     ZOOMS,
     Case,
     Viewport,
+    plans,
     zoom_label,
-    zooms_for,
 )
 
 PROBE = (Path(__file__).parent / "probe.js").read_text()
@@ -402,7 +402,7 @@ async def walk(page, cdp, case: Case, shots_dir: Path, viewports=None, on_row=No
     """One case across every viewport, grouped by zoom so a reload is paid three times, not 30."""
     rows: list[Row] = []
     for zoom in (*ZOOMS, LAST_RESORT_ZOOM):
-        targets = [v for v in (viewports or VIEWPORTS) if zoom in zooms_for(v)]
+        targets = [v for v in (viewports or VIEWPORTS) if plans(v, case, zoom)]
         if not targets:
             continue
         await set_zoom(page, zoom)
