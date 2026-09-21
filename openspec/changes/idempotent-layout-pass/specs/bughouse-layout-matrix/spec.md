@@ -54,3 +54,31 @@ the survey's own zoom set.
 - **WHEN** the survey runs
 - **THEN** a row SHALL arrive at the phone viewport directly from the last-resort viewport, and
   SHALL apply the stale-until-nudged check to it
+
+
+### Requirement: The survey SHALL report a part placed into an area the template does not declare
+
+A `grid-area` naming an area the template in force does not contain is not an error the browser
+reports: the item is placed in an IMPLICIT track outside the explicit grid, drawn at whatever width
+that leaves it, and every measurement taken from the template afterwards is taken from a grid that
+has grown a row or a column nobody declared. The survey SHALL check, for every part it already
+tracks, that the area named by its computed `grid-area` appears in the computed
+`grid-template-areas`, and SHALL fail the row when it does not.
+
+This is worth a check of its own rather than being left to the convergence check, because the
+stylesheet has now produced it twice. It was diagnosed and fixed on the round page — the note above
+`--bug-zones-a3` records the whole mechanism — and the analysis page reached the same class
+combination with no template rule of its own and oscillated for the same reason, undetected, until
+it was found by hand on the zoom sliders.
+
+#### Scenario: An undeclared area is named
+
+- **WHEN** a part's computed `grid-area` names an area absent from the computed
+  `grid-template-areas`
+- **THEN** the row SHALL fail, naming the part, the area it asked for, and the template in force
+
+#### Scenario: Both pages are checked against their own template
+
+- **WHEN** a class combination selects a template on one page and no rule selects one on the other
+- **THEN** the page without a rule SHALL fail the check, rather than passing because its sibling
+  page is correct

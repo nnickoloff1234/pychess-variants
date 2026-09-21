@@ -11,7 +11,11 @@
 - [ ] 1.4 Add the lagging transition: the phone viewport entered directly from the last-resort
       viewport. Confirm it reproduces the existing `P1` finding as a declared row rather than as
       an accident of walk order.
-- [ ] 1.5 Record the pre-fix run as the baseline the later diffs are read against.
+- [ ] 1.5 Add the undeclared-area check: for every tracked part, assert the area its computed
+      `grid-area` names appears in the computed `grid-template-areas`. Run it against the commit
+      before `790702ed8` and confirm it catches the analysis page's missing template, which was
+      found by hand rather than by the survey.
+- [ ] 1.6 Record the pre-fix run as the baseline the later diffs are read against.
 
 ## 2. Stop reading the resolved grid template
 

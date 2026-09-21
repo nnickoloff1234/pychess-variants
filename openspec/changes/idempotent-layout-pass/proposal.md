@@ -68,6 +68,12 @@ twice.
     against a true 514.57px in the measured cycle), which is not a conservative fallback.
 - Clear `strip-in-zoneb` on every pass rather than only in the branch that sets it, so no class
   survives a mode change that cannot recompute it.
+- Teach the layout matrix to report a part placed into an area its template does not declare. The
+  browser reports nothing: the item goes into an implicit track, is drawn at whatever width that
+  leaves, and every later measurement of the template is taken from a grid that grew a track nobody
+  declared. This has now happened twice — diagnosed and fixed on the round page, then reached
+  again on the analysis page, where it oscillated undetected until it was found by hand (fixed in
+  `790702ed8`).
 - Teach the layout matrix to detect non-convergence directly: run the arrangement forward N passes
   on an unchanged viewport and fail the row if the state ever revisits an earlier one. The existing
   stale-until-nudged check finds lag; it cannot see a cycle, because both of its probes sit inside
