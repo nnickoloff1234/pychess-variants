@@ -595,18 +595,41 @@
        them is displayed, which is what lets them share one area without a rule about who wins.
        NO NEW AREA IS DECLARED, only a new occupant for `stack`. The template and rows are zone
        A's, shared above, because the tab strip still needs a zone A to sit in — and `toolsHome()`
-       will not choose this home unless there is one. */
+       will not choose this home unless there is one.
+
+       WHAT SHARES `stack` IS THE TABS, AND ONLY THE TABS. A tab strip displays exactly one of
+       its tabs, so those may share one rectangle; the parts that are NOT tabs may not, and this
+       rule gave the whole panel to `stack` regardless. The preset rows are the Chat tab's parts
+       1 and 2, the controls are the Moves tab's part 1, and the game-over panel is shown beside
+       whichever tab is selected — every one of them a SIBLING of the part above it, drawn at the
+       same 328x540 rectangle and on top of it. Measured at 820x640: the chat input under two
+       rows of preset buttons, and REMATCH, NEW OPPONENT and ANALYSIS BOARD under the move list.
+       It also put the move controls across the move list's first row, which no check caught.
+
+       So the siblings take a band row each, in the slot order they have beside the boards —
+       `zoneTools2` and `zoneTools3` are these same two parts — and the strip keeps the last slot.
+       An unoccupied band row is a zero-height row, so the Moves tab's empty `zoneA3` costs it
+       nothing and the strip stays directly under the panel. */
     .round-app.bug.tools-lastresort .bug-parts > [role='tabpanel'],
-    .round-app.bug.tools-lastresort .bug-parts .chatpresets-panel-1,
-    .round-app.bug.tools-lastresort .bug-parts .chatpresets-panel-2,
-    .round-app.bug.tools-lastresort .bug-parts > .bug-presets-group,
-    .round-app.bug.tools-lastresort .bug-parts > .bug-gameover {
+    .round-app.bug.tools-lastresort .bug-parts > .bug-presets-group {
         grid-area: stack;
+    }
+    /* Both of these outrank the `[role='tabpanel']` rule above on specificity rather than on
+       order — five classes to four classes and an attribute — and `.round-controls-panel` needs
+       to, because it IS a tab panel and a direct child. The preset panels are neither: they sit
+       inside `.bug-presets-group`, which the child combinator above does not reach. */
+    .round-app.bug.tools-lastresort .bug-parts .chatpresets-panel-1,
+    .round-app.bug.tools-lastresort .bug-parts > .bug-gameover {
+        grid-area: zoneA3;
+    }
+    .round-app.bug.tools-lastresort .bug-parts .chatpresets-panel-2,
+    .round-app.bug.tools-lastresort .bug-parts .round-controls-panel {
+        grid-area: zoneA4;
     }
     /* The strip itself is the one thing that must stay visible while any of them is, so it is the
        one thing that does NOT share the column. */
     :is(.round-app, .analysis-app).bug.tools-lastresort .bug-parts > .bug-round-tools-bar,
     :is(.round-app, .analysis-app).bug.tools-lastresort .bug-parts > [role='tablist'] {
-        grid-area: zoneA2;
+        grid-area: zoneA5;
     }
 }
