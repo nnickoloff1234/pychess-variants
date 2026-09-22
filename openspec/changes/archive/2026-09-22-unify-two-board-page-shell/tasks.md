@@ -33,5 +33,25 @@
       `presetGap`/`presetGapAfforded` timing race.
 - [x] 3.3 The emitted DOM: the two-board round view returns `[div.round-app.bug]` — no aside — and
       both branches emit `main#main-wrap.bug`.
-- [ ] 3.4 A look in the four-window harness. The survey measures geometry, not landmarks; a
-      screen-reader pass is what would confirm the point of the change.
+- [x] 3.4 The LANDMARKS, read where a screen reader reads them: the accessibility tree, dumped over
+      CDP (`Accessibility.getFullAXTree`) on a live round page and on the analysis page of the same
+      game. Both now report:
+
+      | | round | analysis |
+      |---|---|---|
+      | `<main>` elements | `main#main-wrap.bug` | `main#main-wrap.bug` |
+      | `<aside>` elements | none | none |
+      | app's ancestry | `div < main#main-wrap < body` | `div < main#main-wrap < body` |
+      | AX landmarks | banner, main, form, region "Partner board" | banner, main, form, region "Partner board" |
+
+      The two pages are landmark-identical, which is the point of the change: one `main` to skip to
+      on both, where the analysis page had none, and no `complementary` at all, where the round page
+      announced an empty one. The `form` is the header's search box and the `banner` is the site
+      header; both are the shell's, not this app's.
+
+      WHAT THIS IS NOT: a real assistive technology was not driven. The accessibility tree is what a
+      screen reader consumes, so a wrong tree cannot read correctly — but "Orca announces it well" is
+      a different claim and is not made here. Nor was the four-window harness used: the tree is a
+      property of the DOM, identical in a headless page and a tiled Chrome one, and the harness had
+      been torn down by the container rebuild. A human look remains worth having and is not blocked
+      by anything here.

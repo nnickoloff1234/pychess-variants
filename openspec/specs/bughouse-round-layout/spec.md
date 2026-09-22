@@ -131,6 +131,27 @@ variation and its position information — SHALL be in ONE tab. They are one act
 game. Separating the evaluation from the move it evaluates would make a reader choose which half to
 see.
 
+**BEING ONE TAB IS NOT BEING ONE PANEL.** That tab SHALL be declared as three PARTS — the engine
+box, the move list, and the move controls — because a part is the smallest thing the page can place
+and a single panel can only ever be in one place at a time. A part is a PLACEMENT UNIT, not a
+switcher entry: selecting the tab shows every one of its parts, so the reader still sees the
+evaluation beside the move it evaluates wherever the parts are mounted.
+
+The three parts SHALL be:
+
+- **the engine box** — the engine switch, each board's score and depth, the engine's name, the two
+  principal-variation columns and the Multiple-lines control with its readout;
+- **the move list** — the movelist block and `#misc-info`;
+- **the move controls** — the flip, switch, step-back and step-forward buttons.
+
+Declaring them SHALL NOT move anything on screen. Where every part of a tab still shares one home,
+the page SHALL mount them inside ONE GROUP ELEMENT which is the grid item that tab's single panel
+was, and that group SHALL take the area the panel took in every home the page has. A named area is
+one rectangle and holds one item, so parts assigned the same area OVERLAP rather than stack — the
+group is what keeps them a single item until an arrangement has somewhere else to put one.
+
+The group SHALL be the page's own element, not the widget's: the tab widget aggregates nothing.
+
 The game information SHALL be a second tab.
 
 **IT SHALL BE THE PAGE'S ONLY TABBED PANEL.** Everything that is not a board belongs to it — the move
@@ -140,8 +161,9 @@ something not on screen and cost the page a full-width row it could not afford: 
 the chart below the fold in every mode, and removing it brought the app from 843px to 548px in a
 612px viewport in landscape.
 
-The page SHALL mount one panel per declared tab, derived from the declarations rather than listed
-separately, so that a conditional tab cannot leave the two out of step.
+The page SHALL mount one panel per declared PART, derived from the declarations rather than listed
+separately, so that a conditional tab — or a tab that gains a part — cannot leave the mounts out of
+step with the declarations.
 
 Any panel that exists in the page's markup but renders nowhere visible SHALL be given a tab rather
 than left unreachable or deleted. A panel nobody can see cannot be judged, and deleting it decides
@@ -151,6 +173,25 @@ its fate without ever having looked at it.
 - **WHEN** a player opens the tab holding the move list
 - **THEN** the engine's evaluation and its principal variation are visible at the same time
 
+#### Scenario: The Moves tab is three parts
+- **WHEN** the Moves tab's declaration is inspected
+- **THEN** it declares three parts — the engine box, the move list, and the move controls — and the
+  tab strip still shows one Moves tab
+
+#### Scenario: Fragmenting changes no arrangement
+- **WHEN** the page is rendered after the Moves tab is split into parts
+- **THEN** the engine box, the move list and the move controls occupy the same rectangle, in the same
+  order, that the single Moves panel occupied, in every one of the page's homes
+
+#### Scenario: Parts sharing a home are one grid item
+- **WHEN** several parts of one tab are mounted in the same home
+- **THEN** they are children of one group element which carries the grid area, and no two of them
+  are assigned the same area
+
+#### Scenario: Every declared part is mounted
+- **WHEN** a tab gains or loses a part, or a tab is present only conditionally
+- **THEN** the number of mounted panels follows the declarations without a second list to update
+
 #### Scenario: Game info has its own tab
 - **WHEN** the tools panel is inspected
 - **THEN** the game information is one of its tabs
@@ -159,10 +200,11 @@ its fate without ever having looked at it.
 - **WHEN** the page's markup contains a panel that renders nowhere
 - **THEN** it is given a tab of its own, so that what it contains can be seen and then decided upon
 
-#### Scenario: Nothing is mounted under the boards
-- **WHEN** the analysis page is displayed in any mode
-- **THEN** there is no second tabbed panel and no full-width row beneath the boards
-- **AND** the landscape layouts fit the viewport without scrolling
+#### Scenario: One tab strip, and the row beneath the boards is zone B
+- **WHEN** either two-board page is displayed in any mode
+- **THEN** there is exactly one tabbed panel, and nothing is permanently mounted beneath the boards
+- **AND** a full-width row beneath both boards is zone B, which holds a part only when the
+  boards have left height for it
 
 ### Requirement: Both two-board pages size their boards from one published unit
 
@@ -2727,6 +2769,77 @@ without changing size, which is a clearing event and not a re-measure.
 #### Scenario: A reshown board is still clickable
 - **WHEN** the board is shown again after another tab had replaced it
 - **THEN** a click on it maps to the square under the pointer
+
+### Requirement: A layout SHALL NOT reserve a named area for an element it cannot fill
+
+A two-board layout SHALL NOT carry a named grid area for an element that no code path can populate.
+The element itself MAY remain, provided a container lays it out without any template naming it — a
+tab panel's child costs no template a row and cannot be auto-placed into an implicit track.
+
+#### Scenario: An element with no data source
+
+- **WHEN** a page renders an element whose only writer is a message that page never receives
+- **THEN** no template of that page SHALL name a grid area for it
+
+#### Scenario: An element kept for parity
+
+- **WHEN** such an element is kept so that both pages agree on where the feature will appear
+- **THEN** it SHALL be placed inside a container that lays out its own children, and no template
+  SHALL name it
+
+#### Scenario: Spectators on a page with a socket
+
+- **WHEN** a two-board page receives a `spectators` message
+- **THEN** it SHALL render the spectator list into `#spectators` as the single-board pages do
+
+### Requirement: The tab holding the spectator list SHALL carry their number
+
+Where a two-board page shows its spectators inside a tab, the number watching SHALL appear on that
+tab's label while there is at least one. A reader looking at any other tab has no other way to learn
+that anybody is watching, and the list itself is one tab away.
+
+The count SHALL be the number of people the payload describes, not the number of entries in it: the
+server collapses anonymous watchers into a single `Anonymous(N)` entry, and sends a bare count in
+place of the names once there are more than it will name.
+
+With nobody watching, the tab SHALL carry its plain name and nothing else — no empty brackets and no
+zero, which a reader would see for the whole of most games.
+
+#### Scenario: Somebody is watching
+
+- **WHEN** the page is told that two people are watching
+- **THEN** the tab holding the list reads as its name followed by `(2)`
+
+#### Scenario: Anonymous watchers are people
+
+- **WHEN** the payload collapses several anonymous watchers into one entry
+- **THEN** the count includes each of them
+
+#### Scenario: Nobody is watching
+
+- **WHEN** the last spectator leaves
+- **THEN** the tab's label returns to its plain name
+
+### Requirement: The game information and the spectator list SHALL be a column
+
+Where a two-board page puts both in one panel, the game information SHALL sit above the spectator
+list, each taking the panel's full width. They are not alternatives competing for the same row: the
+list is about the game the block above it describes, and the panel is the narrowest region on the
+page.
+
+A team SHALL be described as members that break between them and never inside them. Where the panel
+is too narrow for a whole team on one line, each member SHALL take a line of its own, carrying the
+colour it plays so that no part of a member is separated from the name it belongs to.
+
+#### Scenario: Both parts in one panel
+
+- **WHEN** a panel holds the game information and the spectator list
+- **THEN** the list is below the information, and both are as wide as the panel
+
+#### Scenario: A team too wide for its panel
+
+- **WHEN** a team's two members cannot be drawn on one line
+- **THEN** each member is drawn on its own line, with its colour beside its name
 
 ## Deferred — revisit when next working on desktop mode
 

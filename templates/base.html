@@ -22,8 +22,11 @@
            The order is the design, not an accident: the values first, then what the page around the
            app does, then the arrangement per mode, then the parts that sit in it. A rule that needs
            to win a tie says so with its own selector; nothing here may depend on this order alone.
-           `bughouse-lobby.css` last, and it is not part of this at all: the seek and team UI that
-           was in `bughouse.css` because the variant's name was on the file. #}
+           `override-commons.css` LAST OF THE TWO-BOARD FILES, because every rule in it patches a
+           shared stylesheet for these pages alone and has to outrank both the shared rule and
+           anything here that touches the same property — see the file, which exists to be deleted.
+           `bughouse-lobby.css` after it, and it is not part of this at all: the seek and team UI
+           that was in `bughouse.css` because the variant's name was on the file. #}
         <link rel="stylesheet" href={{ static("two-boards/properties.css") }}>
         <link rel="stylesheet" href={{ static("two-boards/page-shell.css") }}>
         <link rel="stylesheet" href={{ static("two-boards/layout/shared.css") }}>
@@ -41,8 +44,10 @@
         <link rel="stylesheet" href={{ static("two-boards/components/movelist.css") }}>
         <link rel="stylesheet" href={{ static("two-boards/components/tabs.css") }}>
         <link rel="stylesheet" href={{ static("two-boards/components/engine.css") }}>
+        <link rel="stylesheet" href={{ static("two-boards/components/game-info.css") }}>
         <link rel="stylesheet" href={{ static("two-boards/components/movetime-chart.css") }}>
-        <link rel="stylesheet" href={{ static("bughouse-lobby.css") }}>
+        <link rel="stylesheet" href={{ static("two-boards/override-commons.css") }}>
+        <link rel="stylesheet" href={{ static("two-boards/bughouse-lobby.css") }}>
         <link rel="stylesheet" href={{ static("piece/mono/mono.css") }}>
         {% if admin_section and view_css != "admin.css" %}
         <link rel="stylesheet" href={{ static("admin.css") }}>

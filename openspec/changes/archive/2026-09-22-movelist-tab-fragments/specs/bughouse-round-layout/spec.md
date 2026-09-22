@@ -77,3 +77,9 @@ its fate without ever having looked at it.
 #### Scenario: An invisible panel is surfaced rather than dropped
 - **WHEN** the page's markup contains a panel that renders nowhere
 - **THEN** it is given a tab of its own, so that what it contains can be seen and then decided upon
+
+#### Scenario: One tab strip, and the row beneath the boards is zone B
+- **WHEN** either two-board page is displayed in any mode
+- **THEN** there is exactly one tabbed panel, and nothing is permanently mounted beneath the boards
+- **AND** a full-width row beneath both boards is zone B, which holds a part only when the
+  boards have left height for it
