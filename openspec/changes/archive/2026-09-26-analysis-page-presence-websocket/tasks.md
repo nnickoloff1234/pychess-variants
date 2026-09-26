@@ -17,9 +17,11 @@ empty div with a **clickable Chat tab** in the tablist that opens onto nothing.
 - [x] 1.1 **ANSWERED: YES — Option B.** Presence is wanted, so the page earns the claim rather than
       dropping it. The reader is someone analysing a game who wants to know whether its players are
       around to talk to.
-- [ ] 1.2 Answer the same question for the single-board analysis page, which is a separate codepath
-      and was not examined. Whatever holds here probably wants to hold there too.
-- [ ] 1.3 **AND THE NO-GAME ANALYSIS BOARD MUST LOSE ITS INDICATORS ENTIRELY.** Nikolay,
+- [x] 1.2 **MOVED to `app-wide-online-presence`'s open questions.** The single-board analysis page
+      is a separate codepath and was never examined. It stays unanswered, but it now sits with the
+      change that decides the mechanism, because the answer depends on that verdict rather than on
+      anything here.
+- [x] 1.3 **DONE — built and measured in 3.1e.** Nikolay,
       2026-09-26: the analysis page opened from the Tools menu has no game record and no players,
       so it renders no usernames — **but it still renders the presence indicators**. There is
       nobody for them to be about, so they are a claim about nothing rather than a false claim
@@ -31,20 +33,23 @@ empty div with a **clickable Chat tab** in the tablist that opens onto nothing.
       for omitting the icon — Option A's 2.1, which is now built for this case rather than for the
       whole page — is what this uses.
 
-## 2. Option A — NOT TAKEN
+## 2. Option A — NOT TAKEN as a whole, but two of its parts were built anyway
 
-Struck by 1.1. Kept for the record of what was weighed; nothing here is to be done.
+Struck by 1.1. Kept for the record of what was weighed — and because the interesting outcome is
+that **Option A turned out to be the right answer for one case inside Option B**, which is not what
+either side of the argument predicted.
 
-- [ ] 2.1 Give `player()` in `client/player.ts` an optional way to omit the presence icon entirely,
-      rather than hiding it with CSS on `.analysis-app.bug`. Hidden, the element is still in the DOM
-      carrying an `icon-offline` class that is still false — see design decision 2.
-- [ ] 2.2 Pass it from `renderSeatNamesCC` in `client/two-board/analysis/analysisSeatView.ts`,
-      replacing the `false` and the comment that records why it is there.
-- [ ] 2.3 Remove `#roundchat` and its Chat tab from `client/two-board/analysis/analysis.ts`, and any
-      rule that referenced them from `static/bughouse.css`. It renders nothing and only ever had a
-      tab so it could be judged on evidence; the evidence is in.
-- [ ] 2.4 Verify on the live page that the round page still draws its dots, that no analysis bar
-      draws one, and that the tools panel is down to Moves and Info.
+- [x] 2.1 **BUILT, for the no-game board rather than the page.** `player()` gained a last
+      `presence = true` parameter that OMITS the icon rather than hiding it, exactly as this task
+      specified and for design Decision 2's reason. What changed is the caller that passes `false`:
+      not the whole analysis page, only the board with no players.
+- [x] 2.2 **BUILT, in 3.1e.** `renderSeatNames` passes `ctrl.model['gameId'] !== ''`, and the
+      comment recording why `online` was permanently `false` is gone with the `false` itself.
+- [x] 2.3 **SUPERSEDED by 3.6**, which is moved to `app-wide-online-presence`. Removing `#roundchat`
+      is now one of two possible answers there rather than a decided action here.
+- [x] 2.4 **VERIFIED, in the form Option B needs.** Measured on the no-game board: 4 player bars,
+      0 `i-side` elements, against 4 indicators before. The round page is untouched by construction
+      and by diff (3.1g). The tools panel was NOT reduced — Option B keeps the page's tabs.
 
 ## 3. Option B — earn the claim — THIS IS THE WORK
 
@@ -106,10 +111,14 @@ which case a page wanting a live dot copies the 35-second scoped poll that
 `client/tournamentRR.ts:494` already runs against `/api/users/status?ids=`. Either way this page's
 dot is already correct on load, which was phase 1's whole promise.
 
-- [ ] 3.6 **BLOCKED on `app-wide-online-presence`, both ways.** Wire `#roundchat` or remove it. If
-      that change builds a connection for this page, the same connection can carry `bugroundchat`
-      and the tab is wired; if it does not, there is no connection and the tab is removed. This is
-      the only open task left here, and it cannot be settled before that verdict.
+- [x] 3.6 **MOVED to `app-wide-online-presence`** — its task 3.5, and a requirement in its
+      `user-presence` spec delta. Wire `#roundchat` or remove it: if that change builds a connection
+      for this page, the same connection carries `bugroundchat` and the tab is wired; if it does
+      not, the tab is removed. Either way the decision belongs to the change that decides whether
+      the connection exists, so it does not hold this one open.
+
+      **The requirement left this change's spec delta with it**, so archiving does not sync a
+      living requirement that today's code violates.
 
 ## 4. Close out
 

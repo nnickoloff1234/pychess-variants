@@ -75,3 +75,23 @@ itself a claim about a real person.
 - **WHEN** a page draws the indicator and has no mechanism to learn of changes
 - **THEN** it SHALL still draw the state correct at load
 - **AND** it SHALL NOT draw a fixed value that is independent of the user's actual state
+
+### Requirement: A page SHALL NOT offer a tab that renders nothing
+
+Carried from `analysis-page-presence-websocket`, whose verdict on it depends on this change.
+
+`#roundchat` on the two-board analysis page is an empty element that nothing renders into, reachable
+through a clickable Chat tab in the tablist. It exists because the page was expected to gain a
+connection and never did. It MUST NOT be left that way: either the connection this change decides on
+carries the game's chat into it, or the element and its tab are removed.
+
+#### Scenario: The page gains a presence connection
+
+- **WHEN** this change builds a connection for the analysis page
+- **THEN** that connection SHALL also carry the game's chat messages into `#roundchat`
+- **AND** the Chat tab SHALL render them
+
+#### Scenario: The page gains no connection
+
+- **WHEN** this change concludes no connection is built for the analysis page
+- **THEN** `#roundchat` and its Chat tab SHALL be removed from that page
