@@ -116,7 +116,31 @@ changes ... later we might think of a full solution, but for now we start with s
       `#settings`, `#notify-app`, `#challenge-app` and both two-board pages are built by Snabbdom at
       runtime, so nobody has seen the DOM they produce.** Tasks 2.1 and 2.2 are what validate all of
       it. See `focus-and-tabindex-sweep.md`'s opening table.
-- [ ] 2.4d **F1, F2 and T1-T6 do not wait on the gate.** They are Level A keyboard failures affecting every
+- [x] 2.4g **Alt text and form labels SWEPT — `alt-and-labels-sweep.md`.** Better than expected on
+      images, two clear label defects, one pattern-level gap:
+
+      **Alt text is in good shape: 4 misses in the whole codebase** (`profile.html:31` trophy,
+      `about.ts:26`, `layer2fairy.ts:15`, `layer2army.ts:16`), all decorative, all `alt=""`. **1775 of
+      1776** template images already have `alt`, `authors.html` uses a per-author `portrait_alt`
+      field, and `layer1.ts` marks all eighteen decorative pieces `alt=""`. **Zero icon-only
+      `<button>`s lack an accessible name** — the failure mode that usually dominates such an audit is
+      absent here.
+
+      **L1. `arena-new.html:292` has `for="form3-byo"` — an id that exists nowhere** (grep-confirmed);
+      the select is `form3-byoyomiPeriod`. Orphaned label, unnamed select, and it looks correct.
+
+      **L2. `memory.html:74-77` uses `label="zen"`, which is not an HTML attribute on `<input>`** (it
+      is valid only on `<option>`/`<optgroup>`). Four radio buttons with **no accessible name at all**.
+
+      **L5. Four unnamed range sliders** — `lobby.ts:859, 879, 1740, 1748`. "Rating range" is a bare
+      string inside a `div`, not a `<label>`, so two pairs of sliders share a heading with no
+      association: a screen reader says "slider" twice, unnamed.
+
+      **METHOD WARNING recorded in the file.** A line-based grep first reported "18 of 23 client
+      images have no alt"; a multi-line-aware parse gives **3**. Wrapping `<label>`s are the same trap
+      in reverse, so the client count (44 flagged, ~1 in 3 a false positive on calibration) needs
+      runtime confirmation from task 2.2.
+- [ ] 2.4d **F1, F2, T1-T6, A1 and L1-L5 do not wait on the gate.** They are Level A keyboard failures affecting every
       keyboard-only user, sighted or not — not blind-mode features. F1 is one selector; F2 is a `div`
       becoming a `button` with the handler it already has. F3 and F4 are four lines, each on a line
       the code already writes. T1 and T3 are one ternary each with precedent in the codebase, T2 is
