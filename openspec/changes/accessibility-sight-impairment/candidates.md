@@ -577,3 +577,111 @@ already knows last-move, check, selected and move-destination squares, so those 
 - **Candidate E (the command input) stays a preference** for everyone, as lichess ships it.
 - **Candidate C (the position in prose) stays always-on, visually hidden** — still valuable, because
   hearing twelve lines is far faster than walking 64 squares.
+
+## F(vi) — OPEN QUESTIONS TO SETTLE BEFORE COMMITTING, raised by Nikolay 2026-09-27
+
+Recorded verbatim in substance, because these are conditions on the option, not afterthoughts.
+
+### Q1. Arrow keys must not stop scrolling the move list — and the rule is about HOW focus arrived
+
+Nikolay: *"currently arrows are captured to scroll the movelist and this behaviour should not be
+interfered with. if focusing on the board by mouseclick means that now keyboard events for arrows
+suddenly stop scrolling the movelist, that is a regression. if this only happens via focusing through
+the tab, then i am ok with it."*
+
+**So the required rule is:**
+
+| Focus arrived by | Arrows should |
+|---|---|
+| **Tab** (or any keyboard route) | **navigate the board** — the user has clearly chosen to work in it |
+| **mouse click** | **keep scrolling the move list, exactly as today** |
+| not on the board at all | keep scrolling the move list |
+
+**Investigated, and here is what is actually there.** Arrows are bound through **Mousetrap**:
+`client/gameCtrl.ts:238-239` (`Mousetrap.bind('left'…)`, `'right'`) and
+`client/analysis/analysisTreeCtrl.ts:77-94` (which also handles `ArrowUp`/`ArrowDown` for tree forks).
+`gameCtrl.ts:355` already does a selective `Mousetrap.unbind([...])`, so precedent exists.
+
+**The hazard is specific: Mousetrap ignores keystrokes from `input`, `select`, `textarea` and
+`contenteditable` — but NOT from `<button>`.** So a focused square button would let the arrow reach
+Mousetrap *and* our handler. **Double handling: the move list would scroll while the board cursor
+moved.**
+
+**A candidate mechanism that satisfies the rule exactly** — to be verified, not assumed:
+
+```ts
+square.addEventListener('keydown', e => {
+    if (!square.matches(':focus-visible')) return;   // mouse-focused → leave it to Mousetrap
+    // keyboard-focused → handle, then preventDefault() + stopPropagation()
+});
+```
+
+**`:focus-visible` is true for Tab focus and false for mouse-click focus on a button** — so *the same
+mechanism that decides whether to draw the focus ring decides whether to capture the arrows*. That is
+a neat fit for Nikolay's rule rather than a coincidence.
+
+**Caveats to test, not to assume:** `:focus-visible` heuristics differ slightly between browsers, and
+some keep treating focus as "visible" once the user has touched the keyboard at all. **This needs real
+testing in Firefox and Chrome before the option is committed to.** The alternative is overriding
+`Mousetrap.stopCallback` to ignore events originating inside the board, which is blunter but fully
+deterministic.
+
+**Related, and the same family of problem:** `client/pocketHotkeys.ts` binds `1`-`9`, `0`, `-`, `=`
+globally through Mousetrap, which a screen reader in browse mode swallows before the page sees them
+(`user-report.md` §3, task 1.6). Whatever is decided here should decide that too.
+
+### Q2. Pockets — research lichess's crazyhouse first
+
+Nikolay: *"the other question that bothers me is how pockets are interacted with, but first we should
+check how lichess solves this in crazyhouse."*
+
+**Not yet researched.** The blind-mode tutorial section we read (`lichess-reference.md` §5) documents
+board navigation and says nothing about pockets, so their answer has to be found separately — the
+crazyhouse blind-mode page itself, or the `nvui` bundle.
+
+**What we already have that they do not:** our user's own model, specified from years of use —
+*"white from the left of the 'A' vertical and black on the right of the 'H/I/J' verticals depending of
+variant"*, with vertical arrows stepping through the roles, **in the same navigable space as the
+board** (`user-report.md` §4). That is more specific than anything in lichess's documentation, and it
+may simply be the better answer.
+
+**Constraint already known:** pockets are rendered by `client/pocketRow.ts`, **outside `cg-board`**, so
+they are not covered by F(vi)'s grid and need their own treatment. Four of our user's named variants
+have them.
+
+### Q3. Bughouse — two boards and two pockets is a lot of tabbing
+
+Nikolay: *"bughouse and the two boards if player wants to play in simul mode, they will have to switch
+between both boards with tab, but also between the pockets with even more tabbing, not terrible, and
+bughouse is not a priority for this thing, but still needs to be considered."*
+
+**Recorded, and explicitly not a priority** — consistent with `user-report.md` §9, where bughouse is
+never mentioned across three messages naming eight other variants.
+
+Worth noting when it is reached: with a roving `tabindex` per board, simul mode is **four tab stops**
+(two boards, two pockets), not 128. A single "go to other board" key would reduce it further, and
+lichess has no precedent to copy because it has no bughouse.
+
+### Q4. THE DOM DECORATION IS TECHNICAL DEBT WITH A KNOWN DESTINATION
+
+Nikolay: *"what bothers me the most is that thing about decorating the dom on our own in places where
+also chessgroundx depends on and manipulates ... what we end up relying on is not a contract, so a unit
+test for regressions is a must — but also i think we should consider bringing this to chessground as a
+functionality part of the board logic — it is where it belongs anyway, instead of us now putting it on
+top of chessground without its knowledge."*
+
+**Accepted as a condition of the option, not an optional extra:**
+
+1. **A unit test is mandatory, not recommended.** It must assert that our per-square elements **survive
+   a `render()` call** — i.e. that chessgroundx's tagName-based skip still holds. That test is the only
+   thing standing between us and a silent failure on a chessgroundx upgrade, and a silent failure here
+   means a blind player is told a piece is somewhere it is not.
+2. **This is documented as a TEMPORARY solution whose proper home is chessground.** Per-square elements
+   with labels and keyboard navigation are **board logic**; they belong inside the board component, not
+   bolted onto it from outside by a consumer that has to guess at the component's internals.
+3. **The intended path:** ship it on top first, because it is cheap and needs no coordination; then
+   propose it upstream to `gbtami/chessgroundx` as a supported feature or extension point. **Postponing
+   the upstreaming is fine; leaving it undocumented is not.**
+
+**Whatever is built under F(vi) carries a comment saying this**, so the next reader knows it is a
+deliberate temporary arrangement with a destination, and not someone's clever trick.

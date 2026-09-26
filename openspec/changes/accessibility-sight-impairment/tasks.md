@@ -563,6 +563,38 @@ changes ... later we might think of a full solution, but for now we start with s
       ignored visibility; this one holds because **there is only one board and it is already visible.**
       Candidate A returns to a visually hidden help **link**; E stays a preference; C stays always-on and
       visually hidden, because hearing twelve lines beats walking 64 squares.
+- [ ] 3.4h **F(vi) HAS FOUR CONDITIONS — settle them before committing.** `candidates.md`, "open
+      questions". Raised by Nikolay 2026-09-27 and recorded as conditions on the option, not
+      afterthoughts.
+
+      **Q1. Arrows must not stop scrolling the move list — and the rule is about HOW focus arrived.**
+      Tab-focus on the board → arrows navigate it; **mouse-click focus → arrows must keep scrolling the
+      move list exactly as today, or it is a regression.** Investigated: arrows are Mousetrap bindings
+      (`gameCtrl.ts:238-239`, `analysis/analysisTreeCtrl.ts:77-94`), and **Mousetrap ignores `input`,
+      `select`, `textarea` and `contenteditable` but NOT `<button>`** — so a focused square would trigger
+      both handlers and the list would scroll while the cursor moved. **Candidate mechanism:
+      `square.matches(':focus-visible')` as the gate — true for Tab focus, false for mouse focus, so the
+      same mechanism that draws the focus ring decides whether to capture the arrows.** Needs real
+      testing in Firefox and Chrome; the blunter fallback is overriding `Mousetrap.stopCallback`. **Same
+      family as `pocketHotkeys.ts`'s global `1`-`9` bindings (task 1.6) — decide both together.**
+
+      **Q2. Pockets — research lichess's crazyhouse FIRST.** Not yet done; the tutorial section we read
+      says nothing about pockets. Note we already have our user's own model, more specific than lichess's
+      docs, and that `pocketRow.ts` renders pockets **outside `cg-board`**, so F(vi)'s grid does not cover
+      them.
+
+      **Q3. Bughouse — noted, explicitly not a priority** (the user never mentions it). With a roving
+      tabindex per board, simul mode is **four tab stops**, not 128; a "go to other board" key would cut
+      it further. No lichess precedent — they have no bughouse.
+
+      **Q4. THE DECORATION IS DEBT WITH A KNOWN DESTINATION, and two things follow as conditions:**
+      **(a) a unit test asserting our elements SURVIVE a `render()` call is mandatory** — it is the only
+      thing between us and a silent failure on a chessgroundx upgrade, and a silent failure here tells a
+      blind player a piece is somewhere it is not; **(b) it ships documented as TEMPORARY, with
+      chessground named as its proper home** — per-square labels and keyboard navigation are board logic
+      and belong inside the component, not bolted on by a consumer guessing at internals. Ship on top
+      first (cheap, no coordination), then propose upstream to `gbtami/chessgroundx`. **Postponing the
+      upstreaming is fine; leaving it undocumented is not** — the code carries a comment saying so.
 - [ ] 3.4f **SUPERSEDED by 3.4g** — options A-E and naming the switch. Kept because A-E record what was
       weighed, and because 3.4g's hazard 4 may eventually argue for the fork after all. E is the one that dissolves the
       problem; B was recommended among A-D before E existed. Nikolay is not convinced any of A-D is good,
