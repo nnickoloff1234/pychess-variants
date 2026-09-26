@@ -96,16 +96,30 @@ changes ... later we might think of a full solution, but for now we start with s
       blind user can operate all the board."* A focusable table is both what they asked for and
       what the focus-mode mechanism needs. If lichess's answer is more than that, we may still take
       only this much — with their agreement already on record.
-- [ ] 3.4 **THE GATE — write the shortlist.** Each item: what it does, for whom, the size of the
-      change, and whether it came from the user's messages. Everything not on it goes to a named
-      successor change with the reason. **Short is the goal, not coverage.**
+- [x] 3.4a **The candidates are costed — `candidates.md`.** Seven options A to G, each with what it
+      buys, what it costs and what is still unknown, plus two possible groupings. **Explicitly not a
+      decision**: Nikolay, 2026-09-26, *"we havent reached conclusion what to do yet, just good to
+      have all this written down as options and findings."*
+- [ ] 3.4 **THE GATE — STILL OPEN. Choose from `candidates.md`.** Everything not chosen goes to a
+      named successor with the reason. **Short is the goal, not coverage.**
+
+      **The tension to resolve**: the user's stated FLOOR is move entry (candidate E) and their
+      stated FIRST WANT is arrow navigation (candidate F). Grouping 1 (A+B+C+D+E) satisfies the floor
+      without the want; grouping 2 adds the board.
+- [ ] 3.4b **Decide whether a MODE is wanted at all**, or whether the markup is always on. Design
+      Decision 4 prefers always-on; candidate A's toggle assumes a mode. Evidence that both can be
+      true at once: lichess ships keyboard move entry as an ordinary preference for sighted players
+      (`"keyboardMove": false` in the normal page's prefs) *and* forces it on in blind mode.
+- [ ] 3.4c **Decide where the piece-naming table sits in the order.** 33 `pieceFamily` values,
+      roughly 200-350 translatable strings, and the role letter is a valid fallback meanwhile. It
+      gates nothing, but it is the difference between *"A8 black r"* and *"A8 black rook"*.
 - [ ] 3.5 Write the spec delta for the shortlist only, and only then. The capability is unnamed
       until this point on purpose — see the proposal.
 
 ## 4. Build the shortlist
 
-- [ ] 4.1 To be filled from 3.4. Left empty deliberately: an implementation plan written before the
-      user's messages have been read would be the exact mistake design Decision 1 exists to prevent.
+- [ ] 4.1 To be filled from 3.4, which is still open. Left empty deliberately — the candidates and
+      their costs are in `candidates.md`; turning one into tasks is what the gate authorises.
 
 ## 5. Verify
 
