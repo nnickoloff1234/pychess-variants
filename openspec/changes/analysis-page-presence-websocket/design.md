@@ -92,6 +92,58 @@ and it was only ever given one so it could be judged on evidence. Under B the co
 presence also carries `bugroundchat`, so the tab can be made real at little extra cost; whether a
 finished game *should* have a chat is then a second, smaller question.
 
+### Decision 5: the dot means ONLINE ANYWHERE, not "in this game" — decided 2026-09-26
+
+Nikolay chose the site-wide meaning, from the rationale that opened the question: *"people should be
+able to see if the players whose game they are analysing are online in case they want to interact
+with them."* Interacting means messaging them wherever they are, so the dot has to answer "is this
+person around", not "is this person also on this page".
+
+**THE EXISTING MESSAGES CANNOT ANSWER THAT, which is what makes this bigger than the file assumed.**
+All three are driven by one predicate:
+
+```python
+def is_user_active_in_game(self, game_id=None):
+    return game_id in self.game_sockets      # connected to THIS game's socket
+```
+
+On a FINISHED game almost nobody is connected to that socket, so the narrow reading would leave the
+dot grey nearly always — including for a player sitting in the lobby. That is not an improvement on
+today; it is the same grey dot with a websocket behind it, and it would be wrong in a new way.
+
+The site-wide flag already exists and is maintained:
+
+```python
+def update_online(self):
+    self.online = (len(self.game_sockets) > 0 or len(self.lobby_sockets) > 0
+                   or len(self.challenge_channels) > 0 or len(self.tournament_sockets) > 0
+                   or len(self.simul_sockets) > 0 or len(self.study_sockets) > 0)
+```
+
+**But nothing broadcasts it.** No websocket message type carries `online`; `update_online()` only
+maintains internal state. So the server work is not optional, and the "no server change" non-goal in
+the proposal is withdrawn rather than quietly ignored.
+
+**AND THE ROUND PAGE'S DOT MUST NOT CHANGE MEANING.** It answers "in this game", it works, and it is
+the reference. So this is a SECOND question the server can be asked, not a widening of the existing
+one.
+
+### Decision 6: how the site-wide state reaches the page — PROPOSED, needs agreement
+
+Answering on connect is easy; learning about CHANGES is the design. Three shapes were considered:
+
+- **Poll.** The page asks every N seconds. No registry, no push, but the dot lags and every open
+  analysis page adds steady traffic.
+- **Broadcast on every flip.** `update_online()` notifies everyone. Simple to write and the worst
+  thing here for load — most flips interest nobody.
+- **A small interest registry — PROPOSED.** An analysis socket, on connect, registers interest in
+  the four usernames of the game it is watching: `username -> set(game rooms that care)`. When
+  `update_online()` flips a user, the server looks that username up and sends to those rooms only.
+  Bounded by the number of open analysis pages, not by users or games, and cleaned on disconnect.
+
+The third is the only one that is both push and proportionate. It is written here rather than built
+because it adds a server-side structure, and that is worth agreeing before it exists.
+
 ## Risks / Trade-offs
 
 - **[A removes a feature people expected to see]** → It removes nothing that functions. If presence
@@ -109,10 +161,13 @@ finished game *should* have a chat is then a second, smaller question.
 
 ## Open Questions
 
-- Is presence on a finished game wanted at all? This decides A versus B and nothing else does.
-- If B: should the dot show presence on the *analysis page* specifically, or presence anywhere on the
-  site? The round page answers "connected to this game's socket", which for a finished game means
-  "also reading this analysis page" — a different and much narrower meaning than a user might read
-  into a green dot.
+- ~~Is presence on a finished game wanted at all?~~ **ANSWERED 2026-09-26: yes, Option B.**
+- ~~Should the dot show presence on the analysis page specifically, or anywhere on the site?~~
+  **ANSWERED 2026-09-26: anywhere on the site — Decision 5.**
+- **NEW, and open: how does a change in site-wide state reach the page?** Decision 6 proposes a small
+  interest registry; it is not yet agreed.
+- **NEW: what does the dot mean for a user who is online but invisible?** If a "hide my online
+  status" preference is ever added, a site-wide dot is the first thing that breaks it. Nothing like
+  it exists today; worth knowing before this becomes load-bearing.
 - Should the single-board analysis page behave the same way? It is a separate codepath and was not
   examined; whatever is decided here probably wants to be true there too.

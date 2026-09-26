@@ -48,23 +48,45 @@ Struck by 1.1. Kept for the record of what was weighed; nothing here is to be do
 
 ## 3. Option B — earn the claim — THIS IS THE WORK
 
+### Server — new, because 3.5 chose the site-wide meaning
+
+- [ ] 3.0a **Agree the mechanism (design Decision 6) before building it.** The proposal is a small
+      interest registry: an analysis socket registers the four usernames it cares about, and a flip
+      in `update_online()` is sent only to the rooms that asked. Bounded by open analysis pages. The
+      alternatives are polling (laggy, steady traffic) and broadcasting every flip (simple, worst
+      for load).
+- [ ] 3.0b A second question the server can be asked, NOT a widening of `is_user_present`. That one
+      answers "in this game", the round page depends on it, and it must keep its meaning.
+- [ ] 3.0c Publish the flip from `update_online()`, which is the one place the site-wide state is
+      computed. Note its current callers are `user.py:311` and five sites in `header_challenges.py`.
+- [ ] 3.0d Python gates, which this change originally said it would not need: `ruff format`,
+      `ruff check`, `pyrefly`, and the unittest suite.
+
+### Client
+
 - [ ] 3.1 Add a small presence-only socket class alongside `RoundControllerBughouseSocket` in
       `client/two-board/socket/sockets.ts`. **Do not reuse or split the round one**: its
       `setConnecting()` writes `ctrl.seats.all[].clock!.connecting` and analysis seats have no clock,
       so the first reconnect would throw — design decision 3.
-- [ ] 3.2 Handle `game_user_connected`, `user_present` and `user_disconnected`, and nothing else.
+- [ ] 3.2 Handle the site-wide presence answer and its updates, and nothing else. The three
+      per-game messages are NOT what this page reads — see 3.5.
 - [ ] 3.3 Give `AnalysisSeatView` a `setPresence(username, online)` that repaints only the bars for
       that username, the way `RoundSeatView.setPresence` does — a username can hold two seats in
       simul mode, so it must repaint all of them.
 - [ ] 3.4 Construct the socket from `AnalysisControllerBughouse`, and only when there is a real game:
       the blank analysis board (`/analysis/<variant>`, no gameId) has no game to subscribe to.
-- [ ] 3.5 Decide what the dot means on this page before shipping it — "connected to this game's
-      socket" on a finished game means "also reading this analysis page", which is narrower than
-      what a green dot suggests. See the second open question in design.md.
+- [x] 3.5 **DECIDED 2026-09-26: ONLINE ANYWHERE ON THE SITE.** Nikolay, from the rationale that
+      opened the change: people analysing a game should be able to see whether its players are
+      around to interact with. See design Decision 5 for why the existing messages cannot answer
+      that and what it costs — the "no server change" non-goal is withdrawn as a result.
 - [ ] 3.6 Wire `#roundchat` or remove it. The same connection carries `bugroundchat`, so leaving the
       tab empty is no longer defensible either way.
-- [ ] 3.7 Verify with two harness windows on the same analysis page that one sees the other go
-      online, and that closing one turns the other's dot offline.
+- [ ] 3.7 Verify with harness windows that a player's dot goes green when that player is online
+      ANYWHERE — in the lobby, not only on this same analysis page — and grey when they leave the
+      site entirely. The old wording tested the narrow meaning and would have passed a build that
+      answers the wrong question.
+- [ ] 3.8 Verify the ROUND page's dot is unchanged. It answers "in this game", it works, and it is
+      the reference — a regression there is the main risk of touching presence at all.
 
 ## 4. Close out
 
