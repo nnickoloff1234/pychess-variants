@@ -1,5 +1,10 @@
 ## 0. Status
 
+**PLANNING ONLY — 2026-09-27.** Nikolay: *"we will not fix anything today, we are just writing down
+our findings and making a plan ... we are still at planning phase."* Every defect recorded in
+`collapsibles-sweep.md` and `focus-and-tabindex-sweep.md` is a **worklist item for when the change is
+applied**, not something to touch now. Section 4 stays empty until the gate at 3.4.
+
 **Opened 2026-09-26. UNBLOCKED the same day** — the user's three messages are in `user-report.md`,
 quoted verbatim with the extraction. That file is the authority for this change and it overturned
 four things the design had assumed; see its section 9.
@@ -83,10 +88,42 @@ changes ... later we might think of a full solution, but for now we start with s
       **F5, minor.** The search icon is a non-focusable `<div>`, but `.search-bar` collapses with
       `overflow: hidden`, which **keeps the input focusable and in the accessibility tree**, and it
       has `aria-label`. Reachable anyway.
-- [ ] 2.4d **F1 and F2 do not wait on the gate.** They are Level A keyboard failures affecting every
+- [x] 2.4e **Focus order, tabindex and focus visibility SWEPT — `focus-and-tabindex-sweep.md`.**
+      Six findings, all small, none touching the board or layout:
+
+      **T1. The lobby tablist has no keyboard entry point.** All four tabs hardcoded `tabindex: '-1'`
+      (`lobby.ts:2082, 2089, 2103, 2123`); `lobby.ts:275` fixes `aria-selected` at runtime but never
+      `tabindex`, and `changeTabs` does not either. **Tab never lands on a lobby tab.** WCAG 2.1.1,
+      Level A. The correct roving pattern already exists at `tournamentRR.ts:1013`.
+
+      **T2. No tablist on the site has arrow-key navigation.** `setAriaTabClick` (`view.ts:202`) binds
+      `click` only; `changeTabs` listens for no keys. `role="tab"` advertises Left/Right arrows, so
+      this promises an interaction the page does not honour. **One keydown handler in that one shared
+      helper repairs every tablist at once — the best value on the list.**
+
+      **T3. The two-board tabs emit POSITIVE tabindex.** `two-board/common/tabs.ts:116` and `:143`
+      use `tabindex: String(t)`, producing `0,1,2,3` on four tabs and four panels — which hoists them
+      ahead of every naturally focusable element in the document. Clearly a slip: `aria-selected` in
+      the same attribute object is computed correctly.
+
+      **T4-T6. `outline: none` with no replacement** — `.btn-controls button:focus`
+      (`site.css:2302`, the round page's **Draw and Resign**), `button.icon:focus` (`:2393`),
+      `.search-bar .input input` (`:3800`). WCAG 2.4.7, Level AA. `:focus-visible` is the right
+      replacement, and `study.css` already models it (24 uses against `site.css`'s 4).
+- [x] 2.4f **METHOD RECORDED, with its limits.** Every sweep in this change is **static source
+      reading — the app has never been run.** No browser, no rendered DOM, no screen reader. "X is
+      missing" is reliable; "the user therefore experiences Y" is inference. **The biggest gap:
+      `#settings`, `#notify-app`, `#challenge-app` and both two-board pages are built by Snabbdom at
+      runtime, so nobody has seen the DOM they produce.** Tasks 2.1 and 2.2 are what validate all of
+      it. See `focus-and-tabindex-sweep.md`'s opening table.
+- [ ] 2.4d **F1, F2 and T1-T6 do not wait on the gate.** They are Level A keyboard failures affecting every
       keyboard-only user, sighted or not — not blind-mode features. F1 is one selector; F2 is a `div`
       becoming a `button` with the handler it already has. F3 and F4 are four lines, each on a line
-      the code already writes. Decide whether to fix them now as candidate G work.
+      the code already writes. T1 and T3 are one ternary each with precedent in the codebase, T2 is
+      one keydown handler that fixes every tablist, and T4-T6 are one CSS rule each.
+
+      **Deferred by Nikolay on 2026-09-27 to keep the change in planning.** Decide at the gate
+      whether they ship as candidate G work ahead of, or alongside, whatever else is chosen.
 - [ ] 2.5 **Test the Android path too**, since 1.3 made it a named target: TalkBack, and Jieshuo if
       it can be obtained. Mobile was not in anyone's plan and is in the user's.
 
