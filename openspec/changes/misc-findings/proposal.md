@@ -1,6 +1,6 @@
 ## Why
 
-Four things are known, measured and owned by nobody. Each was found while doing something else,
+Five things are known, measured and owned by nobody. Each was found while doing something else,
 each is recorded in a change that has since been archived or in no change at all, and none is
 anybody's next task. **This is a holding pen so they stop being lost, not a plan to fix them.**
 
@@ -9,7 +9,7 @@ commit message and had to be re-derived: `unify-two-board-app-grid` was opened f
 then had it happen to it twice more. A finding with no owner is the same failure one step earlier —
 it is not even in a commit message, it is in a conversation.
 
-**NOTHING HERE IS SCHEDULED, and two of the four may turn out to be nothing.** What each needs is a
+**NOTHING HERE IS SCHEDULED, and some may turn out to be nothing.** What each needs is a
 decision about where it belongs, which is cheaper to make than to re-derive the measurement.
 
 ## What Changes
@@ -17,7 +17,7 @@ decision about where it belongs, which is cheaper to make than to re-derive the 
 Nothing in the code. Each finding either moves to the change that owns its subject, gets a change of
 its own, or is deliberately closed as "not a defect" — all three are results.
 
-## The four
+## The findings
 
 ### 1. A player who offers a draw is told nothing
 
@@ -59,7 +59,12 @@ codebase have repeatedly turned out not to mean.
 
 It is cheap to settle: assert whether `place()` runs on the game-over swap at all.
 
-### 3. `5be122386` removed a whole tools home and is recorded nowhere
+### 3. `5be122386` removed a whole tools home and is recorded nowhere — RESOLVED 2026-09-26
+
+**Struck while archiving `what-zone-a-is-for`.** The commit is now recorded in `zone-a-semantics`,
+which inherited zone A's subject, and its consequences were applied to that change's task list:
+task 3.7 (the zone A home places the whole panel with no fit test) was struck outright because the
+home no longer exists, and 2.7 with it. Kept here for the record of what it was.
 
 Landed 2026-09-21, in no change then or now. It deleted the `zoneA` tools home — the fallback
 between `below` and the last resort, which shrank the partner board to seven tenths of the viewer's
@@ -77,8 +82,8 @@ In `place()`, the whole `inBand` fork — **the only direction in which a fragme
 zone B from a placed home**, so the region a part is offered no longer depends on which home asked.
 `drop-tools2-b` now has no rule at all rather than one scoped to that home.
 
-`what-zone-a-is-for` carries 43 open tasks about zone A and does not mention any of this. Several
-of them may already be answered or moot.
+`what-zone-a-is-for` carried 43 open tasks about zone A and mentioned none of this. Two of them
+turned out to be moot because of it, which is exactly the cost of leaving a commit unrecorded.
 
 ### 4. A `zoneB2` collision on the analysis page that never fires
 
@@ -101,6 +106,20 @@ outliving its template) and of `df988e68b` (a class the stylesheet declined whil
 believed it had landed). Whether the cascade GUARANTEES `drop-tools2` in that home, or it is merely
 true of these 30 viewports, is unproven — and proving it needs a matrix row that does not exist.
 
+### 5. Draw and resign are sized unlike the tabs they share a row with
+
+Nikolay's note, on the four short-landscape `C2` rows: *"there is enough space for the draw and
+resign button to fit in the tablist row if they were slightly smaller ... they should probably
+follow similar size as the tablist buttons in all cases, which would allow them to stay on same row
+more often than not."*
+
+The wrapping he saw is gone — the track was given the width it was short of — but **the sizing rule
+he asked for was never written, and the survey has no check for it**, so nothing would notice if the
+two drifted apart again. It sat in `what-zone-a-is-for` because that is where the note was taken;
+that change is archived and this is not its subject, so it comes here rather than disappearing.
+
+Small, and the only one of the five with a named person waiting on it.
+
 ## Capabilities
 
 None. These are findings about existing behaviour; whichever of them turns out to be real will name
@@ -109,5 +128,5 @@ its own capability in its own change.
 ## Impact
 
 - No code, unless a finding is adopted and fixed elsewhere.
-- Finding 3 most likely changes `what-zone-a-is-for`'s task list rather than any code.
+- Finding 3 is resolved; it changed `zone-a-semantics`'s task list and no code.
 - Finding 4 would need a new row in `tests/layout_matrix` before it can be settled either way.

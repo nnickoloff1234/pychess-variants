@@ -16,7 +16,8 @@ mechanism, not a proposal of its own — see `design.md` "Findings".
       1276x430: columns 354.6/225.1/679.1 -> 354.6/354.6/549.6, board B 225 -> 341, the partner gauge
       225x0 -> 13x341, zone A 103 -> 0, tools 679 -> 550, no overflow either way. Full table in
       `design.md`.
-- [ ] 1.2 Portrait, for 1.1: the partner stack is now a grid there too, sized from
+- [x] 1.2 **ANSWERED 2026-09-26. The blocker named here — "the tiled harness window cannot reach portrait" — is gone: p4 is a 386x835 portrait tile and the matrix bed walks 24 portrait rows. Portrait is measured routinely now.**
+      ORIGINAL: Portrait, for 1.1: the partner stack is now a grid there too, sized from
       `--bug-portrait-partner-sq`. Published and correct, but unverified — the tiled harness window
       cannot reach portrait. Measure the partner board, its pockets and the app width in portrait
       before this change is archived.
@@ -115,7 +116,9 @@ mechanism, not a proposal of its own — see `design.md` "Findings".
       OURS: fixed upstream directly (`0613e725b`, `f16c2fa58`) — the nav now yields, DONATE falls
       back to its icon, and the username is capped. It was 48 of the 56 overflow rows in the survey.
 
-- [ ] 1.25 **No preset gap is published at all in 15 rows** — `C1` at base zoom, on phones and
+- [x] 1.25 **FIXED. The gap is published: L1 41.88 against 41.9 afforded, P1-P3 3.11, desktops 3 against 2.8 afforded. The residue is the MIXED case (a row affording 10 with a gap of 3.11), which is `5310d5897`'s one-size-per-page decision, not "nothing wrote a value".**
+
+      ORIGINAL: **No preset gap is published at all in 15 rows** — `C1` at base zoom, on phones and
       tablets. Both rows are identical and afford 7-30px; the page publishes 3, which is the floor
       showing through because nothing wrote a value for that arrangement. Same family as 1.22.
       Reproduction and the per-row affordances are in the survey's facts (`presetRowBoxes`).
@@ -141,7 +144,8 @@ mechanism, not a proposal of its own — see `design.md` "Findings".
       button rows in it — movelist controls at 103px, the engine box at 129px, the end-of-game block
       at 75px — are icons that cannot shrink. That is the partner board's cap, parked by Nikolay for
       a change of its own.
-- [ ] 1.27 **`T5-landscape-C1-100x100` gained `DIV (zoneA) overlaps chatpresets-panel`** when the
+- [x] 1.27 **FIXED. `T5-landscape-C1-100x100` is clean in the 2026-09-26 run.**
+      ORIGINAL: **`T5-landscape-C1-100x100` gained `DIV (zoneA) overlaps chatpresets-panel`** when the
       preset rows started spreading — the only row the preset fixes made worse. Not yet looked at.
 - [x] 1.28 **The band spread its parts with the own stack's leftover instead of their own height —
       FIXED.** In the `below` home zone A's two rows were `min-content`, and the own stack SPANS the
@@ -184,7 +188,8 @@ mechanism, not a proposal of its own — see `design.md` "Findings".
       as its strip, squeezed into the pocket row it gets a fraction of it — since two different
       mechanisms decide it and neither can be trusted to speak for the other. The stacks' numbers are
       recorded on every row as `seats`, whether or not the check fires.
-- [ ] 1.33 **The analysis page gives its two stacks different furniture at the same board size** —
+- [x] 1.33 **FIXED. `T3-C4-minxmin` and `T4-C4-minxmin` are both clean in the 2026-09-26 run.**
+      ORIGINAL: **The analysis page gives its two stacks different furniture at the same board size** —
       found by 1.32; four rows when it was found, TWO NOW. `T3-C4-minxmin` and `T4-C4-minxmin` were
       fixed by 2.12: their partner stacks had room for the line all along and were refused by the
       cap the CSS rule charged. `T1-C4-minxmin` and `T6-C4-minxmin` remain, and they are the case
@@ -207,7 +212,8 @@ mechanism, not a proposal of its own — see `design.md` "Findings".
       measurement (`spaceFor()`, "The room was never the board's to spend"), because at full zoom the
       partner sits in a column taller than it may use. The band is also what zone A offers the tools,
       so a name taking it is a name taking the tools' room. Nikolay to decide; not a fix to guess at.
-- [ ] 1.31 **Draw and resign are sized unlike the tabs they share a row with** — Nikolay, on the
+- [x] 1.31 **MOVED to `misc-findings`. Small, Nikolay's, no check behind it, and no longer owned by anything once this change archives.**
+      ORIGINAL: **Draw and resign are sized unlike the tabs they share a row with** — Nikolay, on the
       four short-landscape `C2` rows: "there is enough space for the draw and resign button to fit in
       the tablist row if they were slightly smaller ... they should probably follow similar size as
       the tablist buttons in all cases, which would allow them to stay on same row more often than
@@ -217,7 +223,9 @@ mechanism, not a proposal of its own — see `design.md` "Findings".
 
 ## 2. Decide zone A, per mode
 
-- [ ] 2.1 Zone A has a different CAUSE in each mode — a reader's zoom in tall landscape, width
+- [x] 2.1 **MOVED to `zone-a-semantics` 1.1, RESTATED: portrait is no longer one of the three modes — it widens a part's own slot rather than placing it in a named zone.**
+
+      ORIGINAL: Zone A has a different CAUSE in each mode — a reader's zoom in tall landscape, width
       pressure in short landscape, a constant fraction in portrait. Decide whether one rule covers
       all three or each gets its own, and say which in the delta.
 - [x] 2.2 **Which parts may enter zone A, and in what order — DECIDED AND IMPLEMENTED.** The engine
@@ -227,31 +235,37 @@ mechanism, not a proposal of its own — see `design.md` "Findings".
       the queue and the column now reads move list, controls, engine, strip — the engine box has
       moved from the top of the column to just above the strip. See `design.md`, "What goes into
       zone A".
-- [ ] 2.3 Whether zone A is preferred to zone B in general, or only for parts that gain nothing from
+- [x] 2.3 **MOVED to `zone-a-semantics` 1.2.**
+      ORIGINAL: Whether zone A is preferred to zone B in general, or only for parts that gain nothing from
       zone B's extra width. The move list is the case to argue from: the width of both boards in zone
       B against one board's column in zone A.
-- [ ] 2.4 Where a collapsed zone A's height goes — to the boards, or to zone B.
+- [x] 2.4 **MOVED to `zone-a-semantics` 1.3.**
+      ORIGINAL: Where a collapsed zone A's height goes — to the boards, or to zone B.
 - [x] 2.5 **How much smaller the partner board should be** — ANSWERED by Nikolay, 2026-09-12, and it
       was never a matter of taste: as big as possible; it shrinks ONLY because the tools area's
       minimum width cannot otherwise fit; the floor is 50% of the main board; below that floor it
       becomes an attached tab in the tab list. Zone A is therefore a BY-PRODUCT of that cascade, not
       a design choice about board sizes. Recorded in `design.md`, "The partner board's size", with
       the three places `squareUnit.ts` currently differs.
-- [ ] 2.7 **Whether `TOOLS_MIN_SQUARES` stays at 2 now that the partner board pays for it.** Before
+- [x] 2.7 **STRUCK. `TOOLS_MIN_SQUARES` no longer exists — it is `TOOLS_MIN_WIDTH_PX` plus `TOOLS_MIN_ROWS = 3`. The trade it names survives inside `zone-a-semantics` 1.4 and 1.6; the question as phrased has no subject.**
+      ORIGINAL: **Whether `TOOLS_MIN_SQUARES` stays at 2 now that the partner board pays for it.** Before
       the cascade an unaffordable column moved the tools; now a board is spent on it, so the value
       decides how much board. Measured at 1000x639: the column is 116px and holds an engine switch,
       a four-line engine name, a clipped slider, an unreadable 60px PV block and a 60px movelist —
       for 20% of the partner board. Four squares would keep `beside` only while the column is usable
       and hand over to zone A sooner. A decision with a visible price, and yours.
-- [ ] 2.8 Whether `beside` should still be preferred over `below` where `below` costs no board at
+- [x] 2.8 **MOVED to `zone-a-semantics` 1.4.**
+      ORIGINAL: Whether `beside` should still be preferred over `below` where `below` costs no board at
       all: with room for zone B, the tools could go there with BOTH boards full size, and the
       cascade shrinks the partner board to keep the column instead. The rule permits it; "as big as
       possible" could equally prefer the home that costs no board.
-- [ ] 2.9 Whether width freed by a reader's ZOOM goes back to the viewer's own board — it already
+- [x] 2.9 **MOVED to `zone-a-semantics` 1.5.**
+      ORIGINAL: Whether width freed by a reader's ZOOM goes back to the viewer's own board — it already
       goes to the tools, by `toolsHome()`'s own reasoning — and whether the column gap for a
       zero-width tools track should be dropped. Together they are the 52.7px of empty margin
       measured on p2 at 701x829.
-- [ ] 2.6 Whether the ZOOM floor stays where it is — `MIN_STACK_IN_LEFT_SQUARES = 4`, four squares of
+- [x] 2.6 **MOVED to `zone-a-semantics` 1.6.**
+      ORIGINAL: Whether the ZOOM floor stays where it is — `MIN_STACK_IN_LEFT_SQUARES = 4`, four squares of
       the main board's stack, Nikolay's number from 2026-09-05 — now that the WIDTH floor is 50%. A
       reader zooming their own partner board down is an explicit choice rather than the layout
       deciding, so the two may legitimately differ; it needs saying either way.
@@ -315,7 +329,8 @@ mechanism, not a proposal of its own — see `design.md` "Findings".
       `D2-C1-minxmin`, and the multipv slider drawn 14.2px and 2px wide on two analysis rows. That
       is the starved column detected at last, in a published standard's units rather than in a
       number either of us invented.
-- [ ] 1.35 **At minimum zoom the two boards are NOT the same size — 45 rows**, found by 1.34 and not
+- [x] 1.35 **EFFECTIVELY RESOLVED, 45 rows to 0 failing. 13 of 76 `minxmin` rows still differ — by 4px of BOARD, which is half a device pixel per SQUARE, inside the check's own tolerance. The check is live and passing, not removed. Carried to `layout-matrix-bed` 5.1 as a question about stating what the tolerance means.**
+      ORIGINAL: **At minimum zoom the two boards are NOT the same size — 45 rows**, found by 1.34 and not
       yet fixed, on Nikolay's instruction that the harness comes first. Every `minxmin` row on all
       six desktops and five of the tablets, in all four cases, and the partner board is consistently
       the LARGER: `D1` 35.0 against 41.0 per square, `D4` 28.0 against 33.0, `D5` 50.0 against 58.0.
@@ -375,9 +390,11 @@ mechanism, not a proposal of its own — see `design.md` "Findings".
       The regression the old form was written to avoid is recorded in `arrangement()`'s comment: the
       tools term and the floor only work together, because an unfloored charge leaves the tools'
       minimum beside the boards at every viewport and makes every other home unreachable.
-- [ ] 3.1 Whatever 2.1-2.4 select, keeping `toolsHome()` a pure function of the viewport: a part
+- [x] 3.1 **MOVED to `zone-a-semantics` 2.1.**
+      ORIGINAL: Whatever 2.1-2.4 select, keeping `toolsHome()` a pure function of the viewport: a part
       COUNT may be an input, a measured height may not.
-- [ ] 3.2 Collapse the zone A row wherever nothing is placed in it, on both pages.
+- [x] 3.2 **MOVED to `zone-a-semantics` 2.2.**
+      ORIGINAL: Collapse the zone A row wherever nothing is placed in it, on both pages.
 - [x] 3.3 **DONE.** `.bug-tool-group` is `display: contents` in the tools-column home — each part a
       grid item of the app, an area name enough to move one — and a real box in `tools-below`,
       `tools-zonea` and `tools-lastresort`, where every part shares one area. The parts take
@@ -403,13 +420,16 @@ mechanism, not a proposal of its own — see `design.md` "Findings".
 - [x] 3.9 The round page is untouched: no `Droppable` entry of its own names a zone B class, so it
       has no fragments and the new pass does nothing. Verified at 701x652 in `tools-lastresort`,
       rows `296 / 264 / 0 x 6`, no overflow.
-- [ ] 3.5 Check the beside and below homes are untouched where the change is about zone A only.
-- [ ] 3.7 **The zone A HOME places the whole panel with no fit test** — `toolsHome()` admits zone A
+- [x] 3.5 **MOVED to `zone-a-semantics` 2.3.**
+      ORIGINAL: Check the beside and below homes are untouched where the change is about zone A only.
+- [x] 3.7 **STRUCK. The `tools-zonea` HOME was deleted in `5be122386`; only `beside`, `below` and `lastResort` remain. There is no home to fit-test. What remains of the subject is `zone-a-semantics` 1.4.**
+      ORIGINAL: **The zone A HOME places the whole panel with no fit test** — `toolsHome()` admits zone A
       on its two proxies (2 squares wide, 3 tall) and the per-part cascade never runs there, so
       measured on p2 at 701x744 a panel wanting 464px was placed in 258px of band. Direction one,
       in the one regime the cumulative cascade does not cover. Decide with 2.3: either the home test
       asks what the panel needs, or the cascade runs in that home too.
-- [ ] 3.6 **The move list is left in the narrow column when the others take the band — IN THE
+- [x] 3.6 **MOVED to `zone-a-semantics` 1.7 — as a DECISION rather than an implementation task, because the answer may be that the band should not have been offered to the other parts either.**
+      ORIGINAL: **The move list is left in the narrow column when the others take the band — IN THE
       TOOLS-COLUMN HOME ONLY**, now that 3.8 has fixed the two placed homes. Measured at 900x639:
       engine and controls in 411px of zone A, the move list in the 115px column the boards allowed,
       which is the part that most wants width. The answer may differ here, because the list cannot
@@ -422,8 +442,10 @@ mechanism, not a proposal of its own — see `design.md` "Findings".
       1300x639 with both boards at 70%: zone A is 0 and zone B takes over — strip `zoneB2`, engine
       `zoneB1` at 950x77. 1000x779: the home itself is `tools-zonea`, the group a box again with all
       three stacked in the band. No app overflow at any of them.
-- [ ] 4.1 Analysis page, 701x829 — no empty 177x291 band beside the partner board.
-- [ ] 4.2 Round page, short landscape, 682x503 — still no overflow, every part in zone A drawn at or
+- [x] 4.1 **SUPERSEDED by the matrix bed. A single hand-checked viewport (701x829) is one of 286 rows now, and the analysis page in that shape is clean.**
+      ORIGINAL: Analysis page, 701x829 — no empty 177x291 band beside the partner board.
+- [x] 4.2 **SUPERSEDED by the matrix bed, same reason (682x503).**
+      ORIGINAL: Round page, short landscape, 682x503 — still no overflow, every part in zone A drawn at or
       above its minimum.
 - [x] 4.3 **The width sweep for 3.0 — DONE**, on a floated window, both pages, both landscape
       families. Before/after tables in `design.md`. At every width after the change: the main board
@@ -431,12 +453,15 @@ mechanism, not a proposal of its own — see `design.md` "Findings".
       while beside, the tools column is at or above its 115px minimum or gone, and the app is inside
       the viewport. Before the change: a 22px column at 1000, the board tabbed away at 0.83, kept
       beside at 0.49, and the main board shrunk at 700.
-- [ ] 4.4 All three modes on both pages: a rule per mode has to be seen in each.
-- [ ] 4.5 Sweep the zoom across its range on the round page and confirm no arrangement oscillates — a
+- [x] 4.4 **MOVED to `zone-a-semantics` 3.2.**
+      ORIGINAL: All three modes on both pages: a rule per mode has to be seen in each.
+- [x] 4.5 **MOVED to `zone-a-semantics` 3.3.**
+      ORIGINAL: Sweep the zoom across its range on the round page and confirm no arrangement oscillates — a
       fit test is a new input to a decision that changes what it measures, which is the shape this
       capability forbids.
 - [x] 4.6 Frontend gates for 3.0: `yarn lint`, `yarn typecheck`, `yarn md`, `yarn test` (490) pass.
-- [ ] 4.7 Portrait, for 3.0 as well as 1.1: the cascade is shared, and portrait is the one family
+- [x] 4.7 **SUPERSEDED. Portrait is walked by 24 matrix rows and by the p4 tile; it is no longer "the one family the floated window has not been taken to".**
+      ORIGINAL: Portrait, for 3.0 as well as 1.1: the cascade is shared, and portrait is the one family
       the floated window has not been taken to yet.
 
 ## 5. Portrait, in a running game — the walkthrough and what it turns up
@@ -445,7 +470,9 @@ Walked on p4 at dpr 2.25 in the LIVE round page (game `mFTDKzoH`, 60+0), six pho
 resolutions, one at a time. Observations are recorded per resolution in `design.md`, "Portrait, in a
 running game".
 
-- [ ] 5.1 **360x800 — the second preset set as ONE full-width row.** Nikolay's idea: the second
+- [x] 5.1 **BUILT. The note asked for "a NEW area spanning both tracks"; portrait adopted `zoneTools1..4` and gained templates where a slot spans both. Measured 2026-09-26: P1 `[5, 10]`, inner 221/389.**
+
+      ORIGINAL: **360x800 — the second preset set as ONE full-width row.** Nikolay's idea: the second
       ten-button set should rearrange itself into a single row under BOTH the partner board and the
       tools column instead of stacking two rows of five in the 199px tools track, with the buttons
       resized to fit ten across and the freed height going to the chat. Measured: the row would go
@@ -458,30 +485,39 @@ running game".
       have to say what zone A means when the boards are stacked). Full note, with the four things to
       decide, in `design.md`. Not a defect: nothing overlaps or overflows at this size.
 
-- [ ] 5.2 **390x844 — the same note, recorded verbatim against this resolution too** (see
+- [x] 5.2 **BUILT — P2 `[5, 10]`, inner 224/392.**
+
+      ORIGINAL: **390x844 — the same note, recorded verbatim against this resolution too** (see
       `design.md`). The numbers make the case stronger: the tools track is 224 wide, each preset row
       90 tall, both 180 of a 348px column, and the chat 128 — SIX PIXELS LESS than at 360x800, on a
       phone 30px wider, because the buttons scale with the board square and the chat takes what is
       left. One row of ten would hand back ~54px here against ~49 at 360x800, so the improvement
       grows with the phone. Nothing overlaps or overflows.
 
-- [ ] 5.3 **393x873 — the same note again** (see `design.md`). Tools track 217, chat 153, preset
+- [x] 5.3 **BUILT — see 5.1; P3 is `[10, 10]`, inner 360.**
+
+      ORIGINAL: **393x873 — the same note again** (see `design.md`). Tools track 217, chat 153, preset
       rows 92 each = 184 of a 377px column; one row of ten hands back ~56px, the most of the three
       phones so far. The 29px of extra viewport height over the iPhone all went to the chat while
       the rows barely moved — the rows follow the board's square, the chat takes the remainder.
       Nothing overlaps or overflows.
 
-- [ ] 5.4 **412x915 — the same note, and the strongest case for it** (see `design.md`). Preset rows
+- [x] 5.4 **BUILT — P4 `[10, 10]`, inner 411.**
+
+      ORIGINAL: **412x915 — the same note, and the strongest case for it** (see `design.md`). Preset rows
       98 each = 196px, HALF the 392px column, against a 157px chat; one row of ten hands back ~62px.
       Across four phones the rows take 169.6 -> 180 -> 184 -> 196 as the screen grows, because they
       are sized from the board's square rather than from the column's room — the bigger the phone,
       the larger the share the presets claim, which is backwards. Nothing overlaps or overflows.
 
-- [ ] 5.5 **414x896 — the same note, and the worst ratio of the six** (see `design.md`). Preset rows
+- [x] 5.5 **BUILT — the row of ten is drawn here too.**
+
+      ORIGINAL: **414x896 — the same note, and the worst ratio of the six** (see `design.md`). Preset rows
       99 each = 198px against a 135px chat, more than half a 373px column; one row of ten returns
       ~63px. A 19:9 phone is shorter for its width than a 20:9 Android, so it loses twice: less
       height, same rows to pay for. Nothing overlaps or overflows.
-- [ ] 5.6 **THE TAB STRIP HAS ROOM FOR THE FULL WIDTH TOO — across every phone so far.** Nikolay,
+- [x] 5.6 **BUILT. `drop-tools4` gives the tab strip a full-width row on every portrait viewport that drops.**
+      ORIGINAL: **THE TAB STRIP HAS ROOM FOR THE FULL WIDTH TOO — across every phone so far.** Nikolay,
       alongside the preset note: there is space for the tablist to take the full width as well, and
       it will probably happen naturally once the full-width row exists. Measured, the strip uses
       **39-41% of the viewport width** at all five sizes (140/356, 159/388, 152/390, 163/409,
@@ -491,7 +527,9 @@ running game".
       wide. It changes nothing about the ½ and ⚑ labels (portrait never labels them, by rule) and
       costs no height: the strip is already 28px of content inside a 40px bar.
 
-- [ ] 5.7 **375x667 (iPhone SE) — the same note, a 44px chat, and the one place the row is NOT
+- [x] 5.7 **MOVED to `portrait-tools-arrangement` 1.3. Still true and still the exception: `P5-C1` is `[5, 5]` with NO drops at all.**
+
+      ORIGINAL: **375x667 (iPhone SE) — the same note, a 44px chat, and the one place the row is NOT
       free.** Worst of the six: chat **44**, preset rows 61 each = 122 of the same column, own board
       370². The buttons did shrink (`publishPresetSize()` working). **But in portrait the full-width
       row costs the own board**: the tools column's height is `max(partner stack, tools content)`, so
@@ -499,13 +537,16 @@ running game".
       of own board for about 51px of chat (44 -> ~95). Landscape has no such cost, because zone A is
       space the shorter board already freed. **This is the decision to take before designing the
       row**, and it is not the landscape decision.
-- [ ] 5.8 **The SE sits 0.6% inside the portrait threshold** — 375/667 = 0.5622 against 9/16 =
+- [x] 5.8 **MOVED to `portrait-tools-arrangement` 1.4.**
+      ORIGINAL: **The SE sits 0.6% inside the portrait threshold** — 375/667 = 0.5622 against 9/16 =
       0.5625. Emulated at 373x655 (0.569) the page flips to the landscape arrangement: boards side
       by side, own board 228², the tools in a 118px band. On a real SE the URL bar hiding on scroll
       could flip the whole layout. Decide whether the threshold wants hysteresis, or whether the SE
       belongs on the portrait side by construction.
 
-- [ ] 5.9 **375x667 — A SECOND ITEM, and it is NOT CLEAR HOW TO ADDRESS: there is hardly any space
+- [x] 5.9 **MOVED to `portrait-tools-arrangement` 1.3 — it is the same mechanism as 5.15 at the other end, so they are decided together.**
+
+      ORIGINAL: **375x667 — A SECOND ITEM, and it is NOT CLEAR HOW TO ADDRESS: there is hardly any space
       for a proper chat text area.** Nikolay's message is recorded verbatim in `design.md`. Measured:
       the chat gets **44px** — a line and a half — with nothing overlapping or overflowing. To be
       REVIEWED before anything is designed, and there are two candidate directions, neither chosen:
@@ -517,7 +558,9 @@ running game".
       the boards drawn differently. Related to 5.7 and 5.8; the trade in 5.7 only matters if
       direction (1) is taken.
 
-- [ ] 5.10 **768x1024 — THE PRESETS SHOULD TAKE ZONE A, by the mechanism the analysis page already
+- [x] 5.10 **MOVED to `portrait-tools-arrangement` 2.2, RESTATED: portrait has no zone A, so "the presets take zone A" becomes "should a preset panel leave the tools track on a tablet", with a different mechanism.**
+
+      ORIGINAL: **768x1024 — THE PRESETS SHOULD TAKE ZONE A, by the mechanism the analysis page already
       has.** Nikolay's note recorded verbatim in `design.md`: use for the preset buttons what we did
       for the analysis page's engine box and controls, so the chat gets the height. Measured: zone A
       is **245 x 306 and EMPTY** while the whole tools stack queues in zone B and the chat has 143.
@@ -527,14 +570,17 @@ running game".
       and `-2` the third `Droppable` field and a declared `--bug-part-min-w/h`; the areas (`zoneA2`,
       `zoneA3`) and the group element already exist. A row folded to the band's 245px is ~61px tall,
       so both rows fit the band twice over and the chat goes 143 -> ~317 at no cost to either board.
-- [ ] 5.11 **768x1024, second item — TEN IN A ROW here too, for the opposite reason.** The two rows
+- [x] 5.11 **BUILT — 768 now drops all three parts.**
+      ORIGINAL: **768x1024, second item — TEN IN A ROW here too, for the opposite reason.** The two rows
       are already 751px wide and still hold five buttons each, strung out with huge gaps. Ten across
       751 is a 75px pitch and halves the block (174 -> ~45), handing ~87px to the chat, with no
       trade at all. **Interacts with 5.10**: in zone A the presets are back in a 245px column and
       want five per row; in zone B they want ten — the row count is a function of the region's
       width, which `publishPresetSize()`/`SET_COLUMNS` already decide from. Settle 5.10 first.
 
-- [ ] 5.12 **810x1080 — better than 768, and the ten-in-a-row fold ALREADY EXISTS.** Nikolay's
+- [x] 5.12 **BUILT / reviewed — the fold already existed when the note was written, and 810 now drops all three parts.**
+
+      ORIGINAL: **810x1080 — better than 768, and the ten-in-a-row fold ALREADY EXISTS.** Nikolay's
       comment recorded verbatim in `design.md`; to be reviewed again. Measured: the same two panels
       are five-across and 87 tall at 768 but **ten-across and 44 tall at 810**, buttons shrinking
       ~43 -> ~38, so both rows cost 88 instead of 174 and the chat goes 143 -> **252**. Therefore
@@ -542,14 +588,17 @@ running game".
       move"** — `zoneB()`'s `oneRow` test and `publishPresetSize()`'s height-derived button size
       interact, and 768 lands on the wrong side. On the phones the fold still has nowhere to go: the
       tools track is 199-235 wide and a folded row needs both tracks.
-- [ ] 5.13 **810x1080 — EXPERIMENT: the presets in zone A here too.** Even with the fold, zone A is
+- [x] 5.13 **MOVED to `portrait-tools-arrangement` 2.2 with 5.10.**
+      ORIGINAL: **810x1080 — EXPERIMENT: the presets in zone A here too.** Even with the fold, zone A is
       256 x 327 and empty while the presets hold 88px of zone B. Moving them to the band hands the
       chat those 88px (252 -> ~340) at no board cost, and in a 256px column they go back to five per
       row (~122px, which the band holds twice over). Whether a 340px chat beside the boards reads
       better than a 252px one with the presets below is a judgement for the screen — try it both
       ways at this resolution. Depends on 5.10 (the round page's parts becoming fragments).
 
-- [ ] 5.14 **820x1180 — the same as 810 with more room; THE LEAST INTERESTING TO REVIEW.** Nikolay's
+- [x] 5.14 **STRUCK — the note itself calls 820x1180 the least interesting to review, and it now drops all three parts.**
+
+      ORIGINAL: **820x1180 — the same as 810 with more room; THE LEAST INTERESTING TO REVIEW.** Nikolay's
       note recorded verbatim in `design.md`. Own board 523², partner 261², chat **346**, preset rows
       44 each with the fold holding, zone A 261 x 326 empty, 184px of header overflow (Finding 3),
       no overlaps. Nothing new in kind — skip it when re-reviewing. It does turn 5.13 around,
@@ -559,7 +608,9 @@ running game".
       and 267² boards, the same 346px chat, folded rows at 44, zone A 267 x 334 empty, 170px of
       header overflow, no overlaps — 14px wider than the Air and identical in kind.
 
-- [ ] 5.15 **800x1280 — all the slack goes to the chat; A RULE IS NEEDED.** Nikolay's note recorded
+- [x] 5.15 **MOVED to `portrait-tools-arrangement` 1.2, and it is that change's central question.**
+
+      ORIGINAL: **800x1280 — all the slack goes to the chat; A RULE IS NEEDED.** Nikolay's note recorded
       verbatim in `design.md`. Measured: chat **459** and nearly empty, boards 512²/251² (sized by
       WIDTH, not height), zone A 251 x 327 empty, ~460px of slack spent entirely on the chat.
       **The rule he asks for — move the presets on how much chat is visible — has its ingredient
@@ -567,7 +618,8 @@ running game".
       `publishPresetSize()` already subtracts it. So "the presets leave the chat's column while the
       chat is under N times its minimum" is writable against a number the module measures. The four
       tablet chats bracket it: 143 / 252 / 346 / 459.
-- [ ] 5.16 **Why 4x5 at 768 and 2x10 at 810 — ANSWERED, and it is a decision, not a bug.**
+- [x] 5.16 **ANSWERED IN ITS OWN TEXT — "ANSWERED, and it is a decision, not a bug". Never ticked.**
+      ORIGINAL: **Why 4x5 at 768 and 2x10 at 810 — ANSWERED, and it is a decision, not a bug.**
       `publishPresetSize()` computes the button for BOTH arrangements — two sets per row (2x10) and
       one (4x5) — and publishes whichever gives the LARGER button, floored at 0.55 of a board square
       and capped at one square; the stylesheet then wraps to match, since a set is five fixed tracks.
@@ -575,7 +627,9 @@ running game".
       button" is the right objective — rather than "fewest rows, so the chat keeps its height" — is
       the same decision as 5.15. Full derivation in `design.md`.
 
-- [ ] 5.17 **1024x1366 — "plenty of unused space", and THE MODE ITSELF MAY BE WRONG.** Nikolay's
+- [x] 5.17 **MOVED to `portrait-tools-arrangement` 2.1.**
+
+      ORIGINAL: **1024x1366 — "plenty of unused space", and THE MODE ITSELF MAY BE WRONG.** Nikolay's
       note recorded verbatim in `design.md`. Measured: own 651², partner 331², chat **372**, zone A
       **331 x 400 EMPTY** (larger than most phones' whole viewport), content 1313 of a 1372 budget
       with the chat absorbing the slack, and no header overflow for the first time in the set.
@@ -592,7 +646,8 @@ running game".
       different text**. Empty-zone-A failures 36 -> **12**, chat input covered 10 -> **1**, REMATCH
       and NEW OPPONENT covered 14 -> **0**, stale arrangement 2 -> **0** (Finding 7 in a second
       harness). Report at `~/dev/layout-matrix-2026-09-12/index.html`. Full tables in `design.md`.
-- [ ] 5.19 **The six rows the matrix broke.** `T1-C3-100x100`, `T1-C3-100x50`, `T5-C3-100x100`,
+- [x] 5.19 **FIXED. Of the six rows, four are clean in the 2026-09-26 run and two (`T1-C3-100x50`, `T5-C3-100x50`) no longer exist as rows — carried to `layout-matrix-bed` 3.3 to establish whether that was deliberate.**
+      ORIGINAL: **The six rows the matrix broke.** `T1-C3-100x100`, `T1-C3-100x50`, `T5-C3-100x100`,
       `T5-C3-100x50` — the END-OF-GAME case finding a new empty `zoneA3`, which is this change's own
       "a zone is occupied or it is not there" requirement arriving in a case the walkthrough never
       opened. `T1-C4-50x50` — tab "Moves" covered by a piece and `bug-own-stack` overlapping a
@@ -639,15 +694,59 @@ gbtami without the fork-only material.
 
 ## 7. Record
 
-- [ ] 6.1 Fold the decisions into `bughouse-round-layout`, replacing this change's acceptance criteria
+- [x] 6.1 **DONE BY ARCHIVING. The five requirements this change earned sync into `bughouse-round-layout` on archive: a zone is occupied or it is not there; a board's drawn size is not decided by where the layout puts it; the partner board is as big as possible and yields only to the tools' minimum; a control is never drawn outside the region it was placed in; the same viewport produces the same layout however it was reached.**
+
+      ORIGINAL: Fold the decisions into `bughouse-round-layout`, replacing this change's acceptance criteria
       with the rules actually chosen — and keep the findings' requirements, which are not criteria but
       facts about where a size may be stated.
 
 ## 9. Zone A's room is measured by a side-by-side formula
 
-- [ ] 9.1 `max(0, ownStackHeight - partnerStackHeight)` — `toolsPlacement.ts` — means "how much
+- [x] 9.1 **FIXED in `unify-two-board-app-grid` by `3e9173a9f`: the budget is `toolsRegionHeight - partnerStackHeight` and asks nothing about the mode.**
+
+      ORIGINAL: `max(0, ownStackHeight - partnerStackHeight)` — `toolsPlacement.ts` — means "how much
       shorter is the partner stack" only while the two stacks share a ROW. Portrait puts the
       viewer's board below, so the difference is that board, and everything drops into a band that
       is not there. Fourteen rows carry an overlap because of it.
       Being fixed in `unify-two-board-app-grid` (its task 3.4), where the dissolve exposed it.
       Recorded here because what zone A is, and how its room is measured, is this change's subject.
+
+## 10. The triage that closed this — 2026-09-26
+
+**This change carried three jobs and should have carried one.** It was opened to decide what zone A
+is for; it also collected every layout defect that asking turned up, and it hosted the survey
+instrument built to see them. Two of the three outgrew it. The scope did not creep by accident —
+section 0 says outright that a finding gets a task here "not a proposal of its own", which was right
+for a week and wrong by the end of a month.
+
+**WHAT IT ACHIEVED, and this is the part worth keeping.** The matrix went from **127 failing rows to
+3**. Five of the bed's own checks were found wrong and corrected, removed or demoted. And it earned
+five requirements that now hold for both two-board pages, which are its real output — they are in
+`specs/bughouse-round-layout/spec.md` and sync on archive.
+
+**HOW THE 43 OPEN TASKS RESOLVED.** Every one is struck above with its verdict:
+
+| | count |
+|---|---|
+| Already fixed or answered, verified against the code and the 2026-09-26 matrix run | 11 |
+| Built elsewhere — portrait's full-width row of ten and its tab strip, which five notes asked for | 8 |
+| Superseded by the matrix bed replacing hand-checked viewports | 4 |
+| Struck: the subject no longer exists (`TOOLS_MIN_SQUARES`, the `tools-zonea` home, 820x1180) | 3 |
+| Moved to `zone-a-semantics` — the original question, restated for the code as it is | 10 |
+| Moved to `portrait-tools-arrangement` — where portrait's vertical slack goes | 6 |
+| Moved to `layout-matrix-bed` / `misc-findings` | 1 |
+
+**THE THREE SUCCESSORS, and why the split is where it is:**
+
+- **`layout-matrix-bed`** — the instrument, deliberately never finished. It is the standard way a
+  two-board layout change is validated now, and its improvements need somewhere to live that is not
+  the commit message of an unrelated layout fix. Partial deltas sync out; the change stays open.
+- **`zone-a-semantics`** — the original question, and the only part of this change that was never
+  answered. Several of its tasks had to be restated because the `tools-zonea` home was deleted and
+  the budget formula changed underneath them.
+- **`portrait-tools-arrangement`** — one question asked at three sizes: where portrait's spare
+  height goes. Today the chat takes all of it at 800x1280 (459px, nearly empty) and none of it at
+  375x667 (44px), by the same mechanism, and nobody decided either.
+
+**WHAT WAS NOT PRESERVED, deliberately:** nothing. Every open task is struck with a verdict naming
+either the commit that fixed it, the measurement that answered it, or the change that now owns it.

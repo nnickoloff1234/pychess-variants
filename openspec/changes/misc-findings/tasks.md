@@ -29,15 +29,16 @@ home goes straight there instead.
 - [ ] 2.2 If it does NOT run, that is `idempotent-layout-pass`'s subject — it owns what a pass may
       read and when one runs. Move it there with the 2026-09-26 numbers rather than restating them.
 
-## 3. The zoneA tools home removal is recorded nowhere
+## 3. The zoneA tools home removal is recorded nowhere — DONE 2026-09-26
 
-- [ ] 3.1 Write `5be122386` into `what-zone-a-is-for`, where its subject lives. The commit message
-      is the source; it is thorough and does not need re-deriving.
-- [ ] 3.2 Re-read that change's 43 open tasks against it. A home that no longer exists cannot be
-      asked questions about, so some are likely answered and some moot — in particular anything
-      about what may live in a band freed by shrinking the partner board, since nothing shrinks a
-      board to make room any more.
-- [ ] 3.3 Strike this section once 3.1 lands. It is a transcription task, not an investigation.
+- [x] 3.1 Recorded in `zone-a-semantics`, which inherited zone A's subject when
+      `what-zone-a-is-for` was archived. It is in that change's proposal, under the ground that
+      moved beneath the questions it carries.
+- [x] 3.2 Re-read the 43 open tasks against it, and two were moot because of it: 3.7 (the zone A
+      HOME places the whole panel with no fit test — there is no such home) and 2.7 (whether
+      `TOOLS_MIN_SQUARES` stays at 2 — the constant went in the same period). Both struck with the
+      reason rather than carried into a successor.
+- [x] 3.3 Section struck. It was a transcription task and the transcription is done.
 
 ## 4. The zoneB2 collision
 
@@ -51,7 +52,15 @@ home goes straight there instead.
       `tools-below`, without `drop-tools2` — and let the bed report the overlap. That row does not
       exist today, which is why the collision is unproven rather than confirmed.
 
-## 5. Not in this change
+## 5. Draw and resign sizing
+
+- [ ] 5.1 Decide whether the draw and resign controls should follow the tablist buttons' size in all
+      cases, as Nikolay asked. The wrapping that prompted it is already fixed; what is missing is
+      the rule, so the two can drift apart again silently.
+- [ ] 5.2 If yes, give the bed a check for it — the four short-landscape `C2` rows are accepted now,
+      so a regression here would pass. A rule with no check is how this note came to be a year old.
+
+## 6. Not in this change
 
 Pointers, carrying no checkbox on purpose.
 
