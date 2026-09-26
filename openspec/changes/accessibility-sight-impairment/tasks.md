@@ -619,6 +619,79 @@ changes ... later we might think of a full solution, but for now we start with s
 - [ ] 3.5 Write the spec delta for the shortlist only, and only then. The capability is unnamed
       until this point on purpose — see the proposal.
 
+## 3b. BEFORE IMPLEMENTATION — three things that could still alter the plan
+
+Raised by Nikolay 2026-09-27: *"before we go to implementing it, i will ask you some more things ...
+lets write them down like something that could potentially alter our plans and we should do it first
+before proceeding to implementation."* **These gate section 4. None is optional.**
+
+- [ ] 3b.1 **SEE THE REAL LICHESS PAGES, thoroughly — look for ideas we are missing.** Everything we
+      have about lichess came from its tutorial's prose, its served HTML, and **one** rendered DOM of a
+      *finished* game (`lichess-reference.md` §9). We have never seen a **live** game, and the command
+      input field's markup has therefore never been observed — it only exists while a game is playable.
+
+      **Method, and it answers Nikolay's question about whether he has to drive:** **he plays, I read.**
+      Chrome's DevTools Protocol exposes `Accessibility.getFullAXTree`, which is **the accessibility tree
+      itself — literally what a screen reader is handed** — as JSON. So the artifact to capture is the
+      AX tree, not a screenshot and not the DOM. **I do not need to move the mouse**; he interacts and
+      I dump the tree at each interesting state.
+
+      States worth capturing: a live game before the first move · after his move · after the
+      opponent's · a draw offer pending · game over · the analysis board · a crazyhouse game **with
+      pockets** (Q2) · the board in `table` layout, which we have never seen (we only ever saw `plain`).
+
+      **Chrome vs Firefox:** Chrome, for the CDP access. He is logged in on Firefox, so either he signs
+      in on Chrome or we re-do the `POST /run/toggle-blind-mode` trick there — it worked over curl and
+      will work in a browser session.
+- [ ] 3b.2 **SWEEP PYCHESS'S REAL RENDERED DOM, not its source.** All twelve sweeps read source only,
+      and `coverage-and-change-types.md` already names this as the largest gap: `#settings`,
+      `#notify-app`, `#challenge-app` and both two-board pages are built by Snabbdom, so **nobody has
+      seen the DOM they produce.**
+
+      **What specifically to re-check against reality:**
+      - The **client label count** — 44 flagged, roughly 1 in 3 a false positive on calibration
+        (`alt-and-labels-sweep.md` L5). The rendered tree settles it exactly.
+      - The **clickable-element classifier's** hits — it over-reports (three false positives in
+        `profile-and-study-sweep.md` alone), and the AX tree shows what actually has a role.
+      - **Whether `<move>` appears in the AX tree at all**, and as what.
+      - **Whether chessgroundx contributes anything** — predicted: a few `<coord>` labels and nothing
+        else. The AX tree either confirms that or overturns the change's central claim.
+      - The **two-board pages**, where the positive-`tabindex` defect (T3) predicts tabs hoisted ahead
+        of the document — visible directly in the tree's focus order.
+
+      Same method as 3b.1, so the two can share a session.
+- [ ] 3b.3 **ESTABLISH WHAT WE CAN ACTUALLY TEST WITH.** The tool Nikolay could not remember is
+      **NVDA** — our user's primary, named in all three of their messages (`user-report.md` §2), with
+      **JAWS** on Windows and **TalkBack** and **Jieshuo** on Android.
+
+      **What is already on this machine, checked:** **Orca 46.1 is installed** (`/usr/bin/orca`), with
+      `spd-say` (speech-dispatcher) and `libatspi` — so the accessibility bus a screen reader reads from
+      is present and working. Orca is one of the four readers lichess's own tutorial supports.
+
+      **Be honest about what Orca is worth: a PROXY, not the target.** It will catch structural failures
+      — a missing label, no headings, an unreachable control — which is most of our worklist. It will
+      **not** validate the thing our user actually described: **NVDA's browse/focus mode toggle**
+      (`NVDA+space`), whose conventions Orca does not share. That is the mechanism F(vi)'s Q1 turns on.
+
+      **So there are three separate jobs, and they need different tools:**
+
+      | Job | Tool | Who |
+      |---|---|---|
+      | Read what the screen reader is handed | **CDP `Accessibility.getFullAXTree`** — text, authoritative | **me** |
+      | Hear whether it is actually usable | **Orca**, already installed | **Nikolay** — real impressions |
+      | Validate NVDA's focus-mode behaviour | **NVDA on Windows** — VM or a Windows machine | **open question: do we have one?** |
+      | Validate Android | TalkBack / Jieshuo on a device | **open — and our user named both** |
+
+      **Also to look into:** `accerciser` (the AT-SPI tree inspector, installable) for reading the tree
+      outside a browser; and whether a browser extension helps — noting that the useful ones are
+      *inspectors and auditors* (Chrome's Accessibility pane, axe DevTools, Accessibility Insights), not
+      screen readers, since real screen readers are OS-level. **A checker finds violations; only a screen
+      reader tells you whether the thing is usable.** We need both.
+
+      **The last resort is the best one**, and it is already in the plan: **task 5.4 — offer it back to
+      the user who wrote in.** They use NVDA, TalkBack and Jieshuo daily, and they are the only real
+      acceptance test.
+
 ## 4. Build the shortlist
 
 - [ ] 4.1 To be filled from 3.4, which is still open. Left empty deliberately — the candidates and
