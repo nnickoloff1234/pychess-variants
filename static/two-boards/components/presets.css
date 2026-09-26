@@ -553,3 +553,32 @@ bugchat img{
 .round-app.bug.game-over .chatpresets-panel {
     align-self: start;
 }
+
+/* PORTRAIT DROPS THE GAP BETWEEN THE ENTRY AND THE FIRST ROW OF BUTTONS.
+   ------------------------------------------------------------------------------------
+   `.chatpresets`'s `padding-top: var(--bug-preset-row-gap)` is there so that four stacked rows
+   read as four evenly spaced rows rather than as two pairs — the gap between two rows of one
+   part and the gap between two parts are the same 5px, and the padding is what supplies the
+   second. That reasoning is sound and this rule does not touch it.
+
+   WHAT IT TOUCHES IS THE FIRST PANEL ONLY, where the thing above is not another part but the
+   chat entry. There the padding is not separating two rows of buttons; it is a margin under the
+   chat, and in portrait the chat is the part that needs the pixels. The SECOND panel keeps its
+   padding, so rows 1-2, 2-3 and 3-4 all stay 5px apart and the block still reads as four evenly
+   spaced rows. Only the entry and row 1 come together.
+
+   Worth 5px on a 375x667 phone, where the chat's message area is about 25px. With the entry's
+   own trim removed next door in `chat.css` the pair are worth about 15px together — from one
+   clipped line of a partner's message to two readable ones.
+
+   THE COST, STATED: the entry becomes roughly 15.3px tall, which is under WCAG 2.5.8's 24px for
+   a pointer target, and the buttons now sit directly against it so the spacing exception does
+   not rescue it either. That is a deliberate trade on the smallest phone and nowhere else — the
+   layout matrix checks tap targets on every row and will report it, so the number stays visible
+   rather than being forgotten. If it has to be bought back, a `min-height` on the entry is the
+   one line that does it, at the price of most of this. */
+@media (aspect-ratio <= 9/16) {
+    .round-app.bug .chatpresets-panel-1 .chatpresets {
+        padding-top: 0;
+    }
+}

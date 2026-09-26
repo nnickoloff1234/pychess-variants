@@ -102,6 +102,40 @@ the SE is where it pays, so it is recorded here rather than moved.
       `T6-landscape-C1-100x100`, the partner stack overlapping preset panel 1 in zoneA2 by 25x6px.
       The survey goes 3 failing to 2. That row had been filed as zone A's; 8px of bar was the cause.
 
+## 1c. DONE — portrait spends the chat's trim on messages
+
+Nikolay, 2026-09-26: the other layouts keep these because they have the room and they improve the
+look; portrait does not, and the pixels are better spent on the partner's words.
+
+- [x] 1c.1 **The gap between the entry and the first row of buttons — 5px.** It is
+      `.chatpresets`'s `padding-top: var(--bug-preset-row-gap)`, which exists so four stacked rows
+      read as four evenly spaced rows rather than as two pairs. That reasoning is untouched: only
+      the FIRST panel loses it, where the thing above is the chat entry rather than another part.
+      The second panel keeps its 5px, so rows 1-2, 2-3 and 3-4 all stay 5px apart.
+- [x] 1c.2 **The entry's own trim — 9px of padding and a 1px rule.** `site.css` draws it as a
+      field (`padding: 5px 20px 4px 4px`, `border-top: 1px`), which is right where it has a column
+      to itself. Overridden for portrait only, at (1,2,0) against the bare id's (1,0,0) — on
+      specificity, not load order, which is the trap this stylesheet fell into earlier today.
+- [x] 1c.3 **The focus ring is KEPT, and keeping it is free.** An `outline` paints outside the box
+      and takes no layout, so removing it would save zero pixels and lose the only signal the
+      field is active (WCAG 2.4.7). The placeholder — "Please be nice in the chat!" — is what says
+      "type here" now that the rule is gone.
+- [x] 1c.4 **Measured on the SE at 375x667, hard-reloaded:** the message area goes **25.3px to
+      39.9px, +58%**, and the entry 25px to 15.3px. The system message that used to clip
+      mid-sentence now reads in full on two lines. Boards unchanged at 373 and 133, no overflow,
+      app bottom exactly 667.
+- [x] 1c.5 **Verified.** Gates pass. Matrix: 286 rows, identical row set, **no failure fixed or
+      broken** against the run before it. The tap-target check does see it — six portrait `C1`
+      rows now list `INPUT 240x15` as undersized, where none did before.
+
+      **THE COST, AND IT IS REAL:** the entry is 15.3px against WCAG 2.5.8's 24px, and the buttons
+      sit directly against it so the spacing exception does not apply either. Deliberate, on
+      portrait alone, and visible in the bed rather than forgotten. A `min-height` on the entry
+      buys it back at the price of most of the gain — that is 1c.6 if it is ever wanted.
+- [ ] 1c.6 OPEN, and only if the tap target is judged too small to ship: put a floor under the
+      entry. It costs about 9 of the 15 pixels back. Decide by looking at it on a phone rather
+      than from the number.
+
 ## 2. Tablets: rearranging into the free space
 
 The mode is settled — these are tall-landscape pages and stay that way. What is open is only what
