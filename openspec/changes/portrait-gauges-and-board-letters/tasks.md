@@ -10,12 +10,47 @@ and this change is that debt stated out loud.
 
 ## 1. Decide
 
-- [ ] 1.1 Choose the shape, from design.md's four options: A the landscape arrangement shrunk to
-      fit, B horizontal bands above and below, C an overlay costing no layout, D letter only and no
-      gauge. Every option below is conditional on this.
-- [ ] 1.2 Decide whether both boards get the SAME shape. The partner board has ~148px of free height
-      under it and the own board has none, so the honest answer may be asymmetric — and an
-      asymmetric answer needs to be a decision rather than a side effect.
+- [x] 1.1 **DECIDED 2026-09-26: OPTION A — the landscape arrangement, shrunk to fit.** Nikolay's
+      call. The gauge stays a vertical bar beside the board as it is in landscape, and the boards
+      shrink to pay for it.
+
+      **AND THE MECHANISM IS ALREADY THERE, which is what made this cheap to decide.** A stack on
+      the analysis page is already a TWO-COLUMN grid — pocket/board/pocket down column 1, the gauge
+      parked in column 2 on the board's row — so the gauge is part of the stack, not a sibling.
+      `squareUnit.ts` already knows what that costs:
+
+          const GAUGE_SQUARES = 0.31;                       // measured, not chosen
+          function stackSquares() { return FILES + (stacksIncludeGauge() ? GAUGE_SQUARES : 0); }
+          /** A stack's width in squares: the board, plus the gauge where the page draws one. */
+
+      **PORTRAIT SIMPLY DOES NOT CALL IT.** Its square is `quantize(availableWidth(), FILES) /
+      FILES` — bare `FILES`, so 8 — and the stylesheet then suppresses the gauge to keep that
+      arithmetic true. The "8.31 squares against an app of 8" note is the consequence of the
+      omission, not a reason it cannot be done. Five landscape call sites use `stackSquares()`;
+      portrait is the one that forgot.
+
+      So the shape of the work is: use `stackSquares()` in the portrait divisor, and delete the two
+      portrait CSS blocks that force a one-column stack and hide the label.
+- [ ] 1.2 **ASYMMETRIC, AND THE REASON IS THE PRICE — measured 2026-09-26 at 386x835, live.** The
+      two gauges are not paid for by the same thing, which is why this cannot be one decision:
+
+      | | square | gauge bar | paid for by | cost |
+      |---|---|---|---|---|
+      | own board | 48.004px | **14.9px** | the BOARD — its square is width-derived, so the divisor goes 8 → 8.31 | board 384 → 369.7, **−14.3px** |
+      | partner board | 20.672px | **6.4px** | the TOOLS — its square is height-derived, so the board does not shrink; the stack track widens | tools column 218.7 → 212.3, **no board loss** |
+
+      **So the own gauge is readable and costs board; the partner gauge is nearly free and may be
+      worth nothing.** `portrait.css` already records the objection: "the partner's was 6.2px wide
+      at this size, unreadable as a bar, and the engine's evaluation is a number in the Moves tab
+      regardless."
+
+      Three questions, not one:
+      1. Own gauge: 14.9px of readable bar for 14.3px of board — worth it?
+      2. Partner gauge: 6.4px of bar for 6.4px of tools — is a bar that narrow worth anything?
+      3. **The LETTER only needs the COLUMN, not the bar.** It lives in the gauge's column, so a
+         board can have its letter with the column present and the gauge hidden. That matters most
+         on the partner board, where "which board is this" is the real question and the column is
+         the cheap one.
 - [ ] 1.3 If the chosen shape takes width or height from a board, record the square unit before and
       after and confirm the new one is a whole number of device pixels. A percentage is not an
       answer here.
