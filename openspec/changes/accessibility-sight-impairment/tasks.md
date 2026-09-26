@@ -140,7 +140,38 @@ changes ... later we might think of a full solution, but for now we start with s
       images have no alt"; a multi-line-aware parse gives **3**. Wrapping `<label>`s are the same trap
       in reverse, so the client count (44 flagged, ~1 in 3 a false positive on calibration) needs
       runtime confirmation from task 2.2.
-- [ ] 2.4d **F1, F2, T1-T6, A1 and L1-L5 do not wait on the gate.** They are Level A keyboard failures affecting every
+- [x] 2.4h **Headings and landmarks SWEPT — `headings-and-landmarks-sweep.md`.** Landmarks are good;
+      headings are the gap, and one finding is the best line-for-value item in any sweep:
+
+      **H1. The game, analysis, puzzle and study pages have ZERO headings.** `templates/analysis.html`
+      has none and serves all three of analysis (`views/analysis.py:16`), puzzle (`views/puzzle.py:17`)
+      and study (`views/study.py:992`); `roundCtrl.ts`, `round.ts`, `analysis/index.ts`,
+      `analysisCtrl.ts`, `movelist.ts` emit none; **the whole `client/two-board/` tree emits none.**
+      So `H` does nothing and there is no `h1` for the `1` key. This upgrades `candidates.md` B from
+      "almost no headings" to none, and is why B is cheap — nothing to reconcile.
+
+      **H2. `<html>` has no `lang` — `base.html:2`.** WCAG 3.1.1, Level A, and **acute for pychess**:
+      the UI is translated through `lang/` gettext, and a screen reader picks its pronunciation from
+      `lang`, so a Bulgarian page read by an English synthesiser is unusable rather than merely
+      degraded. **The value is already to hand** — `base.html:71` emits `data-lang="{{ lang }}"` on
+      `<body>` — so it is `<html lang="{{ lang }}">`, one line. `api.html:2` already does it.
+
+      **H3.** No skip link anywhere. WCAG 2.4.1, Level A — partly mitigated for screen-reader users by
+      `<main>`, not at all for sighted keyboard users.
+
+      **H4.** 10 templates with multiple `h1`, of which 8 are `docs/terminology.*` translations at 6
+      each, compiled from one markdown source by `yarn md`. Breaks the "press 1 for the content"
+      convention lichess's tutorial teaches.
+
+      **H5.** 5 heading-level skips; `patron.html` goes h1 to h6. **H6.** 4 full pages with no `h1`
+      (`closed.html`, `reports.html`, `mod_public_chat.html`, `cwda_diagrams.html`) — partials
+      correctly excluded.
+
+      **LANDMARKS ARE GOOD: `<main>` in 57 templates, `<aside>` 29, `<nav>` 9, `<header>` 9, and no
+      redundant `role=` duplication anywhere.** `<footer>` is unused, so there is no `contentinfo`.
+      One line worth copying from lichess: `<h2>Navigation</h2>` in the site header, so the nav can be
+      skipped.
+- [ ] 2.4d **F1, F2, T1-T6, A1, L1-L5 and H1-H6 do not wait on the gate.** They are Level A keyboard failures affecting every
       keyboard-only user, sighted or not — not blind-mode features. F1 is one selector; F2 is a `div`
       becoming a `button` with the handler it already has. F3 and F4 are four lines, each on a line
       the code already writes. T1 and T3 are one ternary each with precedent in the codebase, T2 is
