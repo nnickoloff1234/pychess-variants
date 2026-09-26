@@ -483,6 +483,20 @@ changes ... later we might think of a full solution, but for now we start with s
       Decision 4 prefers always-on; candidate A's toggle assumes a mode. Evidence that both can be
       true at once: lichess ships keyboard move entry as an ordinary preference for sighted players
       (`"keyboardMove": false` in the normal page's prefs) *and* forces it on in blind mode.
+- [ ] 3.4d **CANDIDATE B IS WIDER THAN WRITTEN — decide its scope.** Asked 2026-09-27: which pages
+      besides the game page need headings? Measured by headings emitted per **client module**, since the
+      busy pages are Snabbdom-rendered: **seven modules emit ZERO** — `roundCtrl.ts`,
+      `analysis/index.ts`, `puzzleCtrl.ts`, `editor/editorCtrl.ts`, `profile.ts`, `stats.ts`,
+      `games.ts`. Against `forum.ts` 9, `tournamentRR.ts` 7, `tournament.ts` 4, `inbox.ts` 3.
+
+      **And the lobby is the worst case on the page everyone lands on:** `lobby.ts` emits 2 headings and
+      **neither is a page section** — both are inside the create-game dialog (`:640` its title, `:915`
+      an `h4` with no `h3`, which joins H5's level-skip list). So `#leaders`, `#winners`, `#spotlights`,
+      `#streams`, `#variants-catalog`, `#corr`, the seek table and the blog strip are all unheaded. A
+      screen-reader user presses `H` and gets nothing.
+
+      **So B's scope is seven modules, not two, and the lobby deserves to be first on traffic alone.**
+      Full addendum in `headings-and-landmarks-sweep.md`.
 - [ ] 3.4c **Decide where the piece-naming table sits in the order.** 33 `pieceFamily` values,
       roughly 200-350 translatable strings, and the role letter is a valid fallback meanwhile. It
       gates nothing, but it is the difference between *"A8 black r"* and *"A8 black rook"*.

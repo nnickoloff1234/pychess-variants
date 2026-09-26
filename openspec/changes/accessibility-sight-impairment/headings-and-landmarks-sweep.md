@@ -145,3 +145,74 @@ heading, not a landmark, and it costs one line in `template.html`.
 decides whether a translated page is pronounced at all. H1 is the largest and is already candidate B.
 
 **None of this touches the board, layout CSS or chessgroundx.**
+
+---
+
+# ADDENDUM 2026-09-27 — WHICH PAGES NEED **MORE** HEADINGS
+
+Nikolay asked whether pages other than the game page would benefit from new headings. The original
+sweep asked only whether headings were **broken** (missing `h1`, duplicated `h1`, level skips). It never
+asked whether a page has **enough** signposts to navigate by — which is a different question, and the
+answer widens candidate B.
+
+**Measuring the templates is the wrong instrument**, because most user-visible content on the busy pages
+is rendered by Snabbdom, not by the template. The right measure is headings emitted by each **client
+page module**:
+
+| Module | Headings | Page |
+|---|---|---|
+| `forum.ts` | **9** | forum |
+| `tournamentRR.ts` | **7** | round-robin tournament |
+| `tournament.ts` | **4** | arena tournament |
+| `inbox.ts` | **3** | inbox |
+| `myVariants.ts` | **3** | my variants |
+| `study/studyView.ts` | 1 | study |
+| **`lobby.ts`** | **2 — and neither is a page section (see below)** | **lobby** |
+| **`profile.ts`** | **0** | profile |
+| **`stats.ts`** | **0** | rating chart |
+| **`games.ts`** | **0** | game lists, `games.html` + `game_search.html` |
+| **`puzzleCtrl.ts`** | **0** | puzzles |
+| **`editor/editorCtrl.ts`** | **0** | board editor |
+| **`roundCtrl.ts`** | **0** | round page |
+| **`analysis/index.ts`** | **0** | analysis page |
+
+**Seven modules emit zero headings**, covering the round page, the analysis page, puzzles, the board
+editor, the profile, the rating chart and every game list. **Candidate B as written covers only the
+first two.**
+
+## The lobby is the worst case, and it is the page everyone lands on
+
+`lobby.ts` emits exactly two headings and **neither is a section of the page:**
+
+- `:640` — `h('h2', header)` inside `div#header-block`, the **create-game dialog's** title.
+- `:915` — `h('h4', _('A.I. Level'))`, also inside that dialog — **and an `h4` with no `h3` above it**,
+  a level skip of the same kind as H5.
+
+**So the lobby page itself has no headings at all.** Its major sections, each a `div#` with no heading:
+
+`#leaders` · `#winners` · `#spotlights` · `#streams` · `#variants-catalog` · `#corr` · the seek table ·
+the blog-post strip (`:2226`) · the auto-pairing block
+
+A screen-reader user arriving at pychess presses `H`, gets nothing, and must read the entire page
+linearly to find the seek list — which, per `lobby-and-tournament-sweep.md` LB1, they then cannot act
+on anyway.
+
+## What this changes
+
+**Candidate B should be widened from "headings on the game page" to "headings on the pages that have
+none".** It stays gate work — it adds markup rather than correcting it — but its scope is seven modules,
+not two, and **the lobby deserves to be first** on traffic alone.
+
+Rough shape per page, to be decided with the gate rather than here:
+
+| Page | Sections wanting a heading |
+|---|---|
+| **lobby** | Seek list · Correspondence games · Tournaments · Leaderboard · Winners · Streams · Variants · Blog |
+| round / analysis | the ten lichess uses (`lichess-reference.md` §3) |
+| puzzle | Puzzle · Feedback · Actions — and its feedback region is also PE1's live region |
+| profile | Ratings · Games · Trophies · Tournaments |
+| board editor | Position · FEN · Castling · Actions |
+| game lists | one per result group |
+
+**Nothing else in the heading findings changes**: H4 (multiple `h1`), H5 (level skips) and H6 (missing
+`h1`) stand as recorded, and the `h4` at `lobby.ts:915` joins H5's list.
