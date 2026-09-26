@@ -171,7 +171,32 @@ changes ... later we might think of a full solution, but for now we start with s
       redundant `role=` duplication anywhere.** `<footer>` is unused, so there is no `contentinfo`.
       One line worth copying from lichess: `<h2>Navigation</h2>` in the site header, so the nav can be
       skipped.
-- [ ] 2.4d **F1, F2, T1-T6, A1, L1-L5 and H1-H6 do not wait on the gate.** They are Level A keyboard failures affecting every
+- [x] 2.4i **Docs and rules pages SWEPT — `docs-pages-sweep.md`. The headline is POSITIVE.**
+
+      **D1. The docs are the most accessible part of the site, and that is why our user uses them.**
+      They are written **prose-first with illustrative diagrams**: every movement diagram is followed
+      by a paragraph stating the rule in words — verified in `capablanca.md:21-23`, `shogi.md:66-68`
+      and `xiangqi.md:56-58`, where the horse's blocking rule is explained better in prose than the
+      diagram shows. **All 1734 images have alt text**, across 475 distinct real labels. So a blind
+      reader gets the actual rules of every variant we document. **Protect this; do not let it
+      regress.**
+
+      **D2. `<html lang>` is the sharpest finding, and the docs are why.**
+      `server/views/variants.py:99-109` and `faq.py:16` select the docs file **by locale** — 323 pages
+      across 8 languages — and then serve it in a page that never declares its language. A Spanish
+      rules page read by an English synthesiser. One line (`base.html:2`), Level A, value already in
+      `data-lang`. **The most valuable single line in any sweep in this change.**
+
+      **D3.** Movement-diagram alts are inconsistent — `xiangqi.md` says "Horse movement",
+      `shogi.md` says "HorseDiagram", which reads as one run-together word. Markdown edit.
+      **D4.** Board-setup diagrams have no prose equivalent, so a blind reader learning shogi never
+      gets the starting array; a FEN in a code block would fix it, one line per variant.
+      **D5.** `showdown` emits `<th id="">` 431 times across 115 tables — invalid HTML, **harmless to
+      screen readers** since the tables are real `<thead>`/`<th>`. Fix in `md2html.js`, one place, all
+      323 pages. Unchecked: whether any of the 16 table files needs `scope`.
+      **D6.** The heading defects from H4/H5 are markdown-source defects; `docs/terminology.*` is
+      **one source in eight translations**, so one fix covers eight built files.
+- [ ] 2.4d **F1, F2, T1-T6, A1, L1-L5, H1-H6 and D2-D6 do not wait on the gate.** They are Level A keyboard failures affecting every
       keyboard-only user, sighted or not — not blind-mode features. F1 is one selector; F2 is a `div`
       becoming a `button` with the handler it already has. F3 and F4 are four lines, each on a line
       the code already writes. T1 and T3 are one ternary each with precedent in the codebase, T2 is
