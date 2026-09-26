@@ -228,8 +228,21 @@ to lichess. Lichess even emits `<h2>Navigation</h2>` in its site header on every
 
 **Costs.** Per page, small each. Benefits everyone, cannot rot unnoticed.
 
-**Unknown.** Where the worst offenders are. Nobody has walked these pages with a screen reader yet
-(task 2.2).
+**NO LONGER UNKNOWN — the twelve sweeps of 2026-09-27 filled this in.** G began as a placeholder
+("where are the worst offenders?"); it is now a concrete worklist of roughly seventy defects with
+file:line, WCAG level and fix size, spread across `collapsibles-sweep.md`,
+`focus-and-tabindex-sweep.md`, `alt-and-labels-sweep.md`, `headings-and-landmarks-sweep.md`,
+`docs-pages-sweep.md`, `lobby-and-tournament-sweep.md`, `profile-and-study-sweep.md`,
+`inbox-and-forum-sweep.md`, `round-and-analysis-sweep.md`, `settings-sweep.md`,
+`admin-and-moderation-sweep.md` and `puzzle-editor-sweep.md`, and classified by change type in
+`coverage-and-change-types.md`.
+
+**Two generalisations collapse most of it**: AD1 (four broken modals become one native `<dialog>`
+change that deletes code) and PE3 (~40 dead controls become one rule — if it responds to a click it is
+a `<button>` or an `<a href>`).
+
+**What is still unknown is only the verification**: nothing has been heard with a screen reader
+(task 2.1/2.2), no runtime DOM was inspected for the Snabbdom pages, and Android was never tested.
 
 ---
 
@@ -277,6 +290,20 @@ and does not care how it looks.
 ## Two groupings worth considering at the gate
 
 Recorded as shapes to argue about, **not as a recommendation.**
+
+**A NOTE ON WHICH CANDIDATES THE GATE ACTUALLY CHOOSES BETWEEN.** Seven are live (H is argued
+against). They divide by kind, not only by cost:
+
+- **B, C, D, E, F add new content to the game pages.** These are what task 3.4 selects from, and the
+  only items in this change that write markup that does not exist today.
+- **A is conditional on task 3.4b** — whether a *mode* is wanted at all. It is an entry point, useless
+  on its own and unnecessary if the markup is always-on.
+- **G is no longer a candidate so much as the worklist**, now fully enumerated by the sweeps (above),
+  and it does not need the gate's permission — none of it adds content, and much of it is Level A.
+- **D straddles the line.** Its game-page half is gate work; the ~8 live-region sites the sweeps found
+  elsewhere (inbox PM, puzzle feedback, seek list, tournament clock, standings, chat, forum) are
+  worklist. Whatever is decided for the board serves those too, which is an argument for deciding D on
+  its own merits.
 
 **Grouping 1 — "readable and playable, no board."** A + B + C + D + E.
 Ten headings, about twenty paragraphs generated from data we already have, `aria-live` on four of
