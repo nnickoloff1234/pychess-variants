@@ -34,6 +34,47 @@ Consequences that decide most of our design questions:
   **element type** ("next button", "next table"). A page with no headings is a wall.
 - Content that changes without user action is announced only from an **`aria-live` region**. An
   opponent's move is exactly this case, and we have no live region on any game page.
+- **NOTHING READS ARIA ATTRIBUTES DIRECTLY — and this is the fact the rest of the primer depends on.**
+  The chain is:
+
+  ```
+  HTML + ARIA  ->  the browser builds the ACCESSIBILITY TREE
+                           |
+                  platform accessibility API
+                  (AT-SPI on Linux, UI Automation on Windows,
+                   NSAccessibility on macOS, AccessibilityNodeInfo on Android)
+                           |
+                  screen reader  ->  speech / braille
+  ```
+
+  **ARIA attributes have no behaviour of their own.** They style nothing, make nothing clickable, bind
+  no keys. The browser reads them **once**, while building a second tree alongside the DOM, and they
+  change three things about a node in it: its **role**, its **name**, its **state**. **The screen reader
+  never sees our HTML** — it reads that tree, through an OS-level API. (`libatspi.so.0` is present on
+  this machine, which is why Orca can read Firefox at all.)
+
+  **Who is at the far end**, and it is not only screen readers: NVDA, JAWS, VoiceOver, Orca, TalkBack and
+  Jieshuo read the whole tree; **braille displays** read the same tree through them; **voice control** —
+  Dragon, Voice Access — matches spoken commands against **accessible names**; switch and scanning devices
+  use roles and focus order; reader mode and caret browsing use landmarks and headings; and **axe,
+  Lighthouse and Playwright's `getByRole()` read it too**, which is why any of this can be tested
+  automatically.
+
+  **Three consequences that govern this change:**
+
+  1. **ARIA is a promise, not a mechanism.** `role="button"` on a `<div>` makes a screen reader *say*
+     "button"; it does **not** make it focusable or make Enter work — so it announces a control the user
+     then cannot operate. This is why the fix for the ~40 dead controls is **real `<button>` elements, not
+     `role="button"`**, and why native `<dialog>` beats hand-rolled modal ARIA.
+  2. **Sighted people are in that list.** Voice-control users are frequently sighted with motor
+     impairments, and they match against accessible names — so an untranslated `aria-label` means a
+     non-English user must say *English* words to operate the control. Not a screen-reader-only cost.
+  3. **The accessible name has a precedence order**, which is why `aria-label` **replaces** rather than
+     supplements: `aria-labelledby` > `aria-label` > native (`label` / `alt` / text content) > `title`.
+
+  **And the practical consequence for this change: every claim in the twelve sweeps is a PREDICTION about
+  what ends up in that tree.** The source that generates it was read; the tree itself was not. Chrome's
+  `Accessibility.getFullAXTree` dumps it as JSON, which is why task 3b.2 is a gate rather than a nicety.
 - **BROWSE MODE vs FOCUS MODE — the mechanism this design originally missed, supplied by the user.**
   In browse mode the screen reader intercepts the arrow keys to move through the document, so the
   page never sees them; in focus mode keystrokes pass through. NVDA toggles with NVDA+space,
