@@ -13,45 +13,26 @@ placement findings on a landscape page, not portrait findings. Recorded in
 
 ## 1. The iPhone SE — 40px of chat, and nothing yields
 
-- [ ] 1.1 **Decide what gives — and the question is about HEIGHT, not width.** `P5` (375x667) is
-      the only portrait viewport in the matrix where the cascade drops NOTHING — `[5, 5]`,
-      `drops: []` — so every mechanism that hands the other five phones room is inactive and the
-      chat is left with 40px.
+- [x] 1.1 **DECIDED AND DONE — twice, and neither answer was the one this task offered.** The
+      options listed were a smaller preset button, a chat minimum taken from a board, or accepting
+      40px. What the SE actually needed was two things nobody had looked at:
 
-      **MEASURED LIVE 2026-09-26, and it is a CLIFF rather than a gradient.** The p4 tile was taken
-      to the SE's width at the harness's own height and a real game played on it:
+      - the tab bar was 12.31px taller than its content, because `site.css` gave the draw and
+        resign buttons a flat `height: 40px` (section 1b);
+      - the chat entry spent 9px of padding and a 1px rule on trim, and the first preset panel put
+        a 5px gap above itself (section 1c).
 
-      | | live p4 at **375x667** | live p4 at 376x**835** |
-      |---|---|---|
-      | drops | **none** | `drop-tools4`, `drop-tools3`, `drop-tools2` |
-      | preset panels | 240x61 each, in the strip | both full width, 373x39 each |
-      | chat panel | **240x38** | 208x250 |
-      | chat MESSAGE AREA | **240x13** | 208x225 |
-      | chat input | 240x25, usable | 208x25 |
-      | boards | own 373, partner 133 | own 373, partner 133 |
-
-      **THE NUMBER THAT MATTERS IS 13px OF MESSAGE AREA.** The 40px quoted from the first walk was
-      the whole chat panel; of that, 25px is the input and **13px is everything left for reading**,
-      which is not one line of text. So the SE can type a message and cannot read one — the input
-      is the part that survives, and the part that does not is the reason to have a chat at all.
-      Reproduced live at exactly 375x667 in a real game on 2026-09-26 (`i3BeAwNt`), portrait
-      confirmed by `matchMedia('(aspect-ratio <= 9/16)')`, no overflow, app bottom exactly 667.
-
-      Same width; 168px more height. Everything that is wrong at the SE is right at 835 — the two
-      preset panels fold to full width and hand their 122px back, and the message area goes from 13
-      to 225. Bracketing it against the other portrait rows — 360x800 drops three, 390x844 drops
-      two, 375x667 drops none — **the cliff is between 667 and 800px of height**, and finding where
-      is the first implementation step rather than a decision.
-
-      Options, none obviously right: a smaller preset button so a panel becomes droppable at this
-      height; a chat minimum that takes its height from a board instead of from what is left;
-      accepting 40px and saying so.
-- [ ] 1.2 Whatever 1.1 chooses, check it against the other five phones FIRST. They are healthy —
-      23-30% of the viewport to the chat — and a rule written for the SE that costs P1-P4 or P6
-      their current arrangement is a bad trade. The matrix shows all six in one run.
-- [ ] 1.3 If the answer is "accept it", say so in the stylesheet beside the portrait templates and
-      close this. An accepted limit that is written down stops being re-discovered; this one has
-      been found twice already.
+      Both were pixels the layout was spending on nothing, so the trade this task expected — board
+      size against chat — never had to be made. **The message area went 13px to 39.9px, 0.8 lines
+      to 2.5, and no board moved.**
+- [x] 1.2 **CHECKED, and all six phones gained rather than any paying.** The chat region grew on
+      every portrait viewport in the matrix — +9px at P1, +10 at P2, +10 at P3, +9 at P4, +9 at P5,
+      +9 at P6 — because both fixes removed waste rather than moving space between parts. Two full
+      matrix runs against the morning's baseline: identical 286-row set each time, one row FIXED
+      (`T6-landscape-C1-100x100`) and none broken, and no new warning except the intended one.
+- [x] 1.3 **The answer was not "accept it", so what is written in the stylesheet is the trade that
+      WAS accepted**: the tolerated WCAG deviation, recorded beside the rule that causes it and in
+      the delta spec as a named deviation. See 1c.6.
 
 ## 1b. DONE — the controls stop setting the bar's height
 
@@ -151,23 +132,29 @@ look; portrait does not, and the pixels are better spent on the partner's words.
       immediately. A few pixels of separation buys most of the safety for a third of the cost of
       the floor, and is the first thing to try.
 
-## 2. Tablets: rearranging into the free space
+## 2. Tablets — MOVED to `zone-a-semantics` 1b
 
-The mode is settled — these are tall-landscape pages and stay that way. What is open is only what
-the placement logic does with the room their shape leaves.
+A tablet held upright is a tall-landscape page by design, so "what does placement do with the room
+its shape leaves" is a zone A question in that mode, not a portrait one. Moved 2026-09-26 as 1b.1,
+1b.2 and 1b.3 rather than carried here.
 
-- [ ] 2.1 **Should a preset panel leave the tools track on a tablet?** The original idea was "the
-      presets take zone A, by the mechanism the analysis page has". Zone A is COLLAPSED on all six
-      upright tablets (`zoneA2`/`zoneA3` at height 0, zero occupants), so the free space is zone
-      B's: 780x402 of chat at T6 (800x1280), 1001x278 at T5 (1024x1366). Re-ask it against that
-      region and that price.
-- [ ] 2.2 Decide whether the chat's share on an upright tablet is a problem at all. It is the
-      largest single consumer — 402px of 1280 at T6 — but the boards are 640 tall beside it and
-      nothing overflows. This is the question the "a rule is needed" note was reaching for, asked
-      of the right mode.
-- [ ] 2.3 Write the tablet decision into `bughouse-round-layout`: a device held upright above the
-      cut-off is a tall-landscape page, and is improved by placement within that geometry rather
-      than by a mode of its own. Today it lives only in a test-bed comment.
+- [x] 2.1 Should a preset panel leave the tools track on a tablet → `zone-a-semantics` 1b.2.
+- [x] 2.2 Is the chat's share on an upright tablet a problem → `zone-a-semantics` 1b.3.
+- [x] 2.3 The tablet decision is written into `bughouse-round-layout` — it is in this change's
+      delta spec, which states that a device held upright above the cut-off is a tall-landscape
+      page and is improved by placement within that geometry rather than by a mode of its own.
+
+**A CLAIM THIS CHANGE MADE AND GOT WRONG, corrected before it could mislead anyone.** An earlier
+draft said zone A was "collapsed to height 0 on all six upright tablets" and treated that as
+settling the question. It was read off the `C1` rows alone. Nikolay: the band under the right board
+IS zone A whenever that board is smaller than the left one, and is only nothing when the two are
+the same size.
+
+Measured across all 72 upright-tablet rows: **24 have a non-zero, occupied zone A** — every `C3`
+row, `zoneA2` at 136px tall, with the partner board smaller in each (248 against 488 at T1, 328
+against 652 at T5, 252 against 512 at T6). What differs between the two states is not the board
+sizes but what is shown: game over hides the preset panels and something takes zone A; live, they
+hold zone B and zone A goes to zero. That asymmetry is now `zone-a-semantics` 1b.1.
 
 ## 3. Already built or fixed — do not re-open
 

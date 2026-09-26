@@ -37,6 +37,46 @@ trade board size against tool usability, and there is no measurement that settle
       A grows upwards and row 1 is the row no template takes. So the answer may be "yes, and the
       band should not have been offered to the others either".
 
+## 1b. Zone A on a device held upright
+
+Moved from `portrait-tools-arrangement` on 2026-09-26. A tablet held upright is a TALL-LANDSCAPE
+page by design — the cut-off is 9/16 so that portrait means phones — so these are zone A questions
+in this change's own mode, not portrait ones.
+
+- [ ] 1b.1 **Why does the live page leave the band under the smaller partner board unused?**
+      Nikolay, 2026-09-26: the band under the right board is zone A and can host parts whenever
+      that board is smaller than the left one; it is only nothing when the two are the same size.
+
+      **MEASURED, AND IT CONTRADICTS AN EARLIER CLAIM IN THIS PROJECT.** A note in
+      `portrait-tools-arrangement` said zone A was "collapsed to height 0 on all six upright
+      tablets". That was read off the `C1` rows alone. Across all 72 upright-tablet rows, **24 have
+      a non-zero, OCCUPIED zone A** — every `C3` row, at `zoneA2` 136px tall: T1 248x136, T5
+      328x136, T6 252x136, with the partner board smaller than the viewer's in each (248 against
+      488, 328 against 652, 252 against 512).
+
+      So the band is real and reachable. What differs is the page STATE, not the board sizes: with
+      the game over the preset panels are hidden and something takes zone A; with the game live
+      they hold zone B and zone A goes to zero. **That asymmetry is the question** — the space
+      under the smaller board exists in both states and is only used in one.
+- [ ] 1b.2 **Should a preset panel take it while the game is live?** (was
+      `portrait-tools-arrangement` 2.1, and before that `what-zone-a-is-for` 5.10 and 5.13, where
+      it was phrased as "the presets take zone A, by the mechanism the analysis page has".)
+
+      The price is visible. At T6 (800x1280) the tools all sit in zone B: chat 780x402, two preset
+      panels 780x69 each, tab bar 780x40, with both boards 640 tall and about 60px spare in the
+      viewport. Moving a panel beside the partner board — 252px wide, enough for five buttons at
+      roughly 48px — frees its 69px of zone B.
+
+      **AND THE ORIGINAL ARGUMENT FOR IT NO LONGER HOLDS**, which is why it needs deciding rather
+      than doing: the note's reason was "so the chat gets the height", and the chat already has
+      402px there and was itself described as nearly empty. If the freed height is worth anything
+      it is worth it to the BOARDS, and that is a different trade to weigh.
+- [ ] 1b.3 **Is the chat's share on an upright tablet a problem at all?** (was
+      `portrait-tools-arrangement` 2.2.) It is the largest single consumer — 402px of 1280 at T6,
+      278px at T5 — but the boards are 640 and 815 tall beside it and nothing overflows. This is
+      what the archived "all the slack goes to the chat; a rule is needed" note was reaching for,
+      asked of the right mode.
+
 ## 2. Implement, once decided
 
 - [ ] 2.1 (was 3.1) Whatever section 1 selects, keeping `toolsHome()` a pure function of the
