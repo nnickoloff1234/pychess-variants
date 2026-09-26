@@ -435,11 +435,11 @@
             --bug-coord-room: calc(10 * var(--bug-tall-allow-b) - 10 * var(--bug-tall-sq-b));
         }
 }
-@media (aspect-ratio <= 9/16) {
-        .bug-round-tools-bar {
-            --bug-controls-labels: 0;
-        }
-}
+/* PORTRAIT'S `--bug-controls-labels: 0` USED TO BE HERE AND HAD NO EFFECT. It is one class
+   against `components/tabs.css`'s one class, and this file loads first, so the default of 1 won
+   on source order every time. Moved to `tabs.css`, immediately after the default it has to beat
+   and beside the paragraph explaining why portrait never labels the pair. See that note for how
+   it stayed hidden for so long. */
 /* THE PLAYER'S OWN BOARD SQUARE, as a value CSS can use. --cg-width-a and -b are
    board IDENTITY, and which of them is the viewer's own depends on the switch —
    the same role-versus-identity problem the pockets had. markRoles() already puts

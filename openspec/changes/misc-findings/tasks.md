@@ -52,13 +52,15 @@ home goes straight there instead.
       `tools-below`, without `drop-tools2` — and let the bed report the overlap. That row does not
       exist today, which is why the collision is unproven rather than confirmed.
 
-## 5. Draw and resign sizing
+## 5. Draw and resign sizing — DONE 2026-09-26
 
-- [ ] 5.1 Decide whether the draw and resign controls should follow the tablist buttons' size in all
-      cases, as Nikolay asked. The wrapping that prompted it is already fixed; what is missing is
-      the rule, so the two can drift apart again silently.
-- [ ] 5.2 If yes, give the bed a check for it — the four short-landscape `C2` rows are accepted now,
-      so a regression here would pass. A rule with no check is how this note came to be a year old.
+- [x] 5.1 Answered yes and implemented in `portrait-tools-arrangement` (its section 1b). The cause
+      was that they followed nothing: `site.css:2276` gave them a flat `height: 40px` from the
+      single-board page, so they were the tallest thing in the bar and set its row — costing
+      8.07/7.47/8.15/12.31px in the four harness windows. They now take the tablist's height.
+- [ ] 5.2 STILL OPEN, and worth keeping: the bed has no check that the controls match the tabs, so
+      the two can drift apart again silently. It does check tap targets against 24px, which would
+      catch them going too SMALL but not too large. Belongs in `layout-matrix-bed`.
 
 ## 6. Not in this change
 

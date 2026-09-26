@@ -21,14 +21,25 @@ placement findings on a landscape page, not portrait findings. Recorded in
       **MEASURED LIVE 2026-09-26, and it is a CLIFF rather than a gradient.** The p4 tile was taken
       to the SE's width at the harness's own height and a real game played on it:
 
-      | | bed `P5` 375x**667** | live p4 376x**835** |
+      | | live p4 at **375x667** | live p4 at 376x**835** |
       |---|---|---|
       | drops | **none** | `drop-tools4`, `drop-tools3`, `drop-tools2` |
-      | preset panels | `[5, 5]`, 240 wide | both full width, 373x39 each |
-      | chat | **240x40** | panel 208x250, messages 208x225, input 208x25 |
+      | preset panels | 240x61 each, in the strip | both full width, 373x39 each |
+      | chat panel | **240x38** | 208x250 |
+      | chat MESSAGE AREA | **240x13** | 208x225 |
+      | chat input | 240x25, usable | 208x25 |
+      | boards | own 373, partner 133 | own 373, partner 133 |
 
-      Same width to within a pixel; 168px more height. Everything that is wrong at the SE is right
-      at 835. Bracketing it against the other portrait rows — 360x800 drops three, 390x844 drops
+      **THE NUMBER THAT MATTERS IS 13px OF MESSAGE AREA.** The 40px quoted from the first walk was
+      the whole chat panel; of that, 25px is the input and **13px is everything left for reading**,
+      which is not one line of text. So the SE can type a message and cannot read one — the input
+      is the part that survives, and the part that does not is the reason to have a chat at all.
+      Reproduced live at exactly 375x667 in a real game on 2026-09-26 (`i3BeAwNt`), portrait
+      confirmed by `matchMedia('(aspect-ratio <= 9/16)')`, no overflow, app bottom exactly 667.
+
+      Same width; 168px more height. Everything that is wrong at the SE is right at 835 — the two
+      preset panels fold to full width and hand their 122px back, and the message area goes from 13
+      to 225. Bracketing it against the other portrait rows — 360x800 drops three, 390x844 drops
       two, 375x667 drops none — **the cliff is between 667 and 800px of height**, and finding where
       is the first implementation step rather than a decision.
 
@@ -41,6 +52,55 @@ placement findings on a landscape page, not portrait findings. Recorded in
 - [ ] 1.3 If the answer is "accept it", say so in the stylesheet beside the portrait templates and
       close this. An accepted limit that is written down stops being re-discovered; this one has
       been found twice already.
+
+## 1b. DONE — the controls stop setting the bar's height
+
+Found while measuring 1.1 and fixed on 2026-09-26. It is wider than portrait, but it arose here and
+the SE is where it pays, so it is recorded here rather than moved.
+
+- [x] 1b.1 **`site.css:2276` gives `.btn-controls button` a flat `height: 40px`** — an absolute
+      value from the single-board page, where the controls have a row to themselves. The two-board
+      stylesheet overrides their `flex`, `min-width` and `font` and never the height, so the pair
+      was the tallest thing in the bar and the bar's auto-sized grid row became 40 everywhere.
+
+      Measured in all four harness windows, bar height with the controls against without them:
+
+      | window | viewport | mode | with | without | excess |
+      |---|---|---|---|---|---|
+      | p1 | 1418x612 | tall landscape | 39.99 | 31.92 | 8.07 |
+      | p2 | 1701x957 | tall landscape | 40.00 | 32.53 | 7.47 |
+      | p3 | 1276x551 | short landscape | 40.00 | 31.85 | 8.15 |
+      | p4 | 375x667 | portrait | 40.00 | 27.69 | **12.31** |
+
+      Nothing asked for 40: an emptied button still measured it. Fixed with `height: auto` on the
+      button, `align-self: stretch` on the container so the TABLIST decides the row, and
+      `line-height: 1` on the icon — whose `normal` leading (8.18px on a 21.83px glyph) would
+      otherwise have become the new floor at 30px, still above the 27.69px tab.
+
+      **RESULT ON THE SE: the chat's message area went from 13px to 25.3px**, nearly doubling for
+      a change that touches no board. Buttons now equal the tab height in every window — 31.92,
+      32.53, 31.85, 27.69 — all above WCAG 2.5.8's 24px. Landscape labels unaffected.
+
+- [x] 1b.2 **AND IT EXPOSED A PORTRAIT RULE THAT HAD NEVER WORKED.** `properties.css` declared
+      `--bug-controls-labels: 0` for portrait on `.bug-round-tools-bar`; `components/tabs.css`
+      declares the default `1` on the same selector. One class each, and `properties.css` loads
+      first (`base.html` line 21), so the `1` won on source order and portrait's opt-out had never
+      taken effect.
+
+      It was invisible because nothing could reach it: `labelControls()` only labels the pair when
+      the row has width for the words, and in portrait's 240px strip it never did. Freeing 12.31px
+      let the bar drop to the full 373px, the fit test found room, and "Draw" and "Resign" appeared
+      on a phone — against a decision recorded in the stylesheet and in memory. The flag was wrong
+      all along; the drop only made it visible.
+
+      Moved into `tabs.css` immediately after the default it has to beat, beside the paragraph that
+      explains why portrait never labels the pair. The dead copy in `properties.css` is deleted
+      with a note saying where it went.
+
+- [x] 1b.3 **Verified.** Frontend gates all pass. Layout matrix diffed by ROW SET against the
+      morning's run: 286 rows both times, identical row set, **one row FIXED and none broken** —
+      `T6-landscape-C1-100x100`, the partner stack overlapping preset panel 1 in zoneA2 by 25x6px.
+      The survey goes 3 failing to 2. That row had been filed as zone A's; 8px of bar was the cause.
 
 ## 2. Tablets: rearranging into the free space
 
