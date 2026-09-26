@@ -256,7 +256,37 @@ changes ... later we might think of a full solution, but for now we start with s
       `<button>` reports as a defect. **Three false positives in this sweep alone.** The
       lobby/tournament hits were each opened by hand and two were withdrawn for this reason, but no hit
       should be quoted without eyeballing the source.
-- [ ] 2.4d **F1, F2, T1-T6, A1, L1-L5, H1-H6, D2-D6, LB1-TN6 and PF1-ST3 do not wait on the gate.** They are Level A keyboard failures affecting every
+- [x] 2.4l **Inbox and forum SWEPT — `inbox-and-forum-sweep.md`. Both come back WELL BUILT.**
+
+      **IB1. A private message arrives and nothing is said.** `inbox.ts:424` opens
+      `new EventSource('/inbox/subscribe')` and `:426` receives `{unread, thread?}` — so messages
+      genuinely arrive live and the unread count updates. **And the file has 0 `aria-live`, 0
+      `role="status"`, 0 `role="log"`.** The hard part — knowing when something changed — is already
+      built and working; only the attribute is missing. **The sharpest missing-live-region case found
+      anywhere.** WCAG 4.1.3 AA.
+
+      **IB2. The inbox is one of the two best-built pages swept.** Threads are real
+      `h('button.inbox-thread', { props: { type: 'button' } })` — **exactly what the lobby's seek rows
+      get wrong, solved properly in the same codebase.** All four icon-only actions carry `title`
+      (Challenge, Block, Delete, Report), and there are **zero non-interactive clickables** in the file.
+
+      **FR1. The forum's modals are visual only.** They DO have a real Cancel `<button>` (`:1556`), so
+      unlike the lobby's and tournament's there is a keyboard way out — but **0 `role="dialog"`, 0
+      `aria-modal`, 0 `Escape`, 0 `keydown`**, so a screen reader is never told a dialog opened and the
+      user can Tab out of it into covered content. `study/addToStudy.ts` is the house pattern.
+
+      **FR3. The forum has the best ARIA of any page swept**: `aria-label` on all four post actions
+      (`:1360, 1374, 1396, 1410`), **`aria-hidden="true"` on decorative icons** (`:1191, 1268`) — the
+      most sophisticated touch found anywhere — 3 `<thead>`, 8 `<th>`, 9 headings, and all six flagged
+      clickables were the known wrapper false positive.
+
+      **AND THE SITE-WIDE PATTERN IS NOW CLEAR.** Well built: study, inbox, forum, profile overflow.
+      Poorly built: lobby, tournament, the game/analysis pages, the site header. **Two gaps are
+      near-universal rather than page-specific — live regions exist almost nowhere but `study/`, and
+      modals lack dialog semantics everywhere. The first IS candidate D, now the finding with the most
+      sites behind it.**
+- [ ] 2.4d **F1, F2, T1-T6, A1, L1-L5, H1-H6, D2-D6, LB1-TN6, PF1-ST3 and IB1-FR4 do not wait on the
+      gate.** They are Level A keyboard failures affecting every
       keyboard-only user, sighted or not — not blind-mode features. F1 is one selector; F2 is a `div`
       becoming a `button` with the handler it already has. F3 and F4 are four lines, each on a line
       the code already writes. T1 and T3 are one ternary each with precedent in the codebase, T2 is
