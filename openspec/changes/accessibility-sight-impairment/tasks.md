@@ -285,8 +285,42 @@ changes ... later we might think of a full solution, but for now we start with s
       near-universal rather than page-specific — live regions exist almost nowhere but `study/`, and
       modals lack dialog semantics everywhere. The first IS candidate D, now the finding with the most
       sites behind it.**
-- [ ] 2.4d **F1, F2, T1-T6, A1, L1-L5, H1-H6, D2-D6, LB1-TN6, PF1-ST3 and IB1-FR4 do not wait on the
-      gate.** They are Level A keyboard failures affecting every
+- [x] 2.4m **Round and analysis pages SWEPT — `round-and-analysis-sweep.md`. Contains the most severe
+      finding in the change.**
+
+      **RA1. YOU CANNOT ACCEPT OR DECLINE A DRAW, TAKEBACK OR REMATCH BY KEYBOARD.** `roundCtrl.ts`
+      builds **nine accept/reject controls as bare `<div>`s** across **five offer types** — takeback
+      (752, 758, 774), **draw (829, 833)**, correspondence move confirmation (852, 856), **rematch
+      (1030, 1034)** — each with no role, no tabindex and no name, in a file with 0 `keydown`.
+      **And the offer text IS readable**: `h('div.text', _('Your opponent proposes a takeback'))` sits
+      between the two controls, so a blind player is **told about the offer and cannot answer it**,
+      mid-game, under a clock. WCAG 2.1.1 **Level A**. The correct pattern is eleven lines away —
+      `:497` `h('button#resign', { props: { title: _('Resign') } })`.
+
+      **RA2.** `movelist.ts` has 7 buttons and **4 are unnamed** — `icon-fast-backward` (:253),
+      `icon-step-backward` (:267), `icon-step-forward` (:282), `icon-fast-forward` (:284) — while
+      `refresh`, `exchange` and `bars` in the same file are named. A screen reader announces "button"
+      four times for the primary way to review a game.
+
+      **RA3.** `clock.ts:240-254` emits real text (better than the board) but has **0 `aria-label`, 0
+      `role="timer"`, 0 `aria-live`** — so neither clock says whose it is, time is never announced, and
+      it reads as three fragments, "5", ":", "23". Our user asked for exactly this.
+
+      **RA4.** `chat.ts:119` is `h('ol#…-messages', [h('div#messages')])` with the `<li>` messages
+      patched into the inner `<div>` — **`<ol>` may only contain `<li>`**, so it is not a list and list
+      navigation fails. **RA5.** `chat.ts:131` `'aria-label': 'Chat input'` is **hardcoded English**
+      while lines 105-112 all use `_()` — the field's only name, untranslated. **RA6.** Chat has 0
+      `aria-live`, so an opponent's message is never announced.
+
+      **RA8. ZERO `aria-live` and ZERO headings across all eleven round/analysis/two-board files.**
+      Full inventory in the document. This is the complete evidence behind H1 and candidate D.
+
+      **POSITIVES:** the game controls ARE real named buttons (`:497` Resign, `:621` Abort) — **so the
+      pattern RA1 and RA2 need already exists in the same file**; `analysis/index.ts` is properly built
+      (9 `role:`, 14 `aria-`, one tab at `'0'`); `gameCtrl.ts` and `analysisCtrl.ts` do have `keydown`
+      and `Escape` handlers.
+- [ ] 2.4d **F1, F2, T1-T6, A1, L1-L5, H1-H6, D2-D6, LB1-TN6, PF1-ST3, IB1-FR4 and RA1-RA8 do not wait
+      on the gate** — except RA8, which IS the gate (candidates B and D). They are Level A keyboard failures affecting every
       keyboard-only user, sighted or not — not blind-mode features. F1 is one selector; F2 is a `div`
       becoming a `button` with the handler it already has. F3 and F4 are four lines, each on a line
       the code already writes. T1 and T3 are one ternary each with precedent in the codebase, T2 is
