@@ -54,18 +54,30 @@ changes ... later we might think of a full solution, but for now we start with s
 
 ## 3. The reference, then the shortlist
 
-- [ ] 3.1 **Browse lichess.** Method undecided and cheapest-first: `wget` the HTML and read it, or
-      Nikolay saves pages from Firefox where he is logged in, or Chrome automation as a last resort
-      because it is token-expensive. The pages that matter are a live game, an analysis board, and
-      the accessibility preferences.
-- [ ] 3.2 Answer the design's five lichess questions from what is actually there, not from memory:
-      is it a separate non-visual module or ARIA on the visual page; is there keyboard move entry
-      and is it available to everyone; is there a text board; how are moves announced and phrased;
-      where does the preference live.
-- [ ] 3.3 **Decide the structural question: overlay module or annotate-in-place** (design's most
-      consequential copy-or-reject). It determines whether this work collides with the layout
-      changes in flight, so it is decided before anything is written.
-- [ ] 3.3b **Weigh the user's own fallback against lichess's shape.** They pre-authorised the
+- [x] 3.1 **DONE, by curl — no browser needed.** `lichess-reference.md`. Blind mode is a
+      **server-side session flag**: `POST /run/toggle-blind-mode` with `enable=1` and an
+      `Origin: https://lichess.org` header (403 without it), cookie jar kept, and every page then
+      comes back in its blind-mode form. Their own 770-line tutorial at `/page/blind-mode-tutorial`
+      documents the entire interface and is the best source on the subject that exists.
+- [x] 3.2 **ALL FIVE ANSWERED** — `lichess-reference.md` sections 1-6. Separate module
+      (`analyse.nvui.js` served *instead of* `analyse.user.js`, own CSS, own i18n); keyboard move
+      entry is its own separately-translated module; the position is available **as prose under a
+      heading**, not only as a grid; announcement style is a five-way user setting, not a decision
+      they made for the user; and the preference is a session flag with its toggle as the **first
+      element in `<body>` on every page**.
+- [x] 3.3 **ANSWERED BY THE EVIDENCE: a separate module.** Lichess serves a different JS bundle,
+      different CSS and different translations. **This removes the design's named risk of colliding
+      with the in-flight layout work**, and it means chessgroundx need not be touched at all.
+
+      **AND THE BIGGER FINDING: the non-visual page is a DOCUMENT, not a board.** Headings for game
+      info, move list, the position in prose, status, last move, input form, clocks, real action
+      buttons — then the board. Everything above the board is plain semantic HTML. A blind player
+      reads the entire game state without the board at all. `lichess-reference.md` section 3.
+- [ ] 3.3c **Decide OUR structural answer, which need not be theirs.** A separate bundle is right
+      for a site with lichess's scale of non-visual coverage; we may want a parallel semantic
+      document rendered by the same page, since our first steps are markup rather than a second UI.
+      The finding that matters is that the two can be decoupled, not that we must copy the bundling.
+- [x] 3.3b **WEIGHED, and they agree more than expected.** They pre-authorised the
       smaller scope: *"as alternative i propose you to make a table or another element, when the
       blind user can operate all the board."* A focusable table is both what they asked for and
       what the focus-mode mechanism needs. If lichess's answer is more than that, we may still take
