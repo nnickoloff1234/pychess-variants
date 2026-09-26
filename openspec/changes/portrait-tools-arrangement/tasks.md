@@ -13,11 +13,28 @@ placement findings on a landscape page, not portrait findings. Recorded in
 
 ## 1. The iPhone SE — 40px of chat, and nothing yields
 
-- [ ] 1.1 **Decide what gives.** `P5` (375x667) is the only portrait viewport in the matrix where
-      the cascade drops NOTHING — `[5, 5]`, `drops: []` — so every mechanism that hands the other
-      five phones room is inactive, and the chat is left with 40px: an input and nothing above it.
-      Options, none obviously right: a smaller preset button so a panel becomes droppable here; a
-      chat minimum that takes its height from a board instead; accepting 40px and saying so.
+- [ ] 1.1 **Decide what gives — and the question is about HEIGHT, not width.** `P5` (375x667) is
+      the only portrait viewport in the matrix where the cascade drops NOTHING — `[5, 5]`,
+      `drops: []` — so every mechanism that hands the other five phones room is inactive and the
+      chat is left with 40px.
+
+      **MEASURED LIVE 2026-09-26, and it is a CLIFF rather than a gradient.** The p4 tile was taken
+      to the SE's width at the harness's own height and a real game played on it:
+
+      | | bed `P5` 375x**667** | live p4 376x**835** |
+      |---|---|---|
+      | drops | **none** | `drop-tools4`, `drop-tools3`, `drop-tools2` |
+      | preset panels | `[5, 5]`, 240 wide | both full width, 373x39 each |
+      | chat | **240x40** | panel 208x250, messages 208x225, input 208x25 |
+
+      Same width to within a pixel; 168px more height. Everything that is wrong at the SE is right
+      at 835. Bracketing it against the other portrait rows — 360x800 drops three, 390x844 drops
+      two, 375x667 drops none — **the cliff is between 667 and 800px of height**, and finding where
+      is the first implementation step rather than a decision.
+
+      Options, none obviously right: a smaller preset button so a panel becomes droppable at this
+      height; a chat minimum that takes its height from a board instead of from what is left;
+      accepting 40px and saying so.
 - [ ] 1.2 Whatever 1.1 chooses, check it against the other five phones FIRST. They are healthy —
       23-30% of the viewport to the chat — and a rule written for the SE that costs P1-P4 or P6
       their current arrangement is a bad trade. The matrix shows all six in one run.
