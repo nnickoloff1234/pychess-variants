@@ -95,9 +95,20 @@ PHONE_PORTRAIT = [
     Viewport("P6", "Pro Max class", 430, 932, 3, "phone"),
 ]
 
-# EVERY TABLET IN PORTRAIT IS A LANDSCAPE-RULES PAGE. Not an oversight: it follows from setting the
-# portrait cut-off at 9/16 so that portrait means phones. All six are taller than they are wide and
-# all six get the two-column landscape geometry, which nothing has ever looked at on purpose.
+# EVERY TABLET IN PORTRAIT IS A LANDSCAPE-RULES PAGE, AND THAT IS THE DESIGN.
+#
+# All six are taller than they are wide and all six get the two-column tall-landscape geometry with
+# a large zone B beneath the boards. This is a decision, not a consequence nobody noticed: the
+# portrait cut-off is set at 9/16 so that PORTRAIT MEANS PHONES, and a tablet held upright is
+# treated as a tall landscape page. An earlier version of this comment called it something "nothing
+# has ever looked at on purpose", which was wrong and is corrected here — Nikolay, 2026-09-26.
+#
+# WHAT FOLLOWS FROM IT, and it is the whole approach for these six: the MODE is settled, so a tablet
+# is improved only by the placement logic rearranging parts into the free space the shape leaves.
+# Nothing here should propose a third mode, move the cut-off to catch tablets, or give a tablet
+# portrait's single-column geometry. Measured 2026-09-26 at base zoom: all six sit in the `below`
+# home with zone A collapsed to height 0 and zone B holding the tools — 780x402 of chat at
+# T6 (800x1280), 1001x278 at T5 (1024x1366) — which is the shape the placement logic works within.
 TABLET_PORTRAIT = [
     Viewport("T1", "iPad 9.7/10.2, 4:3", 768, 1024, 2, "tablet"),
     Viewport("T2", "iPad 10th", 810, 1080, 2, "tablet"),
