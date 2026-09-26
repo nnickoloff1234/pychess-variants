@@ -12,15 +12,6 @@
    `--bug-preset-btn`, its floor and its ceiling are declared in `properties.css` and published
    from `toolsPlacement.ts`; this file only spends them. */
 
-@media (aspect-ratio <= 9/16) {
-        /* PORTRAIT KEEPS THE PAGE'S GROUND. The panel colour above is for the landscape modes,
-           where the parts move between three places and want to read as one object wherever they
-           land. Portrait has one arrangement and is not being changed. */
-        .round-app.bug .chatpresets-panel,
-        .round-app.bug .bug-presets-group {
-            background-color: transparent;
-        }
-}
 @media (aspect-ratio > 9/16) and (height < 600px) {
         /* A button is 60% of its share of the parts column — the size the presets drew at
            before the fixed track, reproduced: 0.6 of a fifth of 382.3 is 45.9, which is what
@@ -331,7 +322,18 @@
    is `display: contents` everywhere else, and an element with no box paints nothing, so this
    declaration is simply inert until zone B gives it one. There it is what covers the gap
    between the two panels sharing a row — the join that the pitch needs and that would
-   otherwise show the page through the middle of the panel. */
+   otherwise show the page through the middle of the panel.
+
+   IN EVERY ORIENTATION, AND PORTRAIT ONCE OPTED OUT. A rule at the top of this file set both
+   containers back to `transparent` in portrait — added with this one, on the standing rule that
+   portrait was not to change, and justified by "portrait has one arrangement". That stopped being
+   true: portrait states three drop templates of its own and moves its parts through the same
+   cascade the landscape modes use, so it has the very "wherever the parts end up" this rule is
+   about. The opt-out went with the reason for it.
+
+   It beat this rule on SPECIFICITY, not on order — `.round-app.bug .chatpresets-panel` is three
+   classes against one, and it sat 300 lines ABOVE the rule it overrode. Worth knowing if a
+   portrait-only surface is ever wanted again: source order will not give it. */
 .chatpresets-panel,
 .bug-presets-group {
     background-color: var(--bg-color0);
