@@ -161,7 +161,13 @@ arriving at the same answer from different directions is the strongest signal in
 So if lichess turns out to have built more than that, we may still take only this much, with the
 user's agreement already on record rather than assumed.
 
-### Decision 7: THERE MAY BE NO MODE AT ALL — 2026-09-27
+### Decision 7: NO MODE **EXCEPT FOR THE BOARD** — 2026-09-27, CORRECTED THE SAME DAY
+
+**Read the correction at the end of this decision before acting on it.** As first written it concluded
+"no mode at all"; that is wrong for candidate F, and Nikolay's original instinct — which named the board
+as the exception — was right.
+
+
 
 Nikolay, reasoning from the sweeps: *"my understanding is that all headings, aria- attributes,
 tabindexes, etc. are something that will be added regardless of whether we are in blind mode or not ...
@@ -211,8 +217,37 @@ contributes zero tab stops and the page tabs straight past the board.
 accessibility tree — once as prose, once as a grid. **That is verbose, not wrong, and it is exactly what
 lichess does** (a Pieces heading *and* a board). Accepted.
 
-**This supersedes candidate A as written and answers task 3.4b.** It does not decide B/C/D/E/F, which
-remain the gate's business.
+### CORRECTION — the board is the exception, and candidate A is reinstated
+
+The table above claims F can be always-on "with a roving tabindex". **That conflates two things.** A
+roving tabindex fixes the *number of tab stops*; it says nothing about **visibility**. A grid always in
+the DOM must be either **visible** (64 lines of text beside a graphical board — clutter nobody asked
+for) or **hidden** (and then a sighted keyboard user's focus lands on something invisible, violating
+WCAG 2.4.7).
+
+**Nikolay's proposal removes the problem instead of working around it: let the switch choose the board.**
+Blind mode on renders the button grid *instead of* chessgroundx; off renders chessgroundx only. No
+hidden focusable element, no duplicate board, no clutter — and the grid is fully visible when active, so
+a sighted developer can enable it and see it, which answers Decision 4's objection that a blind-only
+mode is one nobody notices breaking. It is also why lichess's blind board draws pieces.
+
+**So the revised shape:** headings, live regions, the prose position and all of candidate G are
+always-on; **the board is mode-gated**; the command input is a preference available to everyone and
+forced on with the mode.
+
+**What survives:** the mode's *only* job is the board — far smaller than lichess's, which swaps an entire
+front end. The reason ours can be that small still holds: our markup is correct on the same page.
+
+**Candidate A is reinstated as a toggle**, since it now has a real job; the help link argued for above is
+still worth having beside it, as lichess pairs its toggle with a tutorial link.
+
+**Two things to settle with it:** the switch should probably not be called "blind mode" — it is also for
+sighted keyboard players — and the prose position stays always-on, as lichess keeps both a Pieces
+heading and a board.
+
+Five delivery options for F, with this reasoning, are recorded in `candidates.md`.
+
+**This answers task 3.4b.** It does not decide B/C/D/E/F, which remain the gate's business.
 
 ## Risks / Trade-offs
 

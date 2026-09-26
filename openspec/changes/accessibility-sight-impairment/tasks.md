@@ -479,7 +479,8 @@ changes ... later we might think of a full solution, but for now we start with s
       **The tension to resolve**: the user's stated FLOOR is move entry (candidate E) and their
       stated FIRST WANT is arrow navigation (candidate F). Grouping 1 (A+B+C+D+E) satisfies the floor
       without the want; grouping 2 adds the board.
-- [x] 3.4b **ANSWERED 2026-09-27: NO MODE.** Design Decision 7. Nikolay reasoned it out from the
+- [x] 3.4b **ANSWERED 2026-09-27: NO MODE EXCEPT FOR THE BOARD** — corrected the same day; read 3.4e.
+      Originally recorded as "no mode at all": Design Decision 7. Nikolay reasoned it out from the
       sweeps and it holds further than stated — **not one candidate needs a mode.** Headings, `aria-*`
       and live regions are always-on and invisible to sighted users; **the position as text is
       always-on VISUALLY HIDDEN** (`.sr-only` clip, zero visual change); **the command input is a
@@ -503,6 +504,34 @@ changes ... later we might think of a full solution, but for now we start with s
       improvement — today it is zero and the page tabs past it), and the position will exist **twice**
       in the accessibility tree, as prose and as a grid, which is **verbose but not wrong and is exactly
       what lichess does.**
+- [x] 3.4e **CORRECTION, and Nikolay was right the first time.** 3.4b's "no mode at all" **fails for
+      candidate F.** A roving tabindex fixes the *number* of tab stops and says nothing about
+      **visibility** — the two were conflated. A grid always in the DOM is either **visible** (64 lines
+      of text beside a graphical board, clutter nobody asked for) or **hidden** (and a sighted keyboard
+      user's focus lands on something invisible — WCAG 2.4.7).
+
+      **Nikolay's proposal removes the problem rather than working around it: the switch chooses the
+      board.** Blind mode on renders the button grid **instead of** chessgroundx; off renders
+      chessgroundx only. No hidden focusable element, no duplicate board, no clutter — and the grid is
+      **visible when active**, so a sighted developer can enable it and see it, which answers Decision
+      4's objection that a blind-only mode is one nobody notices breaking. It is also why lichess's
+      blind board draws pieces.
+
+      **Revised shape:** headings, live regions, the prose position and all of candidate G are
+      **always-on**; **the board is mode-gated**; the command input is a **preference** for everyone,
+      forced on with the mode. **The mode's only job is the board** — far smaller than lichess's, which
+      swaps a whole front end.
+
+      **Candidate A is reinstated as a toggle** (it now has a real job), with the help link beside it.
+      **Two things to settle:** it should probably not be called "blind mode", since it also serves
+      sighted keyboard players; and the prose position stays always-on, as lichess keeps both.
+
+      **Five delivery options for F recorded in `candidates.md`** — A hidden/zero tab stops, B
+      hidden/revealed-on-focus, C always visible, D preference-gated, **E the mode chooses**. A-D are all
+      workarounds for a problem E does not have.
+- [ ] 3.4f **Decide F's delivery from those five, and name the switch.** E is the one that dissolves the
+      problem; B was recommended among A-D before E existed. Nikolay is not convinced any of A-D is good,
+      which is the reason E was proposed.
 - [ ] 3.4d **CANDIDATE B IS WIDER THAN WRITTEN — decide its scope.** Asked 2026-09-27: which pages
       besides the game page need headings? Measured by headings emitted per **client module**, since the
       busy pages are Snabbdom-rendered: **seven modules emit ZERO** — `roundCtrl.ts`,

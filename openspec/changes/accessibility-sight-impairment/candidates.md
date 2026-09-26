@@ -378,3 +378,109 @@ the same.
 **Nothing to do here.** Three collapsibles confirmed correct; **what is unaudited is every other one**,
 which belongs to candidate G and to the screen-reader walk in task 2.2. That audit is the useful
 version of this question.
+
+---
+
+# F's DELIVERY — five options, and a correction to design Decision 7
+
+Opened 2026-09-27. Nikolay asked how the button grid actually reaches the page: hidden and
+interactive, or replacing chessgroundx. Recording all of it because the answer **overturns part of
+Decision 7.**
+
+## First, two facts that constrain every option
+
+**chessgroundx has no per-square element to label, ever.** `node_modules/chessgroundx/src/render.ts:120`
+creates a `<square>` element **only for squares needing a highlight** — last move, check, selection,
+move destinations. The 64 squares are otherwise a **CSS background image** on `cg-board`. So the grid
+can never be "chessgroundx with ARIA added"; a parallel structure is the only option.
+
+**chessgroundx is not focusable and would not become so.** Zero `tabindex`, zero `focus()` in the whole
+package. *(Correcting a loose statement made earlier in this change: "the board becomes one tab stop"
+referred to the button grid, not to chessgroundx. chessgroundx contributes zero tab stops today and
+under every option below.)*
+
+**And reading is not interacting:**
+
+- **Reading** the grid needs nothing focusable — in browse mode the screen reader's virtual cursor
+  reads all content **regardless of `tabindex`**.
+- **Interacting** — arrows square-to-square, Space to select — needs **focus mode**, which needs the
+  grid focused.
+
+So a tab stop exists only to serve interaction, and only one is ever needed. **`.sr-only` clipping hides
+from eyes but NOT from the screen reader**; `display:none` / `visibility:hidden` hide from both.
+
+## The options
+
+### A. Hidden, zero tab stops, entered only programmatically
+
+All squares and the container `tabindex="-1"`. Reached from the command input's `b e4`, or a control.
+
+- Sighted keyboard users never encounter it. Browse-mode reading still works.
+- **Couples F to E**: without the command input there is no way onto the board.
+
+### B. Hidden, revealed on focus — the skip-link pattern
+
+Container `tabindex="0"`; `:focus-within` un-clips it.
+
+- One tab stop, and **the grid appears when focused, so focus is visible.** Standard technique.
+- Gives sighted keyboard players a playable board — Decision 4's "a feature everyone uses does not rot".
+- **Recommended among A-D**, but see E.
+
+### C. Always visible beside chessgroundx
+
+- No hiding tricks at all.
+- **64 lines of text beside a graphical board is clutter nobody asked for.** Lichess can draw pieces on
+  its blind board only because it *replaces* the normal one.
+
+### D. Preference-gated visible, like lichess's `keyboardMove`
+
+- Honest, no hiding.
+- A blind user must find and enable a preference — the discoverability problem returns.
+
+### E. THE MODE CHOOSES THE BOARD — proposed by Nikolay, and it dissolves the problem
+
+Blind mode on → render the button grid **instead of** chessgroundx. Off → chessgroundx only.
+
+- **No hidden focusable element**, so no invisible focus and no WCAG 2.4.7 worry. A-D all exist to work
+  around a problem this does not have.
+- **No duplicate board**, no clutter for sighted users, no `.sr-only` trickery for the grid.
+- The grid is **fully visible when active**, so a sighted developer can enable it and see it — which
+  answers Decision 4's objection that a blind-only mode is one nobody notices breaking. **It is also
+  why lichess's blind board now draws pieces.**
+- **It is what lichess does**, and it works there for exactly this reason.
+
+**Two things to decide with it, not blockers:**
+
+- **The name.** "Blind mode" is wrong for the sighted keyboard player who wants this board. Something
+  like *"Keyboard/screen-reader board"* describes what it does. Lichess's naming is not worth copying
+  here.
+- **Does the prose position (C) stay always-on?** Yes — and lichess keeps both, a Pieces heading *and*
+  a board. In normal mode C is visually hidden prose and there is no grid, so nothing is duplicated; in
+  blind mode you get both, as lichess does.
+
+## THE CORRECTION TO DECISION 7
+
+Decision 7 concluded **no mode at all**, from the premise that every candidate can be always-on. **That
+premise fails for F, and Nikolay's original instinct was right.** His words were *"pages will not change
+at all when blind mode is on, **with the exception of the button-based board** and the forced addition of
+the input"* — and the reply overreached by extending the argument to F as well.
+
+**The specific error:** a roving `tabindex` solves the *number of tab stops*. It does nothing about
+*visibility*, and those were conflated. A grid that is always in the DOM must be either visible (clutter)
+or hidden (invisible focus) — which is why A-D are all workarounds.
+
+**So the revised shape:**
+
+| | Delivery |
+|---|---|
+| Headings (B), live regions (D), position as text (C, visually hidden), all of G | **always-on, no mode** |
+| **The board (F)** | **MODE-GATED — the switch chooses chessgroundx or the grid** |
+| Command input (E) | **preference**, available to everyone, forced on with the mode |
+
+**What survives of Decision 7:** everything except F is genuinely always-on, so the mode's *only* job is
+the board — a much smaller mode than lichess's, which swaps a whole front end. And the reason ours can be
+that small stands: our markup is correct on the same page, theirs is a second bundle.
+
+**Candidate A is reinstated as a toggle**, because it now has a real job. The help **link** argued for
+earlier is still worth having beside it — lichess pairs its toggle with a tutorial link for the same
+reason.
