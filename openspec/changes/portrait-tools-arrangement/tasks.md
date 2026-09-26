@@ -132,9 +132,24 @@ look; portrait does not, and the pixels are better spent on the partner's words.
       sit directly against it so the spacing exception does not apply either. Deliberate, on
       portrait alone, and visible in the bed rather than forgotten. A `min-height` on the entry
       buys it back at the price of most of the gain — that is 1c.6 if it is ever wanted.
-- [ ] 1c.6 OPEN, and only if the tap target is judged too small to ship: put a floor under the
-      entry. It costs about 9 of the 15 pixels back. Decide by looking at it on a phone rather
-      than from the number.
+- [x] 1c.6 **DECIDED 2026-09-26: TOLERATED, and recorded as a deviation rather than left as a
+      task.** Nikolay's call — the shortfall is kept for now and written down so that every place
+      the layout falls short of WCAG can be reviewed together in one accessibility pass, rather
+      than argued one at a time.
+
+      It is in the delta spec as a named tolerated deviation, with the guideline, the measured
+      value, the reason and the cost of undoing it: a `min-height: 24px` returns 8.7px to the entry
+      and takes the message area from 39.9px back to 31.2px, 2.5 lines to 1.9 — more than half the
+      gain. The stylesheet carries the same note beside the rule, and the matrix lists the entry
+      among undersized tap targets on six portrait rows, so it stays visible in the survey.
+
+      **NOT A TASK ANY MORE.** An open box would say someone owes the work; the decision is that
+      nobody does, until the accessibility pass. See [[accessibility-deferred-raise-on-ui-review]].
+
+      Recorded for that pass: the sharper risk is not the 15.3px dimension but the missing
+      separation — the preset row abuts the entry and a preset tap sends a message to the partner
+      immediately. A few pixels of separation buys most of the safety for a third of the cost of
+      the floor, and is the first thing to try.
 
 ## 2. Tablets: rearranging into the free space
 
