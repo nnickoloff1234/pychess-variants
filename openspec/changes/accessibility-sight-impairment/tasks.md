@@ -196,7 +196,36 @@ changes ... later we might think of a full solution, but for now we start with s
       323 pages. Unchecked: whether any of the 16 table files needs `scope`.
       **D6.** The heading defects from H4/H5 are markdown-source defects; `docs/terminology.*` is
       **one source in eight translations**, so one fix covers eight built files.
-- [ ] 2.4d **F1, F2, T1-T6, A1, L1-L5, H1-H6 and D2-D6 do not wait on the gate.** They are Level A keyboard failures affecting every
+- [x] 2.4j **Lobby and tournament pages SWEPT — `lobby-and-tournament-sweep.md`. Contains the most
+      consequential finding so far.**
+
+      **LB1. YOU CANNOT ACCEPT A GAME FROM THE LOBBY BY KEYBOARD.** `lobby.ts:1333-1337` — the seek
+      row is `h('tr', { on: { click: () => this.onClickSeek(seek) } })` with no role, no tabindex and
+      no keyboard handler, and **there are zero keydown/keyup/keypress handlers in the entire file.**
+      A keyboard or screen-reader user can read the whole seek list and then act on none of it. This
+      is the site's primary action on the page everyone lands on. WCAG 2.1.1, **Level A**.
+
+      **LB3 / TN4. Neither the lobby nor the tournament dialog can be closed by keyboard.** Close is
+      a `<span.close>` (`lobby.ts:684`, `tournament.ts:642`, `tournamentRR.ts:1373`) and no `Escape`
+      handler exists in either file — so a keyboard user who opens a dialog is **trapped in it**.
+
+      **LB2 / TN2 / TN3. Nothing that changes is announced.** Zero `aria-live` in `lobby.ts`,
+      `tournament.ts`, `tournamentRR.ts` or `tournamentClock.ts`. Seeks appear and vanish silently;
+      the tournament countdown is never spoken; standings reorder in silence.
+
+      **TN1.** Standings rows are click-only (`tournament.ts:469`), as is
+      `tournamentRR.ts:1507`. **TN6.** An `<h2>` (`:1517`) and an `<option>` (`:1547`) are used as
+      click controls.
+
+      **POSITIVES, including a correction to my own suspicion:** the seek table is properly built with
+      a real `<thead>` and six `<th>` (Player, Rating, Time, Variant, Mode), so **the information is
+      fully reachable and only the action is not**; Create a game (`lobby.ts:943`) and
+      Join/Withdraw (`tournament.ts:272-279`) **are real `<button>`s**.
+
+      **THE PATTERN — three fixes, not thirty sites:** a row that acts needs an operable control; a
+      dialog needs a focusable close and an `Escape`; anything that changes needs a live region. **The
+      third is candidate D**, so deciding D serves these pages too, not just the board.
+- [ ] 2.4d **F1, F2, T1-T6, A1, L1-L5, H1-H6, D2-D6 and LB1-TN6 do not wait on the gate.** They are Level A keyboard failures affecting every
       keyboard-only user, sighted or not — not blind-mode features. F1 is one selector; F2 is a `div`
       becoming a `button` with the handler it already has. F3 and F4 are four lines, each on a line
       the code already writes. T1 and T3 are one ternary each with precedent in the codebase, T2 is
