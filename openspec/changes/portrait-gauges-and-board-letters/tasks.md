@@ -63,9 +63,13 @@ and this change is that debt stated out loud.
       gauge: it is what makes the portrait one-column stack and the board-label suppression wrong,
       and it is the answer to any future "can we drop X from the stack on small screens".
 
-- [ ] 1.3 If the chosen shape takes width or height from a board, record the square unit before and
-      after and confirm the new one is a whole number of device pixels. A percentage is not an
-      answer here.
+- [x] 1.3 **DONE — the square is a whole number of device pixels before and after.** Own square
+      48.00390625px → **46.00390625px**. Both are a whole CSS pixel plus `onLayoutGrid`'s constant
+      1/256 margin, and both are whole at the harness dpr of 1.5 (72 and 69 device px). The
+      quantisation is unchanged because the same helper does it: `stackUnitFor()` is
+      `squareUnit((budget * FILES) / stackSquares(), FILES, dpr)`, and the old line was
+      `squareUnit(availableWidth(), FILES, dpr)` written longhand. Only the budget handed to it
+      changed. No percentage anywhere.
 - [x] 1.4 **RE-CHECKED, AND IT IS KEPT — what changed is the rule, not the measurement.** The
       6.2px reading stands; `portrait.css` was right that it is unreadable as a bar, and the
       engine's evaluation is still a number in the Moves tab regardless.
@@ -90,8 +94,25 @@ and this change is that debt stated out loud.
 
 ## 3. Build the chosen shape
 
-- [ ] 3.1 Replace the portrait `display: none` rules with real placement. Do not simply delete them:
-      the arithmetic they protect — the stack is exactly its eight squares — has to still hold.
+- [x] 3.1 **DONE, and the arithmetic was fixed rather than the rules simply deleted** — which is
+      what this task warned against.
+
+      `squareUnit.ts`: portrait's own square now comes from `stackUnitFor(availableWidth(), dpr)`,
+      the helper the two landscape modes already used. The old line divided the width by a bare
+      EIGHT while the stack it had to fit was 8.31 wide; five other width-derived squares on this
+      page went through `stackSquares()` and this one did not.
+
+      **AND THE NUMBER WAS IN FOUR PLACES, which the one-line estimate missed.** `stackSquares()`
+      in TypeScript, `8.31` inline in the landscape tracks, and a bare `8` in portrait's app width
+      and partner track. Fixing only the TypeScript left the app 2px too narrow for its own
+      contents and put the "B" at x=388.16 in a 386px viewport — the exact overflow the old note
+      described. So the number is now declared once, as `--bug-stack-squares` in `properties.css`:
+      8 on `.round-app.bug`, 8.31 on `.analysis-app.bug`, consumed by both portrait tracks and by
+      the landscape ones that used to say 8.31 inline.
+
+      Removed with the cause: portrait's one-column stack template, the board-label suppression in
+      `stacks.css`, and the gauge `display: none` in `engine.css`. Each is replaced by a note
+      saying what the arithmetic was and why the rule is gone.
 - [x] 3.2 NOT NEEDED — option B was not taken, so `drawEval()` keeps filling vertically and needs
       no second axis.
 - [x] 3.3 NOT NEEDED — option C was not taken. The gauge keeps its own column and is never drawn
@@ -104,15 +125,25 @@ and this change is that debt stated out loud.
 
 ## 4. Verify
 
-- [ ] 4.1 Portrait: `document.documentElement.scrollWidth === innerWidth` and the app's bottom at or
-      above the viewport's bottom. This is the check the first attempt failed.
-- [ ] 4.2 Both squares measured against their pre-change values — 48.004px own, 20.672px partner on
-      a 386x835 tile — and any difference matched to a trade recorded under 1.3.
-- [ ] 4.3 Both landscape modes unchanged. They are the reference and nothing here should reach them.
+- [x] 4.1 **PASSES — the check the first attempt failed.** `scrollWidth` 386 against an
+      `innerWidth` of 386, and the app's bottom at 835 in an 835px viewport. During the partial fix
+      it read 388 against 386, which is how the missing track definitions were found.
+- [x] 4.2 **BOTH SQUARES MEASURED, and the difference is the trade that was decided.**
+      Own 48.004 → **46.004**, board 384 → 368.03, and the 14.26px gauge occupies what the board
+      gave up. Partner **20.672 → 20.672, unchanged**, its 6.41px gauge paid for by the tools
+      column instead — which is 1.2's asymmetry doing exactly what it said it would.
+
+      Confirmed across the survey: every portrait ANALYSIS row loses about 16px of own board
+      (P1 389.3→373.3, P3 360→344, P5 372→360, P6 429.3→413.3) with the partner board identical in
+      each; every portrait ROUND row is unchanged, because `--bug-stack-squares` is 8 there.
+- [x] 4.3 **LANDSCAPE UNCHANGED.** Checked live on p1 (1418x612): boards 438.55 and 219.29,
+      gauges 16.99 and 8.5 — the same values the code comments quote from earlier measurements.
+      The landscape tracks now read `var(--bug-stack-squares)` where they said `8.31`, which
+      resolves to the same number. Matrix: identical row set, no failure fixed or broken.
 - [ ] 4.4 With the engine running, each board's readout updates on its own slice and holds while the
       engine is on the other board.
-- [ ] 4.5 Frontend gates. No server change and no Python gates.
-
+- [x] 4.5 **GATES PASS** — `yarn lint`, `yarn typecheck`, `yarn md`, `yarn test`. No server change
+      and no Python gates, as predicted.
 ## 5. Not in this change
 
 - 5.1 The PV columns' portrait order — left column is the own board, which portrait puts at the
