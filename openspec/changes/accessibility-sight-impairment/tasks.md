@@ -60,9 +60,33 @@ changes ... later we might think of a full solution, but for now we start with s
       `aria-haspopup`, `aria-expanded`, `role="menu"`/`role="menuitem"`, and `main.ts` really does
       toggle `aria-expanded` (lines 448, 460, 473, 487). Same in `profileActionOverflow.ts:16` and
       `tournamentForm.ts:163`. That is the correct pattern; revealing everything is not.
-- [ ] 2.4c **Audit the collapsibles we have NOT checked.** Three are confirmed correct; every other
-      menu, modal, accordion and overflow on the site is unverified. This is the useful version of
-      2.4b's question and belongs with candidate G.
+- [x] 2.4c **SWEPT — `collapsibles-sweep.md`. 5 correct, 4 defects, 1 minor**, and two defects are
+      worse than a missing attribute:
+
+      **F1. The main nav's submenus are hover-only.** `site.css:939` `.drp { visibility: hidden }`
+      revealed only by `:996` `.topnav section:hover .drp`, inside `@media (min-width: 800px)`. No
+      `:focus-within`, no button, no ARIA. Since `visibility: hidden` removes content from the
+      accessibility tree, **every secondary nav link is absent to a screen reader and unreachable by
+      keyboard on desktop.** WCAG 2.1.1 Keyboard, **Level A**. Fix is one `:focus-within` selector.
+
+      **F2. The hamburger is a `<div>`.** `template.html:6`, handler `main.ts:345`. No tabindex,
+      role, name or `aria-expanded`, so **the mobile nav cannot be opened by keyboard at all.**
+      WCAG 2.1.1 and 4.1.2, both Level A.
+
+      **F3.** `#btn-challenge`, `#btn-notify`, `#btn-settings` (`template.html:141,147,157`) are real
+      buttons with panels correctly `display:none`, but carry no `aria-expanded` and no
+      `aria-controls` — activating them announces nothing. WCAG 4.1.2.
+
+      **F4.** `button#bars` (`movelist.ts:311`), toggled by `analysisCtrl.ts:663` and
+      `puzzleCtrl.ts:446`; swaps display, never updates `aria-expanded`. Same shape as F3.
+
+      **F5, minor.** The search icon is a non-focusable `<div>`, but `.search-bar` collapses with
+      `overflow: hidden`, which **keeps the input focusable and in the accessibility tree**, and it
+      has `aria-label`. Reachable anyway.
+- [ ] 2.4d **F1 and F2 do not wait on the gate.** They are Level A keyboard failures affecting every
+      keyboard-only user, sighted or not — not blind-mode features. F1 is one selector; F2 is a `div`
+      becoming a `button` with the handler it already has. F3 and F4 are four lines, each on a line
+      the code already writes. Decide whether to fix them now as candidate G work.
 - [ ] 2.5 **Test the Android path too**, since 1.3 made it a named target: TalkBack, and Jieshuo if
       it can be obtained. Mobile was not in anyone's plan and is in the user's.
 
