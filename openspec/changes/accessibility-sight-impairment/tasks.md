@@ -73,10 +73,24 @@ changes ... later we might think of a full solution, but for now we start with s
       info, move list, the position in prose, status, last move, input form, clocks, real action
       buttons — then the board. Everything above the board is plain semantic HTML. A blind player
       reads the entire game state without the board at all. `lichess-reference.md` section 3.
-- [ ] 3.3c **Decide OUR structural answer, which need not be theirs.** A separate bundle is right
-      for a site with lichess's scale of non-visual coverage; we may want a parallel semantic
-      document rendered by the same page, since our first steps are markup rather than a second UI.
-      The finding that matters is that the two can be decoupled, not that we must copy the bundling.
+- [ ] 3.3c **Decide OUR structural answer — and the live DOM narrowed the choice.** `lichess-
+      reference.md` 9.1: lichess does NOT serve a separate page. The nvui content is one
+      `<div class="nvui">` inside the ordinary `<main class="round">`, header and nav untouched, with
+      `<body class="blind-mode">` as the only other marker. So a non-visual block rendered inside our
+      existing round page is what they actually do, and the separate bundle is a delivery choice
+      rather than a structural one. Decide whether we need the bundle split at all.
+- [x] 3.3d **MEASURED THE REAL COST OF AN ACCESSIBLE BOARD, and it is far lower than assumed.**
+      `lichess-reference.md` 9.2: in `plain` layout the board is **64 `<button>` elements whose text
+      content is their label** — `"A8 black rook"`, `"B8 +"` for an empty dark square, `"E8 -"` for an
+      empty light one. No table, no `role`, no `aria-label`, no `tabindex` management. Buttons are
+      focusable and take Space/Enter for free.
+
+      This retires the fear that an accessible board needs chessgroundx changed or an ARIA grid built.
+- [x] 3.3e **FOUR live regions with deliberately different politeness** (`lichess-reference.md` 9.3),
+      not one announcement channel: status and last-move and errors assertive, board prompts polite,
+      and **the move list at `aria-live="off"` with `role="log"` on purpose** — announcing every move
+      would re-read the list, so the one-sentence last-move region does that job instead. All
+      `aria-atomic="true"`. Copy the politeness split, not just the idea of a live region.
 - [x] 3.3b **WEIGHED, and they agree more than expected.** They pre-authorised the
       smaller scope: *"as alternative i propose you to make a table or another element, when the
       blind user can operate all the board."* A focusable table is both what they asked for and

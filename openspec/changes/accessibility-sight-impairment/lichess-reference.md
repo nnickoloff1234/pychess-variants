@@ -1,7 +1,9 @@
 # How lichess does it — read off the wire, 2026-09-26
 
-Source: `https://lichess.org/page/blind-mode-tutorial` (their own guide, last updated June 2026) plus
-the HTML lichess serves with and without blind mode enabled. Summarised here in our own structure,
+Source: `https://lichess.org/page/blind-mode-tutorial` (their own guide, last updated June 2026),
+the HTML lichess serves with and without blind mode enabled, **and the live rendered DOM of a real
+game (`/5i7fG5XW`, Nikolay's account, blind mode on) — section 9, which corrects three claims the
+first two sources led me to.** Summarised here in our own structure,
 with short quotes only — **read the tutorial itself before implementing anything**, it is the best
 document on this subject that exists and it is written partly by the blind users it serves.
 
@@ -13,7 +15,8 @@ session flag**, so every page then comes back in its blind-mode form. Cheap to r
 
 ## 1. THE ARCHITECTURE — this answers task 3.3
 
-**It is a separate module, not ARIA added to the visual page.** Confirmed by diffing the served HTML:
+**The JS is a separate module. The DOM is NOT a separate page** — see section 9.1, which corrects
+what this section originally claimed. The bundle swap is real:
 
 | | Normal | Blind mode |
 |---|---|---|
@@ -21,8 +24,10 @@ session flag**, so every page then comes back in its blind-mode form. Cheap to r
 | CSS | `analyse.free.css` | plus `bits.blind.css`, `round.nvui.css` |
 | i18n | — | plus `i18n/nvui.*.js`, **`i18n/keyboardMove.*.js`** |
 
-`nvui` = **non-visual user interface**. It is a parallel front end, separately bundled, separately
-translated, loaded instead of the normal one. `keyboardMove` is its own module with its own
+`nvui` = **non-visual user interface**. It is a parallel front end, separately bundled and
+separately translated, loaded instead of the normal one — **but it renders into the ordinary page**,
+as one `<div class="nvui">` inside `<main class="round">`, with the site header and nav untouched
+(section 9.1). `keyboardMove` is its own module with its own
 translation catalogue, which is the tell that it is a real feature rather than a mode's appendage.
 
 **Why this matters to us more than it looks.** The design named "accessibility work colliding with
@@ -50,8 +55,8 @@ This is a handful of lines and a session flag. It is the highest impact-per-byte
 
 ## 3. THE NON-VISUAL PAGE IS A DOCUMENT, NOT A BOARD
 
-**The single most important structural finding.** The blind-mode game page is an ordinary semantic
-HTML document navigated by heading, in this order:
+**The single most important structural finding, and CONFIRMED in the live DOM.** The blind-mode game
+page is an ordinary semantic HTML document navigated by heading. Confirmed order and markup:
 
 - **h1** — game title, carrying colour, rated/casual, time control and opponent in one line:
   *"You play the white pieces Casual correspondence Game vs Stockfish level 1"*
@@ -178,3 +183,128 @@ Not the shortlist — that is task 3.4, and it is Nikolay's call. But the readin
 Pockets, which our user specified and lichess's tutorial does not cover for crazyhouse-like variants
 in the text we read, would attach at step 5 — and their model (white's off the a-file edge, black's
 off the last file, vertical arrows through roles) is more specific than anything here.
+
+
+---
+
+# 9. CONFIRMED FROM THE LIVE DOM — and what it corrects
+
+Rendered DOM of a finished game, blind mode on, `Board layout: plain`, `Move notation: literate`.
+**This is the ground truth.** Everything above came from their tutorial's prose; this is the markup.
+
+## 9.1 CORRECTION — it is not a separate page, it is one div
+
+```html
+<main class="round">
+  <aside class="round__side"></aside>     <!-- empty -->
+  <div class="nvui"> ... everything ... </div>
+  <div class="round__underboard"></div>
+</main>
+```
+
+The site header, top nav, search, notifications and user menu are **all still there, unchanged**.
+`<body>` merely gains a `blind-mode` class. The nvui content replaces the **board region**, not the
+page.
+
+**This is the most useful correction for us.** It means the choice is not "second front end or
+nothing": lichess renders a non-visual block inside the normal page, and so could we. Task 3.3c
+should be decided knowing that.
+
+## 9.2 THE BOARD IS 64 BUTTONS. NO TABLE, NO ARIA, NO ROLES.
+
+The entire accessible board, in `plain` layout:
+
+```html
+<div class="board"><div class="board-wrapper">
+  <div>                                      <!-- one div per rank, 8 to 1 -->
+    <span><button class="black rook light" text="A8 black rook"
+                  rank="8" file="a" piece="r" color="black" trap-bypass="">A8 black rook</button></span>
+    <span><button class="dark"  text="B8 +" rank="8" file="b" piece="+" color="none" ...>B8 +</button></span>
+    <span><button class="light" text="E8 -" rank="8" file="e" piece="-" color="none" ...>E8 -</button></span>
+```
+
+- **A real `<button>` per square.** Focusable, in the tab order, `Space`/`Enter` activate it for
+  free. No `role`, no `aria-label`, no `tabindex` juggling.
+- **The accessible name is the button's own text content** — `"A8 black rook"`. Nothing clever.
+- **Empty squares still say something: `+` for a dark square, `-` for a light one.** One character
+  that tells a blind player the square's colour, which matters for bishops and for orientation.
+- `rank` / `file` / `piece` / `color` are plain attributes their JS reads. `class="... active"`
+  marks the cursor square. `promotion="true"` where relevant. `trap-bypass=""` opts out of their
+  focus trap.
+- **So `Board layout: plain` really is plain.** The `table` option is the alternative; this account
+  is not using it, so we have not seen that markup.
+
+**What this means for the "minimum change" estimate: a screen-reader-usable board is 64 buttons
+whose text says what is on the square.** That is the entire mechanism. Everything else — arrow keys,
+jump-to-piece, ray scanning — is key handling on top of markup this simple.
+
+## 9.3 FOUR LIVE REGIONS, WITH DELIBERATELY DIFFERENT POLITENESS
+
+Not one announcement channel. Four, and the differences are the design:
+
+| Element | Politeness | Carries |
+|---|---|---|
+| `<p class="moves" role="log" aria-live="off">` | **off** | the move list — a log you *read*, never announced |
+| `<div class="status" role="status" aria-live="assertive" aria-atomic="true">` | assertive | `1-0`, "Checkmate • White is victorious" |
+| `<p class="lastMove" aria-live="assertive" aria-atomic="true">` | assertive | "queen takes b 5 checkmate" |
+| `<div class="notify" aria-live="assertive" aria-atomic="true">` | assertive | errors — caught live: **"Invalid move: nd2"** |
+| `<div class="boardstatus" aria-live="polite" aria-atomic="true">` | polite | board-level prompts, e.g. "Promote to: q for queen, n for knight…" |
+
+**`aria-live="off"` on the move list is the instructive one.** The obvious design would announce
+every move as it arrives; they deliberately do not, because the last-move region already does it in
+one sentence and re-reading the whole list would be unusable. `role="log"` keeps it navigable.
+
+`aria-atomic="true"` everywhere it matters: read the whole region, not the changed word.
+
+## 9.4 THE POSITION IN PROSE — confirmed, and simpler than the tutorial's example
+
+```html
+<h2>Pieces</h2>
+<div class="pieces">
+  <div class="white-pieces"><h3>White</h3>
+    <p>king: e1</p><p>queen: b5, g8</p><p>rook: a1, h1</p>
+    <p>bishop: c4, d4</p><p>knight: d2, f3</p><p>pawn: a2, e4, f2, g2</p>
+```
+
+One `<p>` per piece type, squares comma-separated, grouped by colour under `h3`. The tutorial showed
+this as *"King: eva 1"* because its author had `anna` notation selected; with `literate` it is plain
+`e1`. **The markup is six paragraphs of text** — and it is the fastest way to know a position
+without walking the board.
+
+## 9.5 THE HELP IS IN THE PAGE
+
+Two headings near the bottom, plain `<p>` with `<br>` separators:
+
+- **h2 "Keyboard input commands"** — the command-field list
+- **h2 "Command list when the board has focus"** — the board keys
+
+So the keyboard interface is **self-documenting from inside the interface**, reachable with one
+`H` press, not only from the tutorial page. This is most of our user's *"short help for active chess
+variant"* need, and for a variant server it is worth more than it is to lichess.
+
+## 9.6 Commands the tutorial did not list
+
+Read off the in-page help, present on this round page because the game is over:
+
+- `v` announce computer evaluation · `g` announce computer best move · **`shift+g` play the computer's
+  best move** · `alt+shift+a`/`d` cycle variations
+
+## 9.7 Settings markup: plain labels, no ARIA
+
+```html
+<label><span lang="en">Move notation</span>
+  <select><option value="uci">uci: g1f3</option>
+          <option value="san">san: Nxf3</option>
+          <option value="literate" selected>literate: knight takes f 3</option>
+          <option value="nato">nato: knight takes foxtrot 3</option>
+          <option value="anna">anna: knight takes felix 3</option></select></label>
+```
+
+A wrapping `<label>` is the whole accessibility story. **And each option's text contains its own
+example**, so the choice is audible rather than abstract — a nice touch worth copying.
+
+## 9.8 One more thing they do site-wide
+
+`<h2>Navigation</h2>` is emitted inside the site header's nav block. A heading for the nav, so a
+screen reader user can jump to it and skip past it. Cheap, and it applies to every page on the site
+rather than only the game.
