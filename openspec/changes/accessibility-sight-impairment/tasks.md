@@ -479,10 +479,30 @@ changes ... later we might think of a full solution, but for now we start with s
       **The tension to resolve**: the user's stated FLOOR is move entry (candidate E) and their
       stated FIRST WANT is arrow navigation (candidate F). Grouping 1 (A+B+C+D+E) satisfies the floor
       without the want; grouping 2 adds the board.
-- [ ] 3.4b **Decide whether a MODE is wanted at all**, or whether the markup is always on. Design
-      Decision 4 prefers always-on; candidate A's toggle assumes a mode. Evidence that both can be
-      true at once: lichess ships keyboard move entry as an ordinary preference for sighted players
-      (`"keyboardMove": false` in the normal page's prefs) *and* forces it on in blind mode.
+- [x] 3.4b **ANSWERED 2026-09-27: NO MODE.** Design Decision 7. Nikolay reasoned it out from the
+      sweeps and it holds further than stated — **not one candidate needs a mode.** Headings, `aria-*`
+      and live regions are always-on and invisible to sighted users; **the position as text is
+      always-on VISUALLY HIDDEN** (`.sr-only` clip, zero visual change); **the command input is a
+      PREFERENCE**, as lichess proves with `"keyboardMove": false` in its normal page's prefs; and
+      **the board works always-on behind a roving tabindex**, making it ONE tab stop rather than 64.
+
+      **The DOM-weight counter-argument was measured and is weak**: worst case 100 squares (10x10
+      Grand/Shako) or 128 for two-board bughouse, and a move changes 2-4 squares, so a keyed Snabbdom
+      diff touches almost nothing.
+
+      **What survives is discoverability — and a toggle is the wrong answer to it.** A button that
+      changes nothing is dishonest. **Candidate A becomes a visually hidden LINK to a keyboard-help
+      page, first in `<body>`** — the half of lichess's affordance that carries the value.
+
+      **Why lichess needs a mode and we do not:** their `nvui` is a separate JS bundle served *instead
+      of* the normal one, so a switch between two front ends needs a switch. Ours is the same page with
+      correct markup. **The mode is an artifact of their architecture, not a requirement of
+      accessibility.**
+
+      Two consequences recorded: the board becomes **one tab stop for sighted keyboard users too** (an
+      improvement — today it is zero and the page tabs past it), and the position will exist **twice**
+      in the accessibility tree, as prose and as a grid, which is **verbose but not wrong and is exactly
+      what lichess does.**
 - [ ] 3.4d **CANDIDATE B IS WIDER THAN WRITTEN — decide its scope.** Asked 2026-09-27: which pages
       besides the game page need headings? Measured by headings emitted per **client module**, since the
       busy pages are Snabbdom-rendered: **seven modules emit ZERO** — `roundCtrl.ts`,

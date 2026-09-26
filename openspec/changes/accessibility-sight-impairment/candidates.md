@@ -31,7 +31,13 @@ the board is.** There is nothing to hear.
 
 ---
 
-## A. The blind-mode toggle button
+## A. The blind-mode toggle button — SUPERSEDED 2026-09-27, see design Decision 7
+
+**A toggle is the wrong answer.** Nothing in this change needs a mode: headings, ARIA and live regions
+are always-on, the position as text is always-on *visually hidden*, the command input is a preference
+(as it is on lichess), and the board works always-on behind a roving tabindex. **The honest version is a
+visually hidden LINK to a keyboard-help page**, first in `<body>` — the half of lichess's affordance
+that carries the value. Kept below for the record of what was weighed.
 
 **What.** A visually hidden button as the **first element inside `<body>`** on every page, submitting
 a form that flips a session flag. Lichess's, verbatim:
@@ -50,8 +56,10 @@ account needed. When on, it becomes "Disable blind mode" plus a link to the tuto
 
 **Costs.** A template partial, a session flag, one route. Invisible to sighted users.
 
-**Unknown.** Whether we want a *mode* at all (see candidate F and design Decision 4). The button is
-worthless without something behind it, so this is not a standalone first step.
+**ANSWERED 2026-09-27 — we do not want a mode.** See design Decision 7. Lichess needs the toggle
+because their `nvui` is a separate front end served instead of the normal one; ours is the same page
+with correct markup, so there is nothing to switch between. What survives is the **discoverability**
+value, which a link serves honestly and a no-op toggle does not.
 
 ---
 

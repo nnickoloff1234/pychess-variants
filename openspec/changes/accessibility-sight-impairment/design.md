@@ -161,6 +161,59 @@ arriving at the same answer from different directions is the strongest signal in
 So if lichess turns out to have built more than that, we may still take only this much, with the
 user's agreement already on record rather than assumed.
 
+### Decision 7: THERE MAY BE NO MODE AT ALL — 2026-09-27
+
+Nikolay, reasoning from the sweeps: *"my understanding is that all headings, aria- attributes,
+tabindexes, etc. are something that will be added regardless of whether we are in blind mode or not ...
+we do not plan to strip css from our pages the way lichess does it ... so basically pages will not
+change at all when blind mode is on, with the exception of the button-based board and the forced
+addition of the input for entering moves — what else am i missing is the reason for such button?"*
+
+**The reasoning is right, and it goes further than stated: even the board and the input do not need a
+mode.** Taking every candidate in turn:
+
+| Candidate | Can it be always-on? | Why |
+|---|---|---|
+| Headings (B) | **yes** | signposts help everyone; sighted users see normal headings |
+| `aria-*`, `aria-live` (D) | **yes** | literally invisible and inaudible unless a screen reader is running |
+| tabindex, real buttons, `<dialog>`, `lang`, focus CSS | **yes** | corrective — these are bugs, not features |
+| **Position as text (C)** | **yes, visually hidden** | the `.sr-only` clip technique puts it in the accessibility tree and not on screen. **Zero visual change.** |
+| **Command input (E)** | **yes, as a PREFERENCE** | lichess proves it: their normal page carries `"pref": { …, "keyboardMove": false, … }` — a keyboard move box offered to every sighted player, default off. A preference is not a mode. |
+| **Board as buttons (F)** | **yes, with a roving tabindex** | all squares `tabindex="-1"` except one at `0`, so the whole board is **ONE tab stop** and arrows move within it — the standard grid pattern, and the same pattern T1/T3 need anyway. |
+
+**So nothing on the list requires a mode.** Candidate H already removed the only thing that did (lichess's
+CSS stripping), and Decision 4 already preferred always-on.
+
+**The two residual arguments, one of which is weak:**
+
+1. **DOM weight — measured, and weak.** Worst case is a 10x10 board (Grand, Shako) at 100 squares, or
+   128 for two-board bughouse. **A move changes two to four squares**, so a keyed Snabbdom diff touches
+   almost nothing, and the move list already re-renders on every move. Not a reason.
+2. **Discoverability — the real one, and a toggle is the wrong answer to it.** A blind user arriving at
+   pychess has no way to know any of this work exists. That is what lichess's first-in-`<body>` button
+   actually buys — not what it changes. **But a button that changes nothing is dishonest.**
+
+**THE HONEST VERSION OF CANDIDATE A IS A LINK, NOT A TOGGLE.** Visually hidden, first inside `<body>`,
+on every page, pointing at a keyboard-help / accessibility page. It is the half of lichess's affordance
+that carries the value — they pair the toggle with a "Blind mode tutorial" link — and it makes a
+promise we can keep.
+
+**Why lichess needs a mode and we do not.** Their `nvui` is a *different front end*: a separate JS
+bundle served instead of the normal one (`lichess-reference.md` §1). A switch between two front ends
+needs a switch. **Ours is the same page with correct markup**, so there is nothing to switch between.
+The mode is an artifact of their architecture, not a requirement of accessibility.
+
+**One consequence worth noting**: with the board always present as a roving-tabindex grid, **the board
+becomes one tab stop for sighted keyboard users too** — an improvement, since today chessgroundx
+contributes zero tab stops and the page tabs straight past the board.
+
+**And one accepted redundancy**: with C and F both always-on, the position exists twice in the
+accessibility tree — once as prose, once as a grid. **That is verbose, not wrong, and it is exactly what
+lichess does** (a Pieces heading *and* a board). Accepted.
+
+**This supersedes candidate A as written and answers task 3.4b.** It does not decide B/C/D/E/F, which
+remain the gate's business.
+
 ## Risks / Trade-offs
 
 - **[Building what we imagine a blind user needs]** → Decision 1, and the user's messages first.
