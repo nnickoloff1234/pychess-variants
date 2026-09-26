@@ -319,8 +319,37 @@ changes ... later we might think of a full solution, but for now we start with s
       pattern RA1 and RA2 need already exists in the same file**; `analysis/index.ts` is properly built
       (9 `role:`, 14 `aria-`, one tab at `'0'`); `gameCtrl.ts` and `analysisCtrl.ts` do have `keydown`
       and `Escape` handlers.
-- [ ] 2.4d **F1, F2, T1-T6, A1, L1-L5, H1-H6, D2-D6, LB1-TN6, PF1-ST3, IB1-FR4 and RA1-RA8 do not wait
-      on the gate** — except RA8, which IS the gate (candidates B and D). They are Level A keyboard failures affecting every
+- [x] 2.4n **Settings and board-settings SWEPT — `settings-sweep.md`. Largest control count in the
+      change, and one of the cheapest fixes.**
+
+      **SB1. 323 theme and piece radios have NO accessible name — and the names are already in the
+      data.** `boardSettings.ts` pairs every radio with `h('label…', { attrs: { for: … } }, '')` — an
+      **empty string as content** — and the file has 0 `aria-`. Counted from `variants.ts`: **114 board
+      themes + 209 piece sets = 323 radios** announcing only "radio button, not checked".
+      **But `pieceCSS: ['classic', 'arrow', 'disguised']` is already human-readable and `boardCSS`
+      carries the theme name in its filename — so passing the existing string as the label's text names
+      all 323 in ONE LINE per loop.** WCAG 4.1.2 Level A.
+
+      **SB3. UNTRANSLATED `aria-label`s are a site-wide cluster.** 5 in `client/` against 30 translated
+      (`chat.ts:131` 'Chat input', `challengeView.ts:298`, `settingsView.ts:34` 'Settings',
+      `lobby.ts:2132` 'Seek Tabs', `analysis/index.ts:195` 'Analysis Tabs'), plus 10+ in templates —
+      **five of them in the site header, so on EVERY page** (`template.html:76, 135, 141, 147, 157`).
+      **An `aria-label` REPLACES the announced name**, so these are exactly the controls a blind
+      non-English user hears in a foreign language — and combined with the missing `<html lang>` (H2/D2)
+      the synthesiser is not even set to pronounce English. **The two compound, and together they are
+      ~15 `_()` calls plus one attribute.** WCAG 3.1.2 AA.
+
+      **SB2.** The settings panel has 0 `role="dialog"`, 0 `aria-modal`, 0 `Escape`, 0 `keydown`, and
+      F3's missing `aria-expanded` on its button — **the fourth sighting of this dialog shape**, which
+      now argues for fixing the pattern once rather than per page. `study/addToStudy.ts` is the model.
+
+      **POSITIVES, including a correction:** the privacy/push checkboxes ARE properly labelled with
+      `<label for>` + `_()` (`:149-173`) — **they appeared in the label sweep's first, broken output and
+      the corrected run resolved them; they are not defects.** `settingsView.ts:71` uses
+      `role: 'separator'`, and `switch.css:50` styles `input:focus + .sw-slider`, the right technique
+      for a visually hidden input.
+- [ ] 2.4d **F1, F2, T1-T6, A1, L1-L5, H1-H6, D2-D6, LB1-TN6, PF1-ST3, IB1-FR4, RA1-RA8 and SB1-SB3 do
+      not wait on the gate** — except RA8, which IS the gate (candidates B and D). They are Level A keyboard failures affecting every
       keyboard-only user, sighted or not — not blind-mode features. F1 is one selector; F2 is a `div`
       becoming a `button` with the handler it already has. F3 and F4 are four lines, each on a line
       the code already writes. T1 and T3 are one ternary each with precedent in the codebase, T2 is
