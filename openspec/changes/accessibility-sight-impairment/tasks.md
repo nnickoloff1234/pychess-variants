@@ -385,7 +385,36 @@ changes ... later we might think of a full solution, but for now we start with s
       Their value to this change is entirely as evidence of the house standard.**
 - [ ] 2.4d **F1, F2, T1-T6, A1, L1-L5, H1-H6, D2-D6, LB1-TN6, PF1-ST3, IB1-FR4, RA1-RA8 and SB1-SB3 do
       not wait on the gate** — except RA8, which IS the gate (candidates B and D). **And per AD1 the
-      dialog fixes are ONE change using `<dialog>`, not four.** They are Level A keyboard failures affecting every
+      dialog fixes are ONE change using `<dialog>`, not four; per PE3 the clickable-element fixes are
+      ONE RULE applied ~40 times, not forty decisions.**
+- [x] 2.4p **Puzzle and editor SWEPT — `puzzle-editor-sweep.md`. Produced the unifying diagnosis for
+      the whole client, and the most complete single-feature failure.**
+
+      **PE1. The puzzle never tells a blind user whether they were right.** `puzzleCtrl.ts` patches
+      `_('Best move!')`, `_('Try something else.')` — present, correct, translated — and the file has
+      **0 `aria-live`, 0 `role="status"`**, so the feedback is replaced **silently**. **The most
+      complete failure of any feature**: the position is unreadable (chessgroundx emits no text), the
+      response is silent, and puzzles render through `analysis.html` which has zero headings. **A puzzle
+      IS a dialogue and the response is the silent half.** One attribute. WCAG 4.1.3 AA.
+
+      **PE2. The editor HAS the right interface for a blind user and it is the one control with no
+      name.** `editorCtrl.ts:93` `h('input#fen', …)` with `input` and `paste` handlers lets any position
+      be typed or pasted — better than dragging pieces. **No `for: 'fen'`, no `for="fen"`, no
+      `aria-label` anywhere.** Same gap at `lobby.ts:704`. (Castling checkboxes ARE labelled, `:122`.)
+
+      **PE3. ALL 21 hrefless anchors — and this is the unifying diagnosis.** Every `h('a')` in
+      `client/` with a click handler was checked: **21 of 21 have no `href`**, so none is focusable, none
+      has a link role, none responds to Enter. **9 of them are `editor/editorCtrl.ts:153-179` — the
+      editor's entire control strip, so the board editor is completely keyboard-dead** — plus 5 analysis
+      actions, 3 puzzle including **"Continue training"** (so a keyboard user cannot start the next
+      puzzle), 3 two-board, 1 zen.
+
+      **AND IT COMPLETES THE DIAGNOSIS.** Every client-side defect in this change is one mistake:
+      hrefless `<a>` ×21, `<div>` offer dialogs ×9, `<tr>` seek and standings rows, `<div>` hamburger and
+      search icon, `<span>` dialog closes ×3, clickable `<h2>`/`<option>`/`<td>` ×3 — **~40 controls,
+      one rule: if it responds to a click it is a `<button>` or an `<a href>`.** Same root cause as AD1:
+      **the server templates use the platform (47 real buttons, 0 clickable divs) and Snabbdom code
+      builds its own, because `h('div', { on: { click } })` is as easy as `h('button', …)`.** They are Level A keyboard failures affecting every
       keyboard-only user, sighted or not — not blind-mode features. F1 is one selector; F2 is a `div`
       becoming a `button` with the handler it already has. F3 and F4 are four lines, each on a line
       the code already writes. T1 and T3 are one ternary each with precedent in the codebase, T2 is
