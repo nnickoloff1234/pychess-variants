@@ -225,7 +225,38 @@ changes ... later we might think of a full solution, but for now we start with s
       **THE PATTERN — three fixes, not thirty sites:** a row that acts needs an operable control; a
       dialog needs a focusable close and an `Escape`; anything that changes needs a live region. **The
       third is candidate D**, so deciding D serves these pages too, not just the board.
-- [ ] 2.4d **F1, F2, T1-T6, A1, L1-L5, H1-H6, D2-D6 and LB1-TN6 do not wait on the gate.** They are Level A keyboard failures affecting every
+- [x] 2.4k **Profile and study pages SWEPT — `profile-and-study-sweep.md`. Mixed, and the good half
+      is the more useful.**
+
+      **PF2. The rating chart is invisible, and the fix is ONE IMPORT.** `stats.ts` renders Highcharts
+      into an empty div with **0 `aria-`/`role:`/`alt:` in the file**. But
+      `node_modules/highcharts/modules/accessibility.js` **ships with the `highcharts@^13.0.2` we
+      already depend on and is imported nowhere (0 hits)** — so
+      `import 'highcharts/modules/accessibility';` buys a screen-reader description, keyboard
+      navigation of data points and a text summary of every series, none of it written by us.
+      **After `<html lang>`, the cheapest high-value item in any sweep.**
+
+      **PF1.** `profile.ts` renders `h('table#games')` with **0 `<thead>` and 0 `<th>`**, and
+      `gameSearch.ts:141` reuses the same `renderGames` — so both tables announce unlabelled cells.
+      The lobby's six-`<th>` seek table is the pattern to copy.
+
+      **ST2. `<move>` IS SHARED BY FOUR PAGES.** `study/studySync.ts:3` imports `updateMovelist` from
+      `../movelist`, so round, analysis, puzzle and study all use one move list. **Whatever is decided
+      for `<move>` lands on all four at once — the largest single piece of leverage found anywhere.**
+
+      **ST1. STUDY IS THE BEST-BUILT PART OF THE CLIENT, and the in-house model to copy** — not
+      lichess. `study.css` has **24 `:focus-visible`** against `site.css`'s 4; `studyView.ts` has 4
+      `keydown`, an `Escape`, `aria-live` and `tabindex`; and **`addToStudy.ts` gets right exactly what
+      the lobby and tournament dialogs get wrong** — a real `document` keydown closing on Escape
+      (`:23, 37-39`) with the backdrop click as an *extra* path, not the only one. Copying a pattern
+      that already exists here is cheaper to review than importing lichess's.
+
+      **METHOD CORRECTION, affecting how earlier sweeps read:** my clickable-element classifier
+      attributes a handler to the nearest *preceding* `h('…')`, so a `<span>` label before a real
+      `<button>` reports as a defect. **Three false positives in this sweep alone.** The
+      lobby/tournament hits were each opened by hand and two were withdrawn for this reason, but no hit
+      should be quoted without eyeballing the source.
+- [ ] 2.4d **F1, F2, T1-T6, A1, L1-L5, H1-H6, D2-D6, LB1-TN6 and PF1-ST3 do not wait on the gate.** They are Level A keyboard failures affecting every
       keyboard-only user, sighted or not — not blind-mode features. F1 is one selector; F2 is a `div`
       becoming a `button` with the handler it already has. F3 and F4 are four lines, each on a line
       the code already writes. T1 and T3 are one ternary each with precedent in the codebase, T2 is
