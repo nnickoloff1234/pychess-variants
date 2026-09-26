@@ -348,8 +348,44 @@ changes ... later we might think of a full solution, but for now we start with s
       the corrected run resolved them; they are not defects.** `settingsView.ts:71` uses
       `role: 'separator'`, and `switch.css:50` styles `input:focus + .sw-slider`, the right technique
       for a visually hidden input.
+- [x] 2.4o **Admin and moderation SWEPT — `admin-and-moderation-sweep.md`. Almost entirely positive,
+      and it produced the most actionable architectural finding in the change.**
+
+      **AD1. THE ADMIN DIALOGS ARE THE ONLY CORRECT MODALS ON THE SITE, because they use the platform.**
+      `admin_users.html:191`, `admin_system_messages.html:66`, `admin_operations.html:220` use a native
+      **`<dialog>` opened with `showModal()`** — which supplies `role="dialog"`, `aria-modal`, focus
+      moved in, **focus trapped**, **Escape**, and the rest of the page made inert, **all from the
+      browser with no code.**
+
+      **And the split is perfectly clean: server templates use `<dialog>` (6 elements, 15 `showModal()`
+      calls, also in `authors.html` and `studies.html`) and ALL of them are correct; the Snabbdom client
+      hand-rolls `<div>` modals (`lobby.ts`, `tournamentRR.ts`, `forum.ts`, `roundCtrl.ts`, `round.ts`)
+      and ALL of them are broken, each differently.** The dividing line is template versus Snabbdom, not
+      author skill.
+
+      **THIS SUPERSEDES ADVICE GIVEN IN THREE EARLIER SWEEPS.** LB3/TN4, FR1 and SB2 each recommended
+      copying `study/addToStudy.ts`, which hand-rolls a `document` keydown and Escape. **The better fix
+      is `h('dialog', …)` + `showModal()` in an insert hook** — Snabbdom renders `<dialog>` like any
+      element and the browser does the rest. **One pattern, already proven in this repo, fixes all four
+      broken dialogs and DELETES code rather than adding it.**
+
+      **AD3. Three of the site's SEVEN live regions are here, with correct politeness** —
+      `role="status" aria-live="polite"` for operation feedback, `role="alert" aria-live="assertive"` for
+      a moderation action's result. **So candidate D is not new ground: the pattern is already
+      understood in this codebase, just absent from every page players use.**
+
+      **AD2. Everything else is right:** `<main>` on all 10 pages, **47 real `<button>`s with ZERO
+      inline `onclick` and ZERO clickable divs** (the only section where the classifier found nothing),
+      zero unnamed icon buttons, confirmations on destructive actions, **20 of 21 form controls
+      labelled**, and `reports.html` has a proper `<thead>`/`<th>` table.
+
+      **NO NEW DEFECTS.** The three here — 2 missing `<h1>` (H6), 1 untranslated `aria-label` (SB3), 1
+      placeholder-only input (L4) — were all already recorded. **Priority stated honestly: if no
+      moderator uses a screen reader the direct value is near zero, and there is nothing left to fix.
+      Their value to this change is entirely as evidence of the house standard.**
 - [ ] 2.4d **F1, F2, T1-T6, A1, L1-L5, H1-H6, D2-D6, LB1-TN6, PF1-ST3, IB1-FR4, RA1-RA8 and SB1-SB3 do
-      not wait on the gate** — except RA8, which IS the gate (candidates B and D). They are Level A keyboard failures affecting every
+      not wait on the gate** — except RA8, which IS the gate (candidates B and D). **And per AD1 the
+      dialog fixes are ONE change using `<dialog>`, not four.** They are Level A keyboard failures affecting every
       keyboard-only user, sighted or not — not blind-mode features. F1 is one selector; F2 is a `div`
       becoming a `button` with the handler it already has. F3 and F4 are four lines, each on a line
       the code already writes. T1 and T3 are one ternary each with precedent in the codebase, T2 is
