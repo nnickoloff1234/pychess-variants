@@ -48,8 +48,45 @@ Struck by 1.1. Kept for the record of what was weighed; nothing here is to be do
 
 ## 3. Option B — earn the claim — THIS IS THE WORK
 
-### Server — new, because 3.5 chose the site-wide meaning
+### PHASE 1 — correct on load, no websocket (design Decision 7)
 
+The player lists already draw this dot from the page context at render time. The analysis page is
+server-rendered the same way, so phase 1 is the same edit those fields already are.
+
+- [x] 3.1a DONE. `views/__init__.py` puts `wonline`/`bonline` beside the names, and
+      `wonlineB`/`bonlineB` in the two-board block, from `game.wplayer.online` — the User object is
+      already to hand here, so no `users.data.get()` lookup is needed as `players50.py` does. Typed
+      in `typing_defs.py`'s `ViewContext`.
+- [x] 3.1b DONE. `base.html` emits `data-wonline`, `data-bonline`, `data-wonline-b` and
+      `data-bonline-b` beside the patron attributes they follow.
+- [x] 3.1c DONE. `main.ts` reads all four with the `=== 'True'` idiom every other boolean in
+      that file uses; typed in `types.ts`.
+- [x] 3.1d DONE. `renderSeatNamesCC` resolves the flag by board and colour and passes it where
+      it passed `false`. The comment explaining the permanent `false` is gone with the state it
+      described. `at(position)` became `colorAt(position)` so the colour is available to the
+      lookup rather than being computed twice.
+- [x] 3.1e DONE — **verified 0 indicators on `/analysis/bughouse`.** `player()` gained a last
+      `presence = true` parameter that OMITS the icon rather than hiding it, per design Decision 2;
+      `renderSeatNames` passes `ctrl.model['gameId'] !== ''`, which is the page's own
+      `isAnalysisBoard` test. Measured on the no-game board: 4 player bars, 0 `i-side` elements, no
+      names — against 4 indicators before.
+- [x] 3.1f **VERIFIED, and this is the check that distinguishes the build from the one we
+      nearly made.** With `Test–ShogiKnightQuee` in the LOBBY and nowhere near the game page, the
+      analysis page drew that player **green**. Under the per-game meaning they would have been
+      grey.
+
+      The negative half too: navigating that window off the site entirely flipped the server to
+      `data-bonline="False"` and the page to a grey dot, with the other three still green. So the
+      dot tracks real presence in both directions, not just "someone is here".
+- [x] 3.1g **ROUND PAGE UNTOUCHED, by construction and by diff.** No round file is in the
+      changeset — only `main.ts`, `player.ts`, `analysisSeatView.ts`, `types.ts`, the two server
+      files, the template and one test fake. `player()`'s new parameter is LAST and defaults to
+      `true`, and no round caller passes it, so both round pages render the icon exactly as before
+      and still take their state from the socket path this change does not touch.
+
+      **NOT verified live on a round page** — that needs a game in progress, and the harness had a
+      finished one. The evidence above is structural; a live check is cheap to add next time a game
+      is running.
 - [ ] 3.0a **Agree the mechanism (design Decision 6) before building it.** The proposal is a small
       interest registry: an analysis socket registers the four usernames it cares about, and a flip
       in `update_online()` is sent only to the rooms that asked. Bounded by open analysis pages. The
@@ -59,34 +96,22 @@ Struck by 1.1. Kept for the record of what was weighed; nothing here is to be do
       answers "in this game", the round page depends on it, and it must keep its meaning.
 - [ ] 3.0c Publish the flip from `update_online()`, which is the one place the site-wide state is
       computed. Note its current callers are `user.py:311` and five sites in `header_challenges.py`.
-- [ ] 3.0d Python gates, which this change originally said it would not need: `ruff format`,
-      `ruff check`, `pyrefly`, and the unittest suite.
-
-### Client
-
 - [ ] 3.1 Add a small presence-only socket class alongside `RoundControllerBughouseSocket` in
       `client/two-board/socket/sockets.ts`. **Do not reuse or split the round one**: its
       `setConnecting()` writes `ctrl.seats.all[].clock!.connecting` and analysis seats have no clock,
       so the first reconnect would throw — design decision 3.
-- [ ] 3.2 Handle the site-wide presence answer and its updates, and nothing else. The three
-      per-game messages are NOT what this page reads — see 3.5.
+- [ ] 3.2 Handle the site-wide presence answer and its updates, and nothing else.
 - [ ] 3.3 Give `AnalysisSeatView` a `setPresence(username, online)` that repaints only the bars for
       that username, the way `RoundSeatView.setPresence` does — a username can hold two seats in
       simul mode, so it must repaint all of them.
-- [ ] 3.4 Construct the socket from `AnalysisControllerBughouse`, and only when there is a real game:
-      the blank analysis board (`/analysis/<variant>`, no gameId) has no game to subscribe to.
-- [x] 3.5 **DECIDED 2026-09-26: ONLINE ANYWHERE ON THE SITE.** Nikolay, from the rationale that
-      opened the change: people analysing a game should be able to see whether its players are
-      around to interact with. See design Decision 5 for why the existing messages cannot answer
-      that and what it costs — the "no server change" non-goal is withdrawn as a result.
+- [ ] 3.4 Construct the socket from `AnalysisControllerBughouse`, and only when there is a real game.
 - [ ] 3.6 Wire `#roundchat` or remove it. The same connection carries `bugroundchat`, so leaving the
-      tab empty is no longer defensible either way.
+      tab empty is no longer defensible either way. **Phase 2, because phase 1 opens no connection**
+      — until then the empty tab is untouched and still indefensible.
 - [ ] 3.7 Verify with harness windows that a player's dot goes green when that player is online
       ANYWHERE — in the lobby, not only on this same analysis page — and grey when they leave the
-      site entirely. The old wording tested the narrow meaning and would have passed a build that
-      answers the wrong question.
-- [ ] 3.8 Verify the ROUND page's dot is unchanged. It answers "in this game", it works, and it is
-      the reference — a regression there is the main risk of touching presence at all.
+      site entirely, WITHOUT reloading the page. Phase 1's version of this is 3.1f.
+- [ ] 3.8 Verify the ROUND page's dot is unchanged.
 
 ## 4. Close out
 

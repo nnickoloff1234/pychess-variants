@@ -104,7 +104,7 @@ All three are driven by one predicate:
 
 ```python
 def is_user_active_in_game(self, game_id=None):
-    return game_id in self.game_sockets      # connected to THIS game's socket
+    return game_id in self.game_sockets  # connected to THIS game's socket
 ```
 
 On a FINISHED game almost nobody is connected to that socket, so the narrow reading would leave the
@@ -115,9 +115,14 @@ The site-wide flag already exists and is maintained:
 
 ```python
 def update_online(self):
-    self.online = (len(self.game_sockets) > 0 or len(self.lobby_sockets) > 0
-                   or len(self.challenge_channels) > 0 or len(self.tournament_sockets) > 0
-                   or len(self.simul_sockets) > 0 or len(self.study_sockets) > 0)
+    self.online = (
+        len(self.game_sockets) > 0
+        or len(self.lobby_sockets) > 0
+        or len(self.challenge_channels) > 0
+        or len(self.tournament_sockets) > 0
+        or len(self.simul_sockets) > 0
+        or len(self.study_sockets) > 0
+    )
 ```
 
 **But nothing broadcasts it.** No websocket message type carries `online`; `update_online()` only
@@ -128,7 +133,52 @@ the proposal is withdrawn rather than quietly ignored.
 the reference. So this is a SECOND question the server can be asked, not a widening of the existing
 one.
 
-### Decision 6: how the site-wide state reaches the page — PROPOSED, needs agreement
+### Decision 5b: the site ALREADY draws this dot with this meaning — found 2026-09-26
+
+Nikolay asked what the single-board analysis page does, to be consistent with it. **It does not draw
+a dot at all.** `player()` has exactly three consumers — `client/roundCtrl.ts`,
+`client/two-board/round/roundSeatView.ts` and `client/two-board/analysis/analysisSeatView.ts` —
+and `client/analysis/analysisCtrl.ts` is not among them. It renders no player bars and
+`templates/analysis.html` carries no player markup. So there was nothing there to be consistent
+with.
+
+**BUT THE SAME DOT EXISTS ELSEWHERE, AND ALREADY MEANS WHAT DECISION 5 CHOSE.**
+`templates/players.html`, `players50.html` and `profile.html` render the same `i-side` element with
+the same `online` / `icon-online` classes, from:
+
+```python
+context["highscore_online"] = {
+    username
+    for username in highscore_usernames
+    if (live_user := app_state.users.data.get(username)) is not None and live_user.online
+}
+```
+
+That is `user.online` — site-wide, any socket. So the site has **two meanings for one visual, and
+they are already inconsistent**: round pages say "connected to this game's socket", player lists and
+profiles say "online anywhere". Decision 5 puts the analysis page with the lists, which is the
+reading a user most likely brings to a static page about people.
+
+This makes the server work smaller and better founded: it is not a new notion of presence but
+plumbing for a value the site already computes, trusts and renders.
+
+### Decision 7: ship it in two phases, connect-time first — 2026-09-26
+
+**Phase 1 needs no websocket at all.** The player lists get their dot from the page CONTEXT at render
+time, and the analysis page is server-rendered the same way: `views/__init__.py` already puts
+`wplayer`, `wtitle`, `wpatron` and their B-board twins into the context, `base.html` emits them as
+`data-wplayer` and friends, and `main.ts` reads them into the model. Adding the players' online state
+to that chain is the same edit those fields already are, and gives a dot that is correct on load —
+exactly the guarantee the player lists offer.
+
+**Phase 2 is the push**, and only that: keeping an open page's dot current as players come and go.
+That is where Decision 6's registry belongs, and it can be judged on its own once phase 1 is
+shipped and the dot is at least right when the page is opened.
+
+Splitting here is what stops "open a websocket per analysis page view" — the strongest argument
+against B in the risks below — from being paid before anyone has seen the feature work.
+
+### Decision 6: how the site-wide state reaches the page — PROPOSED, needs agreement, PHASE 2
 
 Answering on connect is easy; learning about CHANGES is the design. Three shapes were considered:
 

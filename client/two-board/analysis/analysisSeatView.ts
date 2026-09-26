@@ -64,8 +64,31 @@ export class AnalysisSeatView {
 }
 
 export function renderSeatNames(ctrl: AnalysisController): void {
-    renderSeatNamesCC(ctrl.seatView, ctrl.seats, ctrl.boardA, 'a', ctrl.model['level']);
-    renderSeatNamesCC(ctrl.seatView, ctrl.seats, ctrl.boardB, 'b', ctrl.model['level']);
+    /* WHO IS ONLINE, FROM THE PAGE MODEL — the server put it there at render time, the same way
+       the player lists and profiles get theirs (`views/players50.py`). It is `User.online`: online
+       ANYWHERE on the site, not "connected to this game", which is the round page's question and a
+       different one. On a finished game the narrow reading would be grey for almost everyone,
+       including a player sitting in the lobby.
+
+       CORRECT AT PAGE LOAD AND NOT AFTER. Nothing updates it while the page is open; that is phase
+       2 of `analysis-page-presence-websocket` and needs a connection this page still does not have.
+       The same guarantee the player lists give, which is where a reader has seen this dot before. */
+    const online = (boardName: BugBoardName, color: 'white' | 'black'): boolean =>
+        boardName === 'a'
+            ? color === 'white'
+                ? !!ctrl.model['wonline']
+                : !!ctrl.model['bonline']
+            : color === 'white'
+              ? !!ctrl.model['wonlineB']
+              : !!ctrl.model['bonlineB'];
+
+    /* AND NO DOT AT ALL WHERE THERE IS NOBODY. The analysis board opened from the Tools menu has no
+       game and no players — it renders no usernames — so a presence icon there is about nobody.
+       `isAnalysisBoard` is the page's own test, computed once in `analysis.ts`. */
+    const hasPlayers = ctrl.model['gameId'] !== '';
+
+    renderSeatNamesCC(ctrl.seatView, ctrl.seats, ctrl.boardA, 'a', ctrl.model['level'], online, hasPlayers);
+    renderSeatNamesCC(ctrl.seatView, ctrl.seats, ctrl.boardB, 'b', ctrl.model['level'], online, hasPlayers);
 }
 
 function renderSeatNamesCC(
@@ -74,18 +97,19 @@ function renderSeatNamesCC(
     board: GameControllerBughouse,
     boardName: BugBoardName,
     level: number,
+    online: (boardName: BugBoardName, color: 'white' | 'black') => boolean,
+    hasPlayers: boolean,
 ): void {
     // Same derivation the clocks use: `flipped()` is the board's own state, so the
     // two stay in step without either knowing about the other.
     const whitePov = !board.flipped();
-    const at = (position: 0 | 1) => {
-        const color = (position === 0) === whitePov ? 'black' : 'white';
-        return seats.byBoardAndColor(boardName, color);
-    };
+    const colorAt = (position: 0 | 1): 'white' | 'black' =>
+        (position === 0) === whitePov ? 'black' : 'white';
 
     for (const position of [0, 1] as const) {
         const slot = slotOf(position, boardName);
-        const seat = at(position);
+        const color = colorAt(position);
+        const seat = seats.byBoardAndColor(boardName, color);
         view.render(
             slot,
             playerBar(
@@ -94,14 +118,10 @@ function renderSeatNamesCC(
                 seat.player.username,
                 seat.player.rating,
                 level,
-                // ALWAYS OFFLINE, and it is not a placeholder for something unwritten.
-                // This page has no websocket at all — `RoundControllerBughouseSocket`
-                // belongs to the round controller — so there is no presence to report
-                // and nothing that could ever update the dot. It renders in the
-                // offline state, which is the true statement about a finished game
-                // nobody is connected to.
-                false,
+                online(boardName, color),
                 SLOT_SELECTOR[slot],
+                false,
+                hasPlayers,
             ),
         );
     }
