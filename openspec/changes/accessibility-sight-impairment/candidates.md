@@ -289,3 +289,57 @@ and what pockets attach to. Larger, and the naming table starts to matter.
 **The tension to resolve at the gate:** our user's stated *floor* is move entry (candidate E), and
 their stated *first want* is arrow navigation (candidate F). Those are different candidates, and
 grouping 1 satisfies the floor without the want.
+
+---
+
+## H. The stacked layout with menus expanded — ARGUED AGAINST
+
+Nikolay asked, 2026-09-26: *"do we plan to do this too in blind mode? what would it cost in terms of
+code changes?"* Recorded with its answer so it is not re-proposed.
+
+**What it is, and it is not a feature.** Lichess's `bits.blind.css` largely *removes* visual styling.
+The nav dropdowns look expanded because the CSS that hides them is not applied, and everything stacks
+because the layout CSS is gone. **Measured: the DOM is identical in both modes** — the nav links are
+present in the normal page's HTML too — so the entire difference is CSS.
+
+### Three reasons not to copy it
+
+**1. It buys nothing for a blind user.** A screen reader reads the accessibility tree, not the
+painted page. Side by side or stacked is invisible to someone who cannot see it.
+
+**2. It costs work rather than saving it.** We would not be *omitting* CSS, we would be writing
+overrides to undo our own — a `body.blind-mode` block per collapsible component. That is exactly the
+per-page fine-tuning Nikolay was worried about, and here it would be spent on the one thing with no
+payoff.
+
+**3. Always-expanded menus are arguably WORSE.** With every menu open, a screen reader user hears the
+whole nav — on pychess roughly thirty-five links — before reaching the game, on every page. A
+collapsed menu that announces itself is fewer keystrokes to the content. **Lichess's blind mode does
+this accidentally, not by design**, and their own answer for navigation is the opposite: they add
+`<h2>Navigation</h2>` so it can be *skipped*.
+
+### The real question underneath, and we already answer it correctly
+
+The legitimate concern is **"is hidden content reachable at all?"**, because `display: none` **and
+`visibility: hidden`** both remove content from the accessibility tree. (`opacity: 0` and off-screen
+positioning do not — a common source of confusion.)
+
+**Measured on our own site, and it is already right.** `.login-dropdown-menu` hides with
+`visibility: hidden` + `transform`, which does hide it from a screen reader — but it is paired with
+the correct pattern:
+
+```html
+<button class="login-btn nav-link" aria-haspopup="true" aria-expanded="false">…</button>
+<div class="login-dropdown-menu" role="menu">
+  <a class="login-option" role="menuitem" …>
+```
+
+and `client/main.ts` genuinely maintains it (`setAttribute('aria-expanded', …)` at lines 448, 460,
+473, 487). So a screen reader announces *"Login, menu button, collapsed"*, the user activates it, and
+it expands and reads. **That is the standard correct pattern, and it is the right answer rather than
+revealing everything.** `client/profileActionOverflow.ts:16` and `client/tournamentForm.ts:163` do
+the same.
+
+**Nothing to do here.** Three collapsibles confirmed correct; **what is unaudited is every other one**,
+which belongs to candidate G and to the screen-reader walk in task 2.2. That audit is the useful
+version of this question.

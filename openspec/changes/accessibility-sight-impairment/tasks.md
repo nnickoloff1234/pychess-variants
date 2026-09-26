@@ -49,6 +49,20 @@ changes ... later we might think of a full solution, but for now we start with s
 - [ ] 2.4 Note what already works. The chrome has real ARIA — 37 labels in templates, 61 in client,
       `aria-selected` tabs, `role="dialog"` modals. **Do not rebuild what works**; that is where
       the "minimum change" budget gets wasted.
+- [x] 2.4b **The "stacked layout with menus expanded" question is ANSWERED: do not copy it.**
+      `candidates.md` H. The DOM is identical in both lichess modes, so it is purely CSS; copying it
+      would mean writing `body.blind-mode` overrides per component to undo our own styling, to buy
+      nothing — and always-expanded menus are arguably worse, since a screen reader user would hear
+      ~35 nav links before reaching the game on every page.
+
+      **And the legitimate concern underneath is already satisfied.** `.login-dropdown-menu` hides
+      with `visibility: hidden` (which does remove it from the accessibility tree) but pairs it with
+      `aria-haspopup`, `aria-expanded`, `role="menu"`/`role="menuitem"`, and `main.ts` really does
+      toggle `aria-expanded` (lines 448, 460, 473, 487). Same in `profileActionOverflow.ts:16` and
+      `tournamentForm.ts:163`. That is the correct pattern; revealing everything is not.
+- [ ] 2.4c **Audit the collapsibles we have NOT checked.** Three are confirmed correct; every other
+      menu, modal, accordion and overflow on the site is unverified. This is the useful version of
+      2.4b's question and belongs with candidate G.
 - [ ] 2.5 **Test the Android path too**, since 1.3 made it a named target: TalkBack, and Jieshuo if
       it can be obtained. Mobile was not in anyone's plan and is in the user's.
 
