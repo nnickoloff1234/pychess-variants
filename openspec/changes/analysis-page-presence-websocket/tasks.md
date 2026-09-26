@@ -87,35 +87,33 @@ server-rendered the same way, so phase 1 is the same edit those fields already a
       **NOT verified live on a round page** — that needs a game in progress, and the harness had a
       finished one. The evidence above is structural; a live check is cheap to add next time a game
       is running.
-- [ ] 3.0a **Agree the mechanism (design Decision 6) before building it.** The proposal is a small
-      interest registry: an analysis socket registers the four usernames it cares about, and a flip
-      in `update_online()` is sent only to the rooms that asked. Bounded by open analysis pages. The
-      alternatives are polling (laggy, steady traffic) and broadcasting every flip (simple, worst
-      for load).
-- [ ] 3.0b A second question the server can be asked, NOT a widening of `is_user_present`. That one
-      answers "in this game", the round page depends on it, and it must keep its meaning.
-- [ ] 3.0c Publish the flip from `update_online()`, which is the one place the site-wide state is
-      computed. Note its current callers are `user.py:311` and five sites in `header_challenges.py`.
-- [ ] 3.1 Add a small presence-only socket class alongside `RoundControllerBughouseSocket` in
-      `client/two-board/socket/sockets.ts`. **Do not reuse or split the round one**: its
-      `setConnecting()` writes `ctrl.seats.all[].clock!.connecting` and analysis seats have no clock,
-      so the first reconnect would throw — design decision 3.
-- [ ] 3.2 Handle the site-wide presence answer and its updates, and nothing else.
-- [ ] 3.3 Give `AnalysisSeatView` a `setPresence(username, online)` that repaints only the bars for
-      that username, the way `RoundSeatView.setPresence` does — a username can hold two seats in
-      simul mode, so it must repaint all of them.
-- [ ] 3.4 Construct the socket from `AnalysisControllerBughouse`, and only when there is a real game.
-- [ ] 3.6 Wire `#roundchat` or remove it. The same connection carries `bugroundchat`, so leaving the
-      tab empty is no longer defensible either way. **Phase 2, because phase 1 opens no connection**
-      — until then the empty tab is untouched and still indefensible.
-- [ ] 3.7 Verify with harness windows that a player's dot goes green when that player is online
-      ANYWHERE — in the lobby, not only on this same analysis page — and grey when they leave the
-      site entirely, WITHOUT reloading the page. Phase 1's version of this is 3.1f.
-- [ ] 3.8 Verify the ROUND page's dot is unchanged.
+### PHASE 2 — MOVED OUT 2026-09-26
+
+**Everything that needed a websocket now lives in `app-wide-online-presence`.** Nikolay declined to
+build a server-side push registry inside a one-page change: *"what other pages can benefit from
+such push registry and what kind of performance overhead this adds to the server ... if such
+registry ultimately proves useful for more than the analysis page, then we can go ahead and
+implement it, but just for the analysis page ... then this is overkill."*
+
+Carried there verbatim: the registry mechanism (was 3.0a/3.0c, now design Decision 3 and tasks
+2.1-2.2), "a second question, not a widening of `is_user_present`" (was 3.0b, now 2.4), the
+separate socket class and why the round one cannot be reused (was 3.1-3.2, now 3.2), the
+`setPresence` repaint (was 3.3, now 3.3), constructing it only for a real game (was 3.4, now 3.4),
+and the live verification (was 3.7-3.8, now 4.1-4.2).
+
+**That change opens with a GATE, not a plan** — it may conclude no registry is worth building, in
+which case a page wanting a live dot copies the 35-second scoped poll that
+`client/tournamentRR.ts:494` already runs against `/api/users/status?ids=`. Either way this page's
+dot is already correct on load, which was phase 1's whole promise.
+
+- [ ] 3.6 **BLOCKED on `app-wide-online-presence`, both ways.** Wire `#roundchat` or remove it. If
+      that change builds a connection for this page, the same connection can carry `bugroundchat`
+      and the tab is wired; if it does not, there is no connection and the tab is removed. This is
+      the only open task left here, and it cannot be settled before that verdict.
 
 ## 4. Close out
 
-- [ ] 4.1 Frontend gates: `yarn typecheck`, `yarn lint`, `yarn test`. No Python gates — no server
-      change is expected, since `wsr.py` already emits all three presence messages to any subscriber.
-- [ ] 4.2 Delete the note in `analysisSeatView.ts` explaining why `online` is always `false`, whichever
-      option was taken. It documents a state that will no longer exist.
+- [x] 4.1 DONE for phase 1. Frontend gates `yarn lint`, `yarn typecheck`, `yarn md`, `yarn test`
+      plus the Python gates, which phase 1 DID need after all — it touched `views/__init__.py`,
+      `typing_defs.py` and one test fake. Committed as `2e47b2de9`.
+- [x] 4.2 DONE. The note explaining the permanent `false` went with the `false` itself in 3.1d.

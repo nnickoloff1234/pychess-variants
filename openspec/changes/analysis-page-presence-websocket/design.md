@@ -178,21 +178,24 @@ shipped and the dot is at least right when the page is opened.
 Splitting here is what stops "open a websocket per analysis page view" — the strongest argument
 against B in the risks below — from being paid before anyone has seen the feature work.
 
-### Decision 6: how the site-wide state reaches the page — PROPOSED, needs agreement, PHASE 2
+### Decision 6: how the site-wide state reaches the page — MOVED OUT 2026-09-26
 
-Answering on connect is easy; learning about CHANGES is the design. Three shapes were considered:
+Three shapes were weighed here — poll, broadcast every flip, and a small interest registry — and
+the registry was proposed. **It is no longer this change's to decide**, because the question is not
+about this page. It is now `app-wide-online-presence`, which asks it of every consumer of the dot
+and gates the build on the answer.
 
-- **Poll.** The page asks every N seconds. No registry, no push, but the dot lags and every open
-  analysis page adds steady traffic.
-- **Broadcast on every flip.** `update_online()` notifies everyone. Simple to write and the worst
-  thing here for load — most flips interest nobody.
-- **A small interest registry — PROPOSED.** An analysis socket, on connect, registers interest in
-  the four usernames of the game it is watching: `username -> set(game rooms that care)`. When
-  `update_online()` flips a user, the server looks that username up and sends to those rooms only.
-  Bounded by the number of open analysis pages, not by users or games, and cleaned on disconnect.
+Two things found while writing that change are worth recording here, because they change what this
+page's phase 2 would have been:
 
-The third is the only one that is both push and proportionate. It is written here rather than built
-because it adds a server-side structure, and that is worth agreeing before it exists.
+- **Interest-scoped presence already ships.** `client/tournamentRR.ts:494-529` polls
+  `/api/users/status?ids=<white>,<black>` every 35 seconds for exactly the two usernames its open
+  modal shows, and stops when it closes. The endpoint is `server/user.py:1218`, routed at
+  `routes.py:440`, and takes any id list. So a live dot on this page is available for about twelve
+  lines, with no server change at all — that, not a stale dot, is what a registry has to beat.
+- **Broadcast-on-every-flip is rejected outright**, not merely disfavoured, and is written into
+  `app-wide-online-presence`'s spec delta as forbidden so it is not re-proposed as the simple
+  option.
 
 ## Risks / Trade-offs
 
@@ -214,10 +217,12 @@ because it adds a server-side structure, and that is worth agreeing before it ex
 - ~~Is presence on a finished game wanted at all?~~ **ANSWERED 2026-09-26: yes, Option B.**
 - ~~Should the dot show presence on the analysis page specifically, or anywhere on the site?~~
   **ANSWERED 2026-09-26: anywhere on the site — Decision 5.**
-- **NEW, and open: how does a change in site-wide state reach the page?** Decision 6 proposes a small
-  interest registry; it is not yet agreed.
-- **NEW: what does the dot mean for a user who is online but invisible?** If a "hide my online
+- ~~How does a change in site-wide state reach the page?~~ **MOVED 2026-09-26 to
+  `app-wide-online-presence`**, which asks it for the whole app and gates the build on whether more
+  than this page benefits.
+- **MOVED with Decision 6: what does the dot mean for a user who is online but invisible?** If a "hide my online
   status" preference is ever added, a site-wide dot is the first thing that breaks it. Nothing like
   it exists today; worth knowing before this becomes load-bearing.
 - Should the single-board analysis page behave the same way? It is a separate codepath and was not
-  examined; whatever is decided here probably wants to be true there too.
+  examined; whatever is decided here probably wants to be true there too. **Also carried to
+  `app-wide-online-presence`'s open questions, since the answer now depends on that verdict.**
