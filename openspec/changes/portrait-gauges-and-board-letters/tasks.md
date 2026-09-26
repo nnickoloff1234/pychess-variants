@@ -31,31 +31,49 @@ and this change is that debt stated out loud.
 
       So the shape of the work is: use `stackSquares()` in the portrait divisor, and delete the two
       portrait CSS blocks that force a one-column stack and hide the label.
-- [ ] 1.2 **ASYMMETRIC, AND THE REASON IS THE PRICE — measured 2026-09-26 at 386x835, live.** The
-      two gauges are not paid for by the same thing, which is why this cannot be one decision:
+- [x] 1.2 **ANSWERED 2026-09-26: BOTH BOARDS GET THE GAUGE, and the asymmetry is in who pays, not
+      in what is drawn.** Nikolay, on each half:
+
+      > "yes it is worth it, and the own stack is limited by width so the gauge should naturally
+      > take from the board size" … "yes it is worth it. and yes the partner board is limited by
+      > height, so any increase in its width will naturally take from the tools and that is ok"
+
+      **THE PRICES, measured live at 386x835 — different, and both accepted:**
 
       | | square | gauge bar | paid for by | cost |
       |---|---|---|---|---|
-      | own board | 48.004px | **14.9px** | the BOARD — its square is width-derived, so the divisor goes 8 → 8.31 | board 384 → 369.7, **−14.3px** |
-      | partner board | 20.672px | **6.4px** | the TOOLS — its square is height-derived, so the board does not shrink; the stack track widens | tools column 218.7 → 212.3, **no board loss** |
+      | own board | 48.004px | 14.9px | the BOARD — width-derived, so the divisor goes 8 → 8.31 | 384 → 369.7, **−14.3px of board** |
+      | partner board | 20.672px | 6.4px | the TOOLS — height-derived, so the board does not shrink and the stack track widens | 218.7 → 212.3, **no board loss** |
 
-      **So the own gauge is readable and costs board; the partner gauge is nearly free and may be
-      worth nothing.** `portrait.css` already records the objection: "the partner's was 6.2px wide
-      at this size, unreadable as a bar, and the engine's evaluation is a number in the Moves tab
-      regardless."
+      That each is paid by whichever dimension constrains that board is not a quirk to be corrected
+      — it is the sizing rule working. A width-limited stack spends width; a height-limited one has
+      width to spend.
 
-      Three questions, not one:
-      1. Own gauge: 14.9px of readable bar for 14.3px of board — worth it?
-      2. Partner gauge: 6.4px of bar for 6.4px of tools — is a bar that narrow worth anything?
-      3. **The LETTER only needs the COLUMN, not the bar.** It lives in the gauge's column, so a
-         board can have its letter with the column present and the gauge hidden. That matters most
-         on the partner board, where "which board is this" is the real question and the column is
-         the cheap one.
+- [x] 1.2b **A STACK LOOKS THE SAME IN EVERY MODE — the principle this change settles on.**
+      Nikolay: *"i don't want letter without gauge solutions, lets keep the stacks look the same as
+      in landscape and portrait."*
+
+      So the letter-without-gauge option is refused, and with it the idea that portrait gets its own
+      answer to "which board is this". A stack is board, strips, gauge and letter, in that
+      arrangement, wherever it is drawn; what changes between modes is the SIZE of those parts, not
+      which of them exist. The 6.4px partner bar is accepted as a consequence of that rule rather
+      than defended on its own merits.
+
+      **This is the requirement to carry into the delta spec**, because it decides more than the
+      gauge: it is what makes the portrait one-column stack and the board-label suppression wrong,
+      and it is the answer to any future "can we drop X from the stack on small screens".
+
 - [ ] 1.3 If the chosen shape takes width or height from a board, record the square unit before and
       after and confirm the new one is a whole number of device pixels. A percentage is not an
       answer here.
-- [ ] 1.4 Re-check the 6.4px partner gauge that portrait rejected once already. If the answer keeps
-      it, say what changed about that judgement.
+- [x] 1.4 **RE-CHECKED, AND IT IS KEPT — what changed is the rule, not the measurement.** The
+      6.2px reading stands; `portrait.css` was right that it is unreadable as a bar, and the
+      engine's evaluation is still a number in the Moves tab regardless.
+
+      What changed is 1.2b: a stack looks the same in every mode. Under that rule the partner gauge
+      is not being justified as a readable instrument — it is there because the stack has a gauge
+      column, and the alternative was a stack that is shaped differently on a phone. The narrow bar
+      is the price of the consistency, and it costs tools rather than board.
 
 ## 2. What is already in place
 
@@ -74,13 +92,15 @@ and this change is that debt stated out loud.
 
 - [ ] 3.1 Replace the portrait `display: none` rules with real placement. Do not simply delete them:
       the arithmetic they protect — the stack is exactly its eight squares — has to still hold.
-- [ ] 3.2 If the shape is horizontal (option B), teach `drawEval()` to fill along the other axis.
-      The gauge is filled vertically today.
-- [ ] 3.3 If the shape is an overlay (option C), decide the contrast against a board that has pieces
-      under it, and check it against both board sizes — the partner square is 20.7px in portrait,
-      less than half the own board's 48.0px.
-- [ ] 3.4 Keep the letter and the gauge one decision. The current gap exists because the letter
-      inherited the gauge's placement and then inherited its absence.
+- [x] 3.2 NOT NEEDED — option B was not taken, so `drawEval()` keeps filling vertically and needs
+      no second axis.
+- [x] 3.3 NOT NEEDED — option C was not taken. The gauge keeps its own column and is never drawn
+      over a board, so the contrast question does not arise.
+- [x] 3.4 **ANSWERED BY 1.2b — they are one decision, and the rule is stronger than this task
+      asked for.** A stack looks the same in every mode, so the letter and the gauge are not merely
+      decided together: neither may be dropped from a stack on its own. The gap this task describes
+      — the letter inheriting the gauge's placement and then its absence — is closed by the column
+      existing in portrait again.
 
 ## 4. Verify
 
@@ -95,5 +115,5 @@ and this change is that debt stated out loud.
 
 ## 5. Not in this change
 
-- [ ] 5.1 The PV columns' portrait order — left column is the own board, which portrait puts at the
+- 5.1 The PV columns' portrait order — left column is the own board, which portrait puts at the
       BOTTOM. Related, open, and a separate decision.
