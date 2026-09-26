@@ -1,5 +1,8 @@
-## ADDED Requirements
+# bughouse-portrait-board-readout Specification
 
+## Purpose
+TBD - created by archiving change portrait-gauges-and-board-letters. Update Purpose after archive.
+## Requirements
 ### Requirement: Portrait states each board's identity
 
 The bughouse analysis page in portrait SHALL show, for each of the two boards, which board it is —
@@ -68,3 +71,37 @@ after, and the resulting unit is still a whole number of device pixels per squar
 - **WHEN** a board's square is reduced to make room for either addition
 - **THEN** the change records the square before and after and the board it was taken from
 - **AND** the new square is a whole number of device pixels
+
+### Requirement: A stack looks the same in every mode
+
+A stack is its board, its strips, its gauge and its board letter, in that arrangement, wherever it
+is drawn. What changes between modes is the SIZE of those parts, **not which of them exist.** A mode
+SHALL NOT drop a part from a stack because the stack is small there.
+
+This is the rule that decides the questions this capability was opened for, and it decides them
+against the alternative that was in place: portrait had suppressed the gauge and the board letter
+because the arithmetic that sized its square did not account for them, and a page-specific answer to
+"which board is this" had been left as an open question. There is no such question — portrait has
+the landscape answer, because a stack is the same object in both.
+
+**A CONSEQUENCE ACCEPTED WITH IT:** on the smallest portrait viewports the partner board's gauge is
+about 6px wide, which is not readable as a bar. That is the price of the rule and is accepted as
+such — a stack shaped differently on a phone is the worse outcome — rather than defended as a
+useful instrument at that size.
+
+#### Scenario: A stack is drawn in a mode with little room
+
+- **WHEN** a stack is drawn in the mode with the least space available
+- **THEN** it has the same parts as in every other mode, each sized for the room there is
+
+#### Scenario: A part would not be useful at the size it would get
+
+- **WHEN** a part of a stack would be drawn too small to serve its purpose
+- **THEN** it is still drawn, and the shortfall is recorded rather than the part being dropped
+
+#### Scenario: A stack's width is asked for
+
+- **WHEN** any code or stylesheet needs a stack's width
+- **THEN** it reads the one declared number of squares a stack occupies — the board's files plus
+  the gauge where the page draws one — and does not restate it
+

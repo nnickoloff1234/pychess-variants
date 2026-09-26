@@ -140,8 +140,28 @@ and this change is that debt stated out loud.
       gauges 16.99 and 8.5 — the same values the code comments quote from earlier measurements.
       The landscape tracks now read `var(--bug-stack-squares)` where they said `8.31`, which
       resolves to the same number. Matrix: identical row set, no failure fixed or broken.
-- [ ] 4.4 With the engine running, each board's readout updates on its own slice and holds while the
-      engine is on the other board.
+- [x] 4.4 **DONE — each gauge tracks its own board, and holds while the engine is on the other.**
+      Exercised live on game `i3BeAwNt`, engine on, in both modes.
+
+      **PORTRAIT (p4, 386x835).** Both gauges left their 50% neutral together and never agreed
+      afterwards. Sampled every 900ms:
+
+          own 42.458  partner 38.509   ×5 samples
+          own 41.581  partner 38.509   ← the own gauge moved, the partner HELD
+          own 41.581  partner 38.984   ← the partner moved, the own HELD
+
+      That is the requirement demonstrated rather than inferred: the engine time-slices between the
+      boards and each bar keeps its last value while the other is being worked on. `everEqual` was
+      false across every sample. The readout showed two numbers at once — **0.8** at depth 13/18 and
+      **1.1** at depth 18/18 — one per board.
+
+      **LANDSCAPE (p1, 1418x612), the reference.** Same behaviour: the own gauge moved 38.98 → 38.13
+      while the partner held at its neutral 50%, the engine being on the other board.
+
+      **AND THE MAPPING IS STRUCTURAL, not a coincidence of order.** `#gauge` resolves inside
+      `.bug-own-stack` and `#gaugePartner` inside `.bug-partner-stack`, in both modes, each exactly
+      as tall as the board it reports on — 368.0 and 165.4 in portrait against boards of 368.03 and
+      165.38. A gauge cannot report the wrong board without being in the wrong stack.
 - [x] 4.5 **GATES PASS** — `yarn lint`, `yarn typecheck`, `yarn md`, `yarn test`. No server change
       and no Python gates, as predicted.
 ## 5. Not in this change
