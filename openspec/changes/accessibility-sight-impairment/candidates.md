@@ -484,3 +484,96 @@ that small stands: our markup is correct on the same page, theirs is a second bu
 **Candidate A is reinstated as a toggle**, because it now has a real job. The help **link** argued for
 earlier is still worth having beside it — lichess pairs its toggle with a tutorial link for the same
 reason.
+
+---
+
+# OPTION F(vi) — SQUARE ELEMENTS ON THE REAL BOARD. RECOMMENDED, and it removes the mode.
+
+Proposed by Nikolay 2026-09-27: *"what if we modified chessgroundx to add dom elements for all squares,
+could we then adapt those elements to serve as the buttons that a blind user can navigate with keyboard
+... why not even sighted person to be allowed to navigate those and see squares highlighted ... such
+solution again removes the need for special blind mode."*
+
+**Assessed against the source, and it works — and it does NOT need a chessgroundx fork.**
+
+## The fact that makes it cheap
+
+`node_modules/chessgroundx/src/render.ts:214-215`:
+
+```ts
+const isPieceNode  = (el) => el.tagName === 'PIECE';
+const isSquareNode = (el) => el.tagName === 'SQUARE';
+```
+
+**Pure tagName checks.** The render walk is `if (isPieceNode(el)) … else if (isSquareNode(el)) …` and then
+`el = el.nextSibling`. **An element with any other tag name is skipped entirely** — never matched, never
+collected into `movedPieces`/`movedSquares`, therefore **never removed.**
+
+So we can append our own per-square elements into `cg-board` and **chessgroundx 10.7.5 leaves them
+completely alone.** No fork, no PR to `gbtami/chessgroundx`, no npm release.
+
+**And every helper needed is already exported** — `key2pos`, `posToTranslate`, `translate` from
+`src/util.ts`; `api.state` exposes `boardState.pieces`, `orientation` and `dimensions` ("read chessground
+state; write at your own risks").
+
+## The shape
+
+1. **One element per square**, appended into `cg-board`, tag anything but `PIECE`/`SQUARE` — a
+   `<button>` is simplest and brings focus and Space/Enter for free.
+2. **Positioned with chessgroundx's own maths** — `translate(el, posToTranslate(key2pos(key), asWhite))`,
+   the exact call `render()` and `renderResized()` make.
+3. **`pointer-events: none`.** Mouse and touch behaviour is then *byte-for-byte unchanged* — clicks still
+   land on `cg-board` and are resolved by coordinate, exactly as today.
+4. **`aria-label` from `api.state.boardState.pieces`** — `"e4, white pawn"`, with the piece names from
+   `variants.ts` (SB1's data). Updated when the board renders.
+5. **Roving `tabindex`** — one square at `0`, the rest `-1`, so the board is **one tab stop** and arrows
+   move within it.
+6. **`:focus-visible` outline on the focused square** — and this is the part that makes it a feature for
+   sighted keyboard players, not an accessibility appendage.
+7. **Space selects, arrows move, Space again moves the piece** — driving the existing
+   `api.selectSquare()` / move API rather than reimplementing rules.
+
+## Why this is better than every earlier option
+
+| | |
+|---|---|
+| **No mode.** One board, always present, keyboard layer additive. | Removes candidate A's whole reason to exist and the naming problem with it. |
+| **No hidden focusable element**, so no invisible focus and no WCAG 2.4.7 worry. | A-D all existed to work around that. |
+| **No parallel board**, so no duplicate position in the accessibility tree. | E avoided this by switching; this avoids it by not having two. |
+| **Sighted keyboard players get the same thing.** | Decision 4's requirement met exactly: a feature everyone can use **cannot rot unnoticed**. |
+| **chessgroundx stays a dependency, unforked.** | No coordination with `gbtami/chessgroundx`, no release cycle. |
+
+**It also makes the board's highlights meaningful to a blind user for free**: `computeSquareClasses`
+already knows last-move, check, selected and move-destination squares, so those can go into the label.
+
+## HAZARDS — recorded, because three are real
+
+1. **`src/drag.ts:169` compares `cur.originTarget !== e.target` on `touchend`.** Adding elements under the
+   pointer would change `e.target` and could break touch drags. **`pointer-events: none` avoids this
+   entirely — it is not optional.**
+2. **Resize.** `renderResized()` (`src/render.ts:181-192`) re-translates only `PIECE` and `SQUARE` nodes,
+   so **our elements will not be repositioned by it.** They must be repositioned on the existing
+   `notifyChessgroundResize` path (`client/view.ts`).
+3. **ORIENTATION IS THE SHARP EDGE.** The `asWhite` argument must be honoured on every reposition, or the
+   grid and the visual board disagree — **invisible to a sighted developer and catastrophic for a blind
+   player**, who would be told a piece is somewhere it is not. This deserves a test rather than care.
+4. **Version drift.** "Unknown tag names are skipped" is an *implementation detail* of chessgroundx
+   10.7.5, not a documented contract. A future version that cleans unknown children would silently delete
+   the grid. **Mitigation: a test that asserts the elements survive a render — and, eventually, upstream
+   the behaviour as a supported extension point in `gbtami/chessgroundx`.** That is the honest argument
+   for doing it in the fork *later*, not first.
+5. **Pockets are not on this board.** `client/pocketRow.ts` renders them separately, so crazyhouse, shogi,
+   shogun and seirawan need the same treatment there — and our user specified the model exactly
+   (`user-report.md` §4).
+6. **Two boards in bughouse** means two grids. Same code, twice.
+
+## What this does to the earlier decisions
+
+- **Supersedes options A-E**, and **restores Decision 7's original conclusion — no mode — on sound
+  reasoning this time.** The earlier "no mode" was reached by claiming a roving tabindex made F always-on;
+  that was wrong because it ignored visibility. This reaches the same place because **there is only one
+  board and it is already visible.**
+- **Candidate A returns to being a visually hidden help LINK**, not a toggle. Nothing needs switching.
+- **Candidate E (the command input) stays a preference** for everyone, as lichess ships it.
+- **Candidate C (the position in prose) stays always-on, visually hidden** — still valuable, because
+  hearing twelve lines is far faster than walking 64 squares.

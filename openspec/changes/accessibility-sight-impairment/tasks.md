@@ -529,7 +529,42 @@ changes ... later we might think of a full solution, but for now we start with s
       **Five delivery options for F recorded in `candidates.md`** — A hidden/zero tab stops, B
       hidden/revealed-on-focus, C always visible, D preference-gated, **E the mode chooses**. A-D are all
       workarounds for a problem E does not have.
-- [ ] 3.4f **Decide F's delivery from those five, and name the switch.** E is the one that dissolves the
+- [x] 3.4g **F's DELIVERY ANSWERED — square elements on the REAL board, and it needs NO chessgroundx
+      fork.** Nikolay proposed putting the keyboard layer onto chessgroundx's own board rather than a
+      parallel grid. **Assessed against the source: it works, and more cheaply than he proposed.**
+
+      **The decisive fact:** `chessgroundx/src/render.ts:214-215` defines `isPieceNode`/`isSquareNode` as
+      **pure tagName checks**, and the render walk is `if (isPieceNode) … else if (isSquareNode) …`. **An
+      element of any other tag name is skipped — never matched, never collected, never removed.** So our
+      own per-square elements can live inside `cg-board` untouched. And `key2pos`, `posToTranslate` and
+      `translate` are already exported, with `api.state` exposing `boardState.pieces`, `orientation` and
+      `dimensions`.
+
+      **Shape:** one `<button>` per square in `cg-board`, positioned with chessgroundx's own
+      `translate(posToTranslate(key2pos(key), asWhite))`, **`pointer-events: none`** so mouse and touch
+      behaviour is unchanged, `aria-label` from board state plus `variants.ts` piece names, roving
+      `tabindex` (one tab stop), `:focus-visible` outline, Space/arrows driving the existing
+      `api.selectSquare()`.
+
+      **Why it beats A-E: no mode, no hidden focusable element, no parallel board, no fork — and sighted
+      keyboard players get the same feature, so it cannot rot unnoticed** (Decision 4 satisfied exactly).
+      Highlights come free: `computeSquareClasses` already knows last-move, check, selected and
+      destination squares.
+
+      **SIX HAZARDS RECORDED, three real:** `drag.ts:169` compares `originTarget !== e.target` on
+      touchend, so **`pointer-events: none` is not optional**; `renderResized` re-translates only
+      PIECE/SQUARE so our elements need the existing `notifyChessgroundResize` path; and **orientation is
+      the sharp edge** — a wrong `asWhite` is invisible to a sighted developer and tells a blind player a
+      piece is somewhere it is not, so it needs a test. Plus: version drift (the tagName skip is an
+      implementation detail, not a contract — assert it in a test and consider upstreaming an extension
+      point later), pockets are rendered separately by `pocketRow.ts`, and bughouse means two grids.
+
+      **This restores "no mode" on sound reasoning.** The earlier no-mode conclusion was wrong because it
+      ignored visibility; this one holds because **there is only one board and it is already visible.**
+      Candidate A returns to a visually hidden help **link**; E stays a preference; C stays always-on and
+      visually hidden, because hearing twelve lines beats walking 64 squares.
+- [ ] 3.4f **SUPERSEDED by 3.4g** — options A-E and naming the switch. Kept because A-E record what was
+      weighed, and because 3.4g's hazard 4 may eventually argue for the fork after all. E is the one that dissolves the
       problem; B was recommended among A-D before E existed. Nikolay is not convinced any of A-D is good,
       which is the reason E was proposed.
 - [ ] 3.4d **CANDIDATE B IS WIDER THAN WRITTEN — decide its scope.** Asked 2026-09-27: which pages
