@@ -168,7 +168,34 @@ lichess, whose equivalents came back unnamed), and `textbox "Search users"` has 
 
 ---
 
-# U4. Is there noise that would annoy them? **Yes — a hidden 59-option combobox.**
+# U4. Is there noise that would annoy them? **Yes, but not the combobox — that claim was wrong.**
+
+> **RETRACTED 2026-09-28.** This section claimed a hidden 59-option variant combobox was exposed on
+> `/analysis/crazyhouse`, so a browse-mode user met a control nobody could see. That is not true.
+> There are **two** 59-option selects on that page and the original probe conflated them:
+>
+> | select | where | visible | in the tree |
+> |---|---|---|---|
+> | `#variant` | `ASIDE > MAIN`, the sidebar picker | yes, 190px wide | **yes** — the `combobox "Variant"` that was measured |
+> | `#settings-variant` | `#settings-panel` in the HEADER | no, width 0 | **no** |
+>
+> The capture exposes exactly **one** combobox and it is the visible one. The hidden one sits inside
+> the collapsed `#settings` panel, which is `display: none` when closed, so it is correctly absent.
+> Its own computed style reads `display: block; visibility: visible` — `offsetParent` was null
+> because an ANCESTOR was hidden. That is the same ancestor-vs-self trap that invalidated the
+> "45 invisible-but-exposed elements" count further down this file, approached from the other side:
+> there it over-reported hidden things, here it mistook a visible control for a hidden one.
+>
+> **The lesson stands even though the finding does not:** visibility questions must be asked of the
+> accessibility tree (is the node present? what is its `ignoredReasons`?), never of `offsetParent`.
+>
+> **What survives.** The two noise sources this section listed *besides* the combobox are real and
+> still stand, because both were found by starting from a tree node: the PUA glyph characters read as
+> unpronounceable junk (U3.3) and the letter-named buttons that sound like stray content (U3.1). So
+> the answer to U4 is still yes — just not for the reason first given, and not at the scale of
+> 59 spurious options. The section below is kept for the record.
+
+## (retracted) The original claim
 
 `select[name="settings-variant"]` has **59 options** and is **not visible** on `/analysis/crazyhouse`
 — yet it is exposed in the tree, and its 59 `option` nodes are the single largest role group on the
@@ -197,8 +224,13 @@ buttons (U3.1) sound like stray content.
 >
 > **It must stay a list to read, never a count to compare.** Visually hidden content is a legitimate
 > technique, not automatically a defect — lichess's blind-mode toggle is exactly that, and it is the
-> best thing on their site (§2). The U4 finding above stands on its own: it was found by starting
-> from a tree node and checking *that* element.
+> best thing on their site (§2).
+>
+> **This note used to end by saying the combobox finding was safe because it started from a tree node
+> and checked that element. It did not, and that is why it was wrong** — it started from a DOM
+> `select`, found `offsetParent` null, and assumed the exposed `combobox "Variant"` was the same
+> element. Two selects, one name. The rule the note states is right; the finding it exempted never
+> followed it.
 
 ---
 
@@ -323,18 +355,84 @@ lichess's ordinary pages" — it is the board, where neither site does anything 
 | R4 | CSS alt text on the `.icon-*` rules | U3.3 — **downgraded: Orca drops the glyph silently**, so this is cosmetic for Orca and speculative for NVDA | a CSS change in one place |
 | **R5** | `<div class="topnav">` → `<nav>`; `<main>` on the board views | landmarks, every page | one word + one client-side wrapper |
 | **R6** | An `h1` per page; fix the lobby's h3-before-h2 order | no page has one | template/view work |
-| **R7** | Stop exposing the hidden 59-option variant select on board pages | U4 — the largest noise source measured | one hidden-state fix |
+| ~~R7~~ | ~~Stop exposing the hidden 59-option variant select on board pages~~ | **WITHDRAWN 2026-09-28** — rested on the retracted half of U4. Nothing to fix: the exposed combobox is the visible sidebar picker, and the hidden `#settings-variant` is already out of the tree | none |
+| **R7a** | ~~`props: { for: ... }` → `attrs:`~~ **DONE** — the Board Settings variant select had **no accessible name at all** | replaces the withdrawn R7. Measured, fixed and re-measured — see below. WCAG 4.1.2 | one word |
+| **R7b** | Disambiguate the two controls now both named **"Variant"** | **measured, not inferred**: with the drawer open the tree holds two `combobox "Variant"`. Exposed *by* fixing R7a — naming choice is open | a name change on one of them |
 | **R8** | The board itself — squares, pockets, move list, live regions | U2, and the actual request from our user | **the gate's subject; not costed here** |
 
-R1–R7 are all **site chrome, none of them touch the board, chessgroundx or layout CSS** — so like
+R1–R6 and R7a/R7b are all **site chrome, none of them touch the board, chessgroundx or layout CSS** — so like
 `collapsibles-sweep.md` F1/F2 they belong to candidate G and do not depend on the gate's verdict.
 R8 is what task 3.4 is deciding.
 
+## R7a/R7b: what was actually there, once the drawer was opened
+
+The retracted R7 had been standing in front of a real defect. Measured 2026-09-28 by opening
+Settings → Board Settings and reading the tree in that state — the state every capture in this sweep
+had missed, because the drawer was closed for all of them.
+
+There are two variant pickers, both built by the shared `selectVariant()` helper, so both have 59
+options — but they mean different things:
+
+| | purpose |
+|---|---|
+| `#variant` (aside, `client/analysis/index.ts:41`) | which variant to **analyse** — changes the board |
+| `#settings-variant` (`client/settingsView.ts:248`, in Settings → Board Settings) | which variant's **piece style you are editing** — changes nothing about the game |
+
+### R7a — the confirmed bug: an unnamed combobox. FIXED.
+
+With the drawer open, the tree held two comboboxes and **only one of them had a name**:
+
+```
+combobox name='Variant'   <- #variant, the aside picker
+combobox name=''          <- #settings-variant
+```
+
+The cause is one word. `settingsView.ts:248` was the **only** `<label>` in the entire client written
+`props: { for: ... }`; all ~30 others use `attrs:`. Snabbdom's `props` module assigns `elm[key] =
+value`, and the reflecting DOM property of a label is **`htmlFor`, not `for`** — so the assignment
+created a junk own-property and no `for` attribute was ever emitted. Measured on the live label:
+
+```
+{ text: 'Variant', hasForAttr: false, forAttr: null, htmlFor: '',
+  expando: 'settings-variant', control: null }   <- label.control === null: associated with nothing
+```
+
+An unnamed combobox with 59 options is a WCAG 4.1.2 failure, and the worst kind: the visible `Variant`
+text is right next to it, so nothing looks wrong. Changing `props` to `attrs` restores
+`control: 'settings-variant'` and the name. Re-measured after the fix: **2 comboboxes, 2 named**.
+
+> **Worth a grep, not just a fix.** `props` silently does nothing whenever the attribute name and the
+> DOM property name differ. `for`/`htmlFor` is the common one; `class`/`className` and
+> `aria-*` (no properties at all) are the others. Every other label in `client/` already uses `attrs`,
+> so this was a lone slip rather than a pattern — but a lone slip that survived because nothing
+> visual changes.
+
+### R7b — exposed by the fix: two controls, one name
+
+Fixing R7a makes both comboboxes read **"Variant"**, in the tree at the same time. A sighted user is
+never confused — one sits beside the board, the other under a `Board Settings` heading, and position
+supplies the context the name omits — but a screen-reader user listing form controls hears
+"Variant, combobox" twice, with nothing to say which one moves the board.
+
+This is not a regression to undo: an unnamed control is strictly worse than an ambiguously named one.
+It is the next question, and the naming is a judgement call, so it is left open rather than guessed.
+Whatever name is chosen for `#settings-variant` must still **contain the visible word "Variant"**
+(WCAG 2.5.3 Label in Name), so `Variant to customise` is allowed and `Piece style` is not.
+
+> **Method note, since this section replaced a wrong one.** R7 was wrong because it started from a
+> DOM `select`, saw `offsetParent` null, and assumed the exposed combobox was that element. R7a was
+> found the opposite way: start from the tree node, notice the name is empty, then go to the source.
+> The same reversal is what the box at the top of U4 prescribes.
+
 # What this sweep does not cover
 
-- **logged-in UI** — the server ran without `-a`, so `#settings`, `#notify-app`, `#challenge-app`
-  panels in their opened state, the inbox and profile pages are all unmeasured. This is still the
-  largest gap named in `coverage-and-change-types.md`.
+- **logged-in UI** — the server ran without `-a`, so `#notify-app` and `#challenge-app` in their
+  opened state, the inbox and profile pages are all unmeasured. This is still the largest gap named in
+  `coverage-and-change-types.md`. **Partly closed since:** `#settings` was opened as far as
+  Settings → Board Settings for R7a, and that single opened panel immediately yielded an unnamed
+  59-option combobox — which is the argument for closing the rest of this gap rather than reasoning
+  about it. Every panel measured so far in its *closed* state looked clean; the defect was only
+  visible open.
 - **a live game or a two-board page** — no game id was available (`JJgZzLhJ` is gone), so the
   positive-`tabindex` prediction (T3) and the round page's tree remain unverified.
 - **what a screen reader says.** The tree is necessary, not sufficient: it does not capture browse
