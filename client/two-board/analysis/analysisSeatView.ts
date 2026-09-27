@@ -74,6 +74,9 @@ export function renderSeatNames(ctrl: AnalysisController): void {
        since joins and leaves are broadcast to everyone on the game. */
     const online = (username: string): boolean => ctrl.isOnline(username);
 
+    /* WHETHER THERE IS A GAME AT ALL. The analysis board reached from the Tools menu is the same
+       page with no game behind it, so there are no seats to describe — see the gate below, which
+       is why nothing is drawn rather than drawn empty. */
     const hasPlayers = ctrl.model['gameId'] !== '';
 
     renderSeatNamesCC(ctrl.seatView, ctrl.seats, ctrl.boardA, 'a', ctrl.model['level'], online, hasPlayers);
@@ -97,6 +100,21 @@ function renderSeatNamesCC(
 
     for (const position of [0, 1] as const) {
         const slot = slotOf(position, boardName);
+
+        /* NO GAME, SO NO BAR AT ALL — not an empty one, and not a bar told to hide its parts.
+           The analysis board opened from the Tools menu has no players, so there is nobody for a
+           username, a rating or a presence dot to be about. The strip renders as the bare element
+           the page embedded and nothing goes inside it.
+
+           THE GATE BELONGS HERE, BEFORE THE CALL. Leaving it to `player()` meant handing a shared
+           component -- four callers on the round page alone -- an argument that exists for this
+           page's edge case, and it only LOOKED right for the username: that came out empty because
+           the string was empty, not because anything decided not to draw it. */
+        if (!hasPlayers) {
+            view.render(slot, h(SLOT_SELECTOR[slot]));
+            continue;
+        }
+
         const color = colorAt(position);
         const seat = seats.byBoardAndColor(boardName, color);
         view.render(
@@ -110,7 +128,6 @@ function renderSeatNamesCC(
                 online(seat.player.username),
                 SLOT_SELECTOR[slot],
                 false,
-                hasPlayers,
             ),
         );
     }

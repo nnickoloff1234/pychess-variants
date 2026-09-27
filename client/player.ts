@@ -17,22 +17,11 @@ export function player(
     online = false,
     root = 'round-' + id,
     patron = false,
-    /* WHETHER THERE IS ANYONE FOR THE DOT TO BE ABOUT.
-       ------------------------------------------------------------------------------------
-       The icon is OMITTED, not hidden. A page with no game — the analysis board opened from
-       the Tools menu — has no players, so it renders no usernames; it was still drawing four
-       presence dots, which is a claim about nobody rather than a false claim about someone.
-
-       A parameter rather than a CSS rule, deliberately: `display: none` leaves an element in
-       the DOM carrying `icon-offline`, a class that is still an assertion, and hides the
-       symptom where the cause is an argument. This cannot be defeated by a later cascade
-       change either. */
-    presence = true,
 ): VNode {
     const displayName = displayUsername(name);
     return h(root, [
         h('div.player-data', [
-            presence ? h('i-side#' + id + '.icon', {
+            h('i-side#' + id + '.icon', {
                 class: {
                     online,
                     offline: !online,
@@ -41,7 +30,7 @@ export function player(
                     'icon-patron-wing': patron,
                 },
                 attrs: patron ? { title: _('PyChess Patron') } : {},
-            }) : null,
+            }),
             h('player', [
                 userLink(name, [
                     title !== '' ? h('player-title', title + ' ') : '',
