@@ -195,6 +195,12 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
             () => {},
             () => {},
             (e: MessageEvent) => {
+                /* THE HEARTBEAT IS NOT JSON. `newWebsocket` pings with the literal '/n' and the
+                   server pongs the same, so parsing every frame throws on the pong -- and a pong
+                   that never registers is a pong that never arrived: pingTimeout 2500 plus
+                   pongTimeout 9000 means the socket tore itself down and reconnected every 11.5
+                   seconds. Every other handler on the site opens with this line. */
+                if (e.data === '/n') return;
                 const msg = JSON.parse(e.data);
                 if (msg.type === 'user_present') this.onlineUsers.add(msg.username);
                 else if (msg.type === 'user_disconnected') this.onlineUsers.delete(msg.username);
