@@ -825,9 +825,37 @@ Ordinary semantics, always on, benefiting every keyboard user. `collapsibles-swe
       `.topnav` gains an id; (b) the handler at `client/main.ts:341-344` writes the attribute;
       (c) ONLY THEN hide the closed drawer with `visibility: hidden`.
 
-- [ ] 4G.5 **Optional, one word, independent.** The lobby exposes `banner`, `complementary`, `main`
-      and **no `navigation` landmark** — `templates/template.html:11` is `<div class="topnav">`.
-      4G.2 edits that element anyway.
+- [x] 4G.5 **DONE.** `templates/template.html:11` `<div class="topnav">` →
+      `<nav class="topnav" aria-label="{% trans %}Site{% endtrans %}">` (and its close at :71), plus
+      `static/site.css:948` `div.topnav section:hover` → `.topnav section:hover` — the `div`
+      qualifier would have stopped matching and the hover background would have died silently. It was
+      the ONLY `div`-qualified topnav selector; every other rule in `site.css`, `study.css` and
+      `two-boards/override-commons.css`, and both client selectors (`topNav.ts:19`,
+      `main.ts:343`), were already unqualified. Nothing in `tests/` referenced it.
+
+      **Measured after the change** — `navigation "Site"` now on every page type:
+
+      ```
+      /                     banner, navigation"Site", form, main, complementary"What's up", complementary"New game"
+      /players              banner, navigation"Site", form, main, complementary"Players online", complementary"Leaderboards"
+      /variants             banner, navigation"Site", form, main, complementary
+      /analysis/crazyhouse  banner, navigation"Site", form, main, complementary
+      /editor/crazyhouse    banner, navigation"Site", form, main, complementary
+      /puzzle/crazyhouse    banner, navigation"Site", form, main, complementary
+      /faq                  banner, navigation"Site", form, main, complementary
+      ```
+
+      **Regression checks, all measured, none inferred:** `.topnav` resolves to `NAV`; section hover
+      background still changes (`rgba(0,0,0,0)` → `rgb(60,57,52)`); submenu still goes
+      `hidden` → `visible` on hover; the inset box-shadow is intact; and the 4G.2 disclosure still
+      sets `aria-expanded=true` and reveals on click. 1312 Python tests OK, 40 simul tests pass.
+
+      **Named, where lichess does not.** Theirs is `<nav id="topnav">` with no label. Ours gets
+      `aria-label="Site"` because some of our pages carry a second `<nav>` (`following.html:38` and
+      friends are labelled "Pagination"; `team-menu.html:1` and `variants.html:137` are NOT), and an
+      unlabelled pair reads as "navigation, navigation" — exactly the defect lichess has on
+      `/analysis` and `/variant/crazyhouse`. The name omits the word "navigation" because the role
+      already supplies it. Labelling those two remaining `<nav>`s is a small follow-up.
 
 - [ ] 4G.6 **The Board Settings variant select has NO accessible name.** `client/settingsView.ts:248`
       is the only `<label>` in the entire client written `props: { for: ... }`; all ~30 others use

@@ -8,7 +8,7 @@
                     <div class="hamburger-inner"></div>
                 </div>
             </div>
-            <div class="topnav">
+            <nav class="topnav" aria-label="{% trans %}Site{% endtrans %}">
                 <a class="nav-link active home" href="/">PyChess{% if dev %}<span>DEV</span>{% endif %}</a>
                 <section>
                     <button type="button" class="nav-link nav-section" aria-expanded="false" aria-controls="nav-play">{% trans %}Play{% endtrans %}</button>
@@ -68,7 +68,7 @@
                     </div>
                 </section>
                 <a class="nav-link donate-link icon-patron-wing" href="/patron">{% trans %}Donate{% endtrans %}</a>
-            </div>
+            </nav>
         </div>
         <div class="site-buttons">
             <form autocomplete="off" class="search-bar">

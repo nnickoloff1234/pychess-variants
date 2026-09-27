@@ -945,7 +945,7 @@ ul.guide li {
     color: var(--font-color);
   }
 
-  div.topnav section:hover {
+  .topnav section:hover {
     background-color: var(--drop-down);
   }
 
