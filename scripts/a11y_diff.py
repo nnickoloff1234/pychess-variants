@@ -57,7 +57,10 @@ def stats(detail: dict) -> dict:
         n
         for n in interactive
         if n["name"].strip()
-        and any(s["type"] == "attribute" and s["attribute"] == "title" and not s["superseded"] for s in n["nameSources"])
+        and any(
+            s["type"] == "attribute" and s["attribute"] == "title" and not s["superseded"]
+            for s in n["nameSources"]
+        )
     ]
     live = [n for n in exposed if n["properties"].get("live") not in (None, "off")]
     return {
@@ -74,7 +77,7 @@ def stats(detail: dict) -> dict:
 
 def row(label: str, a, b) -> str:
     mark = "" if a == b else "   <-- differs"
-    return f"  {label:22s} {str(a):>7s}  {str(b):>7s}{mark}"
+    return f"  {label:22s} {a!s:>7s}  {b!s:>7s}{mark}"
 
 
 def report(name: str, a: dict, b: dict, show_diff: bool, context: int) -> None:
@@ -109,9 +112,7 @@ def report(name: str, a: dict, b: dict, show_diff: bool, context: int) -> None:
     if show_diff:
         la = (Path(a["_side"]) / f"{a['_stem']}.txt").read_text().splitlines()
         lb = (Path(b["_side"]) / f"{b['_stem']}.txt").read_text().splitlines()
-        delta = list(
-            difflib.unified_diff(la, lb, fromfile="A", tofile="B", n=context, lineterm="")
-        )
+        delta = list(difflib.unified_diff(la, lb, fromfile="A", tofile="B", n=context, lineterm=""))
         if delta:
             print("  --- outline diff ---")
             for line in delta:

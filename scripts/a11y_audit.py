@@ -96,10 +96,16 @@ def audit(path: Path, verbose: bool) -> dict:
     headings = [n for n in exposed if n["role"] == "heading"]
     landmarks = [n for n in exposed if n["role"] in LANDMARKS]
     live = [n for n in exposed if n["properties"].get("live") not in (None, "off")]
-    images = [(n, p) for n, p in zip(exposed, pars) if n["role"] in ("image", "img") and not n["name"].strip()]
+    images = [
+        (n, p)
+        for n, p in zip(exposed, pars)
+        if n["role"] in ("image", "img") and not n["name"].strip()
+    ]
 
     print(f"\n{'=' * 70}\n{path.stem}   {detail['url']}")
-    print(f"  exposed {detail['exposedCount']} of {detail['totalNodes']}   ignored {detail['ignoredReasons']}")
+    print(
+        f"  exposed {detail['exposedCount']} of {detail['totalNodes']}   ignored {detail['ignoredReasons']}"
+    )
     print(
         f"  interactive {len(interactive)} | UNNAMED {len(unnamed)} | title-only {len(titled)}"
         f" | icon-glyph names {len(glyphs)} | headings {len(headings)}"
@@ -133,7 +139,7 @@ def audit(path: Path, verbose: bool) -> dict:
         shown = headings if verbose else headings[:14]
         for h in shown:
             lvl = h["properties"].get("level") or "?"
-            print(f'     h{lvl} {PUA.sub("", h["name"])[:56]}')
+            print(f"     h{lvl} {PUA.sub('', h['name'])[:56]}")
         if not verbose and len(headings) > 14:
             print(f"     ... and {len(headings) - 14} more (--verbose)")
     else:
@@ -143,8 +149,10 @@ def audit(path: Path, verbose: bool) -> dict:
     if live:
         print("  -- live regions --")
         for n in live:
-            print(f'     {n["role"]:10s} live={n["properties"].get("live")} '
-                  f'atomic={n["properties"].get("atomic")} "{n["name"][:30]}"')
+            print(
+                f"     {n['role']:10s} live={n['properties'].get('live')} "
+                f'atomic={n["properties"].get("atomic")} "{n["name"][:30]}"'
+            )
 
     return {
         "page": path.stem,
@@ -178,7 +186,10 @@ def main(argv: list[str] | None = None) -> int:
             f"  {r['page'][:24]:24s} {r['interactive']:6d} {r['unnamed']:8d} "
             f"{r['title_only']:6d} {r['glyphs']:6d} {r['headings']:5d} {r['live']:5d}"
         )
-    totals = {k: sum(r[k] for r in rows) for k in ("interactive", "unnamed", "title_only", "glyphs", "headings", "live")}
+    totals = {
+        k: sum(r[k] for r in rows)
+        for k in ("interactive", "unnamed", "title_only", "glyphs", "headings", "live")
+    }
     print(
         f"  {'TOTAL':24s} {totals['interactive']:6d} {totals['unnamed']:8d} "
         f"{totals['title_only']:6d} {totals['glyphs']:6d} {totals['headings']:5d} {totals['live']:5d}"

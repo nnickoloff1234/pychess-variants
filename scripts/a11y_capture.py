@@ -38,12 +38,14 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import json
 import re
 import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 from playwright.async_api import async_playwright
 
 # States worth carrying into the outline. Anything volatile (focused, busy) is
@@ -177,10 +179,10 @@ def summarise_ignored(nodes: list[dict]) -> dict:
 
 async def capture(page, cdp, url: str, settle_ms: int) -> tuple[list[str], dict]:
     await page.goto(url, wait_until="domcontentloaded")
-    try:
+    # A live socket -- the lobby, a game in progress -- never goes idle, so the
+    # timeout is the expected outcome there and the settle below is what covers it.
+    with contextlib.suppress(PlaywrightTimeoutError):
         await page.wait_for_load_state("networkidle", timeout=8000)
-    except Exception:
-        pass  # a live socket (lobby, game) never goes idle; the settle covers it
     await page.wait_for_timeout(settle_ms)
 
     await cdp.send("Accessibility.enable")
@@ -239,8 +241,11 @@ async def run(args: argparse.Namespace) -> int:
         for url in args.urls:
             try:
                 lines, detail = await capture(page, cdp, url, args.settle_ms)
-            except Exception as exc:  # one bad page must not lose the batch
-                print(f"{url}\n  FAILED: {type(exc).__name__}: {exc}".split("\nCall log")[0], file=sys.stderr)
+            except Exception as exc:  # noqa: BLE001 -- one bad page must not lose the batch
+                print(
+                    f"{url}\n  FAILED: {type(exc).__name__}: {exc}".split("\nCall log")[0],
+                    file=sys.stderr,
+                )
                 continue
             slug = slugify(url)
             (out_dir / f"{slug}.txt").write_text("\n".join(lines) + "\n")
