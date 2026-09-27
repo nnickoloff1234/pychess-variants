@@ -356,8 +356,8 @@ lichess's ordinary pages" — it is the board, where neither site does anything 
 | **R5** | `<div class="topnav">` → `<nav>`; `<main>` on the board views | landmarks, every page | one word + one client-side wrapper |
 | **R6** | An `h1` per page; fix the lobby's h3-before-h2 order | no page has one | template/view work |
 | ~~R7~~ | ~~Stop exposing the hidden 59-option variant select on board pages~~ | **WITHDRAWN 2026-09-28** — rested on the retracted half of U4. Nothing to fix: the exposed combobox is the visible sidebar picker, and the hidden `#settings-variant` is already out of the tree | none |
-| **R7a** | ~~`props: { for: ... }` → `attrs:`~~ **DONE** — the Board Settings variant select had **no accessible name at all** | replaces the withdrawn R7. Measured, fixed and re-measured — see below. WCAG 4.1.2 | one word |
-| **R7b** | Disambiguate the two controls now both named **"Variant"** | **measured, not inferred**: with the drawer open the tree holds two `combobox "Variant"`. Exposed *by* fixing R7a — naming choice is open | a name change on one of them |
+| **R7a** | `props: { for: ... }` → `attrs:` — the Board Settings variant select has **no accessible name at all** | replaces the withdrawn R7. Measured, and the fix verified then reverted — see below. WCAG 4.1.2. Tracked as **tasks.md 4G.6** | one word |
+| **R7b** | Disambiguate the two controls that R7a leaves both named **"Variant"** | **measured, not inferred**: with R7a applied and the drawer open, the tree holds two `combobox "Variant"`. Tracked as **4G.7**, naming as **5b.3** | a name change on one of them |
 | **R8** | The board itself — squares, pockets, move list, live regions | U2, and the actual request from our user | **the gate's subject; not costed here** |
 
 R1–R6 and R7a/R7b are all **site chrome, none of them touch the board, chessgroundx or layout CSS** — so like
@@ -399,7 +399,13 @@ created a junk own-property and no `for` attribute was ever emitted. Measured on
 
 An unnamed combobox with 59 options is a WCAG 4.1.2 failure, and the worst kind: the visible `Variant`
 text is right next to it, so nothing looks wrong. Changing `props` to `attrs` restores
-`control: 'settings-variant'` and the name. Re-measured after the fix: **2 comboboxes, 2 named**.
+`control: 'settings-variant'` and the name. Re-measured with the fix applied: **2 comboboxes, 2 named**.
+
+> **NOT YET FIXED IN THE CODE — deliberately.** The one-word change was implemented on the spot in
+> `40edb4fde` and reverted. This was found while answering a question about landmarks, so fixing it
+> then and there was scope creep: a defect found while measuring belongs in `tasks.md` to be done in
+> sequence, not patched mid-task. It is **4G.6**, and it is ready rather than open — the fix is
+> written and verified, it just has not been decided in.
 
 > **Worth a grep, not just a fix.** `props` silently does nothing whenever the attribute name and the
 > DOM property name differ. `for`/`htmlFor` is the common one; `class`/`className` and
@@ -409,13 +415,14 @@ text is right next to it, so nothing looks wrong. Changing `props` to `attrs` re
 
 ### R7b — exposed by the fix: two controls, one name
 
-Fixing R7a makes both comboboxes read **"Variant"**, in the tree at the same time. A sighted user is
+Applying R7a makes both comboboxes read **"Variant"**, in the tree at the same time. A sighted user is
 never confused — one sits beside the board, the other under a `Board Settings` heading, and position
 supplies the context the name omits — but a screen-reader user listing form controls hears
 "Variant, combobox" twice, with nothing to say which one moves the board.
 
-This is not a regression to undo: an unnamed control is strictly worse than an ambiguously named one.
-It is the next question, and the naming is a judgement call, so it is left open rather than guessed.
+This is not a reason to leave R7a undone: an unnamed control is strictly worse than an ambiguously
+named one. It is the next question, and the naming is a judgement call, so it is left to Nikolay
+(**5b.3**) rather than guessed.
 Whatever name is chosen for `#settings-variant` must still **contain the visible word "Variant"**
 (WCAG 2.5.3 Label in Name), so `Variant to customise` is allowed and `Piece style` is not.
 

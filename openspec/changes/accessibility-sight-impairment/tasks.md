@@ -829,6 +829,40 @@ Ordinary semantics, always on, benefiting every keyboard user. `collapsibles-swe
       and **no `navigation` landmark** — `templates/template.html:11` is `<div class="topnav">`.
       4G.2 edits that element anyway.
 
+- [ ] 4G.6 **The Board Settings variant select has NO accessible name.** `client/settingsView.ts:248`
+      is the only `<label>` in the entire client written `props: { for: ... }`; all ~30 others use
+      `attrs:`. Snabbdom's `props` module assigns `elm[key] = value`, and a label's reflecting DOM
+      property is **`htmlFor`, not `for`** — so that line sets a junk own-property and no `for`
+      attribute is ever emitted. Measured on the live label:
+
+      ```
+      { text: 'Variant', hasForAttr: false, forAttr: null, htmlFor: '',
+        expando: 'settings-variant', control: null }
+      ```
+
+      `label.control === null`: associated with nothing, so a 59-option combobox is exposed unnamed.
+      WCAG 4.1.2. The fix is `props:` → `attrs:`, one word.
+
+      **Found 2026-09-28 while measuring for a question about landmarks, and it is NOT landmark work.**
+      I implemented it on the spot in `40edb4fde` and Nikolay reverted it: a defect found while
+      measuring gets written down here and done in sequence, not fixed mid-task. The fix is verified
+      to work — after it, the tree showed both comboboxes named — so this task is ready, not open.
+
+      **It also exposes a hole in our method:** the drawer was CLOSED for every capture in this
+      change, and this defect is only visible open. Every panel we have measured closed looked clean.
+      See the same point in `tree-capture-sweep.md` under "What this sweep does not cover".
+
+- [ ] 4G.7 **Then disambiguate: two controls both named "Variant"** (do 4G.6 first — it creates this).
+      `#variant` in the aside picks the variant to **analyse**; `#settings-variant` picks whose
+      **piece style you are editing**. Both come from the shared `selectVariant()` helper, so once
+      4G.6 lands both read `combobox "Variant"` in the tree at the same time — measured, with the
+      drawer open. Position disambiguates them for a sighted user; nothing does for a screen reader
+      listing form controls.
+
+      **Constraint on the new name:** it must still contain the visible word "Variant" (WCAG 2.5.3
+      Label in Name), so `Variant to customise` is allowed and `Piece style` is not. **Naming is
+      Nikolay's call** — see 5b.
+
 **Verification for all of 4G** — gates (`yarn typecheck` only after deleting `tsconfig.tsbuildinfo`;
 an incremental run reported green over a syntax error on 2026-09-27), then: capture the tree closed
 and expect six `button` nodes with `expanded=false`; click one over CDP, re-capture, and
@@ -861,6 +895,12 @@ titles is safe — but do not touch `.drp` children.
       pychess is AGPL-3.0, so porting C# of unknown licence raises a question that using it as a
       design reference does not — and they suggest that use themselves: *"sooner like an example of
       keyboard navigation design."* `user-report.md` sections 3 and 4 are already most of it.
+
+- [ ] 5b.3 **Name one of the two "Variant" comboboxes** (blocks 4G.7, which 4G.6 creates). The
+      sidebar one picks the variant to analyse; the Settings → Board Settings one picks whose piece
+      style you are editing. Whatever `#settings-variant` becomes must still contain the word
+      "Variant" (WCAG 2.5.3), so `Variant to customise` qualifies and `Piece style` does not. The
+      shorter the better — the same reasoning that picked "What's up" over a longer landmark name.
 
 ## 6. Explicitly deferred
 
