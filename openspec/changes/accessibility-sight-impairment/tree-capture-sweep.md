@@ -357,18 +357,18 @@ lichess's ordinary pages" — it is the board, where neither site does anything 
 | **R6** | An `h1` per page; fix the lobby's h3-before-h2 order | no page has one | template/view work |
 | ~~R7~~ | ~~Stop exposing the hidden 59-option variant select on board pages~~ | **WITHDRAWN 2026-09-28** — rested on the retracted half of U4. Nothing to fix: the exposed combobox is the visible sidebar picker, and the hidden `#settings-variant` is already out of the tree | none |
 | **R7a** | `props: { for: ... }` → `attrs:` — the Board Settings variant select has **no accessible name at all** | replaces the withdrawn R7. Measured, and the fix verified then reverted — see below. WCAG 4.1.2. Tracked as **tasks.md 4G.6** | one word |
-| **R7b** | Disambiguate the two controls that R7a leaves both named **"Variant"** | **measured, not inferred**: with R7a applied and the drawer open, the tree holds two `combobox "Variant"`. Tracked as **4G.7**, naming as **5b.3** | a name change on one of them |
+| **R7b** | Disambiguate the two controls that R7a leaves both named **"Variant"** | **measured, not inferred**: with R7a applied and the Settings panel open, the tree holds two `combobox "Variant"`. Tracked as **4G.7**, naming as **5b.3** | a name change on one of them |
 | **R8** | The board itself — squares, pockets, move list, live regions | U2, and the actual request from our user | **the gate's subject; not costed here** |
 
 R1–R6 and R7a/R7b are all **site chrome, none of them touch the board, chessgroundx or layout CSS** — so like
 `collapsibles-sweep.md` F1/F2 they belong to candidate G and do not depend on the gate's verdict.
 R8 is what task 3.4 is deciding.
 
-## R7a/R7b: what was actually there, once the drawer was opened
+## R7a/R7b: what was actually there, once the Settings panel was opened
 
 The retracted R7 had been standing in front of a real defect. Measured 2026-09-28 by opening
 Settings → Board Settings and reading the tree in that state — the state every capture in this sweep
-had missed, because the drawer was closed for all of them.
+had missed, because the Settings panel was closed for all of them.
 
 There are two variant pickers, both built by the shared `selectVariant()` helper, so both have 59
 options — but they mean different things:
@@ -380,7 +380,7 @@ options — but they mean different things:
 
 ### R7a — the confirmed bug: an unnamed combobox. FIXED.
 
-With the drawer open, the tree held two comboboxes and **only one of them had a name**:
+With the Settings panel open, the tree held two comboboxes and **only one of them had a name**:
 
 ```
 combobox name='Variant'   <- #variant, the aside picker

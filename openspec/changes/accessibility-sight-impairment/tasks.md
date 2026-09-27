@@ -1,9 +1,21 @@
 ## 0. Status
 
-**PLANNING ONLY — 2026-09-27.** Nikolay: *"we will not fix anything today, we are just writing down
-our findings and making a plan ... we are still at planning phase."* Every defect recorded in
-`collapsibles-sweep.md` and `focus-and-tabindex-sweep.md` is a **worklist item for when the change is
-applied**, not something to touch now. Section 4 stays empty until the gate at 3.4.
+**IMPLEMENTING CANDIDATE G ONLY — since 2026-09-27; the gate at 3.4 is STILL OPEN.** Section 4 stays
+empty until that gate. What is being built is **4G**, which is explicitly exempt because it is
+ordinary semantics benefiting every keyboard user and touches neither the board nor layout CSS.
+Shipped so far: 4G.1 `:focus-within`, 4G.2 the six disclosure buttons, 4G.3 the header panels,
+4G.5 the `navigation` landmark, plus names on the lobby's and players' `complementary` landmarks.
+
+**Superseded, kept for the record — the original planning-phase freeze (2026-09-27).** Nikolay:
+*"we will not fix anything today, we are just writing down our findings and making a plan ... we are
+still at planning phase."* That held until he said *"lets start with the main menu in the header
+aaaaaaand make it accessible as we discussed"*. Every defect recorded in `collapsibles-sweep.md` and
+`focus-and-tabindex-sweep.md` that is **not** in 4G remains a worklist item for when the change is
+applied, not something to touch now.
+
+**Order discipline, added 2026-09-28 after it was broken.** A defect found while measuring gets
+written down here and done in sequence — it does not get fixed on the spot. 4G.6 exists because that
+rule was broken and the fix reverted.
 
 **Opened 2026-09-26. UNBLOCKED the same day** — the user's three messages are in `user-report.md`,
 quoted verbatim with the extraction. That file is the authority for this change and it overturned
@@ -44,8 +56,12 @@ changes ... later we might think of a full solution, but for now we start with s
 
 ## 2. Establish the baseline, with the named tool
 
-- [ ] 2.1 Install and drive the stack chosen in 1.3. **An improvement not heard is not verified**,
-      and this is the step that makes every later claim checkable.
+- [x] 2.1 **DONE 2026-09-27/28.** Orca installed and driven, with speech and a braille monitor
+      (`orca --replace -e braille-monitor -d speech --debug-file=...`); transcripts read back from the
+      log via the `SPEECH OUTPUT:` and `BRAILLE LINE:` markers. What it heard is in
+      `tree-capture-sweep.md` section O — it is what downgraded R4 (Orca drops the PUA glyph
+      silently) and what confirmed R3 by ear ("l", "n", "o", "m" for the move buttons). Nikolay now
+      runs it himself to verify changes, so **every later claim is checkable by both of us**.
 - [ ] 2.2 Walk the target page as a non-visual user would: land on it, find the board, find whose
       turn it is, find the clock, find the last move, make a move. Record where it fails and at
       which step it becomes impossible.
@@ -625,7 +641,22 @@ Raised by Nikolay 2026-09-27: *"before we go to implementing it, i will ask you 
 lets write them down like something that could potentially alter our plans and we should do it first
 before proceeding to implementation."* **These gate section 4. None is optional.**
 
-- [ ] 3b.1 **SEE THE REAL LICHESS PAGES, thoroughly — look for ideas we are missing.** Everything we
+- [~] 3b.1 **PARTLY DONE 2026-09-28 — folded into `lichess-reference.md` §§10–17.** Swept the live
+      site in Chrome over CDP, first in normal mode and then the same pages in blind mode, and the
+      findings are recorded: landmarks are identical in both modes (§11), blind mode is **+7 headings**
+      and zero ARIA change, it **converts** six nav links to `h3` rather than adding them (§14), and it
+      **requires a logged-in account** — the cookie alone does not work anonymously.
+
+      **WHAT IS STILL MISSING, and it is the part the task was written for:** no **live game** was ever
+      captured. The crazyhouse game never started, so every state that only exists while a game is
+      playable is still unobserved — **the command input field's markup above all**, plus before the
+      first move, after each side's move, a draw offer pending, game over, **pockets** (Q2), and the
+      `table` board layout we have still never seen. Also unobserved: lichess's own `nvui` board in
+      blind mode during play.
+
+      Original brief, kept because it lists exactly what remains:
+
+      **SEE THE REAL LICHESS PAGES, thoroughly — look for ideas we are missing.** Everything we
       have about lichess came from its tutorial's prose, its served HTML, and **one** rendered DOM of a
       *finished* game (`lichess-reference.md` §9). We have never seen a **live** game, and the command
       input field's markup has therefore never been observed — it only exists while a game is playable.
@@ -655,7 +686,18 @@ before proceeding to implementation."* **These gate section 4. None is optional.
       STILL OPEN inside 3b.2: the logged-in UI (server ran without `-a`), and a live game / two-board
       page, so the positive-`tabindex` prediction T3 remains unverified.
 
-- [ ] 3b.2-orig **SWEEP PYCHESS'S REAL RENDERED DOM, not its source.** All twelve sweeps read source only,
+- [~] 3b.2-orig **PARTLY DONE — superset of 3b.2 above; read that entry first.** Added 2026-09-28:
+      `#settings` has now been captured **open** (Settings → Board Settings), which is what found the
+      unnamed combobox now tracked as 4G.6 — a defect invisible in every closed-panel capture. Seven
+      pages were also re-captured for the landmark inventory in 4G.5.
+
+      **STILL MISSING:** `#notify-app` and `#challenge-app` in their opened state, the inbox and
+      profile pages, both **two-board** pages, and a **live game** — so the positive-`tabindex`
+      prediction (T3) remains unverified. Those need `server.py -a`.
+
+      Original brief:
+
+      **SWEEP PYCHESS'S REAL RENDERED DOM, not its source.** All twelve sweeps read source only,
       and `coverage-and-change-types.md` already names this as the largest gap: `#settings`,
       `#notify-app`, `#challenge-app` and both two-board pages are built by Snabbdom, so **nobody has
       seen the DOM they produce.**
@@ -709,7 +751,7 @@ before proceeding to implementation."* **These gate section 4. None is optional.
 - [ ] 4.1 To be filled from 3.4, which is still open. Left empty deliberately — the candidates and
       their costs are in `candidates.md`; turning one into tasks is what the gate authorises.
 
-### 4G. Candidate G, started 2026-09-27 — the header navigation. DOES NOT WAIT ON THE GATE.
+### 4G. Candidate G, started 2026-09-27 — the header, and site chrome. DOES NOT WAIT ON THE GATE.
 
 Ordinary semantics, always on, benefiting every keyboard user. `collapsibles-sweep.md` F1/F1a/F2/F3.
 
@@ -817,7 +859,16 @@ Ordinary semantics, always on, benefiting every keyboard user. `collapsibles-swe
       `redraw()` patches only the inner panel and updates `aria-label` by hand for that reason.
       Orca: *"Settings collapsed push button"* → Enter → *"expanded"*.
 
-- [ ] 4G.4 **The hamburger and the drawer, together and in this order** (F2 + F1a.3). Below 800px
+- [ ] 4G.4 **The hamburger and the drawer, together and in this order** (F2 + F1a.3).
+
+      > **"Drawer" in this file means the narrow-viewport nav**: below 800px `.topnav` is pushed
+      > off-screen with `transform: translateX(-100%)` (`site.css:823`) and slid in by the hamburger.
+      > It does **not** mean the header **Settings panel** (`#settings`, inside
+      > `<div id="settings-panel">`) — that is what 4G.6/4G.7 are about, and calling it a drawer is
+      > what made two adjacent tasks here use one word for two elements. `engine.ts:276` uses
+      > "settings drawer" in a third, unrelated sense.
+
+      Below 800px
       `.topnav` hides with `transform`, which does NOT remove anything from the tab order — verified,
       an element translated to `x=-9889` is still focusable — so ~24 invisible links are tabbable
       now, the mirror image of the desktop bug. Order matters or keyboard users end up worse off:
@@ -876,7 +927,7 @@ Ordinary semantics, always on, benefiting every keyboard user. `collapsibles-swe
       measuring gets written down here and done in sequence, not fixed mid-task. The fix is verified
       to work — after it, the tree showed both comboboxes named — so this task is ready, not open.
 
-      **It also exposes a hole in our method:** the drawer was CLOSED for every capture in this
+      **It also exposes a hole in our method:** the Settings panel was CLOSED for every capture in this
       change, and this defect is only visible open. Every panel we have measured closed looked clean.
       See the same point in `tree-capture-sweep.md` under "What this sweep does not cover".
 
@@ -884,12 +935,29 @@ Ordinary semantics, always on, benefiting every keyboard user. `collapsibles-swe
       `#variant` in the aside picks the variant to **analyse**; `#settings-variant` picks whose
       **piece style you are editing**. Both come from the shared `selectVariant()` helper, so once
       4G.6 lands both read `combobox "Variant"` in the tree at the same time — measured, with the
-      drawer open. Position disambiguates them for a sighted user; nothing does for a screen reader
+      Settings panel open. Position disambiguates them for a sighted user; nothing does for a screen reader
       listing form controls.
 
       **Constraint on the new name:** it must still contain the visible word "Variant" (WCAG 2.5.3
       Label in Name), so `Variant to customise` is allowed and `Piece style` is not. **Naming is
       Nikolay's call** — see 5b.
+
+- [ ] 4G.8 **No `contentinfo` landmark anywhere** — `<footer>` is used by **zero** templates, so no
+      page offers a "jump to the bottom" target. Recorded as a finding at line 171 of this file since
+      the baseline sweep and **never tracked as work until 2026-09-28**, which is why it kept being
+      called open without being on any list. Decide first whether there is footer content worth
+      marking: if the footer is purely decorative, the correct answer is to add nothing and say so
+      here. lichess has no `contentinfo` either — their landmark set is `banner`/`navigation`/`main`
+      — so this is not copying them, and it is the weakest item in 4G.
+
+- [ ] 4G.9 **Label the two unlabelled `<nav>`s** — `team-menu.html:1` and `variants.html:137`. Now that
+      4G.5 has added a site-wide `navigation "Site"`, any page carrying one of these has **two**
+      navigation landmarks, and the unlabelled one reads as a bare "navigation" beside it. That is
+      precisely the defect we declined to copy from lichess, who ship two unlabelled navs on
+      `/analysis` and `/variant/crazyhouse`. `following.html:38`, `simul_history.html:44` and
+      `team-members.html:29` are already labelled "Pagination" and need nothing. Two attributes,
+      and **measure it** — confirm from a capture of a team page and `/variants` that two navigation
+      landmarks really are exposed together before naming them.
 
 **Verification for all of 4G** — gates (`yarn typecheck` only after deleting `tsconfig.tsbuildinfo`;
 an incremental run reported green over a syntax error on 2026-09-27), then: capture the tree closed
