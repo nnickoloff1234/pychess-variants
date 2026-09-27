@@ -755,6 +755,13 @@ before proceeding to implementation."* **These gate section 4. None is optional.
 
 Ordinary semantics, always on, benefiting every keyboard user. `collapsibles-sweep.md` F1/F1a/F2/F3.
 
+**COMPLETE 2026-09-28.** Shipped: 4G.1 `:focus-within`, 4G.2 the six disclosure buttons, 4G.3 the
+header panels, 4G.5 the `navigation "Site"` landmark, 4G.6 the Board Settings select's name — plus
+`main` on the three client-rendered board views and names on the lobby's and players' `complementary`
+landmarks. Closed without change: 4G.7 (ambiguity acceptable), 4G.8 and 4G.9 (parked, not an issue).
+Deleted: 4G.4 (sighted-keyboard, out of scope). **Nothing in 4G waited on the gate at 3.4, and
+nothing in it touched the board, chessgroundx or layout CSS.**
+
 - [x] 4G.1 **`:focus-within` beside `:hover`** on `.topnav section .drp` (`static/site.css:1010`).
       Shipped in `4e7e6f04d`. Measured on the lobby: **8 of 31 focusable → 31 of 31.** WCAG 2.1.1
       Level A closed for keyboard. A tree capture straight after confirms it does NOT reach browse
@@ -934,22 +941,21 @@ Ordinary semantics, always on, benefiting every keyboard user. `collapsibles-swe
 
       **This also supersedes 5b.3**, which asked for a name. There is no name to pick.
 
-- [ ] 4G.8 **No `contentinfo` landmark anywhere** — `<footer>` is used by **zero** templates, so no
-      page offers a "jump to the bottom" target. Recorded as a finding at line 171 of this file since
-      the baseline sweep and **never tracked as work until 2026-09-28**, which is why it kept being
-      called open without being on any list. Decide first whether there is footer content worth
-      marking: if the footer is purely decorative, the correct answer is to add nothing and say so
-      here. lichess has no `contentinfo` either — their landmark set is `banner`/`navigation`/`main`
-      — so this is not copying them, and it is the weakest item in 4G.
+- [x] 4G.8 **PARKED 2026-09-28 by Nikolay — not an issue. No change.** No page has a `<footer>`;
+      the lobby is the only page with footer content — ten links (Discord, Github, YouTube, FAQ, Stats,
+      About, Friendly sites, Contact, Terms, Privacy) at `client/lobby.ts:2293-2302`, inside
+      `div.lobby-links-block` → `div.tv` → `main`, so in no landmark. It would be one landmark on one
+      page, it sits inside `main` where `contentinfo` is discouraged, and `div.tv` also holds the
+      patron link, the TV game and blog posts, so only the inner block would qualify. lichess ships no
+      `contentinfo` either. Not reopened without a reason.
 
-- [ ] 4G.9 **Label the two unlabelled `<nav>`s** — `team-menu.html:1` and `variants.html:137`. Now that
-      4G.5 has added a site-wide `navigation "Site"`, any page carrying one of these has **two**
-      navigation landmarks, and the unlabelled one reads as a bare "navigation" beside it. That is
-      precisely the defect we declined to copy from lichess, who ship two unlabelled navs on
-      `/analysis` and `/variant/crazyhouse`. `following.html:38`, `simul_history.html:44` and
-      `team-members.html:29` are already labelled "Pagination" and need nothing. Two attributes,
-      and **measure it** — confirm from a capture of a team page and `/variants` that two navigation
-      landmarks really are exposed together before naming them.
+- [x] 4G.9 **PARKED 2026-09-28 by Nikolay — not an issue. No change.** The premise did not hold:
+      `/variants`, `/teams`, `/`, `/players` and `/faq` each expose **exactly one** navigation
+      landmark, `'Site'`. `variants.html:137` is pagination behind
+      `{% if community_variants.pages > 1 %}` and never renders on our data; `team-menu.html:1` did not
+      appear on `/teams` anonymously and is presumably login-gated, the same `-a` gap that hides
+      `#notify-app` and `#challenge-app`. Two unlabelled navigation landmarks never co-occur on any
+      page measured, so there is nothing to disambiguate.
 
 **Verification for all of 4G** — gates (`yarn typecheck` only after deleting `tsconfig.tsbuildinfo`;
 an incremental run reported green over a syntax error on 2026-09-27), then: capture the tree closed
