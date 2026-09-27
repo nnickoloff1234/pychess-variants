@@ -334,7 +334,6 @@ def add_game_context(
     # profiles draw their dot from (`views/players50.py`). The per-game presence the round page uses
     # is a different question, asked over the socket, and is not this. Correct at render time only;
     # keeping an open page current is phase 2 of `analysis-page-presence-websocket`.
-    context["wonline"] = game.wplayer.online
     context["wrating"] = game.wrating
     context["wrdiff"] = game.wrdiff
     context["chess960"] = game.chess960
@@ -344,7 +343,6 @@ def add_game_context(
     context["bplayer"] = game.bplayer.username
     context["btitle"] = game.bplayer.title
     context["bpatron"] = game.bplayer.patron
-    context["bonline"] = game.bplayer.online
     context["brating"] = game.brating
     context["brdiff"] = game.brdiff
     context["fen"] = DARK_FEN if game.variant == "fogofwar" else game.fen
@@ -372,10 +370,8 @@ def add_game_context(
         context["wplayerB"] = game_two_boards.wplayerB.username
         context["wtitleB"] = game_two_boards.wplayerB.title
         context["wpatronB"] = game_two_boards.wplayerB.patron
-        context["wonlineB"] = game_two_boards.wplayerB.online
         context["wratingB"] = game_two_boards.wrating_b
         context["bplayerB"] = game_two_boards.bplayerB.username
         context["btitleB"] = game_two_boards.bplayerB.title
         context["bpatronB"] = game_two_boards.bplayerB.patron
-        context["bonlineB"] = game_two_boards.bplayerB.online
         context["bratingB"] = game_two_boards.brating_b

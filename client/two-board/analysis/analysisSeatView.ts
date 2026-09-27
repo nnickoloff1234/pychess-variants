@@ -64,27 +64,17 @@ export class AnalysisSeatView {
 }
 
 export function renderSeatNames(ctrl: AnalysisController): void {
-    /* WHO IS ONLINE, FROM THE PAGE MODEL — the server put it there at render time, the same way
-       the player lists and profiles get theirs (`views/players50.py`). It is `User.online`: online
-       ANYWHERE on the site, not "connected to this game", which is the round page's question and a
-       different one. On a finished game the narrow reading would be grey for almost everyone,
-       including a player sitting in the lobby.
+    /* WHO IS ONLINE, FROM THE CONTROLLER — which asked the game's socket once, on connect.
+       It is `User.online`: online ANYWHERE on the site, not "connected to this game", which is the
+       round page's question and a different one. On a finished game the narrow reading would be
+       grey for almost everyone, including a player sitting in the lobby.
 
-       CORRECT AT PAGE LOAD AND NOT AFTER. Nothing updates it while the page is open; that is phase
-       2 of `analysis-page-presence-websocket` and needs a connection this page still does not have.
-       The same guarantee the player lists give, which is where a reader has seen this dot before. */
-    const online = (boardName: BugBoardName, color: 'white' | 'black'): boolean =>
-        boardName === 'a'
-            ? color === 'white'
-                ? !!ctrl.model['wonline']
-                : !!ctrl.model['bonline']
-            : color === 'white'
-              ? !!ctrl.model['wonlineB']
-              : !!ctrl.model['bonlineB'];
+       KEYED BY USERNAME, not by board and colour, because that is what the answer names and what a
+       seat already carries. Unknown until an answer arrives, so a dot starts grey and turns green.
 
-    /* AND NO DOT AT ALL WHERE THERE IS NOBODY. The analysis board opened from the Tools menu has no
-       game and no players — it renders no usernames — so a presence icon there is about nobody.
-       `isAnalysisBoard` is the page's own test, computed once in `analysis.ts`. */
+       CORRECT AT CONNECT AND NOT AFTER — see `askWhoIsOnline`. */
+    const online = (username: string): boolean => ctrl.isOnline(username);
+
     const hasPlayers = ctrl.model['gameId'] !== '';
 
     renderSeatNamesCC(ctrl.seatView, ctrl.seats, ctrl.boardA, 'a', ctrl.model['level'], online, hasPlayers);
@@ -97,7 +87,7 @@ function renderSeatNamesCC(
     board: GameControllerBughouse,
     boardName: BugBoardName,
     level: number,
-    online: (boardName: BugBoardName, color: 'white' | 'black') => boolean,
+    online: (username: string) => boolean,
     hasPlayers: boolean,
 ): void {
     // Same derivation the clocks use: `flipped()` is the board's own state, so the
@@ -118,7 +108,7 @@ function renderSeatNamesCC(
                 seat.player.username,
                 seat.player.rating,
                 level,
-                online(boardName, color),
+                online(seat.player.username),
                 SLOT_SELECTOR[slot],
                 false,
                 hasPlayers,

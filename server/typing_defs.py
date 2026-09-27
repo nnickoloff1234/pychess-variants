@@ -690,8 +690,6 @@ class ViewContext(TypedDict, total=False):
     gameid: str
     variant: str
     wplayer: str
-    wonline: bool
-    bonline: bool
     wtitle: str
     wrating: int | str
     wrdiff: int | str
@@ -715,8 +713,6 @@ class ViewContext(TypedDict, total=False):
     initialFen: str
     board: str
     wplayerB: str
-    wonlineB: bool
-    bonlineB: bool
     wtitleB: str
     wratingB: str
     bplayerB: str

@@ -183,14 +183,12 @@ export type PyChessModel = {
     wpatron: boolean;
     /** Online ANYWHERE on the site — the same `User.online` the player lists draw their dot from,
      *  not the per-game presence the round socket reports. Correct at page load. */
-    wonline: boolean;
     wrating: string; // string, because can contain "?" suffix for provisional rating
     wrdiff: number;
     wberserk: string;
     bplayer: string;
     btitle: string;
     bpatron: boolean;
-    bonline: boolean;
     brating: string; // string, because can contain "?" suffix for provisional rating
     brdiff: number;
     bberserk: string;
@@ -217,12 +215,10 @@ export type PyChessModel = {
     wplayerB: string;
     wtitleB: string;
     wpatronB: boolean;
-    wonlineB: boolean;
     wratingB: string; // string, because can contain "?" suffix for provisional rating
     bplayerB: string;
     btitleB: string;
     bpatronB: boolean;
-    bonlineB: boolean;
     bratingB: string; // string, because can contain "?" suffix for provisional rating
 
     blogs: string;

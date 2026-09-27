@@ -18,6 +18,7 @@ import { GameInfoView } from '../common/gameInfo';
 import { MovelistView } from '../common/movelist';
 import { isOutsidePartnerStack, markBoardRoles } from '../common/boardRoles';
 import { trackToolsPlacement } from '../common/toolsPlacement';
+import { createWebsocket } from '../../socket/webSocketUtils';
 
 export default class AnalysisControllerBughouse extends TwoBoardController {
     pgn: string;
@@ -34,6 +35,17 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
     pgnView: PgnView;
     clockView: AnalysisClockView;
     seatView: AnalysisSeatView;
+
+    /* WHO IS ONLINE, ANSWERED ONCE PER SEAT WHEN THIS PAGE CONNECTS.
+       ------------------------------------------------------------------------------------
+       Empty until the answers arrive, so every dot starts grey and turns green -- never the
+       other way round, which would be a page claiming presence it has not been told about.
+
+       The question asked is `User.online`, online ANYWHERE on the site, not "connected to this
+       game". The narrow reading is what the round page wants mid-game; on a FINISHED game it is
+       grey for everyone, including a player sitting in the lobby, because nobody holds a socket
+       on a game that is over. */
+    private readonly onlineUsers = new Set<string>();
 
     constructor(
         el1: HTMLElement,
@@ -149,6 +161,54 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
         // on the orientation set a few lines above.
         renderSeatNames(this);
         this.syncBoardHitAreas();
+        this.askWhoIsOnline();
+    }
+
+    /** Whether this username was reported online when the page connected. */
+    isOnline(username: string): boolean {
+        return this.onlineUsers.has(username);
+    }
+
+    /* ASK ONCE, ON CONNECT, AND NEVER SUBSCRIBE.
+       ------------------------------------------------------------------------------------
+       The page opens the game's own socket -- the same `wsr/{gameId}` the single-board analysis
+       page opens, and for the same reason: it is where a question about a game's players is
+       answered. It asks `is_user_online` per seat and then listens for nothing else.
+
+       CORRECT WHEN GIVEN, STALE AFTERWARDS, AND THAT IS THE WHOLE SCOPE. If somebody leaves while
+       this page is open the dot stays green until a reload. Keeping it live means subscribing to
+       presence for four arbitrary users, which is `app-wide-online-presence`, not this.
+
+       An analysis board opened from the Tools menu has no game and no players, so there is nothing
+       to ask and no socket to open. */
+    private askWhoIsOnline(): void {
+        const gameId = this.model['gameId'];
+        if (gameId === '') return;
+
+        const usernames = new Set(
+            (['a', 'b'] as const).flatMap(board =>
+                (['white', 'black'] as const).map(color => this.seats.byBoardAndColor(board, color).player.username),
+            ),
+        );
+        usernames.delete('');
+
+        const sock = createWebsocket(
+            'wsr/' + gameId,
+            () => {
+                for (const username of usernames) {
+                    sock.send(JSON.stringify({ type: 'is_user_online', username: username }));
+                }
+            },
+            () => {},
+            () => {},
+            (e: MessageEvent) => {
+                const msg = JSON.parse(e.data);
+                if (msg.type !== 'user_online') return;
+                if (msg.online) this.onlineUsers.add(msg.username);
+                else this.onlineUsers.delete(msg.username);
+                renderSeatNames(this);
+            },
+        );
     }
 
     // A flip changes which player is at the top of a board, so the names and the clocks

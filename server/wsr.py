@@ -78,6 +78,7 @@ if TYPE_CHECKING:
         SetupMessage,
         SetupResponse,
         UpdateTVMessage,
+        UserOnlineMessage,
         UserPresenceMessage,
         ViewRematchMessage,
     )
@@ -293,6 +294,8 @@ async def process_message(
         await handle_embed_user_connected(ws)
     elif data["type"] == "is_user_present":
         await handle_is_user_present(ws, app_state.users, data["username"], game)
+    elif data["type"] == "is_user_online":
+        await handle_is_user_online(ws, app_state.users, data["username"])
     elif data["type"] == "moretime":
         if not game.server_variant.two_boards and game.simulId is not None:
             await ws_send_json(
@@ -1254,6 +1257,26 @@ async def handle_game_user_connected(
     # we considered online user count. todo: also tournament sockets maybe should be checked here
     if not was_user_playing_another_game_before_connect and not user.is_user_active_in_lobby():
         await app_state.lobby.lobby_broadcast_u_cnt()
+
+
+async def handle_is_user_online(
+    ws: WebSocketResponse,
+    users: Users,
+    player_name: str,
+) -> None:
+    """Answer whether a player is online anywhere, to the asking socket only.
+
+    The analysis page asks this once per seat when it connects. It is deliberately NOT broadcast and
+    NOT subscribed to: the answer is correct when given and goes stale after, which is the same
+    guarantee the player lists give and where a reader has seen this dot before.
+    """
+    player = await users.get(player_name)
+    response: UserOnlineMessage = {
+        "type": "user_online",
+        "username": player_name,
+        "online": player is not None and player.online,
+    }
+    await ws_send_json(ws, response)
 
 
 async def handle_is_user_present(
