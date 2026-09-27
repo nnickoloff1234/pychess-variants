@@ -185,8 +185,25 @@ async def capture(page, cdp, url: str, settle_ms: int) -> tuple[list[str], dict]
         await page.wait_for_load_state("networkidle", timeout=8000)
     await page.wait_for_timeout(settle_ms)
 
+    # NO CACHE, EVER. pychess serves its bundle and stylesheets unversioned and without
+    # Cache-Control, so a capture taken after a rebuild will happily measure the PREVIOUS build and
+    # report "no change". That produced three false negatives on 2026-09-27 before it was noticed.
+    await cdp.send("Network.enable")
+    await cdp.send("Network.setCacheDisabled", {"cacheDisabled": True})
     await cdp.send("Accessibility.enable")
+
+    # WAIT FOR THE TREE TO STOP MOVING, rather than trusting a fixed settle. A page still building
+    # itself yields a tree that is WRONG rather than empty -- the analysis page took ~5s to attach
+    # its `main`, and at 2.5s the capture reported the landmark simply missing, which reads exactly
+    # like a change that did not work. Sample until two consecutive reads agree.
     nodes = (await cdp.send("Accessibility.getFullAXTree"))["nodes"]
+    for _ in range(12):
+        await page.wait_for_timeout(750)
+        again = (await cdp.send("Accessibility.getFullAXTree"))["nodes"]
+        if len(again) == len(nodes):
+            nodes = again
+            break
+        nodes = again
     lines, detail = build_outline(nodes)
     detail["url"] = url
     detail["title"] = await page.title()
