@@ -19,7 +19,7 @@ import type {
     AnalysisNavigationOrigin,
     AnalysisPositionChange,
 } from '../analysis/analysisExtension';
-import type { JSONObject, StudyChapterMode, StudyChapterPreview, StudyServerEval } from '../types';
+import type { JSONObject, StudyChapterMode, StudyChapterPreview, StudyChapterStatus, StudyServerEval } from '../types';
 import {
     mergeStudyNodeIntoAnalysisTree,
     mergeStudyTreeIntoAnalysisTree,
@@ -141,6 +141,7 @@ export interface StudySyncOptions {
     variantIni?: string;
     createdAt?: string;
     serverEval?: StudyServerEval | null;
+    onInitialTreeLoaded?: () => void;
     onAnnotationStateChanged?: (state: StudyAnnotationState) => void;
     onReloadRequired?: (reason: string) => void;
     memberRole?: StudyMemberRole;
@@ -159,6 +160,8 @@ export interface StudySyncOptions {
     opIdFactory?: () => string;
     syncIdFactory?: () => string;
     contextMenuActions?: AnalysisExtension['contextMenuActions'];
+    renderMoveListEnd?: AnalysisExtension['renderMoveListEnd'];
+    renderMoveListFooter?: AnalysisExtension['renderMoveListFooter'];
     writable?: boolean;
     recording?: boolean;
     policy?: StudySessionPolicy;
@@ -196,6 +199,10 @@ function asStringArray(value: unknown): string[] | undefined {
     return result;
 }
 
+function asStudyChapterStatus(value: unknown): StudyChapterStatus | undefined {
+    return value === '1-0' || value === '0-1' || value === '½-½' || value === '*' ? value : undefined;
+}
+
 function asStudyChapterPreviews(value: unknown): StudyChapterPreview[] | undefined {
     if (!Array.isArray(value) || value.length === 0) return undefined;
     const chapters: StudyChapterPreview[] = [];
@@ -224,6 +231,7 @@ function asStudyChapterPreviews(value: unknown): StudyChapterPreview[] | undefin
             (chapter.concealPly !== undefined &&
                 (!Number.isInteger(chapter.concealPly) || (chapter.concealPly as number) < 0)) ||
             (mode !== 'conceal' && chapter.concealPly !== undefined) ||
+            (chapter.status !== undefined && asStudyChapterStatus(chapter.status) === undefined) ||
             (chapter.descriptionPinned !== undefined && typeof chapter.descriptionPinned !== 'boolean')
         )
             return undefined;
@@ -234,6 +242,7 @@ function asStudyChapterPreviews(value: unknown): StudyChapterPreview[] | undefin
             order: chapter.order as number,
             orientation: chapter.orientation,
             mode,
+            ...(chapter.status === undefined ? {} : { status: asStudyChapterStatus(chapter.status) }),
             ...(mode === 'conceal' ? { concealPly: (chapter.concealPly as number | undefined) ?? 0 } : {}),
             ...(chapter.descriptionPinned === undefined ? {} : { descriptionPinned: chapter.descriptionPinned }),
         });
@@ -441,6 +450,8 @@ export class StudyAnalysisExtension implements AnalysisExtension {
     readonly socketTarget: string;
     readonly treeStorageKey: string;
     readonly contextMenuActions?: AnalysisExtension['contextMenuActions'];
+    readonly renderMoveListEnd?: AnalysisExtension['renderMoveListEnd'];
+    readonly renderMoveListFooter?: AnalysisExtension['renderMoveListFooter'];
     private readonly idleWaiters = new Set<{ resolve: () => void; reject: () => void }>();
     private currentRevision: number;
     private connected = false;
@@ -498,6 +509,8 @@ export class StudyAnalysisExtension implements AnalysisExtension {
         this.onReloadRequired = options.onReloadRequired ?? (() => window.location.reload());
         this.onAnnotationStateChanged = options.onAnnotationStateChanged;
         this.contextMenuActions = options.contextMenuActions;
+        this.renderMoveListEnd = options.renderMoveListEnd;
+        this.renderMoveListFooter = options.renderMoveListFooter;
         this.opIdFactory = options.opIdFactory ?? newStudyNodeId;
         this.syncIdFactory = options.syncIdFactory ?? newStudyNodeId;
         this.streamReady = options.snapshotVerified === true || !options.snapshotToken;
@@ -627,6 +640,10 @@ export class StudyAnalysisExtension implements AnalysisExtension {
     onPositionChanged(change: AnalysisPositionChange): void {
         this.practiceSession?.onPositionChanged(change);
         this.gamebookPlayback?.onPositionChanged(change);
+        // AnalysisController refreshes the chessground position after onPathChanged().
+        // Re-apply Study drawings once that board update has completed, matching lila's
+        // showGround() ordering. Practice/gamebook playback own their board shapes.
+        if (!this.practiceSession && !this.gamebookPlayback) this.restoreCurrentShapes();
     }
 
     canActivatePath(path: string, origin: AnalysisNavigationOrigin): boolean {
@@ -768,6 +785,7 @@ export class StudyAnalysisExtension implements AnalysisExtension {
             const tree = analysisTreeFromStudy(rootStep, this.options.tree);
             this.ctrl.tree.loadAnalysisTree(tree);
             this.initialTreeLoaded = true;
+            this.options.onInitialTreeLoaded?.();
             this.refreshPreferredMainline();
             this.applyServerEval();
             if (this.options.rootOnlyPreview && this.ctrl.analysisPath !== '') {
@@ -919,15 +937,17 @@ export class StudyAnalysisExtension implements AnalysisExtension {
     }
 
     setDescription(description: string): void {
+        if (!this.writable || this.reloadRequested) return;
         this.description = description;
         this.notifyAnnotationState();
-        this.enqueue('study_set_description', { description });
+        this.enqueue('study_set_description', { description }, false);
     }
 
     setTags(tags: Record<string, string>): void {
+        if (!this.writable || this.reloadRequested) return;
         this.tags = { ...tags };
         this.notifyAnnotationState();
-        this.enqueue('study_set_tags', { tags });
+        this.enqueue('study_set_tags', { tags }, false);
     }
 
     requestServerAnalysis(): void {
@@ -1294,8 +1314,8 @@ export class StudyAnalysisExtension implements AnalysisExtension {
         return true;
     }
 
-    private enqueue(type: StudyMutationType, body: JSONObject): void {
-        if (!this.writable || !this.recording || this.reloadRequested) return;
+    private enqueue(type: StudyMutationType, body: JSONObject, requiresRecording = true): void {
+        if (!this.writable || (requiresRecording && !this.recording) || this.reloadRequested) return;
         const clientOpId = this.opIdFactory();
         if (!clientOpId) {
             this.requestReload('invalid_client_operation_id');

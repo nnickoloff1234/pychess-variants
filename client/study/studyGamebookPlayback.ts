@@ -9,9 +9,15 @@ import type {
     AnalysisPositionChange,
 } from '../analysis/analysisExtension';
 import type { AnalysisTreeNode } from '../analysis/analysisTree';
+import { boardSettings } from '../boardSettings';
 import { uci2cg } from '../chess';
 import { _ } from '../i18n';
+import { setLinkifiedText } from '../richTextEnhance';
 import { StudyGamebookPlayController, type StudyGamebookPlayState } from './studyGamebookPlay';
+
+export interface StudyGamebookPracticeCompletionOptions {
+    onComplete(chapterId: string): void;
+}
 
 export interface StudyGamebookPlaybackOptions {
     chapterId: string;
@@ -22,6 +28,7 @@ export interface StudyGamebookPlaybackOptions {
     onNextChapter?(): void;
     onReturnToEditor?(): void;
     onAnalyse?(): void;
+    practice?: StudyGamebookPracticeCompletionOptions;
 }
 
 function isInteractiveTarget(target: EventTarget | null): boolean {
@@ -94,6 +101,7 @@ export class StudyGamebookPlayback {
             },
         });
         this.onStateChanged(this.controller.state);
+        this.restoreAuthoredShapes();
     }
 
     beforeMoveApplied(move: AnalysisMoveApplication): boolean {
@@ -117,6 +125,12 @@ export class StudyGamebookPlayback {
             const move = change.node?.step.move;
             if (move) this.controller.gradeLearnerMove(move);
         }
+        // AnalysisController applies the new FEN before this callback. Chessground can
+        // clear manual drawings during that board update, so gamebook playback must
+        // restore the authored drawings for the active lesson position. The ordinary
+        // Study extension deliberately skips its own restoration while playback owns
+        // the board annotations.
+        this.restoreAuthoredShapes();
         this.syncBoardInput();
         this.renderPlayButtons(this.controller.state);
     }
@@ -173,6 +187,10 @@ export class StudyGamebookPlayback {
     onShapesChanged(): void {
         // Learner drawing changes are local noise during playback. Always restore
         // authored drawings; solution hints live in autoShapes and never replace them.
+        this.restoreAuthoredShapes();
+    }
+
+    private restoreAuthoredShapes(): void {
         const node = this.ctrl.analysisTree && this.ctrl.getTreeNodeAtPath(this.ctrl.analysisPath ?? '');
         this.ctrl.chessground.setShapes(node?.annotations?.shapes ?? []);
     }
@@ -202,11 +220,13 @@ export class StudyGamebookPlayback {
 
     private onStateChanged(state: StudyGamebookPlayState): void {
         if (this.destroyed) return;
+        const completed = state.kind === 'complete' && this.playbackState?.kind !== 'complete';
         this.playbackState = state;
         this.render(state);
         this.renderPlayButtons(state);
         this.syncBoardInput();
         this.syncSolutionShapes(state);
+        if (completed && this.options.practice) this.options.practice.onComplete(state.chapterId);
     }
 
     private syncBoardInput(): void {
@@ -286,7 +306,7 @@ export class StudyGamebookPlayback {
         comment.className = 'study-gamebook-play__comment';
         const text = document.createElement('div');
         text.className = 'study-gamebook-play__comment-content';
-        text.textContent = content ?? _('You completed this lesson.');
+        setLinkifiedText(text, content ?? _('Congratulations! You completed this lesson.'));
         comment.append(text);
 
         if (state.kind === 'prompt' && state.hint) {
@@ -304,11 +324,12 @@ export class StudyGamebookPlayback {
 
     private turnPiece(): HTMLElement {
         const mark = document.createElement('div');
-        mark.className = 'study-gamebook-play__mark';
+        mark.className = `study-gamebook-play__mark ${this.ctrl.variant.pieceFamily}`;
         const piece = document.createElement('piece');
         piece.classList.add(this.ctrl.variant.kingRoles[0] ?? 'k-piece', this.ctrl.turnColor);
         piece.setAttribute('aria-hidden', 'true');
         mark.append(piece);
+        boardSettings.updateScopedPieceStyle(this.ctrl.variant, mark, this.ctrl.steps?.[0]?.fen ?? this.ctrl.fullfen);
         return mark;
     }
 
@@ -376,7 +397,7 @@ export class StudyGamebookPlayback {
             end.append(replay);
             if (this.options.canAnalyse && this.options.onAnalyse) {
                 const analysis = this.actionButton(
-                    _('Analysis'),
+                    _('Analysis board'),
                     this.options.onAnalyse,
                     'study-gamebook-play__end-action analyse',
                 );

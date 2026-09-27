@@ -23,6 +23,7 @@ import { editorView } from '@/editor/editor';
 import { analysisView, embedView } from './analysis';
 import { studyEmbedView, studyView } from './study/studyView';
 import { initStudyIndex } from './study/studyIndex';
+import { initPracticeIndex } from './practice';
 import { puzzleView } from './puzzle';
 import { profileView } from './profile';
 import { tournamentView } from './tournament';
@@ -419,6 +420,7 @@ function start() {
     initCommunityVariantFavorites(model.assetURL);
     initVariantAuthors();
     initStudyIndex();
+    initPracticeIndex();
 
     patch(document.getElementById('zen-button') as HTMLElement, zenButtonView());
 }

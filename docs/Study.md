@@ -27,8 +27,12 @@ changes; possible future features below are not commitments or a release schedul
 - Store catalogued/custom variant rules with the chapter so later catalogue changes
   do not change the saved rules.
 
-Chapters are single-board only. Raw PGN paste/upload is still unavailable; the import
-core and its remaining integration are described below.
+Chapters are single-board only. Existing Studies can add chapters by pasting PGN or
+selecting a `.pgn` file in the New chapter dialog. Setup chapters expose an independent
+Chess960 option only for variants that support randomized starts; changing chapters does
+not implicitly carry that choice into a new chapter. The same PGN source is available for
+the first chapter of a new Study, where multi-game PGN creates all initial chapters in
+one validated import and opens the final imported chapter.
 
 ### Annotations and analysis
 
@@ -123,9 +127,12 @@ rules board for legality, repetition-sensitive outcomes and variant results, whi
 attempt moves remain local and absent from Study persistence/shared navigation.
 
 The playback layout follows lichess practice rather than replacing the whole analysis
-panel: the engine header, local attempt move tree, move-navigation controls, and normal
-Study under-board tools remain visible, while the ordinary multi-PV output is hidden and
-a compact **Practice with computer** status/feedback box sits below the move tree.
+panel: the engine header, evaluation gauge, local attempt move tree, move-navigation
+controls, and normal Study under-board tools remain visible, while the ordinary multi-PV
+output is hidden and a compact **Practice with computer** status/feedback box sits below
+the move tree. The local-engine switch is hidden during playback because computer
+practice owns the browser engine for the session; its bounded current-position search
+feeds the engine-header score and gauge without exposing the best-move PV/arrow.
 
 The page reuses the existing Fairy-Stockfish browser worker rather than starting a
 second worker. Learner-position feedback/hints use bounded 400,000-node searches and
@@ -141,9 +148,12 @@ directly; missing/bounded scores are reported as ungraded instead of inventing a
 verdict. Like lichess, grading does not stop the game for a separate confirmation step:
 the computer reply continues automatically and the verdict stays in the compact feedback
 strip. A best-move suggestion remains clickable so the learner can jump back and retry it
-even after the computer has replied. Hints escalate on the board from a source piece/drop
-indication to the full move; the practice box only changes its **Get a hint** / **See best
-move** / **Hide best move** action instead of duplicating the hint as explanatory text.
+even after the computer has replied. Ordinary move navigation pauses on opponent-turn
+positions, while jumping back to any earlier learner-turn position rewinds the disposable
+attempt and resumes immediately so another move can be tried. Hints escalate on the board
+from a source piece/drop indication to the full move; the practice box only changes its
+**Get a hint** / **See best move** / **Hide best move** action instead of duplicating the
+hint as explanatory text.
 
 Practice requires the viewer's computer-analysis permission, no conflicting active
 eligible live game, and a variant supported by the browser Fairy-Stockfish instance.
@@ -209,6 +219,9 @@ root-only lock to the other training modes for disclosure/resource safety.
 
 ## PGN and interchange
 
+The implementation history, real-world compatibility notes, and remaining PGN-import
+audit checklist are tracked in [Study-PGN-import.md](Study-PGN-import.md).
+
 ### Export
 
 [studyPgn.ts](../client/study/studyPgn.ts) renders PGN in the browser. Chapter export
@@ -233,6 +246,7 @@ PyChess also writes ignorable extensions for data ordinary PGN cannot fully expr
 | `PyChessConcealPly` | Root-relative reveal boundary for Hide-next-moves chapters |
 | `ChapterMode=gamebook` | Compatibility marker for interactive lessons; it does not contain the lesson text by itself |
 | `[%pygamebook BASE64]` | UTF-8 JSON containing a position's optional lesson `hint` / `deviation` text |
+| `[%pyforcevariation]` | Marks an authored node that must remain a variation instead of extending the preferred mainline |
 | `[%pynag ...]` | Root-position NAGs |
 | `[%pyclocks whiteMs,blackMs]` | Both clock values, including root clocks and sub-second precision |
 
@@ -243,20 +257,105 @@ alone is only a compatibility hint and is not a lossless lesson interchange form
 Practice attempts, lesson attempts and reader conceal exploration are disposable runtime
 state and are never exported as authored chapter moves.
 
-### Import: core implemented, raw-text workflow missing
+Lichess's ordinary Study PGN export likewise does not contain every internal Study field,
+so it must be treated as a **lossy interchange format rather than a complete Study backup or
+clone format**. This is a long-standing known limitation documented in
+[lichess-org/lila#3960](https://github.com/lichess-org/lila/issues/3960): Interactive Lesson
+content entered as **When any other wrong move is played** and **Optional, on-demand hint
+for the player** is stored by Lichess but omitted from its exported Study PGN. In PyChess
+terms, these correspond to gamebook deviation/hint semantics and therefore cannot be
+reconstructed exactly from the exported move tree and ordinary comments alone.
 
-[studyPgnImport.ts](../client/study/studyPgnImport.ts) defines a parser-neutral recursive
+Lichess Study PGN also normally omits chapter orientation. PyChess can infer useful
+orientation in common cases, but missing author intent cannot always be reconstructed from
+ordinary PGN. Multi-stage `TimeControl` values are retained but their clocks are not
+guessed. Consequently, successful import of a Lichess Study PGN means that the portable
+PGN content was recovered; it must not be interpreted as proof of full Study-fidelity
+round-tripping. These are interchange limitations, not reasons to invent unverified
+Lichess-specific directives.
+
+One tightly scoped exception is the current official **Lichess Practice** curriculum.
+Lila exports `ChapterMode "gamebook"` for Interactive Lessons but omits its internal
+Practice-with-computer mode. Those exports retain `ChapterURL`, so PyChess recognizes
+Study IDs present in lila's canonical `PracticeSections.scala` and restores `practice`
+mode for otherwise-unmarked chapters. Lichess Practice defaults a missing goal to mate;
+for chapters whose mode was recovered this way, PyChess therefore materializes
+`Termination "mate"` when that tag is absent. Unknown Lichess Studies are not inferred as
+Practice, and PyChess-authored Practice chapters continue to require an explicit goal.
+
+### Import: parser, validation, and paste workflow
+
+[pgnParser.ts](../client/pgnParser.ts) is the shared client-side structural PGN parser.
+It keeps SAN/move tokens variant-neutral while preserving recursive RAVs, comments, NAGs,
+tags, and multiple games. Browser-side Study import is bounded to 8,000,000 input characters,
+64 games/chapters, 3,000 move nodes per chapter, 30,000 move/variation nodes across the
+batch, and variation nesting depth 64. Study replay separately limits one authored line to
+600 plies, matching Lichess's deep-line Study guard while still allowing useful side
+variations within the 3,000-node chapter budget. Study import consumes the full parsed
+document. **Tools -> Import game** uses the same parser/normalization but intentionally
+imports only the first game's preferred mainline. Fairy-Stockfish resolves the resulting
+SAN tokens to legal variant moves rather than parsing the PGN text itself. Dedicated
+Bughouse/BPGN imports and Shogi KIF imports remain on their existing specialized paths.
+
+Compatibility tolerance stays conservative. Unambiguous producer quirks such as `2.. d6`
+and the shorthand draw result `1/2` are accepted (`1/2` is canonicalized to `1/2-1/2`),
+while malformed tag pairs, unmatched comment/variation delimiters, and unknown or illegal
+move tokens remain import errors rather than being silently skipped.
+
+[studyPgnImport.ts](../client/study/studyPgnImport.ts) defines the parser-neutral recursive
 PGN contract and converts parsed games into Study trees. It preserves variations,
 comments, NAGs, shapes, clocks, evaluations, and the supported PyChess extensions.
-Every branch is replayed in the browser and validated again server-side. The import
-endpoint accepts normalized chapter data, validates the batch before insertion, and
-enforces remaining chapter capacity.
+When an imported PGN contains `[Orientation "white"]` or `[Orientation "black"]`, that
+choice is preserved exactly. Lichess omits this tag from its default Study export, so in its
+absence the importer applies the useful parts of Lichess's automatic orientation rules.
+Conceal and computer-Practice chapters face the root side to move; Practice must do so because
+its saved children are discarded and the learner starts an open-ended game from the chapter
+root. For other non-gamebook chapters, finished games face White and normal analysis chapters
+face the side to move at the end of the mainline. Interactive/gamebook orientation is resolved
+first, because exported puzzle chapters can retain the source game's `Result`: a lesson with a
+visible root prompt faces the root side to move, while other lessons face the player who made
+the final authored mainline move. This keeps both immediate learner prompts and lessons that
+begin with a scripted opponent move working as expected. A move-less lesson keeps the root
+side to move because no learner move exists from which to infer a side. PyChess's own Study
+export always includes Orientation, so PyChess round trips do not depend on these heuristics.
 
-There is currently no complete raw PGN parser connected to this contract and no
-Study paste/upload UI. The existing lightweight Paste reader exposes headers and
-mainline only. Connecting it as a full Study importer would discard variations and
-annotations. Completing this workflow requires a parser with recursive variations,
-comments, NAGs, and multiple-game support, followed by the UI integration.
+Lichess-style `[Annotator ...]` and per-comment `[%anno ...]` metadata are consumed as
+**source attribution**, kept separately from authenticated PyChess comment authorship, and
+written back on export when the source differs from the exporting Study owner. This keeps
+external authorship round-trippable without allowing imported PGN to impersonate a PyChess
+account. Clock directives accept both the usual `H:MM:SS(.sss)` form and lichess-compatible
+`H:MM` / `H:MM.SS` forms. Lichess-style `[%emt ...]` elapsed-move annotations are
+also consumed. When a simple PGN `TimeControl` tag uses `seconds` or
+`seconds+increment`, import seeds both root clocks from the initial limit and reconstructs
+missing move clocks as `previous - elapsed + increment`; an explicit `[%clk ...]` remains
+authoritative. Unsupported multi-stage controls such as `40/7200:3600` are preserved as
+tags but deliberately not guessed. Common external/Lichess `Variant` names are normalized
+to PyChess engine keys before replay (`Standard`/`From Position` → `chess`, `King of the
+Hill` → `kingofthehill`, `Three-check` → `3check`, and `Racing Kings` → `racingkings`),
+while the original PGN tag is retained as metadata. SAN replay first requires an exact
+Fairy-Stockfish match, then tolerates a check/mate suffix mismatch for external variant PGNs
+where notation differs (for example Lichess Atomic `Qh5+` and Racing Kings goal-rank `Kd8#`).
+Every branch is replayed through Fairy-Stockfish in the browser and validated again server-side. Repeated RAV branches that
+resolve to the same legal move are merged after
+that replay, preserving the first/mainline ordering while recursively combining their
+children and annotations, matching lila's Study import behavior. The import endpoint
+accepts normalized chapter data, validates the batch before insertion, and enforces
+remaining chapter capacity.
+
+Both **Add a new chapter** and the first-chapter dialog for a new Study have a PGN source
+tab. Pasted text is parsed and replayed entirely in the browser, then the normalized batch
+is sent to the import endpoint. A thin green progress bar is indeterminate while parsing
+and saving, and advances chapter-by-chapter during Fairy-Stockfish replay; the importer
+yields between chapters so the dialog can repaint during large batches. Parse, legality,
+and server-validation errors stay in the dialog with their detailed diagnostics. Mixed
+ordinary/Alice PGN batches load the matching Fairy-Stockfish WASM module per game.
+Existing-Study imports open the final chapter through
+the in-place navigator; first-chapter imports atomically create the Study with all parsed
+chapters and then open its final chapter. When every imported game carries the same
+`StudyName` tag, a brand-new Study restores that title if the user left the generated
+`<username>'s Study` name unchanged; an explicitly edited name always wins. The same tab
+can load a local `.pgn` file into the paste area with the browser `FileReader`; the import
+path is otherwise identical.
 
 ## Implementation and source map
 
@@ -268,6 +367,7 @@ comments, NAGs, and multiple-game support, followed by the UI integration.
 | Interactive lesson authoring/playback | [studyGamebook.ts](../client/study/studyGamebook.ts), [studyGamebookEdit.ts](../client/study/studyGamebookEdit.ts), [studyGamebookPlayback.ts](../client/study/studyGamebookPlayback.ts) |
 | Computer practice and bounded engine protocol | [studyPractice.ts](../client/study/studyPractice.ts), [studyPracticeFeedback.ts](../client/study/studyPracticeFeedback.ts), [analysisPracticeEngine.ts](../client/analysis/analysisPracticeEngine.ts) |
 | Lists and Add to Study | [studyIndex.ts](../client/study/studyIndex.ts), [addToStudy.ts](../client/study/addToStudy.ts) |
+| Study PGN import/export | [pgnParser.ts](../client/pgnParser.ts), [studyPgnImport.ts](../client/study/studyPgnImport.ts), [studyPgn.ts](../client/study/studyPgn.ts) |
 | Client persistence adapter and synchronization | [studyTree.ts](../client/study/studyTree.ts), [studySync.ts](../client/study/studySync.ts) |
 | HTTP routes and authorization | [routes.py](../server/routes.py), [views/study.py](../server/views/study.py), [permissions.py](../server/study/permissions.py) |
 | Models, storage, tree validation, mutations | [models.py](../server/study/models.py), [storage.py](../server/study/storage.py), [tree.py](../server/study/tree.py), [builder.py](../server/study/builder.py), [mutations.py](../server/study/mutations.py) |
@@ -330,16 +430,20 @@ Practice emits no further bounded-search work. The engine adapter also caps arbi
 callers at one million nodes, 10 seconds movetime, depth 30, MultiPV 3 and a 12-second
 wall-clock search limit by default.
 
-`STUDY_ENABLED_CHAPTER_MODES` is a comma-separated deployment gate over
-`normal,practice,conceal,gamebook`. It defaults to `normal,gamebook` so Normal analysis
-and Interactive lesson can be rolled out first, and it always keeps `normal` as an
-escape hatch. Set the variable explicitly to enable Practice with computer and/or Hide
-next moves later. The switch gates **new entry** into a mode: existing chapters in a
-disabled mode remain readable/playable and preserving edits remain schema-aware, while
-new chapters, imports, copies/clones and mode transitions cannot introduce disabled
-mode data. For rollback, keep this schema-preserving server deployed and narrow the
-variable (for example to `normal`) rather than deploying code from before analysis-mode
-support. No eager migration/backfill is required.
+`STUDY_ENABLED_CHAPTER_MODES` is a comma-separated production deployment gate over
+`normal,practice,conceal,gamebook`. DEV always enables all four modes so authors can
+exercise the complete Study/Practice workflow, including imports whose source metadata
+resolves to Practice with computer or Hide next moves. Production defaults to
+`normal,practice,gamebook`, exposing Normal analysis, Practice with computer, and
+Interactive lesson while **Hide next moves** remains staged behind the deployment gate.
+An explicit production value always keeps `normal` as an escape hatch; deployments that
+set the variable explicitly must include `practice` to expose that mode. The switch gates
+**new entry** into a mode: existing chapters in a disabled mode remain
+readable/playable and preserving edits remain schema-aware, while new chapters, imports,
+copies/clones and mode transitions cannot introduce disabled mode data. For rollback,
+keep this schema-preserving server deployed and narrow the production variable (for
+example to `normal`) rather than deploying code from before analysis-mode support. No
+eager migration/backfill is required.
 
 Untrusted embedded rules and their imported positions/trees are validated outside
 the serving process. Historical rules admitted to the main native engine registry
@@ -388,7 +492,6 @@ PyChess will implement them all or reproduce every lichess workflow.
 
 | Feature | Current gap / next decision |
 | --- | --- |
-| Raw PGN import | Complete parser adapter and paste/upload UI; the normalization/validation core already exists |
 | Multiple accepted lesson answers | Interactive lesson currently accepts only the preferred-mainline move at each prompt |
 | Practice courses | No lichess-style `/practice` curriculum, exercise goals/progress, mastery option or tablebase-backed course integration |
 | Chapter reordering | Persisted order exists, but there is no user-facing reorder action or route |
@@ -426,8 +529,9 @@ Existing tests live in `tests/test_study_*.py`, `tests/study*.test.ts`, and
 `tests/addToStudy.test.ts`. In addition to models/storage, permissions, import/export,
 tree mutations, synchronization/navigation, Fishnet integration and account erasure,
 they now cover mode policy, conceal disclosure, lesson authoring/playback/collaboration,
-Practice engine ownership/feedback/lifecycle, real Fairy-Stockfish WASM searches across
-multiple variant families, deployment gates, and Study browser workflows.
+Practice engine ownership/feedback/lifecycle, Study PGN export→parse→replay round trips,
+representative lichess PGN edge cases, real Fairy-Stockfish WASM searches across multiple
+variant families, deployment gates, and Study browser workflows.
 
 The browser acceptance suite is the place to validate rendered behavior and lifecycle in
 an environment that permits localhost Chromium. Source/unit checks alone cannot prove

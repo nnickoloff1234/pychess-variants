@@ -1,4 +1,11 @@
-import { decodePgnUtf8Base64, parsePgnVariantTag } from '../pgn';
+import { decodePgnUtf8Base64, parsePgnVariantTag, resolvePgnMove } from '../pgn';
+import type {
+    ParsedPgnDocument,
+    ParsedPgnGame,
+    ParsedPgnMove,
+    PgnParser,
+    PgnParserCapabilities,
+} from '../pgnParser';
 import type { StudyChapterMode } from '../types';
 import {
     newStudyNodeId,
@@ -10,40 +17,11 @@ import {
     type StudyTreeDto,
 } from './studyTree';
 
-export interface StudyPgnParserCapabilities {
-    recursiveVariations: boolean;
-    comments: boolean;
-    nags: boolean;
-    multipleGames: boolean;
-}
-
-export interface ParsedStudyPgnMove {
-    /** PGN move token (normally SAN). Kept for diagnostics and SAN-only parsers. */
-    san: string;
-    /** Variant-native Fairy-Stockfish/pyffish move when the parser can expose it. */
-    move?: string;
-    comments?: string[];
-    nags?: number[];
-    /** Child[0] is the PGN continuation; later children are RAV alternatives. */
-    children?: ParsedStudyPgnMove[];
-}
-
-export interface ParsedStudyPgnGame {
-    tags: Record<string, string>;
-    /** Comments attached to the initial position before the first move. */
-    comments?: string[];
-    /** Root children use the same mainline-first ordering as StudyTreeDto. */
-    children: ParsedStudyPgnMove[];
-}
-
-export interface ParsedStudyPgnDocument {
-    capabilities: StudyPgnParserCapabilities;
-    games: ParsedStudyPgnGame[];
-}
-
-export interface StudyPgnParser {
-    parse(pgn: string): ParsedStudyPgnDocument | Promise<ParsedStudyPgnDocument>;
-}
+export type StudyPgnParserCapabilities = PgnParserCapabilities;
+export type ParsedStudyPgnMove = ParsedPgnMove;
+export type ParsedStudyPgnGame = ParsedPgnGame;
+export type ParsedStudyPgnDocument = ParsedPgnDocument;
+export type StudyPgnParser = PgnParser;
 
 interface StudyPgnBoard {
     legalMoves(): string;
@@ -74,6 +52,11 @@ export interface StudyPgnImportChapter {
     variantIni?: string;
 }
 
+export interface StudyPgnImportDocument {
+    chapters: StudyPgnImportChapter[];
+    studyName?: string;
+}
+
 export interface StudyPgnImportResponse {
     ok: boolean;
     imported?: number;
@@ -83,7 +66,41 @@ export interface StudyPgnImportResponse {
     error?: string;
 }
 
+export interface StudyPgnNewStudySettings {
+    name: string;
+    visibility: string;
+    computer: string;
+    explorer: string;
+    cloneable: string;
+    shareable: string;
+}
+
 export class StudyPgnImportError extends Error {}
+
+export type StudyPgnImportProgressPhase = 'parsing' | 'normalizing' | 'saving';
+
+export interface StudyPgnImportProgress {
+    phase: StudyPgnImportProgressPhase;
+    completed: number;
+    total: number;
+}
+
+export type StudyPgnImportProgressCallback = (progress: StudyPgnImportProgress) => void;
+
+// Lichess independently caps one authored line at 600 plies even though a chapter
+// may contain up to 3,000 total nodes. Keep the same guard here so a pathological
+// deep mainline cannot exhaust the browser stack or make navigation unusable.
+const STUDY_PGN_MAX_LINE_PLIES = 600;
+
+function yieldToBrowser(): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, 0));
+}
+
+export function studyPgnGameUsesAlice(game: ParsedStudyPgnGame): boolean {
+    const exact = game.tags.PyChessVariant?.trim().toLowerCase();
+    if (exact) return exact === 'alice';
+    return parsePgnVariantTag(game.tags.Variant ?? 'chess').variant === 'alice';
+}
 
 const BRUSH_BY_CODE: Record<string, StudyShapeDto['brush']> = {
     G: 'green',
@@ -184,8 +201,10 @@ function addUniqueShape(shapes: StudyShapeDto[], shape: StudyShapeDto): void {
 interface ParsedPgnComments {
     annotations?: StudyAnnotationsDto;
     gamebook?: StudyGamebookDto;
+    forceVariation?: boolean;
     whiteEval?: StudyEvalDto;
     clock?: number;
+    elapsed?: number;
     clocks?: [number, number];
 }
 
@@ -194,9 +213,63 @@ interface ParsedPgnComments {
 const PYCHESS_STUDY_PGN_VERSION = '1';
 const STUDY_CHAPTER_MODES = new Set<StudyChapterMode>(['normal', 'practice', 'conceal', 'gamebook']);
 
+// Lichess's ordinary Study PGN export serializes Interactive Lesson chapters as
+// [ChapterMode "gamebook"], but it does not serialize the internal Practice-with-
+// computer mode. Recover that otherwise-lost mode only for Studies that the current
+// lila Practice curriculum explicitly curates. The IDs mirror
+// modules/practice/src/main/PracticeSections.scala (inspected 2026-09-25).
+const LICHESS_PRACTICE_STUDY_IDS = new Set([
+    'BJy6fEDf',
+    'fE4k21MW',
+    '8yadFPpU',
+    'PDkQDt6u',
+    '96Lij7wH',
+    'Rg2cMBZ6',
+    'ByhlXnmM',
+    '9ogFv8Ac',
+    'tuoBxVE5',
+    'Qj281y1p',
+    'MnsJEWnI',
+    'RUQASaZm',
+    'o734CNqp',
+    'ITWY4GN2',
+    'lyVYjhPG',
+    '9cKgYrHb',
+    'g1fxVZu9',
+    's5pLU7Of',
+    'kdKpaYLW',
+    'jOZejFWk',
+    '49fDW0wP',
+    '0YcGiH4Y',
+    'CgjKPvxQ',
+    'udx042D6',
+    'Grmtwuft',
+    'xebrDvFe',
+    'A4ujYOer',
+    'pt20yRkT',
+    'MkDViieT',
+    'pqUSUw8Y',
+    'heQDnvq7',
+    'wS23j5Tm',
+]);
+
+function isCurrentLichessPracticeChapter(tags: Record<string, string>): boolean {
+    const chapterUrl = tags['ChapterURL']?.trim();
+    if (!chapterUrl) return false;
+    const match = /^https:\/\/(?:www\.)?lichess\.org\/study\/([A-Za-z0-9]{8})(?:\/[A-Za-z0-9]{8})?\/?$/.exec(
+        chapterUrl,
+    );
+    return match !== null && LICHESS_PRACTICE_STUDY_IDS.has(match[1]);
+}
+
 function chapterTeaching(
     tags: Record<string, string>,
-): { mode: StudyChapterMode; concealPly?: number; lessonExtension: boolean } {
+): {
+    mode: StudyChapterMode;
+    concealPly?: number;
+    lessonExtension: boolean;
+    inferredLichessPractice: boolean;
+} {
     const version = tags['PyChessStudyVersion'];
     if (version !== undefined && version !== PYCHESS_STUDY_PGN_VERSION) {
         throw new StudyPgnImportError(`Unsupported PyChess Study PGN version: ${version}.`);
@@ -212,7 +285,11 @@ function chapterTeaching(
     if (compatible !== undefined && compatible !== 'gamebook') {
         throw new StudyPgnImportError(`Unsupported ChapterMode: ${compatible}.`);
     }
-    const mode = (rawMode as StudyChapterMode | undefined) ?? (compatible === 'gamebook' ? 'gamebook' : 'normal');
+    const inferredLichessPractice =
+        rawMode === undefined && compatible === undefined && isCurrentLichessPracticeChapter(tags);
+    const mode =
+        (rawMode as StudyChapterMode | undefined) ??
+        (compatible === 'gamebook' ? 'gamebook' : inferredLichessPractice ? 'practice' : 'normal');
     if (compatible === 'gamebook' && mode !== 'gamebook') {
         throw new StudyPgnImportError('ChapterMode conflicts with PyChessChapterMode.');
     }
@@ -234,6 +311,7 @@ function chapterTeaching(
         mode,
         ...(mode === 'conceal' ? { concealPly: concealPly ?? 0 } : {}),
         lessonExtension: version === PYCHESS_STUDY_PGN_VERSION,
+        inferredLichessPractice,
     };
 }
 
@@ -248,19 +326,58 @@ function parseGamebookDirective(encoded: string): StudyGamebookDto {
 }
 
 function parsePgnClock(value: string): number | undefined {
-    const match = /^(\d+):([0-5]?\d):([0-5]?\d(?:\.\d{1,3})?)$/.exec(value.trim());
-    if (!match) return undefined;
-    const hours = Number(match[1]);
-    const minutes = Number(match[2]);
-    const seconds = Number(match[3]);
+    const normalized = value.trim().replace(',', '.');
+    const parts = normalized.split(':');
+    if (parts.length !== 2 && parts.length !== 3) return undefined;
+    if (!/^\d+$/.test(parts[0])) return undefined;
+
+    const hours = Number(parts[0]);
+    let minutes: number;
+    let seconds: number;
+    if (parts.length === 3) {
+        if (!/^\d{1,2}$/.test(parts[1]) || !/^\d{1,2}(?:\.\d{1,3})?$/.test(parts[2])) return undefined;
+        minutes = Number(parts[1]);
+        seconds = Number(parts[2]);
+    } else {
+        // Lichess also accepts the older H:MM and H:MM.SS forms. In the
+        // latter, the decimal digits are seconds rather than a fraction of a minute.
+        if (!/^\d{1,2}(?:\.\d{1,3})?$/.test(parts[1])) return undefined;
+        const minutesAndSeconds = Number(parts[1]);
+        minutes = Math.trunc(minutesAndSeconds);
+        seconds = (minutesAndSeconds - minutes) * 100;
+    }
+    if (minutes >= 60 || seconds >= 60) return undefined;
+
     const milliseconds = Math.round((hours * 3600 + minutes * 60 + seconds) * 1000);
     return Number.isSafeInteger(milliseconds) && milliseconds >= 0 ? milliseconds : undefined;
 }
 
 function parseFullClocks(value: string): [number, number] | undefined {
     const parts = value.split(',').map(part => Number(part.trim()));
-    if (parts.length !== 2 || parts.some(clock => !Number.isFinite(clock) || clock < 0)) return undefined;
+    if (
+        parts.length !== 2 ||
+        parts.some(clock => !Number.isSafeInteger(clock) || clock < 0)
+    )
+        return undefined;
     return [parts[0], parts[1]];
+}
+
+interface StudyPgnTimeControl {
+    initial: number;
+    increment: number;
+}
+
+function parsePgnTimeControl(value: string | undefined): StudyPgnTimeControl | undefined {
+    if (!value) return undefined;
+    // Match the simple sudden-death / Fischer-increment form that Lichess can
+    // use to reconstruct clocks from [%emt]. Multi-stage PGN controls such as
+    // 40/7200:3600 need move-boundary semantics and are therefore left alone.
+    const match = /^(\d+)(?:\+(\d+))?$/.exec(value.trim());
+    if (!match) return undefined;
+    const initial = Number(match[1]) * 1000;
+    const increment = Number(match[2] ?? '0') * 1000;
+    if (!Number.isSafeInteger(initial) || !Number.isSafeInteger(increment)) return undefined;
+    return { initial, increment };
 }
 
 function parseWhiteEval(value: string): StudyEvalDto | undefined {
@@ -283,10 +400,63 @@ function evalForTurn(whiteEval: StudyEvalDto | undefined, turnColor: 'white' | '
     return undefined;
 }
 
+const PGN_ATTRIBUTION_MAX_LENGTH = 256;
+const PGN_ATTRIBUTION_ID_MAX_LENGTH = 128;
+const PGN_ANNO_RE = /\[%anno\s+(?:"([^"]*)"|([^\],]+))\s*(?:,\s*([^\]\s]+))?\s*\]/i;
+
+function cleanPgnAttribution(value: string | undefined, maxLength: number): string | undefined {
+    if (value === undefined) return undefined;
+    const cleaned = [...value.replace(/[\r\n]+/g, ' ')]
+        .filter(char => {
+            const code = char.charCodeAt(0);
+            return code >= 32 && code !== 127;
+        })
+        .join('')
+        .trim();
+    return cleaned && cleaned.length <= maxLength ? cleaned : undefined;
+}
+
+interface PgnCommentAttribution {
+    sourceAuthor?: string;
+    sourceAuthorId?: string;
+}
+
+function samePgnCommentAttribution(a: PgnCommentAttribution, b: PgnCommentAttribution): boolean {
+    return a.sourceAuthor === b.sourceAuthor && a.sourceAuthorId === b.sourceAuthorId;
+}
+
+function stripPgnCommentAttribution(
+    text: string,
+    defaultSourceAuthor: string | undefined,
+): { text: string; attribution: PgnCommentAttribution } {
+    const match = PGN_ANNO_RE.exec(text);
+    if (!match) {
+        return {
+            text,
+            attribution: defaultSourceAuthor ? { sourceAuthor: defaultSourceAuthor } : {},
+        };
+    }
+    const sourceAuthor = cleanPgnAttribution(match[1] ?? match[2], PGN_ATTRIBUTION_MAX_LENGTH);
+    const sourceAuthorId = cleanPgnAttribution(match[3], PGN_ATTRIBUTION_ID_MAX_LENGTH);
+    if (!sourceAuthor) {
+        // Do not silently discard malformed attribution metadata. Keeping the
+        // directive in the visible text is safer than inventing an author.
+        return {
+            text,
+            attribution: defaultSourceAuthor ? { sourceAuthor: defaultSourceAuthor } : {},
+        };
+    }
+    return {
+        text: `${text.slice(0, match.index)}${text.slice(match.index + match[0].length)}`,
+        attribution: { sourceAuthor, ...(sourceAuthorId ? { sourceAuthorId } : {}) },
+    };
+}
+
 function commentsFromPgn(
     comments: readonly string[],
     rawNags: readonly number[] = [],
     lessonExtension = false,
+    defaultSourceAuthor?: string,
 ): ParsedPgnComments {
     const shapes: StudyShapeDto[] = [];
     const nags: number[] = [];
@@ -297,11 +467,14 @@ function commentsFromPgn(
 
     let whiteEval: StudyEvalDto | undefined;
     let clock: number | undefined;
+    let elapsed: number | undefined;
     let clocks: [number, number] | undefined;
     let gamebook: StudyGamebookDto | undefined;
-    const visibleComments: string[] = [];
+    let forceVariation = false;
+    const visibleComments: Array<{ text: string; attribution: PgnCommentAttribution }> = [];
     for (const original of comments) {
-        let text = original;
+        const attributed = stripPgnCommentAttribution(original, defaultSourceAuthor);
+        let text = attributed.text;
         text = text.replace(/\[%csl\s+([^\]]+)\]/gi, (full, body: string) => {
             const parsed = body.split(',').map(parseShapeToken);
             if (parsed.some(shape => shape === undefined)) return full;
@@ -334,6 +507,12 @@ function commentsFromPgn(
             clock = parsed;
             return '';
         });
+        text = text.replace(/\[%emt\s+([^\]]+)\]/gi, (full, body: string) => {
+            const parsed = parsePgnClock(body);
+            if (parsed === undefined) return full;
+            elapsed = parsed;
+            return '';
+        });
         text = text.replace(/\[%pyclocks\s+([^\]]+)\]/gi, (full, body: string) => {
             const parsed = parseFullClocks(body);
             if (!parsed) return full;
@@ -349,21 +528,35 @@ function commentsFromPgn(
             if (/\[%pygamebook\b/i.test(text)) {
                 throw new StudyPgnImportError('Malformed PyChess lesson metadata in PGN comment.');
             }
+            text = text.replace(/\[%pyforcevariation\s*\]/gi, () => {
+                forceVariation = true;
+                return '';
+            });
+            if (/\[%pyforcevariation\b/i.test(text)) {
+                throw new StudyPgnImportError('Malformed PyChess forced-variation metadata in PGN comment.');
+            }
         }
         const cleaned = text.trim();
-        if (cleaned) visibleComments.push(cleaned);
+        if (cleaned) visibleComments.push({ text: cleaned, attribution: attributed.attribution });
     }
 
     const annotations: StudyAnnotationsDto = {
         shapes,
-        comments: visibleComments.map(text => ({ id: newStudyNodeId(), author: 'import', text })),
+        comments: visibleComments.map(({ text, attribution }) => ({
+            id: newStudyNodeId(),
+            author: 'import',
+            text,
+            ...attribution,
+        })),
         nags,
     };
     return {
         ...(annotations.shapes.length || annotations.comments.length || annotations.nags.length ? { annotations } : {}),
         ...(gamebook ? { gamebook } : {}),
+        ...(forceVariation ? { forceVariation: true } : {}),
         ...(whiteEval ? { whiteEval } : {}),
         ...(clock !== undefined ? { clock } : {}),
+        ...(elapsed !== undefined ? { elapsed } : {}),
         ...(clocks ? { clocks } : {}),
     };
 }
@@ -415,36 +608,6 @@ function resolveVariant(tags: Record<string, string>): { variant: string; chess9
     };
 }
 
-function normalizedSan(value: string): string {
-    return value
-        .trim()
-        .replace(/0/g, 'O')
-        .replace(/[!?]+$/g, '');
-}
-
-function resolveMove(board: StudyPgnBoard, node: ParsedStudyPgnMove, location: string): { move: string; san: string } {
-    const suppliedMove = node.move?.trim();
-    if (suppliedMove) {
-        const san = board.sanMove(suppliedMove);
-        if (!san) throw new StudyPgnImportError(`Illegal move at ${location}: ${node.san || suppliedMove}.`);
-        return { move: suppliedMove, san };
-    }
-
-    const targetSan = normalizedSan(node.san);
-    if (!targetSan) throw new StudyPgnImportError(`Missing move token at ${location}.`);
-    const matching = board
-        .legalMoves()
-        .split(/\s+/)
-        .filter(Boolean)
-        .map(move => ({ move, san: board.sanMove(move) }))
-        .filter(candidate => normalizedSan(candidate.san) === targetSan);
-    if (matching.length !== 1) {
-        const detail = matching.length ? 'ambiguous' : 'illegal or unsupported';
-        throw new StudyPgnImportError(`PGN move is ${detail} at ${location}: ${node.san}.`);
-    }
-    return matching[0];
-}
-
 function turnColorFromFen(fen: string): 'white' | 'black' {
     const turn = fen.trim().split(/\s+/)[1];
     if (turn === 'w') return 'white';
@@ -452,7 +615,118 @@ function turnColorFromFen(fen: string): 'white' | 'black' {
     throw new StudyPgnImportError('Fairy-Stockfish returned a FEN without a valid side to move.');
 }
 
+function oppositeColor(color: 'white' | 'black'): 'white' | 'black' {
+    return color === 'white' ? 'black' : 'white';
+}
+
+function lastMainlineTurnColor(
+    initialFen: string,
+    nodes: readonly StudyTreeDto['nodes'][number][],
+): 'white' | 'black' {
+    let color = turnColorFromFen(initialFen);
+    let parentId: string | null = null;
+    while (true) {
+        const next = nodes.find(node => node.parentId === parentId && node.order === 0);
+        if (!next) return color;
+        color = next.turnColor;
+        parentId = next.id;
+    }
+}
+
+function pgnHasOutcome(tags: Record<string, string>): boolean {
+    const result = tags['Result']?.trim();
+    return result === '1-0' || result === '0-1' || result === '1/2-1/2';
+}
+
+function importedChapterOrientation(
+    tags: Record<string, string>,
+    mode: StudyChapterMode,
+    initialFen: string,
+    nodes: readonly StudyTreeDto['nodes'][number][],
+    hasRootComment: boolean,
+): 'white' | 'black' {
+    const explicit = tags['Orientation']?.trim().toLowerCase();
+    if (explicit === 'white' || explicit === 'black') return explicit;
+
+    const rootTurn = turnColorFromFen(initialFen);
+    // Match the recoverable parts of Lichess's automatic Study orientation when
+    // its default PGN export omits the Orientation tag. Conceal and computer Practice
+    // start from the root side to move. In Practice the saved children are discarded
+    // and the learner plays an open-ended game from the root, so using the exported
+    // mainline's final turn can incorrectly make the engine play the learner's first
+    // move. Ordinary finished games use White by convention. Gamebooks are handled
+    // first because a Study export can retain the source game's Result; that result is
+    // game metadata and does not identify the learner side.
+    if (mode === 'conceal' || mode === 'practice') return rootTurn;
+    const finalTurn = lastMainlineTurnColor(initialFen, nodes);
+    if (mode === 'gamebook') {
+        // Lichess's outcome-less lesson example starts with a root prompt for the
+        // learner but ends after an automatic opponent reply, so the root comment
+        // remains a useful fallback in that narrower case. Real puzzle-pack exports
+        // with a game outcome can also have root introductory text before a scripted
+        // opponent move, so do not let such comments override the authored line.
+        if (!pgnHasOutcome(tags) && hasRootComment) return rootTurn;
+        return nodes.length ? oppositeColor(finalTurn) : rootTurn;
+    }
+    if (pgnHasOutcome(tags)) return 'white';
+    return finalTurn;
+}
+
 type ClockState = [number | undefined, number | undefined];
+
+function sameShape(a: StudyShapeDto, b: StudyShapeDto): boolean {
+    return a.orig === b.orig && a.dest === b.dest && a.brush === b.brush;
+}
+
+function mergeAnnotations(
+    current: StudyAnnotationsDto | undefined,
+    incoming: StudyAnnotationsDto | undefined,
+): StudyAnnotationsDto | undefined {
+    if (!incoming) return current;
+    if (!current) return incoming;
+
+    const shapes = [...current.shapes];
+    for (const shape of incoming.shapes) {
+        if (!shapes.some(existing => sameShape(existing, shape))) shapes.push(shape);
+    }
+
+    const comments = [...current.comments];
+    for (const comment of incoming.comments) {
+        if (
+            !comments.some(
+                existing =>
+                    existing.author === comment.author &&
+                    existing.text === comment.text &&
+                    existing.sourceAuthor === comment.sourceAuthor &&
+                    existing.sourceAuthorId === comment.sourceAuthorId,
+            )
+        ) {
+            comments.push(comment);
+        }
+    }
+
+    const nags = [...current.nags];
+    for (const nag of incoming.nags) {
+        if (!nags.includes(nag)) nags.push(nag);
+    }
+    return { shapes, comments, nags };
+}
+
+function coalesceImportedComments(annotations: StudyAnnotationsDto | undefined): StudyAnnotationsDto | undefined {
+    if (!annotations || annotations.comments.length < 2) return annotations;
+
+    const comments: StudyAnnotationsDto['comments'] = [];
+    for (const comment of annotations.comments) {
+        const existing = comments.find(
+            candidate =>
+                candidate.author === comment.author &&
+                samePgnCommentAttribution(candidate, comment),
+        );
+        if (existing) existing.text = `${existing.text}\n${comment.text}`;
+        else comments.push({ ...comment });
+    }
+    return { ...annotations, comments };
+}
 
 function normalizeChildren(
     board: StudyPgnBoard,
@@ -461,34 +735,81 @@ function normalizeChildren(
     nodes: StudyTreeDto['nodes'],
     path: string,
     parentClocks: ClockState = [undefined, undefined],
+    increment = 0,
     lessonExtension = false,
+    defaultSourceAuthor?: string,
+    plyDepth = 0,
 ): void {
-    for (let order = 0; order < parsedChildren.length; order++) {
-        const parsed = parsedChildren[order];
-        const location = path ? `${path}.${order + 1}` : `${order + 1}`;
-        const resolved = resolveMove(board, parsed, location);
+    const normalizedSiblings = nodes.filter(node => node.parentId === parentId);
+    for (let sourceOrder = 0; sourceOrder < parsedChildren.length; sourceOrder++) {
+        const parsed = parsedChildren[sourceOrder];
+        const location = path ? `${path}.${sourceOrder + 1}` : `${sourceOrder + 1}`;
+        const childPlyDepth = plyDepth + 1;
+        if (childPlyDepth > STUDY_PGN_MAX_LINE_PLIES) {
+            throw new StudyPgnImportError(
+                `PGN line exceeds ${STUDY_PGN_MAX_LINE_PLIES} plies at ${location}. Split or shorten the chapter before importing it.`,
+            );
+        }
+        const resolved = resolvePgnMove(board, parsed, location);
         if (!board.push(resolved.move)) throw new StudyPgnImportError(`Illegal move at ${location}: ${parsed.san}.`);
         try {
-            const id = newStudyNodeId();
             const fen = board.fen();
             const turnColor = turnColorFromFen(fen);
-            const parsedComments = commentsFromPgn(parsed.comments ?? [], parsed.nags ?? [], lessonExtension);
+            const parsedComments = commentsFromPgn(
+                parsed.comments ?? [],
+                parsed.nags ?? [],
+                lessonExtension,
+                defaultSourceAuthor,
+            );
             const clockState: ClockState = parsedComments.clocks ? [...parsedComments.clocks] : [...parentClocks];
-            if (!parsedComments.clocks && parsedComments.clock !== undefined) {
+            let clockChanged = parsedComments.clocks !== undefined;
+            if (!parsedComments.clocks) {
                 const mover = turnColor === 'black' ? 0 : 1;
-                clockState[mover] = parsedComments.clock;
+                if (parsedComments.clock !== undefined) {
+                    clockState[mover] = parsedComments.clock;
+                    clockChanged = true;
+                } else if (parsedComments.elapsed !== undefined && clockState[mover] !== undefined) {
+                    const computed = clockState[mover] - parsedComments.elapsed + increment;
+                    // Lichess treats reconstructed non-positive clocks as unknown.
+                    // Do the same instead of persisting an impossible negative state.
+                    clockState[mover] = Number.isSafeInteger(computed) && computed > 0 ? computed : undefined;
+                    clockChanged = true;
+                }
             }
             const clocks =
-                clockState[0] !== undefined &&
-                clockState[1] !== undefined &&
-                (parsedComments.clocks !== undefined || parsedComments.clock !== undefined)
+                clockChanged && clockState[0] !== undefined && clockState[1] !== undefined
                     ? ([clockState[0], clockState[1]] as [number, number])
                     : undefined;
             const evalScore = evalForTurn(parsedComments.whiteEval, turnColor);
-            nodes.push({
+            const existing = normalizedSiblings.find(node => node.move === resolved.move);
+
+            if (existing) {
+                existing.annotations = mergeAnnotations(existing.annotations, parsedComments.annotations);
+                if (!existing.annotations) delete existing.annotations;
+                if (parsedComments.gamebook) existing.gamebook = parsedComments.gamebook;
+                if (parsedComments.forceVariation) existing.forceVariation = true;
+                if (evalScore) existing.eval = evalScore;
+                if (clocks) existing.clocks = clocks;
+                normalizeChildren(
+                    board,
+                    parsed.children ?? [],
+                    existing.id,
+                    nodes,
+                    location,
+                    clockState,
+                    increment,
+                    lessonExtension,
+                    defaultSourceAuthor,
+                    childPlyDepth,
+                );
+                continue;
+            }
+
+            const id = newStudyNodeId();
+            const node: StudyTreeDto['nodes'][number] = {
                 id,
                 parentId,
-                order,
+                order: normalizedSiblings.length,
                 move: resolved.move,
                 fen,
                 turnColor,
@@ -497,10 +818,24 @@ function normalizeChildren(
                 sanSAN: resolved.san,
                 ...(parsedComments.annotations ? { annotations: parsedComments.annotations } : {}),
                 ...(parsedComments.gamebook ? { gamebook: parsedComments.gamebook } : {}),
+                ...(parsedComments.forceVariation ? { forceVariation: true } : {}),
                 ...(evalScore ? { eval: evalScore } : {}),
                 ...(clocks ? { clocks } : {}),
-            });
-            normalizeChildren(board, parsed.children ?? [], id, nodes, location, clockState, lessonExtension);
+            };
+            nodes.push(node);
+            normalizedSiblings.push(node);
+            normalizeChildren(
+                board,
+                parsed.children ?? [],
+                id,
+                nodes,
+                location,
+                clockState,
+                increment,
+                lessonExtension,
+                defaultSourceAuthor,
+                childPlyDepth,
+            );
         } finally {
             board.pop();
         }
@@ -522,31 +857,68 @@ function normalizeGame(engine: StudyPgnEngine, game: ParsedStudyPgnGame, index: 
         const initialFen = board.fen();
         if (!initialFen) throw new StudyPgnImportError(`Unable to initialize PGN variant ${variant}.`);
         const nodes: StudyTreeDto['nodes'] = [];
-        const rootComments = commentsFromPgn(game.comments ?? [], [], teaching.lessonExtension);
+        const defaultSourceAuthor = cleanPgnAttribution(tags['Annotator'], PGN_ATTRIBUTION_MAX_LENGTH);
+        const rootComments = commentsFromPgn(
+            game.comments ?? [],
+            [],
+            teaching.lessonExtension,
+            defaultSourceAuthor,
+        );
+        const timeControl = parsePgnTimeControl(tags['TimeControl']);
+        const rootEval = evalForTurn(rootComments.whiteEval, turnColorFromFen(initialFen));
+        const rootClocks: [number, number] | undefined = rootComments.clocks
+            ? [...rootComments.clocks]
+            : timeControl
+              ? [timeControl.initial, timeControl.initial]
+              : undefined;
         normalizeChildren(
             board,
             game.children,
             null,
             nodes,
             '',
-            rootComments.clocks ? [...rootComments.clocks] : [undefined, undefined],
+            rootClocks ? [...rootClocks] : [undefined, undefined],
+            timeControl?.increment ?? 0,
             teaching.lessonExtension,
+            defaultSourceAuthor,
         );
+        rootComments.annotations = coalesceImportedComments(rootComments.annotations);
+        for (const node of nodes) node.annotations = coalesceImportedComments(node.annotations);
+        if (nodes.filter(node => node.forceVariation).length > 1) {
+            throw new StudyPgnImportError('PyChess Study PGN contains more than one forced-variation marker.');
+        }
+        const importedTags = canonicalTags(tags);
+        // Lichess PracticeGoal defaults an absent/unrecognized Termination tag to
+        // mate. Keep PyChess's stricter explicit-goal rule for authored Practice
+        // Studies, but materialize the missing default when importing a chapter
+        // whose Practice mode itself had to be recovered from the official Lichess
+        // curriculum. Existing non-empty Termination values remain untouched so a
+        // malformed source goal is still visible to PyChess validation.
+        if (teaching.inferredLichessPractice && importedTags.Termination === undefined) {
+            importedTags.Termination = 'mate';
+        }
         return {
             name: chapterName(tags, index),
             variant,
             chess960,
             initialFen,
-            orientation: tags['Orientation']?.trim().toLowerCase() === 'black' ? 'black' : 'white',
+            orientation: importedChapterOrientation(
+                tags,
+                teaching.mode,
+                initialFen,
+                nodes,
+                Boolean(rootComments.annotations?.comments.length),
+            ),
             mode: teaching.mode,
             ...(teaching.mode === 'conceal' ? { concealPly: teaching.concealPly ?? 0 } : {}),
             description,
-            tags: canonicalTags(tags),
+            tags: importedTags,
             tree: {
                 nodes,
                 ...(rootComments.annotations ? { rootAnnotations: rootComments.annotations } : {}),
                 ...(rootComments.gamebook ? { rootGamebook: rootComments.gamebook } : {}),
-                ...(rootComments.clocks ? { rootClocks: rootComments.clocks } : {}),
+                ...(rootEval ? { rootEval } : {}),
+                ...(rootClocks ? { rootClocks } : {}),
             },
             ...(variantIni ? { variantIni } : {}),
         };
@@ -573,20 +945,88 @@ export async function parseStudyPgnForImport(
     parser: StudyPgnParser,
     engine: StudyPgnEngine,
     pgn: string,
+    onProgress?: StudyPgnImportProgressCallback,
 ): Promise<StudyPgnImportChapter[]> {
+    return parseStudyPgnForImportWithEngines(parser, () => engine, pgn, onProgress);
+}
+
+function importedStudyName(parsed: ParsedStudyPgnDocument): string | undefined {
+    const names = parsed.games.map(game => game.tags['StudyName']?.replace(/[\r\n]+/g, ' ').trim());
+    if (!names.length || names.some(name => !name)) return undefined;
+    const first = names[0]!;
+    if (!names.every(name => name === first)) return undefined;
+    return first.slice(0, 100);
+}
+
+export async function parseStudyPgnDocumentForImportWithEngines(
+    parser: StudyPgnParser,
+    engineForGame: (game: ParsedStudyPgnGame, index: number) => StudyPgnEngine | Promise<StudyPgnEngine>,
+    pgn: string,
+    onProgress?: StudyPgnImportProgressCallback,
+): Promise<StudyPgnImportDocument> {
     if (!pgn.trim()) throw new StudyPgnImportError('PGN text is empty.');
-    return normalizeStudyPgnDocument(engine, await parser.parse(pgn));
+    onProgress?.({ phase: 'parsing', completed: 0, total: 1 });
+    // Give the browser one paint before the synchronous structural parse begins.
+    if (onProgress) await yieldToBrowser();
+    const parsed = await parser.parse(pgn);
+    requireCompleteParser(parsed.capabilities);
+    if (!parsed.games.length) throw new StudyPgnImportError('PGN contains no games.');
+    onProgress?.({ phase: 'parsing', completed: 1, total: 1 });
+
+    const chapters: StudyPgnImportChapter[] = [];
+    onProgress?.({ phase: 'normalizing', completed: 0, total: parsed.games.length });
+    for (const [index, game] of parsed.games.entries()) {
+        // Replay is CPU-bound. Yield between chapters so the dialog, progress bar,
+        // and the rest of the page remain responsive during large Study imports.
+        if (onProgress) await yieldToBrowser();
+        chapters.push(normalizeGame(await engineForGame(game, index), game, index));
+        onProgress?.({ phase: 'normalizing', completed: index + 1, total: parsed.games.length });
+    }
+    const studyName = importedStudyName(parsed);
+    return { chapters, ...(studyName ? { studyName } : {}) };
+}
+
+export async function parseStudyPgnForImportWithEngines(
+    parser: StudyPgnParser,
+    engineForGame: (game: ParsedStudyPgnGame, index: number) => StudyPgnEngine | Promise<StudyPgnEngine>,
+    pgn: string,
+    onProgress?: StudyPgnImportProgressCallback,
+): Promise<StudyPgnImportChapter[]> {
+    return (await parseStudyPgnDocumentForImportWithEngines(parser, engineForGame, pgn, onProgress)).chapters;
 }
 
 export async function postStudyPgnImport(
     studyId: string,
     chapters: StudyPgnImportChapter[],
     fetcher: typeof fetch = fetch,
+    sync?: boolean,
 ): Promise<StudyPgnImportResponse> {
     const response = await fetcher(`/study/${studyId}/import-pgn`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chapters }),
+        body: JSON.stringify({ chapters, ...(sync === undefined ? {} : { sync }) }),
+    });
+    let payload: StudyPgnImportResponse;
+    try {
+        payload = (await response.json()) as StudyPgnImportResponse;
+    } catch {
+        payload = { ok: false, error: `Study PGN import failed (${response.status})` };
+    }
+    if (!response.ok || !payload.ok) {
+        throw new StudyPgnImportError(payload.error || `Study PGN import failed (${response.status})`);
+    }
+    return payload;
+}
+
+export async function postNewStudyPgnImport(
+    settings: StudyPgnNewStudySettings,
+    chapters: StudyPgnImportChapter[],
+    fetcher: typeof fetch = fetch,
+): Promise<StudyPgnImportResponse> {
+    const response = await fetcher('/study/import-pgn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...settings, chapters }),
     });
     let payload: StudyPgnImportResponse;
     try {

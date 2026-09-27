@@ -32,7 +32,15 @@ class StudySchemaTestCase(unittest.TestCase):
     def test_enabled_chapter_modes_config_is_staged_and_always_keeps_normal(self) -> None:
         self.assertEqual(
             _configured_study_chapter_modes(None),
-            ("normal", "gamebook"),
+            ("normal", "practice", "gamebook"),
+        )
+        self.assertEqual(
+            _configured_study_chapter_modes(None, dev=True),
+            ("normal", "practice", "conceal", "gamebook"),
+        )
+        self.assertEqual(
+            _configured_study_chapter_modes("normal", dev=True),
+            ("normal", "practice", "conceal", "gamebook"),
         )
         self.assertEqual(
             _configured_study_chapter_modes("gamebook, conceal"),

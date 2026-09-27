@@ -117,6 +117,35 @@ describe('Study PGN export', () => {
         expect(pgn).toContain('1. e4! {King pawn} {[%cal Re2e4]} (1. d4?!) e5 1-0');
     });
 
+    test('exports imported comment provenance with Lichess-compatible %anno metadata', () => {
+        const data = chapter();
+        data.tree.rootAnnotations!.comments[0].sourceAuthor = 'https://www.pychess.org/@/owner';
+        data.tree.nodes[0].annotations!.comments[0].sourceAuthor = 'Mary';
+        data.tree.nodes[0].annotations!.comments[0].sourceAuthorId = 'mary';
+
+        const pgn = renderStudyChapterPgn(study, data);
+
+        expect(pgn).toContain('[Annotator "https://www.pychess.org/@/owner"]');
+        expect(pgn).toContain('{Root note}');
+        expect(pgn).not.toContain('[%anno "https://www.pychess.org/@/owner"] Root note');
+        expect(pgn).toContain('{[%anno "Mary", mary] King pawn}');
+    });
+
+    test('preserves an imported Annotator tag instead of replacing it with the Study owner', () => {
+        const data = chapter({ tags: { Event: 'Imported', Annotator: 'https://lichess.org/@/bobby' } });
+        data.tree.rootAnnotations!.comments[0].sourceAuthor = 'https://lichess.org/@/bobby';
+        data.tree.nodes[0].annotations!.comments[0].sourceAuthor = 'Mary';
+        data.tree.nodes[0].annotations!.comments[0].sourceAuthorId = 'mary';
+
+        const pgn = renderStudyChapterPgn(study, data);
+
+        expect(pgn).toContain('[Annotator "https://lichess.org/@/bobby"]');
+        expect(pgn).not.toContain('[Annotator "https://www.pychess.org/@/owner"]');
+        expect(pgn).toContain('{Root note}');
+        expect(pgn).not.toContain('[%anno "https://lichess.org/@/bobby"] Root note');
+        expect(pgn).toContain('{[%anno "Mary", mary] King pawn}');
+    });
+
     test('exports versioned lesson metadata without exposing brace or newline text to PGN syntax', () => {
         const data = chapter({ mode: 'gamebook' });
         data.tree.rootGamebook = { hint: 'Find } the idea\nwith Unicode ✓' };
@@ -162,8 +191,22 @@ describe('Study PGN export', () => {
         expect(pgn).toContain('[%pygamebook ');
     });
 
+    test('exports a forced preferred continuation as legal PGN plus a lossless PyChess marker', () => {
+        const data = chapter({ variantIni: undefined, description: '' });
+        data.tree.nodes[1].forceVariation = true;
+
+        const pgn = renderStudyChapterPgn(study, data);
+        expect(pgn).toContain('e5 {[%pyforcevariation]}');
+        expect(pgn).not.toContain('(1... e5');
+
+        const game = ffish.readGamePGN(pgn);
+        expect(game.mainlineMoves().trim()).toBe('e2e4 e7e5');
+        game.delete();
+    });
+
     test('preserves result, clocks and evaluations with compatible PGN directives', () => {
         const data = chapter();
+        data.tree.rootEval = { cp: 25 };
         data.tree.rootClocks = [300000, 300000];
         data.tree.nodes[0].clocks = [298765, 300000];
         data.tree.nodes[0].eval = { cp: -42 };
@@ -173,6 +216,7 @@ describe('Study PGN export', () => {
         const pgn = renderStudyChapterPgn(study, data);
 
         expect(pgn).toContain('[Result "1-0"]');
+        expect(pgn).toContain('{[%eval 0.25]}');
         expect(pgn).toContain('{[%pyclocks 300000,300000]}');
         expect(pgn).toContain(
             'e4! {[%eval 0.42]} {King pawn} {[%cal Re2e4]} {[%clk 0:04:59]} {[%pyclocks 298765,300000]}',

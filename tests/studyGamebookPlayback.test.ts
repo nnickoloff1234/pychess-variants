@@ -81,6 +81,7 @@ function makeCtrl(tree = lessonTree()) {
         autoShapes: [],
         variant: {
             kingRoles: ['k-piece'],
+            pieceFamily: 'standard',
             colors: { first: 'white', second: 'black' },
         },
         chessground: {
@@ -162,7 +163,11 @@ describe('Study interactive lesson playback adapter', () => {
             '/static/images/study/octopus.svg',
         );
         expect(panel.querySelector('.study-gamebook-play__title')?.textContent).toBe('Your turn');
+        expect(panel.querySelector('.study-gamebook-play__mark')?.classList.contains('piece-style-standard-standard')).toBe(
+            true,
+        );
         expect(panel.querySelector('.study-gamebook-play__message')?.textContent).toContain('white');
+        expect(panel.querySelector('.study-gamebook-play__mark')?.classList.contains('standard')).toBe(true);
         expect(document.querySelector('.study-gamebook-play-buttons')?.textContent).toContain('View the solution');
 
         playback.destroy();
@@ -192,6 +197,41 @@ describe('Study interactive lesson playback adapter', () => {
         expect(playback.areTreeNodeAnnotationsVisible()).toBe(false);
         expect(playback.isTreeNodeVisible(ctrl.analysisTree!.root)).toBe(true);
         expect(playback.isTreeNodeVisible(ctrl.analysisTree!.byPath.get('e4')!)).toBe(false);
+
+        playback.destroy();
+    });
+
+    test('restores authored drawings after gamebook position changes', () => {
+        const tree = lessonTree();
+        const e4 = tree.byPath.get('e4')!;
+        e4.annotations = {
+            ...(e4.annotations ?? { comments: [], nags: [] }),
+            shapes: [{ orig: 'b1', dest: 'c3', brush: 'blue' }],
+        };
+        const ctrl = makeCtrl(tree);
+        const playback = new StudyGamebookPlayback(ctrl, {
+            chapterId: 'chapter-shapes',
+            orientation: 'white',
+            preview: false,
+            canAnalyse: false,
+            hasNextChapter: false,
+        });
+
+        expect(ctrl.chessground.setShapes).toHaveBeenLastCalledWith([
+            expect.objectContaining({ orig: 'a1', dest: 'a2', brush: 'green' }),
+        ]);
+
+        ctrl.analysisPath = 'e4';
+        playback.onPositionChanged(position(e4, 'automated-reply'));
+        expect(ctrl.chessground.setShapes).toHaveBeenLastCalledWith([
+            expect.objectContaining({ orig: 'b1', dest: 'c3', brush: 'blue' }),
+        ]);
+
+        ctrl.analysisPath = '';
+        playback.onPositionChanged(position(tree.root, 'reset'));
+        expect(ctrl.chessground.setShapes).toHaveBeenLastCalledWith([
+            expect.objectContaining({ orig: 'a1', dest: 'a2', brush: 'green' }),
+        ]);
 
         playback.destroy();
     });
@@ -295,7 +335,7 @@ describe('Study interactive lesson playback adapter', () => {
         expect(end.querySelector('.study-gamebook-play__end-action.retry .icon-refresh')).not.toBeNull();
         expect(document.body.textContent).not.toContain('Next chapter');
         const analysis = [...document.querySelectorAll<HTMLButtonElement>('.study-gamebook-play button')].find(
-            button => button.textContent === 'Analysis',
+            button => button.textContent === 'Analysis board',
         );
         expect(analysis).toBeDefined();
         expect(analysis?.querySelector('.icon-microscope')).not.toBeNull();
@@ -361,6 +401,128 @@ describe('Study interactive lesson playback adapter', () => {
         playback.destroy();
     });
 
+    test('renders a comment-only chapter as the completed gamebook page like Lichess', () => {
+        const root = node(
+            'root',
+            '',
+            0,
+            undefined,
+            'white',
+            'Welcome to the study.\n\nRead https://lichess.org/study/example before continuing.',
+        );
+        const tree: AnalysisTree = { root, byPath: new Map([['', root]]), nextId: 1 };
+        const ctrl = makeCtrl(tree);
+        const nextChapter = jest.fn();
+        const playback = new StudyGamebookPlayback(ctrl, {
+            chapterId: 'chapter-introduction',
+            orientation: 'white',
+            preview: false,
+            canAnalyse: true,
+            hasNextChapter: true,
+            onNextChapter: nextChapter,
+            onAnalyse: jest.fn(),
+        });
+
+        const comment = document.querySelector<HTMLElement>('.study-gamebook-play__comment-content')!;
+        expect(comment.querySelectorAll('br')).toHaveLength(2);
+        expect(comment.textContent).toBe('Welcome to the study.Read lichess.org/study/example before continuing.');
+        const link = comment.querySelector<HTMLAnchorElement>('a')!;
+        expect(link.getAttribute('href')).toBe('https://lichess.org/study/example');
+        expect(link.getAttribute('target')).toBe('_blank');
+        expect(link.getAttribute('rel')).toBe('nofollow noreferrer noopener');
+        expect(document.querySelector('.study-gamebook-play__feedback.end')?.textContent).toContain('Next chapter');
+        expect(document.body.textContent).not.toContain('Lesson unavailable');
+
+        playback.destroy();
+    });
+
+    test('reports Practice success only when the authored lesson reaches its end', () => {
+        const ctrl = makeCtrl();
+        let autoNext = false;
+        const onComplete = jest.fn();
+        const nextChapter = jest.fn();
+        const playback = new StudyGamebookPlayback(ctrl, {
+            chapterId: 'chapter-practice',
+            orientation: 'white',
+            preview: false,
+            canAnalyse: false,
+            hasNextChapter: true,
+            onNextChapter: nextChapter,
+            practice: {
+                autoNext: () => autoNext,
+                setAutoNext: value => {
+                    autoNext = value;
+                },
+                onComplete,
+            },
+        });
+
+        const wrong = ctrl.analysisTree!.byPath.get('d4')!;
+        ctrl.analysisPath = wrong.path;
+        ctrl.turnColor = wrong.step.turnColor;
+        playback.onPositionChanged(position(wrong));
+        expect(onComplete).not.toHaveBeenCalled();
+        expect(document.body.textContent).not.toContain('Congratulations! You completed this lesson.');
+
+        document.querySelector<HTMLButtonElement>('.study-gamebook-play__feedback.bad')?.click();
+        const e4 = ctrl.analysisTree!.byPath.get('e4')!;
+        ctrl.analysisPath = e4.path;
+        ctrl.turnColor = e4.step.turnColor;
+        playback.onPositionChanged(position(e4));
+        expect(onComplete).not.toHaveBeenCalled();
+
+        document.querySelector<HTMLButtonElement>('.study-gamebook-play__feedback.good')?.click();
+        jest.runOnlyPendingTimers();
+        const nf3 = ctrl.analysisTree!.byPath.get('e4.e5.nf3')!;
+        ctrl.analysisPath = nf3.path;
+        ctrl.turnColor = nf3.step.turnColor;
+        playback.onPositionChanged(position(nf3));
+
+        expect(onComplete).toHaveBeenCalledTimes(1);
+        expect(onComplete).toHaveBeenCalledWith('chapter-practice');
+        expect(document.querySelector('.study-gamebook-play__comment-content')?.textContent).toBe('Finished.');
+        expect(document.querySelector('.study-gamebook-play__success')).toBeNull();
+        expect(nextChapter).not.toHaveBeenCalled();
+
+        playback.destroy();
+    });
+
+    test('Practice Interactive Lesson waits on success until the learner chooses the next chapter', () => {
+        const root = node('root', '', 0, undefined, 'white');
+        const tree: AnalysisTree = { root, byPath: new Map([['', root]]), nextId: 1 };
+        const ctrl = makeCtrl(tree);
+        const onComplete = jest.fn();
+        const nextChapter = jest.fn();
+        const playback = new StudyGamebookPlayback(ctrl, {
+            chapterId: 'chapter-waits-for-next',
+            orientation: 'white',
+            preview: false,
+            canAnalyse: false,
+            hasNextChapter: true,
+            onNextChapter: nextChapter,
+            practice: { onComplete },
+        });
+
+        expect(onComplete).toHaveBeenCalledWith('chapter-waits-for-next');
+        expect(document.querySelector('.study-gamebook-play__comment-content')?.textContent).toBe(
+            'Congratulations! You completed this lesson.',
+        );
+        expect(document.querySelector('.study-gamebook-play__success')).toBeNull();
+        expect(document.querySelector('.study-gamebook-play-auto-next')).toBeNull();
+
+        jest.advanceTimersByTime(10_000);
+        expect(nextChapter).not.toHaveBeenCalled();
+        expect(document.querySelector('.study-gamebook-play__comment-content')?.textContent).toBe(
+            'Congratulations! You completed this lesson.',
+        );
+        expect(document.querySelector('.study-gamebook-play__success')).toBeNull();
+
+        document.querySelector<HTMLButtonElement>('.study-gamebook-play__end-action.next')?.click();
+        expect(nextChapter).toHaveBeenCalledTimes(1);
+
+        playback.destroy();
+    });
+
     test('matches lichess icon treatment for completed lesson actions', () => {
         const ctrl = makeCtrl();
         const nextChapter = jest.fn();
@@ -373,6 +535,7 @@ describe('Study interactive lesson playback adapter', () => {
             hasNextChapter: true,
             onNextChapter: nextChapter,
             onAnalyse: analyse,
+            practice: { onComplete: jest.fn() },
         });
 
         const e4 = ctrl.analysisTree!.byPath.get('e4')!;
@@ -388,6 +551,17 @@ describe('Study interactive lesson playback adapter', () => {
         playback.onPositionChanged(position(nf3));
 
         const end = document.querySelector<HTMLElement>('.study-gamebook-play__feedback.end')!;
+        expect(end.querySelectorAll('.study-gamebook-play__end-action')).toHaveLength(3);
+        expect(end.querySelector('.study-gamebook-play__success')).toBeNull();
+        expect(end.querySelector<HTMLButtonElement>('.study-gamebook-play__end-action.next')?.textContent).toBe(
+            'Next chapter',
+        );
+        expect(end.querySelector<HTMLButtonElement>('.study-gamebook-play__end-action.retry')?.textContent).toBe(
+            'Play again',
+        );
+        expect(end.querySelector<HTMLButtonElement>('.study-gamebook-play__end-action.analyse')?.textContent).toBe(
+            'Analysis board',
+        );
         expect(end.querySelector('.study-gamebook-play__end-action.next .icon-play')).not.toBeNull();
         expect(end.querySelector('.study-gamebook-play__end-action.retry .icon-refresh')).not.toBeNull();
         expect(end.querySelector('.study-gamebook-play__end-action.analyse .icon-microscope')).not.toBeNull();

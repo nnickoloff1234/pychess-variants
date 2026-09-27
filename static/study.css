@@ -3,16 +3,17 @@
 
 /* Adapted from lila ui/analyse/css/study: chapter list, tool tabs, and
    underboard panels. Use PyChess theme tokens and variant board geometry. */
-/* The Study index mirrors lila's page-menu + study-index structure. It shares
-   this stylesheet with the Study workspace, so undo analysis.css's shrink-wrap
-   main track only for list pages. */
+/* The Study index mirrors lila's page-menu + study-index structure. Study
+   shares analysis.css with the workspace, which sets the global main track to
+   auto; restore lila's 1300px desktop cap for list pages so the card grid can
+   actually use the available horizontal space. */
 #main-wrap.study-index-wrap {
-    --main-max-width: 1180px;
+    --main-max-width: 1300px;
 }
 .study-index-page {
     grid-area: main;
     width: 100%;
-    max-width: 1180px;
+    max-width: 1300px;
     margin: 1.25rem auto 3rem;
 }
 /* Standard Study actions share one button treatment across the index,
@@ -356,7 +357,7 @@
 }
 .studies {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(20.5rem, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(45ch, 1fr));
     border-top: 1px solid var(--border-color);
 }
 .study-card {
@@ -405,7 +406,7 @@
     overflow: hidden;
     color: var(--link-color-blue);
     font-family: var(--font-sans);
-    font-size: 1.5em;
+    font-size: 1.4em;
     font-weight: normal;
     line-height: 1.2;
     text-overflow: ellipsis;
@@ -511,8 +512,77 @@
 .study-app { min-width: 0; }
 .study-app > .sidebar-first { min-width: 0; justify-content: flex-start; }
 .study-app .analysis-tools { min-height: 0; min-width: 0; background: var(--bg-color0); border-radius: 3px; overflow: hidden; }
-.study-app .movelist-block { min-height: 0; }
-.study-app .pocketrow { max-width: 100%; }
+.study-app .movelist-block { display: flex; flex-direction: column; min-height: 0; }
+.study-app #movelist { flex: 0 0 auto; }
+.study-app #movelist-footer { flex: 0 0 auto; }
+.study-app #movelist > .study-next-chapter {
+    display: flex;
+    flex: 0 0 100%;
+    align-items: center;
+    gap: .35rem;
+    width: 100%;
+    padding: .5em .65em;
+    border: 0;
+    background: var(--bg-color1);
+    color: var(--link-color-blue);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 120ms ease, color 120ms ease;
+}
+.study-app #movelist > .study-next-chapter:hover,
+.study-app #movelist > .study-next-chapter:focus-visible {
+    color: var(--link-hover);
+    background: var(--bg-color2);
+}
+.study-app #movelist > .study-next-chapter.highlighted {
+    background: color-mix(in srgb, var(--move-active) 78%, var(--bg-color1));
+    color: #fff;
+}
+.study-app #movelist > .study-next-chapter.highlighted:hover,
+.study-app #movelist > .study-next-chapter.highlighted:focus-visible { background: var(--move-active); }
+.study-app #movelist > .study-next-chapter .icon { width: 1rem; margin: 0; text-align: center; }
+.study-app #movelist-footer > .study-move-fork {
+    display: flex;
+    flex: 0 0 100%;
+    flex-wrap: wrap;
+    width: 100%;
+}
+.study-app #movelist-footer > .study-move-fork > .study-move-fork__move {
+    display: flex;
+    flex: 0 0 50%;
+    align-items: center;
+    gap: .3em;
+    min-width: 0;
+    padding: .3em .65em;
+    border: 0;
+    border-bottom: 1px solid var(--bg-color1);
+    background: color-mix(in srgb, var(--move-active) 25%, var(--bg-color0));
+    color: var(--font-color);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.study-app #movelist-footer > .study-move-fork > .study-move-fork__move:nth-child(odd) {
+    border-right: 1px solid var(--bg-color1);
+}
+.study-app #movelist-footer > .study-move-fork .study-move-fork__index { color: Gray; }
+.study-app #movelist-footer > .study-move-fork .study-move-fork__san {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+@media (hover: hover) {
+    .study-app #movelist-footer > .study-move-fork > .study-move-fork__move:hover,
+    .study-app #movelist-footer > .study-move-fork:not(:hover) > .study-move-fork__move.selected {
+        background: var(--move-active);
+        color: #fff;
+    }
+    .study-app #movelist-footer > .study-move-fork > .study-move-fork__move:hover .study-move-fork__index,
+    .study-app #movelist-footer > .study-move-fork:not(:hover) > .study-move-fork__move.selected .study-move-fork__index {
+        color: #fff;
+    }
+}
 .study-app > under-board { min-width: 0; margin-top: .6rem; }
 .study-app.has-players > under-board { margin-top: 1.4rem; }
 .study-app .btn-controls { min-width: 0; }
@@ -547,13 +617,6 @@
     align-self: stretch;
     border-bottom: 2px solid transparent;
 }
-.study-side__readonly {
-    align-self: center;
-    flex: 0 0 auto;
-    padding: 0 .55rem;
-    font-size: .75rem;
-    opacity: .65;
-}
 .study-side__panel[hidden] { display: none; }
 .study-side__visibility {
     font-size: .8rem;
@@ -570,11 +633,20 @@
 .study-chapter__row { display: flex; align-items: stretch; min-height: 2.2rem; }
 .study-chapter__row a { display: flex; flex: 1; min-width: 0; align-items: center; padding: .35rem .4rem; }
 .study-chapter__number { flex: 0 0 1.7rem; text-align: center; opacity: .7; }
-.study-chapter__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.study-chapter__name { flex: 1 1 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.study-chapter__result { flex: 0 0 auto; margin-inline: .55rem .3rem; font-size: .9em; white-space: nowrap; }
 .study-chapter__row.active, .study-chapter__row:hover, .study-chapter__row:focus-within {
     background: color-mix(in srgb, var(--link-color-blue) 10%, var(--bg-color0));
 }
 .study-chapter__row.active a { color: var(--link-color-blue); }
+.practice-chapter-status {
+    width: 1.1rem;
+    color: color-mix(in srgb, var(--font-color) 45%, transparent);
+    text-align: center;
+}
+.study-chapter__row.active .practice-chapter-status { color: var(--link-color-blue); }
+.study-chapter__row.completed .practice-chapter-status { color: var(--good); font-weight: bold; }
+.study-mode[hidden] { display: none; }
 .study-mode {
     display: inline-flex;
     align-items: center;
@@ -902,7 +974,7 @@ button.study-gamebook-edit__legend { cursor: pointer; }
 }
 .study-desc-form textarea:focus { outline: 2px solid var(--link-color-blue); outline-offset: -1px; }
 
-/* Site-game Study chapters mirror Lichess player bars around the board. */
+/* Study chapters with player tags mirror Lichess player bars around the board. */
 @media (min-width: 800px) {
     /* Lila reserves header space when player bars extend above the board. */
     #main-wrap:has(> .study-app.has-players) { --site-header-margin: 1.6rem; }
@@ -948,6 +1020,7 @@ button.study-gamebook-edit__legend { cursor: pointer; }
 }
 .study__player-bot .anal-clock { border-radius: 0 0 4px 0; }
 .study__player .anal-clock.active { background: var(--anal-clock); }
+.study__player-clock-placeholder { display: none; }
 .study-dialog {
     position: fixed;
     inset: 0;
@@ -1018,6 +1091,59 @@ button.study-gamebook-edit__legend { cursor: pointer; }
 }
 .study-side__new-chapter { display: grid; gap: 1rem; }
 .study-side__new-chapter label { display: grid; gap: .35rem; }
+.study-side__new-chapter label.study-chapter-chess960 {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+}
+.study-side__new-chapter label.study-chapter-chess960[hidden] { display: none; }
+.study-chapter-source-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+}
+.study-chapter-source-tab {
+    flex: 1 1 0;
+    padding: .55rem .5rem .45rem;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--font-color);
+    font: inherit;
+    cursor: pointer;
+}
+.study-chapter-source-tab:hover { border-bottom-color: color-mix(in srgb, var(--rusty) 45%, transparent); }
+.study-chapter-source-tab.active { color: var(--rusty); border-bottom-color: var(--rusty); }
+.study-chapter-source-panel { display: grid; gap: 1rem; }
+.study-chapter-source-panel[hidden] { display: none; }
+.study-pgn-import textarea { min-height: 13rem; font-family: monospace; line-height: 1.35; }
+.study-pgn-import__progress {
+    position: relative;
+    height: 3px;
+    overflow: hidden;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--good) 22%, transparent);
+}
+.study-pgn-import__progress[hidden] { display: none; }
+.study-pgn-import__progress span {
+    display: block;
+    width: 0;
+    height: 100%;
+    background: var(--good);
+    transition: width 120ms ease-out;
+}
+.study-pgn-import__progress.indeterminate span {
+    width: 35%;
+    animation: study-pgn-import-progress 900ms ease-in-out infinite;
+}
+@keyframes study-pgn-import-progress {
+    from { transform: translateX(-110%); }
+    to { transform: translateX(320%); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .study-pgn-import__progress.indeterminate span { animation-duration: 2s; }
+}
+.study-pgn-import__error { margin: 0; color: var(--bad); font-size: .9em; white-space: pre-wrap; }
+.study-pgn-import__error[hidden] { display: none; }
 
 @media (min-width: 1100px) {
     .study-app {
@@ -1361,4 +1487,264 @@ button.study-gamebook-edit__legend { cursor: pointer; }
     border-radius: 4px;
     background: var(--bg-color0);
     box-shadow: var(--base-shadow);
+}
+
+/* Learn -> Practice learner shell, adapted from lila's study Practice sidebar.
+   Keep this separate from ordinary Study navigation: Practice is a curated learner
+   surface, not the Study editor with extra links. */
+.study-app > .sidebar-first:has(.practice-study-side) {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+}
+@media (min-width: 800px) {
+    .study-app > .sidebar-first:has(.practice-study-side) {
+        height: var(--study-practice-board-height, auto);
+        max-height: var(--study-practice-board-height, none);
+    }
+    .study-app .practice-study-side {
+        height: 100%;
+    }
+}
+.study-app .practice-study-side {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+    min-height: 0;
+    min-width: 0;
+    flex-direction: column;
+    align-self: start;
+    overflow: hidden;
+    border-radius: 3px;
+    background: var(--bg-color0);
+    box-shadow: var(--base-shadow);
+}
+.study-app .practice-study-side__title {
+    display: flex;
+    flex: 0 0 auto;
+    min-width: 0;
+    align-items: center;
+    padding: .7rem;
+    background: var(--link-color-blue);
+    color: #fff;
+}
+.study-app .practice-study-side__icon {
+    flex: 0 0 3.5rem;
+    width: 3.5rem;
+    height: 3.5rem;
+    margin-inline-end: .6rem;
+    object-fit: contain;
+    opacity: .9;
+}
+.study-app .practice-study-side__title-text {
+    min-width: 0;
+    overflow: hidden;
+}
+.study-app .practice-study-side__title h1 {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    font-size: 1.2rem;
+    font-weight: normal;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.study-app .practice-study-side__title em {
+    display: block;
+    margin-top: .1rem;
+    overflow: hidden;
+    font-size: .9rem;
+    font-style: normal;
+    line-height: 1.25;
+    opacity: .9;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.study-app .practice-study-side__chapters {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    max-height: calc(100vh - var(--site-header-height) - var(--site-header-margin) - 9rem);
+    overflow-y: auto;
+}
+.study-app .practice-study-chapter {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    min-height: 2.2rem;
+    align-items: stretch;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--font-color);
+    text-decoration: none;
+    transition: background 120ms ease;
+}
+.study-app .practice-study-chapter:hover,
+.study-app .practice-study-chapter:focus-visible,
+.study-app .practice-study-chapter.active {
+    background: color-mix(in srgb, var(--link-color-blue) 10%, var(--bg-color0));
+}
+.study-app .practice-study-chapter:focus-visible {
+    outline: 2px solid var(--link-color-blue);
+    outline-offset: -2px;
+}
+.study-app .practice-study-chapter__status {
+    display: flex;
+    flex: 0 0 2.5rem;
+    align-items: center;
+    justify-content: center;
+    color: color-mix(in srgb, var(--font-color) 22%, transparent);
+    font-size: 1.1rem;
+}
+.study-app .practice-study-chapter.completed .practice-study-chapter__status {
+    color: var(--link-color-blue);
+}
+.study-app .practice-study-chapter.active .practice-study-chapter__status {
+    background: var(--link-color-blue);
+    color: #fff;
+}
+.study-app .practice-study-chapter__name {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    align-items: center;
+    margin: 0;
+    padding: .45rem .45rem .45rem .3rem;
+    font-size: .95rem;
+    font-weight: normal;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+.study-app .practice-study-side__footer {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    flex: 0 0 auto;
+    align-items: center;
+    padding: .55rem .55rem .55rem 0;
+    background: var(--bg-color0);
+}
+.study-app .practice-study-side__back {
+    flex: 0 0 2.5rem;
+    color: var(--link-color-blue);
+    font-size: 1.8rem;
+    line-height: 1;
+    text-align: center;
+    text-decoration: none;
+}
+.study-app .practice-study-side__back:hover,
+.study-app .practice-study-side__back:focus-visible {
+    filter: brightness(1.15);
+}
+.study-app .practice-study-side__selector {
+    flex: 1 1 auto;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    min-height: 2.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 2px;
+    background: var(--bg-color0);
+    color: var(--font-color);
+    font: inherit;
+}
+.study-app .practice-study-side__preview-label {
+    min-width: 0;
+    overflow: hidden;
+    color: color-mix(in srgb, var(--font-color) 72%, transparent);
+    font-size: .9rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.study-app .study-practice-underboard {
+    width: 100%;
+}
+.study-app .study-practice-underboard:empty {
+    display: none;
+}
+.study-app .study-practice-underboard__feedback {
+    padding: 1rem 1.2rem;
+    border-radius: 3px;
+    background: var(--bg-color0);
+    box-shadow: var(--base-shadow);
+    line-height: 1.45;
+}
+.study-app .study-practice-underboard__goal {
+    width: 100%;
+    margin-bottom: .8rem;
+    font-size: 1.2em;
+    text-align: center;
+}
+.study-app .study-practice-underboard__comment {
+    white-space: pre-wrap;
+}
+.study-app .study-practice-underboard__auto-next {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    margin-top: .45rem;
+    padding: .35rem 0;
+    font-size: .9rem;
+}
+.study-app .study-practice-underboard__auto-next > label:last-child {
+    cursor: pointer;
+}
+.study-app .study-practice-underboard__feedback.success {
+    display: flex;
+    width: 100%;
+    min-height: 4.6rem;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    border: 0;
+    background: var(--good);
+    color: #fff;
+    font: inherit;
+    font-size: 1.1rem;
+    text-align: center;
+}
+.study-app .study-practice-underboard__feedback.success.action {
+    cursor: pointer;
+}
+.study-app .study-practice-underboard__feedback.success.action:hover,
+.study-app .study-practice-underboard__feedback.success.action:focus-visible,
+.study-app .study-practice-underboard__feedback.fail.action:hover,
+.study-app .study-practice-underboard__feedback.fail.action:focus-visible {
+    filter: brightness(1.08);
+}
+.study-app .study-practice-underboard__success-title {
+    font-size: 1.1em;
+}
+.study-app .study-practice-underboard__success-action {
+    font-weight: normal;
+}
+.study-app .study-practice-underboard__feedback.fail {
+    display: flex;
+    width: 100%;
+    min-height: 4.6rem;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    border: 0;
+    background: var(--bad);
+    color: #fff;
+    font: inherit;
+    font-size: 1.1rem;
+    text-align: center;
+}
+.study-app .study-practice-underboard__feedback.fail.action {
+    cursor: pointer;
+}
+.study-app .study-practice-underboard__failure-goal {
+    font-weight: normal;
+}
+
+@media (max-width: 799px) {
+    .study-app .practice-study-side__chapters {
+        max-height: 18rem;
+    }
 }

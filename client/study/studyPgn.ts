@@ -3,7 +3,12 @@ import type { StudyChapterMode } from '../types';
 import { GLYPH_GROUPS } from '../analysis/glyphs';
 import { encodePgnUtf8Base64 } from '../pgn';
 import { variantKey } from '../variants';
-import { renderFullTreePgnMoveText, type AnalysisAnnotations, type AnalysisTreeNode } from '../analysis/analysisTree';
+import {
+    renderFullTreePgnMoveText,
+    type AnalysisAnnotations,
+    type AnalysisComment,
+    type AnalysisTreeNode,
+} from '../analysis/analysisTree';
 import { analysisTreeFromStudy, type StudyTreeDto } from './studyTree';
 
 export interface StudyPgnChapterData {
@@ -112,9 +117,42 @@ function shapeComment(annotations: AnalysisAnnotations | undefined): string | un
     return csl || cal ? `${csl}${cal}` : undefined;
 }
 
-function annotationComments(annotations: AnalysisAnnotations | undefined, root = false): string[] {
+function attributionName(value: string): string {
+    return value.replace(/["\]]/g, '').trim();
+}
+
+function attributionId(value: string): string {
+    return value.replace(/[\s\]]/g, '').trim();
+}
+
+function attributionMatchesAnnotator(comment: AnalysisComment, annotator: string): boolean {
+    const normalizedAnnotator = annotator.trim().toLowerCase();
+    const sourceAuthor = comment.sourceAuthor?.trim().toLowerCase();
+    const sourceAuthorId = comment.sourceAuthorId?.trim().toLowerCase();
+    if (sourceAuthor && sourceAuthor === normalizedAnnotator) return true;
+    if (sourceAuthorId) {
+        if (sourceAuthorId === normalizedAnnotator) return true;
+        if (normalizedAnnotator.endsWith(`/@/${sourceAuthorId}`) || normalizedAnnotator.endsWith(`/${sourceAuthorId}`))
+            return true;
+    }
+    return false;
+}
+
+function authoredComment(comment: AnalysisComment, annotator: string): string {
+    const sourceAuthor = comment.sourceAuthor && attributionName(comment.sourceAuthor);
+    if (!sourceAuthor || attributionMatchesAnnotator(comment, annotator)) return `{${commentValue(comment.text)}}`;
+    const sourceAuthorId = comment.sourceAuthorId && attributionId(comment.sourceAuthorId);
+    const anno = sourceAuthorId ? `[%anno "${sourceAuthor}", ${sourceAuthorId}]` : `[%anno "${sourceAuthor}"]`;
+    return `{${anno} ${commentValue(comment.text)}}`;
+}
+
+function annotationComments(
+    annotations: AnalysisAnnotations | undefined,
+    root = false,
+    annotator = '',
+): string[] {
     if (!annotations) return [];
-    const result = annotations.comments.map(comment => `{${commentValue(comment.text)}}`);
+    const result = annotations.comments.map(comment => authoredComment(comment, annotator));
     const shapes = shapeComment(annotations);
     if (shapes) result.push(`{${shapes}}`);
     // NAGs have a standard location only after a move. Preserve root NAGs in an
@@ -149,13 +187,14 @@ function clockComments(node: AnalysisTreeNode): string[] {
     return [`{[%clk ${pgnClock(clocks[mover])}]}`, fullClockComment(clocks)!];
 }
 
-function nodeSuffix(node: AnalysisTreeNode): string {
+function nodeSuffix(node: AnalysisTreeNode, annotator: string, forceVariation: boolean): string {
     const annotations = node.annotations;
     return [
         ...(annotations?.nags.filter(nag => nag > 6).map(nag => `$${nag}`) ?? []),
         evalComment(node),
-        ...annotationComments(annotations),
+        ...annotationComments(annotations, false, annotator),
         gamebookComment(node.gamebook),
+        forceVariation ? '{[%pyforcevariation]}' : undefined,
         ...clockComments(node),
     ]
         .filter((value): value is string => Boolean(value))
@@ -180,7 +219,10 @@ function chapterTags(study: StudyPgnContext, chapter: StudyPgnChapterData): Arra
     tags.set('StudyName', study.name);
     tags.set('ChapterName', chapter.name);
     tags.set('ChapterURL', chapterUrl);
-    tags.set('Annotator', `${study.home}/@/${study.owner}`);
+    // An imported Annotator is source provenance and also the default author for
+    // imported comments. Match Lichess by keeping it; native chapters fall back
+    // to the current Study owner.
+    if (!tags.has('Annotator')) tags.set('Annotator', `${study.home}/@/${study.owner}`);
     tags.set('Orientation', chapter.orientation);
     tags.set('PyChessVariant', chapter.variant);
     tags.set('PyChessStudyVersion', PYCHESS_STUDY_PGN_VERSION);
@@ -254,9 +296,25 @@ export function renderStudyChapterPgn(study: StudyPgnContext, chapter: StudyPgnC
         turnColor: rootTurnColor(chapter.initialFen),
     };
     const tree = analysisTreeFromStudy(rootStep, chapter.tree);
-    const moveText = renderFullTreePgnMoveText(tree, nodeSan, nodeSuffix);
-    const initialComments = annotationComments(tree.root.annotations, true);
+    // Standard PGN has no way to mark a preferred continuation as "variation only".
+    // Rendering the Study forceVariation flag directly would produce a parenthesized
+    // continuation such as `1. e4 (1... e5)`, which ordinary RAV parsers interpret as
+    // a sibling of e4 rather than a continuation after it. Preserve the authored flag
+    // in a versioned PyChess directive, but render the move tree itself as ordinary
+    // legal PGN so both PyChess and external readers can replay it.
+    const forcedPaths = new Set<string>();
+    for (const [path, node] of tree.byPath) {
+        if (!node.forceVariation) continue;
+        forcedPaths.add(path);
+        node.forceVariation = false;
+    }
+    const annotator = chapter.tags['Annotator']?.trim() || `${study.home}/@/${study.owner}`;
+    const moveText = renderFullTreePgnMoveText(tree, nodeSan, node =>
+        nodeSuffix(node, annotator, forcedPaths.has(node.path)),
+    );
+    const initialComments = annotationComments(tree.root.annotations, true, annotator);
     const body = [
+        evalComment(tree.root),
         ...initialComments,
         gamebookComment(tree.root.gamebook),
         fullClockComment(tree.root.step.clocks),

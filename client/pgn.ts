@@ -96,19 +96,31 @@ export interface PgnVariantInfo {
     raw: string;
 }
 
+const PGN_VARIANT_ALIASES: Readonly<Record<string, string>> = Object.freeze({
+    standard: 'chess',
+    'from position': 'chess',
+    fromposition: 'chess',
+    'king of the hill': 'kingofthehill',
+    'three-check': '3check',
+    'three check': '3check',
+    threecheck: '3check',
+    'racing kings': 'racingkings',
+});
+
 export function parsePgnVariantTag(rawVariant: string): PgnVariantInfo {
-    const raw = rawVariant || 'chess';
+    const raw = rawVariant?.trim() || 'chess';
     let variant = raw.toLowerCase();
     if (isCataloguedVariant(variant)) {
         return { variant, chess960: VARIANTS[variant].randomStart, raw };
     }
     let chess960 = variant.includes('960') || variant.includes('random');
 
-    variant = variant.endsWith('960') ? variant.slice(0, -3) : variant;
+    variant = variant.endsWith('960') ? variant.slice(0, -3).trim() : variant;
+    variant = PGN_VARIANT_ALIASES[variant] ?? variant;
     if (variant === 'caparandom') {
         variant = 'capablanca';
         chess960 = true;
-    } else if (variant === 'fischerandom') {
+    } else if (variant === 'fischerandom' || variant === 'fischer random' || variant === 'fischer random chess') {
         variant = 'chess';
         chess960 = true;
     }
@@ -126,6 +138,62 @@ export function validatePgnFenTag(
 
     const details = FEN_VALIDATION_ERRORS[validationCode] ?? 'Unknown FEN validation error';
     return `Invalid [FEN] tag (code ${validationCode}): ${details}.`;
+}
+
+export interface PgnMoveToken {
+    san: string;
+    move?: string;
+}
+
+export interface PgnReplayBoard {
+    legalMoves(): string;
+    sanMove(move: string): string;
+}
+
+function normalizedPgnSan(value: string): string {
+    return value
+        .trim()
+        .replace(/0/g, 'O')
+        .replace(/[!?]+$/g, '');
+}
+
+function pgnSanWithoutCheckSuffix(value: string): string {
+    return normalizedPgnSan(value).replace(/[+#]+$/g, '');
+}
+
+export function resolvePgnMove(
+    board: PgnReplayBoard,
+    node: PgnMoveToken,
+    location: string,
+): { move: string; san: string } {
+    const suppliedMove = node.move?.trim();
+    if (suppliedMove) {
+        const san = board.sanMove(suppliedMove);
+        if (!san) throw new Error(`Illegal move at ${location}: ${node.san || suppliedMove}.`);
+        return { move: suppliedMove, san };
+    }
+
+    const targetSan = normalizedPgnSan(node.san);
+    if (!targetSan) throw new Error(`Missing move token at ${location}.`);
+    const candidates = board
+        .legalMoves()
+        .split(/\s+/)
+        .filter(Boolean)
+        .map(move => ({ move, san: board.sanMove(move) }));
+    let matching = candidates.filter(candidate => normalizedPgnSan(candidate.san) === targetSan);
+    if (!matching.length) {
+        // External PGNs are not always consistent with Fairy-Stockfish about
+        // variant check/mate suffixes. Lichess, for example, exports Qh5+ in
+        // Atomic and Kd8# when a Racing Kings king reaches the goal rank while
+        // Fairy-Stockfish's canonical SAN for those moves omits the suffix.
+        const targetWithoutCheck = pgnSanWithoutCheckSuffix(targetSan);
+        matching = candidates.filter(candidate => pgnSanWithoutCheckSuffix(candidate.san) === targetWithoutCheck);
+    }
+    if (matching.length !== 1) {
+        const detail = matching.length ? 'ambiguous' : 'illegal or unsupported';
+        throw new Error(`PGN move is ${detail} at ${location}: ${node.san}.`);
+    }
+    return matching[0];
 }
 
 export function extractPgnTags(pgn: string): Record<string, string> {

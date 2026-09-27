@@ -8,6 +8,7 @@ import { AnalysisTreeNode } from './analysis/analysisTree';
 import type { AnalysisContext } from './analysis/analysisContext';
 import type { AnalysisExtension } from './analysis/analysisExtension';
 import { GLYPHS } from './analysis/glyphs';
+import { renderLinkifiedText } from './richTextEnhance';
 
 type TreeCtrl = GameController & {
     analysisTree?: { root: AnalysisTreeNode };
@@ -328,15 +329,18 @@ export function createMovelistButtons(ctrl: GameController) {
     ctrl.moveControls = patch(container, h('div#btn-controls-top.btn-controls', buttons));
 }
 
-// Like lila's treeView: comments interrupt the mainline columns, and flow
-// with variations. Text stays plain text, including imported PGN annotations.
+// Like lila's treeView: comments interrupt the mainline columns, flow with
+// variations, preserve authored line breaks, and safely autolink URLs.
 function renderTreeComments(ctrl: TreeCtrl, node: AnalysisTreeNode): VNode[] {
     if (!treeNodeAnnotationsVisible(ctrl, node)) return [];
     return (node.annotations?.comments ?? []).map(comment =>
         h(
             'comment.tree-comment',
-            { class: { conceal: treeNodeConcealed(ctrl, node) }, attrs: { title: comment.author } },
-            comment.text,
+            {
+                class: { conceal: treeNodeConcealed(ctrl, node) },
+                attrs: { title: comment.sourceAuthor ? `PGN: ${comment.sourceAuthor}` : comment.author },
+            },
+            renderLinkifiedText(comment.text),
         ),
     );
 }
@@ -875,6 +879,11 @@ export function updateMovelist(ctrl: GameController, full = true, activate = tru
             moves.push(h('div.result', ctrl.result));
             moves.push(h('div.status', result(ctrl.variant, ctrl.status, ctrl.result)));
         }
+        const moveListEnd = treeCtrl.analysisExtension?.renderMoveListEnd?.() ?? [];
+        moves.push(...moveListEnd);
+        const footer = treeCtrl.analysisExtension?.renderMoveListFooter?.() ?? [];
+        const footerContainer = document.getElementById('movelist-footer');
+        if (!footerContainer) moves.push(...footer);
         if (contextMenu) moves.push(contextMenu);
         const container = document.getElementById('movelist') as HTMLElement;
         const scrollTop = movelistScrollContainer(container).scrollTop;
@@ -898,6 +907,12 @@ export function updateMovelist(ctrl: GameController, full = true, activate = tru
                 moves,
             ),
         );
+        if (footerContainer) {
+            while (footerContainer.lastChild) {
+                footerContainer.removeChild(footerContainer.lastChild);
+            }
+            patch(footerContainer, h('div#movelist-footer', footer));
+        }
         if (activate) scrollToPly(ctrl);
         else movelistScrollContainer(ctrl.vmovelist.elm as HTMLElement).scrollTop = scrollTop;
         return;

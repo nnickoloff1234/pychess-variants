@@ -14,6 +14,8 @@ import { copyTextToClipboard } from '../clipboard';
 import { confirmDialog } from '../confirmDialog';
 import { downloadText, notifyChessgroundResize, patch } from '../document';
 import { _, ngettext } from '../i18n';
+import { updateMovelist } from '../movelist';
+import { renderLinkifiedText } from '../richTextEnhance';
 import type { PyChessModel, StudyFeatureSelection, StudyPageModel } from '../types';
 import { loadCataloguedVariantsFromJson, variantConfigIni } from '../variants';
 import { variantsIni } from '../variantsIni';
@@ -26,8 +28,17 @@ import { GLYPH_GROUPS, toggleGlyph } from '../analysis/glyphs';
 import { StudyCommentEditor } from './commentEditor';
 import { StudyGamebookEditor } from './studyGamebookEdit';
 import { StudyGamebookPlayback } from './studyGamebookPlayback';
-import { StudyPracticeSession } from './studyPractice';
+import { StudyPracticeSession, type StudyPracticeState } from './studyPractice';
+import { StudyPracticeProgress } from './studyPracticeProgress';
+import { studyPracticeGoalText } from './studyPracticeGoal';
 import { fetchStudyChapterExportData, renderStudyChapterPgn, renderStudyPgn, studyPgnFilename } from './studyPgn';
+import {
+    parseStudyPgnForImportWithEngines,
+    postStudyPgnImport,
+    studyPgnGameUsesAlice,
+    type StudyPgnImportProgressCallback,
+} from './studyPgnImport';
+import { pgnParser as studyPgnParser } from '../pgnParser';
 import {
     studyChapterCreateForm,
     studyChapterModeField,
@@ -782,6 +793,7 @@ type StudyModeActions = {
     showServerAnalysis: () => void;
     setDescription: (description: string) => void;
     settleWrites: () => Promise<boolean>;
+    importPgn: (pgn: string, onProgress?: StudyPgnImportProgressCallback) => Promise<void>;
     resetConcealment: () => Promise<void>;
     enterGamebookPreview: () => Promise<void>;
     leaveGamebookPreview: () => Promise<void>;
@@ -796,6 +808,12 @@ function studyRecordingKey(studyId: string): string {
 }
 
 function initializeStudyModes(study: StudyPageModel): void {
+    if (study.practice) {
+        study.sticky = false;
+        study.write = false;
+        study.behind = 0;
+        return;
+    }
     if (study.sticky === undefined) study.sticky = study.chapter.id === study.sharedChapter;
     if (study.behind === undefined) study.behind = 0;
     if (study.write === undefined) {
@@ -816,9 +834,11 @@ function effectiveStudySessionPolicy(study: StudyPageModel): StudySessionPolicy 
     });
 }
 
-function studyModeButtons(study: StudyPageModel, actions: StudyModeActions): VNode[] {
+function studyModeButtons(study: StudyPageModel, model: PyChessModel, actions: StudyModeActions): VNode[] {
+    if (study.practice) return [];
     const policy = effectiveStudySessionPolicy(study);
     const behind = policy.synchronization ? (study.behind ?? 0) : 0;
+    const isMember = Boolean(model.username && study.members[model.username]);
     const state = (on: boolean) => h('span.study-mode__state', on ? '✓' : '✕');
     return [
         h(
@@ -830,6 +850,7 @@ function studyModeButtons(study: StudyPageModel, actions: StudyModeActions): VNo
                     title: _('All Study members remain on the same position'),
                     'aria-pressed': String(policy.synchronization),
                     disabled: policy.preview,
+                    hidden: !isMember,
                 },
                 on: { click: () => actions.toggleSticky() },
             },
@@ -879,6 +900,108 @@ function studyAnalysisTools(study: StudyPageModel): VNode {
     return h('div.study-gamebook-edit', {
         attrs: { hidden: effectiveStudySessionPolicy(study).session !== 'gamebook-author' },
     });
+}
+
+function studyChapterBaseUrl(study: StudyPageModel): string {
+    return study.practice?.studyUrl ?? `/study/${study.id}`;
+}
+
+function studyChapterUrl(study: StudyPageModel, chapterId: string): string {
+    return `${studyChapterBaseUrl(study)}/${chapterId}`;
+}
+
+function persistPracticeCompletion(study: StudyPageModel, chapterId: string, bestMoves?: number): void {
+    const practice = study.practice;
+    if (!practice?.persistProgress) return;
+    void fetch(`${practice.studyUrl}/${encodeURIComponent(chapterId)}/complete`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        keepalive: true,
+        ...(bestMoves === undefined
+            ? {}
+            : {
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ bestMoves }),
+              }),
+    })
+        .then(response => {
+            if (!response.ok) throw new Error(`Practice progress could not be saved (${response.status}).`);
+        })
+        .catch(error => console.error('Could not save Practice progress', error));
+}
+
+function chapterIdFromStudyUrl(study: StudyPageModel, pathname: string): string | undefined {
+    const prefix = `${studyChapterBaseUrl(study)}/`;
+    if (!pathname.startsWith(prefix)) return undefined;
+    const chapterId = pathname.slice(prefix.length);
+    return chapterId && !chapterId.includes('/') ? chapterId : undefined;
+}
+
+function studyDocumentTitle(study: StudyPageModel): string {
+    if (study.practice?.preview) return `${study.name} • Practice Preview • PyChess`;
+    return study.practice ? `${study.name} • Practice • PyChess` : `${study.name} • PyChess`;
+}
+
+function nextStudyChapter(study: StudyPageModel): StudyPageModel['chapters'][number] | undefined {
+    const chapters = [...study.chapters].sort((a, b) => a.order - b.order);
+    const current = chapters.findIndex(chapter => chapter.id === study.chapter.id);
+    return current >= 0 ? chapters[current + 1] : undefined;
+}
+
+function studyMoveIndex(ply: number): string {
+    return `${Math.ceil(ply / 2)}${ply % 2 === 1 ? '.' : '...'}`;
+}
+
+export function renderStudyMoveListEnd(
+    study: StudyPageModel,
+    ctrl: AnalysisController,
+    goToChapter: (chapterId: string) => void,
+): VNode[] {
+    if (!effectiveStudySessionPolicy(study).tools.fullTree) return [];
+
+    const nextChapter = nextStudyChapter(study);
+    if (!nextChapter) return [];
+    return [
+        h(
+            'button.study-next-chapter',
+            {
+                class: { highlighted: ctrl.analysisPath === ctrl.getTreeMainlineEndPath() },
+                attrs: { type: 'button', title: nextChapter.name },
+                on: { click: () => goToChapter(nextChapter.id) },
+            },
+            [icon('play'), h('span', _('Next chapter'))],
+        ),
+    ];
+}
+
+export function renderStudyMoveListFooter(study: StudyPageModel, ctrl: AnalysisController): VNode[] {
+    if (!effectiveStudySessionPolicy(study).tools.fullTree) return [];
+
+    const current = ctrl.getTreeNodeAtPath(ctrl.analysisPath ?? '');
+    const forks =
+        current?.children.filter(child => ctrl.analysisExtension?.isTreeNodeVisible?.(child) !== false) ?? [];
+    if (forks.length <= 1) return [];
+
+    const selectedPath = ctrl.getTreeMainChildPath();
+    return [
+        h(
+            'div.study-move-fork',
+            forks.map(child =>
+                h(
+                    'button.study-move-fork__move',
+                    {
+                        class: { selected: child.path === selectedPath },
+                        attrs: { type: 'button', 'data-path': child.path },
+                        on: { click: () => ctrl.activateTreePath(child.path) },
+                    },
+                    [
+                        h('span.study-move-fork__index', studyMoveIndex(child.ply)),
+                        h('span.study-move-fork__san', child.step.san ?? child.step.sanSAN ?? child.step.move ?? '?'),
+                    ],
+                ),
+            ),
+        ),
+    ];
 }
 
 function refreshStudyModeButtons(study: StudyPageModel): void {
@@ -1162,7 +1285,117 @@ function studyMembersSide(study: StudyPageModel, model: PyChessModel): VNode {
     ]);
 }
 
-function studySide(study: StudyPageModel, model: PyChessModel, modeActions: StudyModeActions): VNode {
+function practiceStudySide(study: StudyPageModel, progress?: StudyPracticeProgress): VNode {
+    const practice = study.practice!;
+    const preview = Boolean(practice.preview);
+    const chapters = [...study.chapters].sort((a, b) => a.order - b.order);
+
+    const chapterNodes = chapters.map(item => {
+        const active = item.id === study.chapter.id;
+        const completed = Boolean(progress?.isComplete(item.id));
+        const statusLabel = completed ? _('Completed') : active ? _('Current chapter') : _('Not completed');
+        return h(
+            'a.practice-study-chapter',
+            {
+                key: item.id,
+                class: { active, completed },
+                attrs: {
+                    href: studyChapterUrl(study, item.id),
+                    'aria-current': active ? 'page' : 'false',
+                    'data-study-chapter-id': item.id,
+                },
+            },
+            [
+                h(
+                    'span.practice-study-chapter__status',
+                    { attrs: { title: statusLabel, 'aria-label': statusLabel } },
+                    completed ? '✓' : active ? '▶' : '✓',
+                ),
+                h('h3.practice-study-chapter__name', item.name),
+            ],
+        );
+    });
+
+    return h('div.study-side.practice-study-side', [
+        h('div.practice-study-side__title', [
+            h('img.practice-study-side__icon', {
+                attrs: {
+                    src: `/static/images/practice/${practice.studyIcon}.svg`,
+                    alt: '',
+                    'aria-hidden': 'true',
+                },
+            }),
+            h('div.practice-study-side__title-text', [
+                h('h1', practice.studyTitle),
+                ...(practice.studyDescription ? [h('em', practice.studyDescription)] : []),
+            ]),
+        ]),
+        h('nav.practice-study-side__chapters', { attrs: { 'aria-label': _('Practice chapters') } }, chapterNodes),
+        h('div.practice-study-side__footer', [
+            h(
+                'a.practice-study-side__back',
+                {
+                    attrs: {
+                        href: practice.indexUrl,
+                        title: preview ? _('Back to Study') : _('More practice'),
+                        'aria-label': preview ? _('Back to Study') : _('More practice'),
+                    },
+                },
+                '‹',
+            ),
+            ...(practice.menu.length
+                ? [
+                      h(
+                          'select.practice-study-side__selector',
+                          {
+                              attrs: { 'aria-label': _('Practice list') },
+                              on: {
+                                  change: event => {
+                                      const target = event.currentTarget as HTMLSelectElement;
+                                      if (target.value) window.location.href = target.value;
+                                  },
+                              },
+                          },
+                          [
+                              h('option', { attrs: { disabled: true } }, _('Practice list')),
+                              ...practice.menu.map(section =>
+                                  h(
+                                      'optgroup',
+                                      { attrs: { label: section.name } },
+                                      section.studies.map(item =>
+                                          h(
+                                              'option',
+                                              {
+                                                  attrs: {
+                                                      value: item.url,
+                                                      selected: item.id === study.id,
+                                                  },
+                                              },
+                                              item.name,
+                                          ),
+                                      ),
+                                  ),
+                              ),
+                          ],
+                      ),
+                  ]
+                : [
+                      h(
+                          'span.practice-study-side__preview-label',
+                          preview ? _('Practice Preview') : practice.sectionName,
+                      ),
+                  ]),
+        ]),
+    ]);
+}
+
+function studySide(
+    study: StudyPageModel,
+    model: PyChessModel,
+    modeActions: StudyModeActions,
+    practiceProgress?: StudyPracticeProgress,
+): VNode {
+    if (study.practice) return practiceStudySide(study, practiceProgress);
     const chapter = study.chapter;
     // Lichess keeps structural chapter management tied to Study membership,
     // even while a writable member is in a disposable training/playback session.
@@ -1184,7 +1417,7 @@ function studySide(study: StudyPageModel, model: PyChessModel, modeActions: Stud
                           [icon('bars')],
                       ),
                   ]
-                : [h('span.study-side__readonly', study.canWrite ? _('Contributor') : _('Read only'))]),
+                : []),
         ]),
         h(
             'section#study-side-panel-chapters.study-side__panel',
@@ -1206,13 +1439,15 @@ function studySide(study: StudyPageModel, model: PyChessModel, modeActions: Stud
                                 'a',
                                 {
                                     attrs: {
-                                        href: `/study/${study.id}/${item.id}`,
+                                        href: studyChapterUrl(study, item.id),
                                         'aria-current': item.id === chapter.id ? 'page' : 'false',
+                                        'data-study-chapter-id': item.id,
                                     },
                                 },
                                 [
                                     h('span.study-chapter__number', `${item.order}. `),
                                     h('span.study-chapter__name', item.name),
+                                    ...(item.status ? [h('span.study-chapter__result', item.status)] : []),
                                 ],
                             ),
                             ...(canManageChapters
@@ -1244,6 +1479,20 @@ function studySide(study: StudyPageModel, model: PyChessModel, modeActions: Stud
                               },
                               [icon('plus-square'), _('Add a new chapter')],
                           ),
+                          ...(study.canPreviewPractice
+                              ? [
+                                    h(
+                                        'a.study-side__add.study-practice-preview',
+                                        {
+                                            attrs: {
+                                                href: `/practice/preview/${study.id}/${chapter.id}`,
+                                                title: _('Preview this Study as a Practice learner'),
+                                            },
+                                        },
+                                        [icon('play'), _('Preview in Practice')],
+                                    ),
+                                ]
+                              : []),
                       ]
                     : []),
             ],
@@ -1343,12 +1592,12 @@ function studySide(study: StudyPageModel, model: PyChessModel, modeActions: Stud
                       studyChapterCreateForm(
                           `/study/${study.id}/chapter`,
                           model.variant || 'chess',
-                          model.chess960 === 'True',
                           {
                               orientation: study.chapter.orientation,
                               enabledModes: study.enabledModes,
                               sync: () => Boolean(study.sticky),
                               beforeSubmit: modeActions.settleWrites,
+                              pgnImport: pgn => modeActions.importPgn(pgn),
                           },
                       ),
                   ]),
@@ -1625,7 +1874,7 @@ function studyPinnedChapterComment(study: StudyPageModel, modeActions: StudyMode
                       },
                       pinnedChapterCommentTitle(),
                   )
-                : h('div.text', description),
+                : h('div.text', renderLinkifiedText(description)),
         ]);
     }
 
@@ -1654,8 +1903,14 @@ function studyTag(study: StudyPageModel, name: string): string | undefined {
     return entry?.[1];
 }
 
+function studyChapterStatusFromTags(tags: Record<string, string>): StudyPageModel['chapters'][number]['status'] {
+    const result = Object.entries(tags).find(([key]) => key.toLowerCase() === 'result')?.[1]?.trim();
+    if (result === '1/2-1/2') return '½-½';
+    return result === '1-0' || result === '0-1' || result === '½-½' || result === '*' ? result : undefined;
+}
+
 function studyHasGamePlayers(study: StudyPageModel): boolean {
-    return study.chapter.source?.kind === 'game' && Boolean(studyTag(study, 'White') && studyTag(study, 'Black'));
+    return Boolean(studyTag(study, 'White') && studyTag(study, 'Black'));
 }
 
 function studyPlayerIdentity(study: StudyPageModel, color: 'white' | 'black'): VNode {
@@ -1670,11 +1925,14 @@ function studyPlayerIdentity(study: StudyPageModel, color: 'white' | 'black'): V
         gameResult && /^(1-0|0-1|1\/2-1\/2|½-½)$/.test(gameResult)
             ? gameResult.split('-')[color === 'white' ? 0 : 1].replace('1/2', '½')
             : undefined;
+    const name = displayUsername(username);
+    const playerName =
+        study.chapter.source?.kind === 'game' ? userLink(username, name, { className: 'name' }) : h('span.name', name);
     return h('div.left', [
         ...(score ? [h(`${score === '1' ? 'good' : score === '0' ? 'bad' : 'span'}.result`, score)] : []),
         h('span.info', [
             ...(title ? [h('player-title', title)] : []),
-            userLink(username, displayUsername(username), { className: 'name' }),
+            playerName,
             ...(shownRating ? [h('span.elo', shownRating)] : []),
         ]),
     ]);
@@ -1689,15 +1947,22 @@ function studyPlayerColorAt(
     return orientation === 'white' ? 'black' : 'white';
 }
 
+function studyHasClockData(study: StudyPageModel): boolean {
+    return Boolean(study.chapter.tree.rootClocks || study.chapter.tree.nodes.some(node => node.clocks));
+}
+
 function studyPlayerBar(
     study: StudyPageModel,
     placement: 'top' | 'bottom',
     orientation = study.chapter.orientation,
 ): VNode {
     const clockId = placement === 'top' ? 'anal-clock-top' : 'anal-clock-bottom';
+    const clock = studyHasClockData(study)
+        ? h(`div#${clockId}.anal-clock.${placement}`, '-')
+        : h(`div#${clockId}.study__player-clock-placeholder`);
     return h(`div.study__player.study__player-${placement === 'bottom' ? 'bot' : 'top'}`, [
         studyPlayerIdentity(study, studyPlayerColorAt(study, placement, orientation)),
-        h(`div#${clockId}.anal-clock.${placement}`, '-'),
+        clock,
     ]);
 }
 
@@ -1754,6 +2019,7 @@ export function updateStudyUnderboardChapter(
     study: StudyPageModel,
     model: PyChessModel,
     modeActions?: StudyModeActions,
+    practiceProgress?: StudyPracticeProgress,
 ): void {
     document.querySelectorAll<HTMLElement>('.study-underboard__title').forEach(title => {
         patch(toVNode(title), studyMetadataTitle(study));
@@ -1761,14 +2027,158 @@ export function updateStudyUnderboardChapter(
 
     const shareLinks = document.querySelector<HTMLElement>('.study-share__links');
     if (shareLinks) patch(toVNode(shareLinks), studyShareLinks(study, model));
-    syncStudyPinnedDescriptionUi(study, modeActions);
+    const practiceUnderboard = document.querySelector<HTMLElement>('.study-practice-underboard');
+    if (study.practice && practiceUnderboard) {
+        patch(toVNode(practiceUnderboard), practiceStudyUnderboard(study, practiceProgress));
+    } else {
+        syncStudyPinnedDescriptionUi(study, modeActions);
+    }
     updateStudyGamebookStatus(study, modeActions);
     updateStudyServerEvalContent(study, modeActions);
     const preview = document.querySelector<HTMLButtonElement>('.study-gamebook-preview-toggle');
     if (preview) preview.hidden = study.chapter.mode !== 'gamebook';
 }
 
-function studyUnderboard(study: StudyPageModel, model: PyChessModel, modeActions: StudyModeActions): VNode {
+function studyTagsTable(study: StudyPageModel, playback = false): VNode {
+    return h(
+        `table.study-tags${playback ? '.study-gamebook-play__tags' : ''}`,
+        { attrs: { 'data-study-tags': '' } },
+        Object.entries(study.chapter.tags).map(([key, value]) =>
+            h('tr', { key }, [h('th', { attrs: { scope: 'row' } }, key), h('td', value)]),
+        ),
+    );
+}
+
+function practiceStudyUnderboard(
+    study: StudyPageModel,
+    practiceProgress?: StudyPracticeProgress,
+    practiceState?: StudyPracticeState,
+    onNextChapter?: () => void,
+    onRetry?: () => void,
+): VNode {
+    const description = study.chapter.description;
+    const hasDescription = Boolean(description && description !== EMPTY_PINNED_CHAPTER_COMMENT);
+
+    if (study.chapter.mode === 'gamebook') {
+        return h(
+            'div.study-practice-underboard',
+            hasDescription
+                ? [
+                      h('div.study-practice-underboard__feedback.ongoing', [
+                          h('div.study-practice-underboard__comment', renderLinkifiedText(description)),
+                      ]),
+                  ]
+                : [],
+        );
+    }
+
+    const succeeded = practiceState?.kind === 'ended' && practiceState.goalDecision === 'success';
+    if (succeeded) {
+        const contents = [
+            h('strong.study-practice-underboard__success-title', _('Success!')),
+            h(
+                'span.study-practice-underboard__success-action',
+                onNextChapter ? _('Go to next exercise') : _('Back to practice menu'),
+            ),
+        ];
+        if (practiceProgress?.autoNext) {
+            return h('div.study-practice-underboard', [
+                h('div.study-practice-underboard__feedback.success', [
+                    h('strong.study-practice-underboard__success-title', _('Success!')),
+                ]),
+            ]);
+        }
+        return h('div.study-practice-underboard', [
+            onNextChapter
+                ? h(
+                      'button.study-practice-underboard__feedback.success.action',
+                      { attrs: { type: 'button' }, on: { click: onNextChapter } },
+                      contents,
+                  )
+                : h(
+                      'a.study-practice-underboard__feedback.success.action',
+                      { attrs: { href: study.practice?.indexUrl ?? '/practice' } },
+                      contents,
+                  ),
+        ]);
+    }
+
+    const failed = practiceState?.kind === 'ended' && practiceState.goalDecision === 'failure';
+    const goal = study.practice?.goal;
+    if (failed && goal && onRetry) {
+        return h('div.study-practice-underboard', [
+            h(
+                'button.study-practice-underboard__feedback.fail.action',
+                { attrs: { type: 'button' }, on: { click: onRetry } },
+                [
+                    h(
+                        'span.study-practice-underboard__failure-goal',
+                        studyPracticeGoalText(goal, study.chapter.orientation),
+                    ),
+                    h('strong', _('Click to retry')),
+                ],
+            ),
+        ]);
+    }
+
+    const feedback = goal
+        ? h('div.study-practice-underboard__feedback.ongoing', [
+              h(
+                  'div.study-practice-underboard__goal',
+                  studyPracticeGoalText(goal, study.chapter.orientation),
+              ),
+              ...(hasDescription
+                  ? [h('div.study-practice-underboard__comment', renderLinkifiedText(description))]
+                  : []),
+          ])
+        : hasDescription
+          ? h('div.study-practice-underboard__feedback.ongoing', [
+                h('div.study-practice-underboard__comment', renderLinkifiedText(description)),
+            ])
+          : undefined;
+    const autoNext = practiceProgress
+        ? h('div.study-practice-underboard__auto-next', [
+              h('label.switch', [
+                  h('input#practice-auto-next', {
+                      props: { type: 'checkbox', checked: practiceProgress.autoNext },
+                      attrs: { 'aria-label': _('Load next exercise immediately') },
+                      on: {
+                          change: event => {
+                              practiceProgress.autoNext = (event.currentTarget as HTMLInputElement).checked;
+                          },
+                      },
+                  }),
+                  h('span.sw-slider'),
+              ]),
+              h('label', { attrs: { for: 'practice-auto-next' } }, _('Load next exercise immediately')),
+          ])
+        : undefined;
+    return h('div.study-practice-underboard', [feedback, autoNext].filter(Boolean) as VNode[]);
+}
+
+function updatePracticeStudyUnderboardState(
+    study: StudyPageModel,
+    practiceProgress: StudyPracticeProgress | undefined,
+    practiceState: StudyPracticeState,
+    onNextChapter?: () => void,
+    onRetry?: () => void,
+): void {
+    const current = document.querySelector<HTMLElement>('.study-practice-underboard');
+    if (current)
+        patch(
+            toVNode(current),
+            practiceStudyUnderboard(study, practiceProgress, practiceState, onNextChapter, onRetry),
+        );
+}
+
+function studyUnderboard(
+    study: StudyPageModel,
+    model: PyChessModel,
+    modeActions: StudyModeActions,
+    practiceProgress?: StudyPracticeProgress,
+): VNode {
+    if (study.practice) return practiceStudyUnderboard(study, practiceProgress);
+
     const defaultTab: StudyTab = 'tags';
     const policy = effectiveStudySessionPolicy(study);
     const hideServerEval = !policy.tools.evaluationDisplay && !policy.tools.serverAnalysis;
@@ -1786,14 +2196,12 @@ function studyUnderboard(study: StudyPageModel, model: PyChessModel, modeActions
             : []),
     ];
     return h('div.study-underboard', [
-        h('div.study-gamebook-play-underboard', [
-            h('div.study-gamebook-play-buttons', { attrs: { hidden: 'true' } }),
-            studyMetadataTitle(study),
-        ]),
+        h('div.study-gamebook-play-underboard', [h('div.study-gamebook-play-buttons', { attrs: { hidden: 'true' } })]),
         studyPinnedChapterComment(study, modeActions),
+        h('div.study-gamebook-play__metadata', [studyMetadataTitle(study), studyTagsTable(study, true)]),
         studyGamebookStatus(study, modeActions),
         h('nav.study-tool-tabs', { attrs: { role: 'tablist', 'aria-label': _('Study tools') } }, [
-            ...studyModeButtons(study, modeActions),
+            ...studyModeButtons(study, model, modeActions),
             ...tabs.map(([tab, label, symbol]) =>
                 h(
                     `button#study-tab-${tab}`,
@@ -1846,7 +2254,7 @@ function studyUnderboard(study: StudyPageModel, model: PyChessModel, modeActions
         toolPanel('tags', [
             studyMetadataTitle(study),
             studyTopicsView(study),
-            h('table.study-tags'),
+            studyTagsTable(study),
             ...(study.canWrite
                 ? [
                       h('details.study-annotations__tags', [
@@ -1948,6 +2356,33 @@ function parseTags(text: string): Record<string, string> {
     return tags;
 }
 
+function updateStudyMetadataPanel(
+    study: StudyPageModel,
+    modeActions: StudyModeActions,
+    state: StudyAnnotationState,
+): void {
+    document.querySelectorAll<HTMLTableElement>('[data-study-tags]').forEach(table => {
+        table.replaceChildren(
+            ...Object.entries(state.tags).map(([key, value]) => {
+                const row = document.createElement('tr');
+                const name = document.createElement('th');
+                name.scope = 'row';
+                name.textContent = key;
+                const cell = document.createElement('td');
+                cell.textContent = value;
+                row.append(name, cell);
+                return row;
+            }),
+        );
+    });
+
+    study.chapter.description = state.description;
+    study.chapter.tags = { ...state.tags };
+    syncStudyPinnedDescriptionUi(study, modeActions);
+    const tags = document.querySelector<HTMLTextAreaElement>('.study-annotations__tags textarea');
+    if (tags && document.activeElement !== tags) tags.value = tagsText(state.tags);
+}
+
 function updateAnnotationPanel(
     study: StudyPageModel,
     modeActions: StudyModeActions,
@@ -1967,26 +2402,7 @@ function updateAnnotationPanel(
             count.dataset.countFor === 'comments' ? state.annotations.comments.length : state.annotations.nags.length;
         count.textContent = value ? String(value) : '';
     });
-    const table = document.querySelector('.study-tags');
-    if (table)
-        table.replaceChildren(
-            ...Object.entries(state.tags).map(([key, value]) => {
-                const row = document.createElement('tr');
-                const name = document.createElement('th');
-                name.scope = 'row';
-                name.textContent = key;
-                const cell = document.createElement('td');
-                cell.textContent = value;
-                row.append(name, cell);
-                return row;
-            }),
-        );
-
-    study.chapter.description = state.description;
-    study.chapter.tags = { ...state.tags };
-    syncStudyPinnedDescriptionUi(study, modeActions);
-    const tags = document.querySelector<HTMLTextAreaElement>('.study-annotations__tags textarea');
-    if (tags && document.activeElement !== tags) tags.value = tagsText(state.tags);
+    updateStudyMetadataPanel(study, modeActions, state);
 }
 
 function bindAnnotationPanel(getExtension: () => StudyAnalysisExtension): void {
@@ -2064,12 +2480,29 @@ function studyContextMenu(ctrl: AnalysisController, path: string): VNode[] {
     ];
 }
 
+function syncPracticeLearnerBoardHeight(board: HTMLElement, study: StudyPageModel): void {
+    if (!study.practice) return;
+    const app = board.closest<HTMLElement>('.study-app');
+    if (!app) return;
+
+    const update = () => {
+        const height = board.getBoundingClientRect().height;
+        if (height > 0) app.style.setProperty('--study-practice-board-height', `${height}px`);
+    };
+    update();
+    if (typeof ResizeObserver !== 'undefined') {
+        const observer = new ResizeObserver(update);
+        observer.observe(board);
+    }
+}
+
 function runStudyGround(
     vnode: VNode,
     model: PyChessModel,
     study: StudyPageModel,
     sideVNode: VNode,
     modeActions: StudyModeActions,
+    practiceProgress?: StudyPracticeProgress,
 ): void {
     let extension!: StudyAnalysisExtension;
     let ctrl!: AnalysisController;
@@ -2087,6 +2520,23 @@ function runStudyGround(
     const modules = new Map<boolean, Promise<PyChessModel['ffish']>>([
         [model.variant === 'alice', Promise.resolve(model.ffish)],
     ]);
+    const loadStudyModule = (alice: boolean): Promise<PyChessModel['ffish']> => {
+        if (!modules.has(alice)) {
+            const script = document.querySelector<HTMLScriptElement>('script[src*="/static/pychess-variants.js"]');
+            const version = script ? new URL(script.src).search : '';
+            modules.set(
+                alice,
+                (alice ? ffishAliceModule : ffishModule)({
+                    locateFile: (path: string, prefix: string) =>
+                        path.endsWith('.wasm') ? `/static/${path}${version}` : prefix + path,
+                }).catch((error: unknown) => {
+                    modules.delete(alice);
+                    throw error;
+                }),
+            );
+        }
+        return modules.get(alice)!;
+    };
     const commentsElement = document.querySelector<HTMLElement>('.study-annotations__comments');
     const editor =
         study.canWrite && commentsElement
@@ -2124,19 +2574,63 @@ function runStudyGround(
             orientation: study.chapter.orientation,
         });
     };
-    const socket = createWebsocket(
-        `wsstudy/${study.id}`,
-        () => extension.onSocketOpen(),
-        () => extension.onSocketReconnect(),
-        () => extension.onSocketClose(),
-        event => {
-            if (event.data === '/n') return;
-            const message = JSON.parse(event.data);
-            extension.onSocketMessage(message.type, message);
-        },
-    );
+    const socket = study.practice
+        ? undefined
+        : createWebsocket(
+              `wsstudy/${study.id}`,
+              () => extension.onSocketOpen(),
+              () => extension.onSocketReconnect(),
+              () => extension.onSocketClose(),
+              event => {
+                  if (event.data === '/n') return;
+                  const message = JSON.parse(event.data);
+                  extension.onSocketMessage(message.type, message);
+              },
+          );
     const mount = (el: HTMLElement, snapshotVerified = false) => {
         policy = effectiveStudySessionPolicy(study);
+        syncPracticeLearnerBoardHeight(el, study);
+        let gamebookPlayback: StudyGamebookPlayback | undefined;
+        const installGamebookPlayback = (analysisCtrl: AnalysisController): void => {
+            if (gamebookPlayback || !isGamebookPlayback(policy) || !analysisCtrl.analysisTree) return;
+            // The board insert hook can run before later analysis-shell siblings have
+            // settled in the DOM. Wait for the normal post-constructor retry when the
+            // tools column is not available yet instead of aborting Interactive Lesson
+            // playback for the whole chapter.
+            if (!document.querySelector<HTMLElement>('.analysis-tools')) return;
+
+            const orderedChapters = [...study.chapters].sort((a, b) => a.order - b.order);
+            const chapterIndex = orderedChapters.findIndex(chapter => chapter.id === study.chapter.id);
+            const nextChapter = chapterIndex >= 0 ? orderedChapters[chapterIndex + 1] : undefined;
+            gamebookPlayback = new StudyGamebookPlayback(analysisCtrl, {
+                chapterId: study.chapter.id,
+                orientation: study.chapter.orientation,
+                preview: policy.session === 'gamebook-preview',
+                canAnalyse: !study.canWrite,
+                hasNextChapter: Boolean(nextChapter),
+                ...(study.practice && practiceProgress
+                    ? {
+                          practice: {
+                              onComplete: chapterId => {
+                                  if (!practiceProgress.complete(chapterId)) return;
+                                  sideVNode = patch(
+                                      sideVNode,
+                                      studySide(study, model, modeActions, practiceProgress),
+                                  );
+                              },
+                          },
+                      }
+                    : {}),
+                ...(nextChapter
+                    ? { onNextChapter: () => void navigation?.go(nextChapter.id, 'push') }
+                    : {}),
+                ...(policy.session === 'gamebook-preview'
+                    ? { onReturnToEditor: () => void modeActions.leaveGamebookPreview() }
+                    : {}),
+                ...(!study.canWrite ? { onAnalyse: () => void modeActions.enterGamebookAnalysis() } : {}),
+            });
+            extension.setGamebookPlayback(gamebookPlayback);
+        };
         ctrl = new AnalysisController(el, model, analysisCtrl => {
             extension = new StudyAnalysisExtension(analysisCtrl, {
                 socket,
@@ -2145,7 +2639,7 @@ function runStudyGround(
                 revision: study.chapter.revision,
                 snapshotToken: study.chapter.snapshotToken,
                 roomSnapshotToken: study.roomSnapshotToken,
-                snapshotVerified,
+                snapshotVerified: study.practice ? true : snapshotVerified,
                 tree: study.chapter.tree,
                 orientation: study.chapter.orientation,
                 mode: study.chapter.mode,
@@ -2165,8 +2659,23 @@ function runStudyGround(
                 concealPly: study.chapter.mode === 'conceal' ? (study.chapter.concealPly ?? 0) : undefined,
                 policy,
                 memberRole: model.username ? study.members[model.username] : undefined,
+                // Interactive Lesson playback depends on the persisted Study tree.
+                // Initial board/tree hydration happens inside AnalysisController's
+                // constructor, so start the learner adapter at the exact point where
+                // StudySync has loaded that tree instead of assuming it was already
+                // present immediately after controller construction.
+                onInitialTreeLoaded: () => queueMicrotask(() => installGamebookPlayback(analysisCtrl)),
                 onAnnotationStateChanged: state => {
                     if (policy.tools.annotations) updateAnnotationPanel(study, modeActions, state, editor);
+                    else updateStudyMetadataPanel(study, modeActions, state);
+                    const preview = study.chapters.find(chapter => chapter.id === study.chapter.id);
+                    if (preview) {
+                        const status = studyChapterStatusFromTags(state.tags);
+                        if (preview.status !== status) {
+                            preview.status = status;
+                            sideVNode = patch(sideVNode, studySide(study, model, modeActions, practiceProgress));
+                        }
+                    }
                     updateGamebookEditor();
                 },
                 onServerEvalChanged: serverEval => {
@@ -2194,7 +2703,7 @@ function runStudyGround(
                 onChaptersChanged: (chapters, sharedChapter) => {
                     study.chapters = chapters.map(chapter => ({ ...chapter }));
                     const current = study.chapters.find(chapter => chapter.id === study.chapter.id);
-                    sideVNode = patch(sideVNode, studySide(study, model, modeActions));
+                    sideVNode = patch(sideVNode, studySide(study, model, modeActions, practiceProgress));
                     if (!current) {
                         const fallback =
                             study.chapters.find(chapter => chapter.id === sharedChapter)?.id ?? study.chapters[0]?.id;
@@ -2205,6 +2714,7 @@ function runStudyGround(
                     study.chapter.order = current.order;
                     study.chapter.orientation = current.orientation;
                     extension.updateChapterMetadata(current);
+                    updateMovelist(analysisCtrl, true, false);
                 },
                 onConcealChanged: (concealPly, revision) => {
                     study.chapter.concealPly = concealPly;
@@ -2240,8 +2750,11 @@ function runStudyGround(
                     if (!canWrite && study.modeOverride === 'preview') study.modeOverride = null;
                     policy = effectiveStudySessionPolicy(study);
                     extension.setPolicy(policy, !accessChanged);
-                    sideVNode = patch(sideVNode, studySide(study, model, modeActions));
-                    updateStudyUnderboardChapter(study, model, modeActions);
+                    const syncButton = document.querySelector<HTMLButtonElement>('.study-mode--sync');
+                    if (syncButton) syncButton.hidden = !(model.username && members[model.username]);
+                    updateMovelist(analysisCtrl, true, false);
+                    sideVNode = patch(sideVNode, studySide(study, model, modeActions, practiceProgress));
+                    updateStudyUnderboardChapter(study, model, modeActions, practiceProgress);
                     updateGamebookEditor();
                     syncStudyPlaybackUi(study, modeActions);
                 },
@@ -2254,33 +2767,21 @@ function runStudyGround(
                     updateStudyTopicsView(study);
                 },
                 contextMenuActions: policy.tools.annotations ? path => studyContextMenu(analysisCtrl, path) : undefined,
+                renderMoveListEnd: () =>
+                    renderStudyMoveListEnd(study, analysisCtrl, chapterId => void navigation?.go(chapterId, 'push')),
+                renderMoveListFooter: () => renderStudyMoveListFooter(study, analysisCtrl),
                 writable: study.canWrite,
                 recording: policy.recording,
             });
             return extension;
         });
-        if (isGamebookPlayback(policy)) {
+        installGamebookPlayback(ctrl);
+        if (isPracticePlayback(policy)) {
             const orderedChapters = [...study.chapters].sort((a, b) => a.order - b.order);
             const chapterIndex = orderedChapters.findIndex(chapter => chapter.id === study.chapter.id);
             const nextChapter = chapterIndex >= 0 ? orderedChapters[chapterIndex + 1] : undefined;
-            const gamebookPlayback = new StudyGamebookPlayback(ctrl, {
-                chapterId: study.chapter.id,
-                orientation: study.chapter.orientation,
-                preview: policy.session === 'gamebook-preview',
-                canAnalyse: !study.canWrite,
-                hasNextChapter: Boolean(nextChapter),
-                ...(nextChapter
-                    ? { onNextChapter: () => void navigation?.go(nextChapter.id, 'push') }
-                    : {}),
-                ...(policy.session === 'gamebook-preview'
-                    ? { onReturnToEditor: () => void modeActions.leaveGamebookPreview() }
-                    : {}),
-                ...(!study.canWrite ? { onAnalyse: () => void modeActions.enterGamebookAnalysis() } : {}),
-            });
-            extension.setGamebookPlayback(gamebookPlayback);
-        }
-        if (isPracticePlayback(policy)) {
-            const practiceSession = new StudyPracticeSession(ctrl, {
+            let practiceSession: StudyPracticeSession;
+            practiceSession = new StudyPracticeSession(ctrl, {
                 initialFen: study.chapter.initialFen,
                 learnerColor: study.chapter.orientation,
                 access: () => {
@@ -2293,6 +2794,35 @@ function runStudyGround(
                     return { available: true };
                 },
                 canAnalyse: study.canWrite,
+                ...(study.practice?.goal ? { goal: study.practice.goal } : {}),
+                ...(study.practice && practiceProgress
+                    ? {
+                          autoNext: () => practiceProgress.autoNext,
+                          hasNextChapter: Boolean(nextChapter),
+                          onStateChange: state =>
+                              updatePracticeStudyUnderboardState(
+                                  study,
+                                  practiceProgress,
+                                  state,
+                                  nextChapter ? () => void navigation?.go(nextChapter.id, 'push') : undefined,
+                                  () => practiceSession.reset(),
+                              ),
+                          onComplete: (moves: number) => {
+                              const changed = practiceProgress.complete(study.chapter.id, moves);
+                              if (!changed) return;
+                              sideVNode = patch(
+                                  sideVNode,
+                                  studySide(study, model, modeActions, practiceProgress),
+                              );
+                          },
+                      }
+                    : {}),
+                ...(nextChapter
+                    ? {
+                          onNextChapter: () => void navigation?.go(nextChapter.id, 'push'),
+                          showNextChapterOnEnd: !study.practice,
+                      }
+                    : {}),
                 ...(study.canWrite ? { onAnalyse: () => void modeActions.enterPracticeAnalysis() } : {}),
             });
             extension.setPracticeSession(practiceSession);
@@ -2322,6 +2852,22 @@ function runStudyGround(
                 await alertDialog({ text: _('Study changes could not be saved. Please try again.') });
                 return false;
             }
+        };
+        modeActions.importPgn = async (pgn, onProgress) => {
+            const chapters = await parseStudyPgnForImportWithEngines(
+                studyPgnParser,
+                game => loadStudyModule(studyPgnGameUsesAlice(game)),
+                pgn,
+                onProgress,
+            );
+            onProgress?.({ phase: 'saving', completed: 0, total: 1 });
+            const result = await postStudyPgnImport(study.id, chapters, fetch, Boolean(study.sticky));
+            onProgress?.({ phase: 'saving', completed: 1, total: 1 });
+            if (!result.chapterId) throw new Error(_('Study PGN import did not return a chapter.'));
+            const importDialog = document.querySelector<HTMLDialogElement>('#study-new-chapter');
+            if (importDialog?.open) importDialog.close();
+            if (navigation) await navigation.go(result.chapterId, 'push');
+            else if (result.url) window.location.assign(result.url);
         };
         modeActions.resetConcealment = async () => {
             if (!(await modeActions.settleWrites())) return;
@@ -2366,10 +2912,11 @@ function runStudyGround(
             study.modeOverride = null;
             await navigation?.reload();
         };
-        if (socket.ws.readyState === WebSocket.OPEN) extension.onSocketOpen();
+        if (socket?.ws.readyState === WebSocket.OPEN) extension.onSocketOpen();
         const serverPanel = document.getElementById('study-panel-serverEval');
         if (serverPanel && !serverPanel.hidden) modeActions.showServerAnalysis();
         if (policy.tools.annotations) updateAnnotationPanel(study, modeActions, extension.annotationState, editor);
+        else updateStudyMetadataPanel(study, modeActions, extension.annotationState);
         updateGamebookEditor();
         syncStudyPlaybackUi(study, modeActions);
         window['onFSFline'] = ctrl.onFSFline;
@@ -2402,6 +2949,7 @@ function runStudyGround(
     navigation = new StudyChapterNavigation({
         studyId: study.id,
         currentChapter: () => study.chapter.id,
+        chapterUrl: chapterId => studyChapterUrl(study, chapterId),
         flush: () => {
             editor?.flush();
             gamebookEditor?.flush();
@@ -2423,24 +2971,11 @@ function runStudyGround(
             // the current board. Alice and the ordinary variants use separate modules.
             analysisTreeFromStudy(data.board.steps[0], data.study.chapter.tree);
             const alice = data.study.chapter.variant === 'alice';
-            if (!modules.has(alice)) {
-                const script = document.querySelector<HTMLScriptElement>('script[src*="/static/pychess-variants.js"]');
-                const version = script ? new URL(script.src).search : '';
-                modules.set(
-                    alice,
-                    (alice ? ffishAliceModule : ffishModule)({
-                        locateFile: (path: string, prefix: string) =>
-                            path.endsWith('.wasm') ? `/static/${path}${version}` : prefix + path,
-                    }).catch((error: unknown) => {
-                        modules.delete(alice);
-                        throw error;
-                    }),
-                );
-            }
-            const ffish = await modules.get(alice)!;
+            const ffish = await loadStudyModule(alice);
             await ctrl.whenEngineConfigured();
             if (!isCurrent()) return;
             if (
+                !study.practice &&
                 !(await extension.verifySnapshot(
                     data.study.chapter.id,
                     data.study.chapter.snapshotToken,
@@ -2472,11 +3007,11 @@ function runStudyGround(
                 fen: study.chapter.initialFen,
                 ply: 0,
             };
-            updateStudyUnderboardChapter(study, model, modeActions);
+            updateStudyUnderboardChapter(study, model, modeActions, practiceProgress);
             loadCataloguedVariantsFromJson(JSON.stringify(data.cataloguedVariants));
             ffish.loadVariantConfig(variantConfigIni(variantsIni, model.variant));
             document.body.dataset.variant = model.variant;
-            document.title = `${study.name} • PyChess`;
+            document.title = studyDocumentTitle(study);
             // Patch only chapter-dependent parts. The main grid, sidebar, tool tabs
             // and underboard editors remain mounted throughout the switch.
             const next = renderAnalysisPage(model, {
@@ -2506,9 +3041,13 @@ function runStudyGround(
                 const replacement = (next.children as VNode[]).find(child => child.sel?.includes(selector));
                 if (current && replacement) patch(toVNode(current), replacement);
             }
-            sideVNode = patch(sideVNode, studySide(study, model, modeActions));
+            sideVNode = patch(sideVNode, studySide(study, model, modeActions, practiceProgress));
             syncStudyPlaybackUi(study, modeActions);
             mount(app.querySelector<HTMLElement>('#mainboard > .cg-wrap')!, true);
+            // Re-apply chapter-dependent underboard content after the replacement
+            // controller has mounted. This keeps pinned comments in sync across
+            // chapter A -> B -> A navigation in both Study and Practice views.
+            updateStudyUnderboardChapter(study, model, modeActions, practiceProgress);
             restoreSessionPosition();
             notifyChessgroundResize();
             if (window.fsf) {
@@ -2552,10 +3091,11 @@ function runStudyGround(
 
     document.querySelector('.sidebar-first')!.addEventListener('click', event => {
         const mouse = event as MouseEvent;
-        const link = (event.target as Element).closest<HTMLAnchorElement>('.study-chapters a');
+        const link = (event.target as Element).closest<HTMLAnchorElement>('[data-study-chapter-id]');
         if (!link || mouse.button !== 0 || mouse.ctrlKey || mouse.metaKey || mouse.shiftKey || mouse.altKey) return;
+        const chapterId = link.dataset.studyChapterId;
+        if (!chapterId) return;
         event.preventDefault();
-        const chapterId = new URL(link.href).pathname.split('/').pop()!;
         if (chapterId !== study.chapter.id) study.modeOverride = null;
         if (policy.synchronization) {
             if (policy.canPublishSharedPosition && extension.sharePosition(chapterId, '')) return;
@@ -2566,15 +3106,14 @@ function runStudyGround(
         void navigation?.go(chapterId);
     });
     window.addEventListener('popstate', () => {
-        const [prefix, studyId, chapterId] = window.location.pathname.split('/').filter(Boolean);
-        if (prefix === 'study' && studyId === study.id && chapterId) {
-            if (chapterId !== study.chapter.id) study.modeOverride = null;
-            if (policy.synchronization && chapterId !== study.sharedChapter) {
-                study.sticky = false;
-                refreshStudyModeButtons(study);
-            }
-            void navigation?.go(chapterId, 'pop');
+        const chapterId = chapterIdFromStudyUrl(study, window.location.pathname);
+        if (!chapterId) return;
+        if (chapterId !== study.chapter.id) study.modeOverride = null;
+        if (policy.synchronization && chapterId !== study.sharedChapter) {
+            study.sticky = false;
+            refreshStudyModeButtons(study);
         }
+        void navigation?.go(chapterId, 'pop');
     });
     window.addEventListener('beforeunload', event => {
         editor?.flush();
@@ -2686,6 +3225,13 @@ export function studyView(model: PyChessModel): VNode[] {
     if (!study) return [h('div.box.box-pad', _('Study data is unavailable.'))];
 
     initializeStudyModes(study);
+    const practiceProgress = study.practice
+        ? new StudyPracticeProgress(
+              localStorage,
+              study.practice.completedChapterIds,
+              (chapterId, bestMoves) => persistPracticeCompletion(study, chapterId, bestMoves),
+          )
+        : undefined;
     const modeActions: StudyModeActions = {
         toggleSticky: () => {},
         toggleWrite: () => {},
@@ -2693,6 +3239,7 @@ export function studyView(model: PyChessModel): VNode[] {
         showServerAnalysis: () => {},
         setDescription: () => {},
         settleWrites: async () => true,
+        importPgn: async () => {},
         resetConcealment: async () => {},
         enterGamebookPreview: async () => {},
         leaveGamebookPreview: async () => {},
@@ -2701,11 +3248,11 @@ export function studyView(model: PyChessModel): VNode[] {
         enterPracticeAnalysis: async () => {},
         leavePracticeAnalysis: async () => {},
     };
-    const side = studySide(study, model, modeActions);
+    const side = studySide(study, model, modeActions, practiceProgress);
     const page = renderAnalysisPage(model, {
         side,
-        underboard: studyUnderboard(study, model, modeActions),
-        mountBoard: vnode => runStudyGround(vnode, model, study, side, modeActions),
+        underboard: studyUnderboard(study, model, modeActions, practiceProgress),
+        mountBoard: vnode => runStudyGround(vnode, model, study, side, modeActions, practiceProgress),
         ongoing: false,
         toolsAfterMoves: studyAnalysisTools(study),
         ...studyBoardParts(study),

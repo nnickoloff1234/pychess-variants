@@ -1,7 +1,8 @@
 import { h, VNode } from 'snabbdom';
 import { _ } from '../i18n';
 import type { StudyChapterMode } from '../types';
-import { selectVariant, twoBoarsVariants } from '../variants';
+import type { StudyPgnImportProgress, StudyPgnImportProgressCallback } from './studyPgnImport';
+import { selectVariant, twoBoarsVariants, VARIANTS } from '../variants';
 
 export interface StudyChapterCreateFormOptions {
     id?: string;
@@ -11,6 +12,7 @@ export interface StudyChapterCreateFormOptions {
     enabledModes?: readonly StudyChapterMode[];
     sync?: () => boolean;
     beforeSubmit?: () => Promise<boolean>;
+    pgnImport?: (pgn: string, onProgress?: StudyPgnImportProgressCallback) => Promise<void>;
 }
 
 type StudyChapterModeOption = {
@@ -21,7 +23,159 @@ type StudyChapterModeOption = {
 };
 
 const STUDY_CHAPTER_MODE_ORDER: readonly StudyChapterMode[] = ['normal', 'practice', 'conceal', 'gamebook'];
-const STUDY_DEFAULT_ENABLED_MODES: readonly StudyChapterMode[] = ['normal', 'gamebook'];
+const STUDY_DEFAULT_ENABLED_MODES: readonly StudyChapterMode[] = ['normal', 'practice', 'gamebook'];
+
+type StudyChapterSource = 'setup' | 'pgn';
+
+function studyChapterChess960State(variantName: string): { visible: boolean; checked: boolean } {
+    const variant = VARIANTS[variantName];
+    if (!variant) return { visible: false, checked: false };
+    if (variant.randomStart) return { visible: false, checked: true };
+    return { visible: variant.chess960, checked: false };
+}
+
+function updateStudyChapterChess960Field(form: HTMLFormElement, variantName: string): void {
+    const field = form.querySelector<HTMLElement>('.study-chapter-chess960');
+    const input = field?.querySelector<HTMLInputElement>('input[name="chess960"]');
+    if (!field || !input) return;
+    const state = studyChapterChess960State(variantName);
+    field.hidden = !state.visible;
+    input.checked = state.checked;
+}
+
+function studyChapterChess960Field(variantName: string): VNode {
+    const state = studyChapterChess960State(variantName);
+    return h('label.study-chapter-chess960', { attrs: { hidden: !state.visible } }, [
+        h('input', {
+            props: { type: 'checkbox', name: 'chess960', checked: state.checked },
+            attrs: { value: '1' },
+        }),
+        h('span', 'Chess960'),
+    ]);
+}
+
+function selectStudyChapterSource(form: HTMLFormElement, source: StudyChapterSource): void {
+    form.dataset.studyChapterSource = source;
+    form.querySelectorAll<HTMLButtonElement>('[data-study-chapter-source]').forEach(button => {
+        const selected = button.dataset.studyChapterSource === source;
+        button.classList.toggle('active', selected);
+        button.setAttribute('aria-selected', String(selected));
+        button.tabIndex = selected ? 0 : -1;
+    });
+    form.querySelectorAll<HTMLElement>('[data-study-chapter-source-panel]').forEach(panel => {
+        const active = panel.dataset.studyChapterSourcePanel === source;
+        panel.hidden = !active;
+        panel
+            .querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('input, select, textarea')
+            .forEach(control => {
+                control.disabled = !active;
+            });
+    });
+    const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    if (submit) submit.textContent = source === 'pgn' ? _('Import PGN') : _('Create chapter');
+    const error = form.querySelector<HTMLElement>('.study-pgn-import__error');
+    if (error) {
+        error.hidden = true;
+        error.textContent = '';
+    }
+}
+
+function setStudyPgnImportProgress(form: HTMLFormElement, progress: StudyPgnImportProgress): void {
+    const track = form.querySelector<HTMLElement>('.study-pgn-import__progress');
+    const bar = track?.querySelector<HTMLElement>('span');
+    if (!track || !bar) return;
+
+    track.hidden = false;
+    if (progress.phase === 'normalizing') {
+        const fraction = progress.total > 0 ? Math.min(1, Math.max(0, progress.completed / progress.total)) : 0;
+        const percent = Math.round(fraction * 100);
+        track.classList.remove('indeterminate');
+        track.setAttribute('aria-valuenow', String(percent));
+        track.setAttribute('aria-valuetext', _('Preparing chapters: %1%', percent));
+        bar.style.width = `${percent}%`;
+    } else {
+        track.classList.add('indeterminate');
+        track.removeAttribute('aria-valuenow');
+        track.setAttribute('aria-valuetext', progress.phase === 'parsing' ? _('Parsing PGN') : _('Saving chapters'));
+        bar.style.removeProperty('width');
+    }
+}
+
+function resetStudyPgnImportProgress(form: HTMLFormElement): void {
+    const track = form.querySelector<HTMLElement>('.study-pgn-import__progress');
+    const bar = track?.querySelector<HTMLElement>('span');
+    if (!track || !bar) return;
+    track.hidden = true;
+    track.classList.remove('indeterminate');
+    track.removeAttribute('aria-valuenow');
+    track.removeAttribute('aria-valuetext');
+    bar.style.removeProperty('width');
+}
+
+function studyPgnImportError(form: HTMLFormElement, error: unknown): void {
+    const output = form.querySelector<HTMLElement>('.study-pgn-import__error');
+    if (!output) return;
+    output.textContent = error instanceof Error ? error.message : String(error);
+    output.hidden = false;
+}
+
+function loadStudyPgnFile(event: Event): void {
+    const input = event.currentTarget as HTMLInputElement;
+    const form = input.form;
+    const file = input.files?.[0];
+    const textarea = form?.querySelector<HTMLTextAreaElement>('textarea[name="pgn"]');
+    if (!form || !file || !textarea) return;
+
+    const error = form.querySelector<HTMLElement>('.study-pgn-import__error');
+    if (error) {
+        error.hidden = true;
+        error.textContent = '';
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+        if (typeof reader.result !== 'string') {
+            studyPgnImportError(form, new Error(_('Could not read PGN file.')));
+            return;
+        }
+        textarea.value = reader.result;
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    reader.onerror = () => studyPgnImportError(form, new Error(_('Could not read PGN file.')));
+    reader.readAsText(file);
+}
+
+function submitStudyPgnImport(event: SubmitEvent, options: StudyChapterCreateFormOptions): void {
+    const form = event.currentTarget as HTMLFormElement;
+    event.preventDefault();
+    if (form.dataset.studySettling === 'true' || !form.reportValidity()) return;
+    const textarea = form.querySelector<HTMLTextAreaElement>('textarea[name="pgn"]');
+    if (!textarea || !options.pgnImport) return;
+
+    form.dataset.studySettling = 'true';
+    form.setAttribute('aria-busy', 'true');
+    const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    if (submit) submit.disabled = true;
+    const error = form.querySelector<HTMLElement>('.study-pgn-import__error');
+    if (error) {
+        error.hidden = true;
+        error.textContent = '';
+    }
+
+    void (async () => {
+        if (options.beforeSubmit && !(await options.beforeSubmit())) return;
+        if (!form.isConnected || !form.reportValidity()) return;
+        syncHiddenInput(form, options.sync);
+        await options.pgnImport!(textarea.value, progress => setStudyPgnImportProgress(form, progress));
+    })()
+        .catch(importError => studyPgnImportError(form, importError))
+        .finally(() => {
+            delete form.dataset.studySettling;
+            form.removeAttribute('aria-busy');
+            if (submit) submit.disabled = false;
+            resetStudyPgnImportProgress(form);
+        });
+}
 
 export function studyEnabledModesFromJson(raw: string | null): StudyChapterMode[] {
     if (!raw) return [...STUDY_DEFAULT_ENABLED_MODES];
@@ -184,10 +338,70 @@ export function settleStudyFormSubmit(
 export function studyChapterCreateForm(
     action: string,
     variant: string,
-    chess960: boolean,
     options: StudyChapterCreateFormOptions = {},
 ): VNode {
     const mode = options.mode ?? 'normal';
+    const setupFields: VNode[] = [
+        chapterField('chapterName', _('Chapter name'), options.chapterName ?? '', 80),
+        h('label', [
+            h('span', _('Variant')),
+            selectVariant(
+                'variant',
+                variant,
+                event => {
+                    const select = event.currentTarget as HTMLSelectElement;
+                    if (select.form) updateStudyChapterChess960Field(select.form, select.value);
+                },
+                () => {},
+                twoBoarsVariants,
+            ),
+        ]),
+        studyChapterChess960Field(variant),
+        studyChapterOrientationField(options.orientation ?? 'white'),
+        studyChapterModeField(mode, options.enabledModes),
+        chapterField('fen', _('FEN (optional)')),
+        chapterField('gameId', _('Game ID (optional)'), '', 12),
+    ];
+    const sourceTabs = options.pgnImport
+        ? [
+              h('div.study-chapter-source-tabs', { attrs: { role: 'tablist', 'aria-label': _('Chapter source') } }, [
+                  h(
+                      'button.study-chapter-source-tab.active',
+                      {
+                          attrs: {
+                              type: 'button',
+                              role: 'tab',
+                              'aria-selected': 'true',
+                              'data-study-chapter-source': 'setup',
+                          },
+                          on: {
+                              click: event =>
+                                  selectStudyChapterSource((event.currentTarget as HTMLButtonElement).form!, 'setup'),
+                          },
+                      },
+                      _('Setup'),
+                  ),
+                  h(
+                      'button.study-chapter-source-tab',
+                      {
+                          attrs: {
+                              type: 'button',
+                              role: 'tab',
+                              'aria-selected': 'false',
+                              tabindex: '-1',
+                              'data-study-chapter-source': 'pgn',
+                          },
+                          on: {
+                              click: event =>
+                                  selectStudyChapterSource((event.currentTarget as HTMLButtonElement).form!, 'pgn'),
+                          },
+                      },
+                      'PGN',
+                  ),
+              ]),
+          ]
+        : [];
+
     return h(
         'form.study-side__new-chapter',
         {
@@ -195,13 +409,18 @@ export function studyChapterCreateForm(
                 ...(options.id ? { id: options.id } : {}),
                 method: 'post',
                 action,
+                ...(options.pgnImport ? { 'data-study-chapter-source': 'setup' } : {}),
             },
-            ...(options.sync || options.beforeSubmit
+            ...(options.sync || options.beforeSubmit || options.pgnImport
                 ? {
                       on: {
                           submit: (event: SubmitEvent) => {
                               const form = event.currentTarget as HTMLFormElement;
                               syncHiddenInput(form, options.sync);
+                              if (form.dataset.studyChapterSource === 'pgn' && options.pgnImport) {
+                                  submitStudyPgnImport(event, options);
+                                  return;
+                              }
                               if (options.beforeSubmit)
                                   settleStudyFormSubmit(event, options.beforeSubmit, () =>
                                       syncHiddenInput(form, options.sync),
@@ -219,22 +438,68 @@ export function studyChapterCreateForm(
                       }),
                   ]
                 : []),
-            chapterField('chapterName', _('Chapter name'), options.chapterName ?? '', 80),
-            h('label', [
-                h('span', _('Variant')),
-                selectVariant(
-                    'variant',
-                    variant,
-                    () => {},
-                    () => {},
-                    twoBoarsVariants,
-                ),
-            ]),
-            chess960 ? h('input', { attrs: { type: 'hidden', name: 'chess960', value: '1' } }) : '',
-            studyChapterOrientationField(options.orientation ?? 'white'),
-            studyChapterModeField(mode, options.enabledModes),
-            chapterField('fen', _('FEN (optional)')),
-            chapterField('gameId', _('Game ID (optional)'), '', 12),
+            ...sourceTabs,
+            ...(options.pgnImport
+                ? [
+                      h(
+                          'div.study-chapter-source-panel',
+                          { attrs: { 'data-study-chapter-source-panel': 'setup' } },
+                          setupFields,
+                      ),
+                      h(
+                          'div.study-chapter-source-panel.study-pgn-import',
+                          { attrs: { 'data-study-chapter-source-panel': 'pgn', hidden: true } },
+                          [
+                              h('label.study-dialog__field', [
+                                  h('span', _('PGN')),
+                                  h('textarea', {
+                                      attrs: {
+                                          name: 'pgn',
+                                          rows: '12',
+                                          required: true,
+                                          disabled: true,
+                                          spellcheck: 'false',
+                                          placeholder: _(
+                                              'Paste PGN text here. Multiple games become separate chapters.',
+                                          ),
+                                      },
+                                  }),
+                              ]),
+                              ...(typeof FileReader === 'undefined'
+                                  ? []
+                                  : [
+                                        h('label.study-dialog__field.study-pgn-import__file', [
+                                            h('span', _('PGN file')),
+                                            h('input', {
+                                                attrs: { type: 'file', accept: '.pgn', disabled: true },
+                                                on: { change: loadStudyPgnFile },
+                                            }),
+                                        ]),
+                                    ]),
+                              h(
+                                  'small.study-dialog__help',
+                                  _(
+                                      'PGN tags and embedded Study metadata determine variants, chapter names and annotations.',
+                                  ),
+                              ),
+                              h(
+                                  'div.study-pgn-import__progress',
+                                  {
+                                      attrs: {
+                                          role: 'progressbar',
+                                          'aria-label': _('PGN import progress'),
+                                          'aria-valuemin': '0',
+                                          'aria-valuemax': '100',
+                                          hidden: true,
+                                      },
+                                  },
+                                  [h('span')],
+                              ),
+                              h('p.study-pgn-import__error', { attrs: { role: 'alert', hidden: true } }),
+                          ],
+                      ),
+                  ]
+                : setupFields),
             h('div.study-dialog__actions.study-dialog__actions--submit-only', [
                 h('button.button', { attrs: { type: 'submit' } }, _('Create chapter')),
             ]),

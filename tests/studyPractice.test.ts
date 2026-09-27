@@ -8,6 +8,7 @@ jest.mock('../client/i18n', () => ({
 }));
 
 import type { AnalysisController } from '../client/analysis/analysisCtrl';
+import type { PracticeGoal } from '../client/types';
 import type { AnalysisNavigationOrigin } from '../client/analysis/analysisExtension';
 import type { AnalysisTree, AnalysisTreeNode } from '../client/analysis/analysisTree';
 import { StudyPracticeSession, type StudyPracticeAccess } from '../client/study/studyPractice';
@@ -19,6 +20,7 @@ type Scenario = {
     terminalAfter?: number;
     initialTerminal?: boolean;
     result?: string;
+    checkmate?: boolean;
     legalMoves?: (turn: Color, moves: readonly string[]) => string;
 };
 
@@ -56,6 +58,14 @@ class FakeBoard {
 
     result(): string {
         return this.isGameOver() ? (scenario.result ?? '1-0') : '*';
+    }
+
+    isCheck(): boolean {
+        return this.isGameOver() && Boolean(scenario.checkmate);
+    }
+
+    numberLegalMoves(): number {
+        return this.legalMoves().split(' ').filter(Boolean).length;
     }
 
     legalMoves(): string {
@@ -108,6 +118,13 @@ type HarnessOverrides = Partial<{
     practiceEngineIdle: boolean;
     canAnalyse: boolean;
     onAnalyse: () => void;
+    goal: PracticeGoal;
+    autoNext: () => boolean;
+    hasNextChapter: boolean;
+    onComplete: (moves: number) => void;
+    onNextChapter: () => void;
+    showNextChapterOnEnd: boolean;
+    onStateChange: (state: import('../client/study/studyPractice').StudyPracticeState) => void;
 }>;
 
 function makeHarness(
@@ -134,7 +151,7 @@ function makeHarness(
         fullfen: fen,
         engineVariant: overrides.engineVariant ?? 'chess',
         chess960: false,
-        variant: { twoBoards: overrides.twoBoards ?? false, kingRoles: ['k-piece'] },
+        variant: { twoBoards: overrides.twoBoards ?? false, kingRoles: ['k-piece'], pieceFamily: 'standard' },
         ffish: { Board: FakeBoard },
         localEngine: overrides.localEngine ?? true,
         localAnalysis: overrides.localAnalysis ?? false,
@@ -149,17 +166,28 @@ function makeHarness(
             setAutoShapes: jest.fn(),
         },
         fsfPostMessage: (command: string) => commands.push(command),
+        drawPracticeEval: jest.fn(),
         suspendLocalAnalysisForExtension: jest.fn(function (this: { localAnalysis: boolean }) {
             this.localAnalysis = false;
         }),
         isPracticeEngineIdle: () => overrides.practiceEngineIdle ?? true,
         isLocalAnalysisBlockedByAntiCheat: () => false,
-        activateTreePath(path: string, _redraw: boolean, _origin: AnalysisNavigationOrigin) {
+        activateTreePath(path: string, _redraw: boolean, origin: AnalysisNavigationOrigin) {
             const position = positions.get(path);
             if (!position) return false;
+            const previousPath = this.analysisPath;
             this.analysisPath = path;
             this.turnColor = position.turn;
             this.fullfen = position.fen;
+            if (session)
+                session.onPositionChanged({
+                    origin,
+                    path,
+                    previousPath,
+                    ply: tree.byPath.get(path)?.ply ?? 0,
+                    fen: position.fen,
+                    node: tree.byPath.get(path),
+                });
             return true;
         },
         applyAnalysisMove(move: string, origin: 'played-move' | 'automated-reply') {
@@ -198,6 +226,15 @@ function makeHarness(
         access: () => accessRef.value,
         canAnalyse: overrides.canAnalyse ?? false,
         ...(overrides.onAnalyse ? { onAnalyse: overrides.onAnalyse } : {}),
+        ...(overrides.goal ? { goal: overrides.goal } : {}),
+        ...(overrides.autoNext ? { autoNext: overrides.autoNext } : {}),
+        ...(overrides.hasNextChapter !== undefined ? { hasNextChapter: overrides.hasNextChapter } : {}),
+        ...(overrides.onComplete ? { onComplete: overrides.onComplete } : {}),
+        ...(overrides.onNextChapter ? { onNextChapter: overrides.onNextChapter } : {}),
+        ...(overrides.showNextChapterOnEnd !== undefined
+            ? { showNextChapterOnEnd: overrides.showNextChapterOnEnd }
+            : {}),
+        ...(overrides.onStateChange ? { onStateChange: overrides.onStateChange } : {}),
     });
 
     const humanMove = (move: string) => {
@@ -218,6 +255,14 @@ function makeHarness(
 describe('StudyPracticeSession', () => {
     beforeEach(() => {
         jest.useFakeTimers();
+        Object.defineProperty(HTMLMediaElement.prototype, 'play', {
+            configurable: true,
+            value: jest.fn(() => Promise.resolve()),
+        });
+        Object.defineProperty(HTMLMediaElement.prototype, 'load', {
+            configurable: true,
+            value: jest.fn(),
+        });
         scenario = { initialTurn: 'white' };
         boardsCreated = 0;
         boardsDeleted = 0;
@@ -288,13 +333,46 @@ describe('StudyPracticeSession', () => {
 
         expect(panel.querySelector('.study-practice__title')?.textContent).toBe('Practice with computer');
         expect(panel.querySelector('.study-practice__feedback')).not.toBeNull();
-        expect(panel.querySelector('.study-practice__mark piece.k-piece.white')).not.toBeNull();
+        expect(panel.querySelector('.study-practice__mark.standard piece.k-piece.white')).not.toBeNull();
         expect(panel.querySelector('.study-practice__instruction strong')?.textContent).toBe('Your turn');
         expect(
             [...panel.querySelectorAll<HTMLButtonElement>('.study-practice__action')].map(button => button.textContent),
         ).toEqual(['Get a hint']);
         expect(panel.classList.contains('study-gamebook-play')).toBe(false);
 
+        session.destroy();
+    });
+
+    test('keeps the computer-practice goal out of the right learner panel', () => {
+        const { session } = makeHarness('white', undefined, { goal: { result: 'winIn', moves: 3 } });
+        const panel = document.querySelector<HTMLElement>('.study-practice')!;
+
+        expect(panel.textContent).not.toContain('Goal:');
+        expect(panel.textContent).not.toContain('Win the game in 3 moves.');
+
+        session.destroy();
+    });
+
+    test('surfaces the current practice search in the engine score and gauge without exposing a PV', () => {
+        const { session, ctrl } = makeHarness('white');
+
+        session.onEngineLine('info depth 16 multipv 1 score cp 125 nodes 400000 time 1000 pv e2e4 e7e5');
+
+        expect(ctrl.drawPracticeEval).toHaveBeenCalledWith(
+            { d: 16, multipv: 1, s: { cp: 125 }, p: 'e2e4 e7e5' },
+            'white',
+        );
+        session.destroy();
+    });
+
+    test('does not show a stale parent evaluation after the learner has already moved', () => {
+        const { session, ctrl, humanMove } = makeHarness('white');
+
+        expect(humanMove('d2d4')).toBe(true);
+        expect(session.state.kind).toBe('evaluating-move');
+        session.onEngineLine('info depth 16 multipv 1 score cp 80 nodes 400000 time 1000 pv e2e4');
+
+        expect(ctrl.drawPracticeEval).not.toHaveBeenCalled();
         session.destroy();
     });
 
@@ -350,7 +428,7 @@ describe('StudyPracticeSession', () => {
             fullfen: fen,
             engineVariant: 'chess',
             chess960: false,
-            variant: { twoBoards: false, kingRoles: ['k-piece'] },
+            variant: { twoBoards: false, kingRoles: ['k-piece'], pieceFamily: 'standard' },
             ffish: { Board: FakeBoard },
             localEngine: true,
             localAnalysis: false,
@@ -382,7 +460,7 @@ describe('StudyPracticeSession', () => {
         session.destroy();
     });
 
-    test('pause cancels engine work, permits history browsing, and resume returns to the live path', () => {
+    test('pause permits history browsing and resumes automatically on an earlier learner turn', () => {
         scenario = { initialTurn: 'white' };
         const { session, ctrl, humanMove, finishEvaluation } = makeHarness('white');
         finishEvaluation('e2e4');
@@ -394,11 +472,12 @@ describe('StudyPracticeSession', () => {
         expect(session.state.kind).toBe('paused');
         expect(session.browse(-1)).toBe(true);
         expect(ctrl.analysisPath).toBe('m1');
+        expect(session.state.kind).toBe('paused');
         expect(session.browse(-1)).toBe(true);
         expect(ctrl.analysisPath).toBe('');
-        expect(session.resume()).toBe(true);
-        expect(ctrl.analysisPath).toBe('m2');
         expect(session.state.kind).toBe('human-turn');
+        expect(session.attemptHistory).toEqual([]);
+        expect(humanMove('d2d4')).toBe(true);
         session.destroy();
     });
 
@@ -420,6 +499,27 @@ describe('StudyPracticeSession', () => {
         expect(session.resume()).toBe(true);
         expect(ctrl.analysisPath).toBe('m2');
         expect(session.state.kind).toBe('human-turn');
+        session.destroy();
+    });
+
+    test('fast-back to a learner position rewinds the live attempt and accepts a different move', () => {
+        scenario = { initialTurn: 'white' };
+        const { session, ctrl, humanMove, finishEvaluation } = makeHarness('white');
+        finishEvaluation('e2e4');
+        expect(humanMove('e2e4')).toBe(true);
+        session.onEngineLine('bestmove e7e5');
+        session.onEngineLine('readyok');
+        expect(session.state.kind).toBe('human-turn');
+        expect(session.attemptHistory.map(entry => entry.move)).toEqual(['e2e4', 'e7e5']);
+
+        expect(session.canActivatePath('', 'user-navigation')).toBe(true);
+        ctrl.activateTreePath('', true, 'user-navigation');
+
+        expect(ctrl.analysisPath).toBe('');
+        expect(session.state.kind).toBe('human-turn');
+        expect(session.attemptHistory).toEqual([]);
+        expect(humanMove('d2d4')).toBe(true);
+        expect(session.attemptHistory.map(entry => entry.move)).toEqual(['d2d4']);
         session.destroy();
     });
 
@@ -457,6 +557,151 @@ describe('StudyPracticeSession', () => {
         expect(session.state.kind).toBe('ended');
         if (session.state.kind === 'ended') expect(session.state.result).toBe('1-0');
         expect(commands).not.toContain('go nodes 600000');
+        session.destroy();
+    });
+
+    test('variant-native win goal completes on a non-checkmate Fairy-Stockfish terminal result', () => {
+        scenario = { initialTurn: 'white', terminalAfter: 1, result: '1-0', checkmate: false };
+        const onComplete = jest.fn();
+        const { session, humanMove, finishEvaluation } = makeHarness('white', undefined, {
+            engineVariant: 'racingkings',
+            goal: { result: 'win' },
+            onComplete,
+        });
+
+        finishEvaluation('e2e4');
+        expect(humanMove('e2e4')).toBe(true);
+        expect(session.state).toMatchObject({ kind: 'ended', goalDecision: 'success', result: '1-0' });
+        expect(onComplete).toHaveBeenCalledWith(1);
+        expect(document.querySelector('.study-practice')?.textContent).toContain('Success!');
+        session.destroy();
+    });
+
+    test('terminal ordinary Study practice replaces move feedback with the blue next-chapter action', () => {
+        scenario = { initialTurn: 'white', terminalAfter: 1, result: '1-0', checkmate: true };
+        const nextChapter = jest.fn();
+        const { session, humanMove, finishEvaluation } = makeHarness('white', undefined, {
+            onNextChapter: nextChapter,
+            showNextChapterOnEnd: true,
+        });
+
+        finishEvaluation('e2e4');
+        expect(humanMove('e2e4')).toBe(true);
+        expect(session.state).toMatchObject({ kind: 'ended', result: '1-0' });
+        expect(document.querySelector('.study-practice__comment')).toBeNull();
+        const action = document.querySelector<HTMLButtonElement>('.study-practice__next-chapter');
+        expect(action?.textContent).toBe('Next chapter');
+        expect(document.querySelector('.study-practice')?.textContent).not.toContain('Good move');
+
+        action?.click();
+        expect(nextChapter).toHaveBeenCalledTimes(1);
+        session.destroy();
+    });
+
+    test('successful Practice plays the success sound and waits when auto-next is disabled', () => {
+        scenario = { initialTurn: 'white', terminalAfter: 1, result: '1-0', checkmate: true };
+        const nextChapter = jest.fn();
+        const states: string[] = [];
+        const { session, humanMove, finishEvaluation } = makeHarness('white', undefined, {
+            goal: { result: 'mate' },
+            autoNext: () => false,
+            hasNextChapter: true,
+            onNextChapter: nextChapter,
+            onStateChange: state =>
+                states.push(state.kind === 'ended' ? (state.goalDecision ?? state.kind) : state.kind),
+        });
+
+        finishEvaluation('e2e4');
+        expect(humanMove('e2e4')).toBe(true);
+        expect(states).toContain('success');
+        expect(document.querySelector('.study-practice')?.textContent).not.toContain('Next chapter');
+
+        jest.advanceTimersByTime(10_000);
+        expect(nextChapter).not.toHaveBeenCalled();
+        session.destroy();
+    });
+
+    test('mate goal requires a real checked no-legal-moves terminal position', () => {
+        scenario = { initialTurn: 'white', terminalAfter: 1, result: '1-0', checkmate: false };
+        const failed = makeHarness('white', undefined, { goal: { result: 'mate' } });
+        failed.finishEvaluation('e2e4');
+        expect(failed.humanMove('e2e4')).toBe(true);
+        expect(failed.session.state).toMatchObject({ kind: 'ended', goalDecision: 'failure' });
+        expect(document.querySelector('.study-practice')?.textContent).not.toContain('Retry');
+        failed.session.destroy();
+
+        scenario = { initialTurn: 'white', terminalAfter: 1, result: '1-0', checkmate: true };
+        const completed = jest.fn();
+        const success = makeHarness('white', undefined, { goal: { result: 'mate' }, onComplete: completed });
+        success.finishEvaluation('e2e4');
+        expect(success.humanMove('e2e4')).toBe(true);
+        expect(success.session.state).toMatchObject({ kind: 'ended', goalDecision: 'success' });
+        expect(completed).toHaveBeenCalledWith(1);
+        success.session.destroy();
+    });
+
+    test('draw goal accepts a claimable full-history draw terminal result', () => {
+        scenario = { initialTurn: 'white', terminalAfter: 1, result: '1/2-1/2' };
+        const completed = jest.fn();
+        const { session, humanMove, finishEvaluation } = makeHarness('white', undefined, {
+            goal: { result: 'drawIn', moves: 5 },
+            onComplete: completed,
+        });
+
+        finishEvaluation('e2e4');
+        expect(humanMove('e2e4')).toBe(true);
+        expect(session.state).toMatchObject({ kind: 'ended', goalDecision: 'success', result: '1/2-1/2' });
+        expect(completed).toHaveBeenCalledWith(1);
+        session.destroy();
+    });
+
+    test('goal evaluation asks for the minimum reliable depth before reporting an unclear result', () => {
+        scenario = { initialTurn: 'white' };
+        const completed = jest.fn();
+        const { session, commands, humanMove, finishEvaluation } = makeHarness('white', undefined, {
+            goal: { result: 'evalIn', moves: 1, cp: 200 },
+            onComplete: completed,
+        });
+
+        finishEvaluation('e2e4');
+        expect(humanMove('e2e4')).toBe(true);
+        expect(commands).toContain('go depth 16');
+
+        // Keep the bounded-search failure mode: if the browser engine still cannot
+        // return a depth-16 exact score, the chapter must not invent a result.
+        session.onEngineLine('info depth 12 multipv 1 score cp -400 nodes 400000 time 1000 pv e7e5');
+        session.onEngineLine('bestmove e7e5');
+
+        expect(session.state).toMatchObject({ kind: 'ended', goalDecision: 'indeterminate' });
+        expect(completed).not.toHaveBeenCalled();
+        expect(document.querySelector('.study-practice')?.textContent).toContain('Result unclear');
+        session.destroy();
+    });
+
+    test('a shallow cached move evaluation is retried at goal depth before deciding', () => {
+        scenario = { initialTurn: 'white' };
+        const completed = jest.fn();
+        const { session, commands, humanMove, finishEvaluation } = makeHarness('white', undefined, {
+            goal: { result: 'evalIn', moves: 1, cp: 200 },
+            onComplete: completed,
+        });
+
+        finishEvaluation('e2e4', 0);
+        expect(humanMove('d2d4')).toBe(true);
+        session.onEngineLine('info depth 12 multipv 1 score cp -400 nodes 400000 time 1000 pv e7e5');
+        session.onEngineLine('bestmove e7e5');
+
+        // The goal retry queues behind the completed move-evaluation ready barrier.
+        expect(commands.filter(command => command === 'go depth 16')).toHaveLength(0);
+        session.onEngineLine('readyok');
+        expect(commands.filter(command => command === 'go depth 16')).toHaveLength(1);
+
+        session.onEngineLine('info depth 16 multipv 1 score cp -400 nodes 700000 time 1200 pv e7e5');
+        session.onEngineLine('bestmove e7e5');
+
+        expect(session.state).toMatchObject({ kind: 'ended', goalDecision: 'success' });
+        expect(completed).toHaveBeenCalledWith(1);
+        expect(document.querySelector('.study-practice')?.textContent).toContain('Success!');
         session.destroy();
     });
 

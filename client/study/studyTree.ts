@@ -23,6 +23,9 @@ export interface StudyCommentDto {
     id: string;
     author: string;
     text: string;
+    /** Original PGN attribution, distinct from authenticated Study authorship. */
+    sourceAuthor?: string;
+    sourceAuthorId?: string;
 }
 
 export interface StudyAnnotationsDto {
@@ -62,6 +65,7 @@ export interface StudyTreeDto {
     nodes: StudyTreeNodeDto[];
     rootAnnotations?: StudyAnnotationsDto;
     rootGamebook?: StudyGamebookDto;
+    rootEval?: StudyEvalDto;
     rootClocks?: [number, number];
 }
 
@@ -157,7 +161,20 @@ export function parseStudyAnnotations(value: unknown): StudyAnnotationsDto {
         ) {
             throw new Error('Invalid Study comment');
         }
-        return { id: comment.id, author: comment.author, text: comment.text };
+        if (comment.sourceAuthor !== undefined && (typeof comment.sourceAuthor !== 'string' || !comment.sourceAuthor))
+            throw new Error('Invalid Study comment source author');
+        if (
+            comment.sourceAuthorId !== undefined &&
+            (typeof comment.sourceAuthorId !== 'string' || !comment.sourceAuthorId)
+        )
+            throw new Error('Invalid Study comment source author id');
+        return {
+            id: comment.id,
+            author: comment.author,
+            text: comment.text,
+            ...(comment.sourceAuthor ? { sourceAuthor: comment.sourceAuthor } : {}),
+            ...(comment.sourceAuthorId ? { sourceAuthorId: comment.sourceAuthorId } : {}),
+        };
     });
     if (new Set(comments.map(comment => comment.id)).size !== comments.length) {
         throw new Error('Duplicate Study comment id');
@@ -253,6 +270,7 @@ function parentKey(parentId: string | null): string {
 
 export function analysisTreeFromStudy(rootStep: Step, dto: StudyTreeDto): AnalysisTree {
     const rootGamebook = dto.rootGamebook === undefined ? undefined : analysisGamebookFromStudy(dto.rootGamebook);
+    const rootEval = cevalFromStudyEval(dto.rootEval);
     if (dto.rootClocks !== undefined) {
         if (
             !Array.isArray(dto.rootClocks) ||
@@ -295,6 +313,7 @@ export function analysisTreeFromStudy(rootStep: Step, dto: StudyTreeDto): Analys
         mainlinePly: 0,
         annotations: analysisAnnotationsFromStudy(dto.rootAnnotations),
         gamebook: rootGamebook,
+        eval: rootEval,
     };
     const tree: AnalysisTree = {
         root,
@@ -362,6 +381,7 @@ export function studyTreeFromAnalysisTree(tree: AnalysisTree): StudyTreeDto {
     const nodes: StudyTreeNodeDto[] = [];
     const rootAnnotations = studyAnnotationsFromAnalysis(tree.root.annotations);
     const rootGamebook = studyGamebookFromAnalysis(tree.root.gamebook);
+    const rootEval = studyEvalFromCeval(tree.root.eval);
     const rootClocks = tree.root.step.clocks ? ([...tree.root.step.clocks] as [number, number]) : undefined;
     const used = new Set<string>();
     const queue: Array<{ parent: AnalysisTreeNode; stableParentId: string | null }> = [
@@ -401,6 +421,7 @@ export function studyTreeFromAnalysisTree(tree: AnalysisTree): StudyTreeDto {
         nodes,
         ...(rootAnnotations ? { rootAnnotations } : {}),
         ...(rootGamebook ? { rootGamebook } : {}),
+        ...(rootEval ? { rootEval } : {}),
         ...(rootClocks ? { rootClocks } : {}),
     };
 }
@@ -580,6 +601,11 @@ export function mergeStudyTreeIntoAnalysisTree(tree: AnalysisTree, dto: StudyTre
         }
     } else {
         tree.root.gamebook = undefined;
+    }
+    try {
+        tree.root.eval = cevalFromStudyEval(dto.rootEval);
+    } catch {
+        return false;
     }
     if (dto.rootClocks !== undefined) {
         if (

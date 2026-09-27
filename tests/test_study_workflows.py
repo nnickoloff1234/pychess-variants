@@ -129,6 +129,80 @@ async def test_study_create_modal_collects_first_chapter_before_creating(aiohttp
 
 
 @pytest.mark.asyncio
+async def test_study_create_from_normalized_pgn_batch_preserves_settings_and_all_chapters(
+    aiohttp_client,
+) -> None:
+    app = make_app(db_client=AsyncMongoMockClient(tz_aware=True), simple_cookie_storage=True)
+    client = await aiohttp_client(app)
+    app_state = get_app_state(app)
+    username = "study_pgn_create_owner"
+    await _insert_user(app_state, username)
+    client.session.cookie_jar.update_cookies({"AIOHTTP_SESSION": _login_cookie(username)})
+
+    start_fen = FairyBoard.start_fen("chess")
+    response = await client.post(
+        "/study/import-pgn",
+        json={
+            "name": "Imported PGN Study",
+            "visibility": "unlisted",
+            "computer": "member",
+            "explorer": "owner",
+            "cloneable": "contributor",
+            "shareable": "nobody",
+            "chapters": [
+                {
+                    "name": "First game",
+                    "variant": "chess",
+                    "chess960": False,
+                    "initialFen": start_fen,
+                    "orientation": "white",
+                    "mode": "normal",
+                    "description": "First description",
+                    "tags": {"Event": "One"},
+                    "tree": {"nodes": []},
+                },
+                {
+                    "name": "Second game",
+                    "variant": "chess",
+                    "chess960": False,
+                    "initialFen": start_fen,
+                    "orientation": "black",
+                    "mode": "normal",
+                    "description": "Second description",
+                    "tags": {"Event": "Two"},
+                    "tree": {"nodes": []},
+                },
+            ],
+        },
+    )
+    assert response.status == 200
+    payload = await response.json()
+    assert payload["ok"] is True
+    assert payload["imported"] == 2
+
+    study_doc = await app_state.db.study.find_one({"_id": payload["studyId"]})
+    assert study_doc is not None
+    assert study_doc["name"] == "Imported PGN Study"
+    assert study_doc["visibility"] == "unlisted"
+    assert study_doc["settings"] == {
+        "computer": "member",
+        "explorer": "owner",
+        "cloneable": "contributor",
+        "shareable": "nobody",
+    }
+    chapters = (
+        await app_state.db.study_chapter.find({"studyId": payload["studyId"]})
+        .sort("order", 1)
+        .to_list(length=10)
+    )
+    assert [chapter["name"] for chapter in chapters] == ["First game", "Second game"]
+    assert [chapter["orientation"] for chapter in chapters] == ["white", "black"]
+    assert study_doc["currentChapter"] == chapters[-1]["_id"]
+    assert payload["chapterId"] == chapters[-1]["_id"]
+    assert payload["url"] == f"/study/{study_doc['_id']}/{chapters[-1]['_id']}"
+
+
+@pytest.mark.asyncio
 async def test_new_study_entry_points_share_creation_budget(aiohttp_client) -> None:
     app = make_app(db_client=AsyncMongoMockClient(tz_aware=True), simple_cookie_storage=True)
     client = await aiohttp_client(app)
@@ -162,6 +236,28 @@ async def test_new_study_entry_points_share_creation_budget(aiohttp_client) -> N
             },
         )
         assert from_analysis.status == 429
+
+        from_pgn = await client.post(
+            "/study/import-pgn",
+            json={
+                "name": "Third",
+                "chapters": [
+                    {
+                        "name": "Chapter 1",
+                        "variant": "chess",
+                        "chess960": False,
+                        "initialFen": FairyBoard.start_fen("chess"),
+                        "orientation": "white",
+                        "mode": "normal",
+                        "description": "",
+                        "tags": {},
+                        "tree": {"nodes": []},
+                    }
+                ],
+            },
+        )
+        assert from_pgn.status == 429
+        assert "Retry-After" in from_pgn.headers
 
 
 @pytest.mark.asyncio
@@ -541,6 +637,55 @@ async def test_single_chapter_add_rolls_back_if_parent_update_fails(aiohttp_clie
         await study_storage.add_chapter(app_state, study, first, name="Clone")
     chapters = await app_state.db.study_chapter.find({"studyId": study.id}).to_list(length=10)
     assert [chapter["_id"] for chapter in chapters] == [first.id]
+
+
+@pytest.mark.asyncio
+async def test_chapter_create_explicit_variant_does_not_inherit_current_chess960(
+    aiohttp_client,
+) -> None:
+    app = make_app(db_client=AsyncMongoMockClient(tz_aware=True), simple_cookie_storage=True)
+    client = await aiohttp_client(app)
+    app_state = get_app_state(app)
+    owner = "chapter_960_owner"
+    await _insert_user(app_state, owner)
+
+    draft = await StudyChapterBuilder(app_state, owner).blank_or_fen(
+        variant="seirawan", chess960=True, name="Imported Seirawan960"
+    )
+    study, first = await create_study_from_draft(app_state, owner, draft)
+    client.session.cookie_jar.update_cookies({"AIOHTTP_SESSION": _login_cookie(owner)})
+
+    response = await client.post(
+        f"/study/{study.id}/chapter",
+        data={"chapterName": "Normal S-Chess", "variant": "seirawan", "sync": "0"},
+        allow_redirects=False,
+    )
+    assert response.status == 302
+    normal_id = response.headers["Location"].rsplit("/", 1)[-1]
+    normal = await app_state.db.study_chapter.find_one({"_id": normal_id})
+    assert normal is not None
+    assert normal.get("chess960", False) is False
+    assert normal["initialFen"] == FairyBoard.start_fen("seirawan", False)
+
+    stored = await app_state.db.study.find_one({"_id": study.id})
+    assert stored is not None
+    assert stored["currentChapter"] == first.id
+
+    response = await client.post(
+        f"/study/{study.id}/chapter",
+        data={
+            "chapterName": "Explicit Seirawan960",
+            "variant": "seirawan",
+            "chess960": "1",
+            "sync": "0",
+        },
+        allow_redirects=False,
+    )
+    assert response.status == 302
+    random_id = response.headers["Location"].rsplit("/", 1)[-1]
+    random_chapter = await app_state.db.study_chapter.find_one({"_id": random_id})
+    assert random_chapter is not None
+    assert random_chapter["chess960"] is True
 
 
 @pytest.mark.asyncio

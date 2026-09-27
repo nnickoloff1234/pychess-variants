@@ -31,6 +31,12 @@ export interface SimulGame {
 
 export type StudyFeatureSelection = 'nobody' | 'owner' | 'contributor' | 'member' | 'everyone';
 export type StudyChapterMode = 'normal' | 'practice' | 'conceal' | 'gamebook';
+export type StudyChapterStatus = '1-0' | '0-1' | '½-½' | '*';
+export type PracticeGoal =
+    | { result: 'mate' | 'win' }
+    | { result: 'mateIn' | 'drawIn' | 'equalIn' | 'winIn'; moves: number }
+    | { result: 'evalIn'; moves: number; cp: number }
+    | { result: 'promotion'; cp: number };
 
 export type StudyServerEval = {
     path: string;
@@ -46,6 +52,7 @@ export type StudyChapterPreview = {
     order: number;
     orientation: 'white' | 'black';
     mode: StudyChapterMode;
+    status?: StudyChapterStatus;
     concealPly?: number;
     descriptionPinned?: boolean;
 };
@@ -57,6 +64,7 @@ export type StudyPageModel = {
     visibility: 'private' | 'unlisted' | 'public';
     isOwner: boolean;
     canWrite: boolean;
+    canPreviewPractice?: boolean;
     canClone: boolean;
     canShare?: boolean;
     canEmbed?: boolean;
@@ -83,6 +91,25 @@ export type StudyPageModel = {
     sharedChapter: string;
     sharedPath: string;
     roomSnapshotToken: string;
+    practice?: {
+        variant: string;
+        sectionId: string;
+        sectionName: string;
+        studyTitle: string;
+        studyDescription: string;
+        studyIcon: string;
+        menu: {
+            id: string;
+            name: string;
+            studies: { id: string; name: string; url: string }[];
+        }[];
+        indexUrl: string;
+        studyUrl: string;
+        completedChapterIds: string[];
+        persistProgress: boolean;
+        preview?: boolean;
+        goal?: PracticeGoal;
+    };
     // Runtime collaboration mode. The server owns sharedChapter/sharedPath; these
     // three fields are local browser state initialized by the Study client.
     sticky?: boolean;

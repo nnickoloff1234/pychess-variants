@@ -226,6 +226,9 @@ from views import (
     mod_public_chat as mod_public_chat_view,
 )
 from views import (
+    practice as practice_view,
+)
+from views import (
     report as report_view,
 )
 from views import (
@@ -288,6 +291,24 @@ get_routes: tuple[RouteDef, ...] = (
     ("/puzzle/daily", puzzle.puzzle),
     (r"/puzzle/{puzzleId:\w{5}}", puzzle.puzzle),
     ("/puzzle/{variant}", puzzle.puzzle),
+    ("/practice", practice_view.practice),
+    (
+        r"/practice/preview/{studyId:\w{8}}",
+        practice_view.practice_preview,
+    ),
+    (
+        r"/practice/preview/{studyId:\w{8}}/{chapterId:\w{8}}",
+        practice_view.practice_preview,
+    ),
+    (r"/practice/{variant:[a-z0-9_-]+}", practice_view.practice),
+    (
+        r"/practice/{variant:[a-z0-9_-]+}/{studyId:\w{8}}",
+        practice_view.practice_study,
+    ),
+    (
+        r"/practice/{variant:[a-z0-9_-]+}/{studyId:\w{8}}/{chapterId:\w{8}}",
+        practice_view.practice_study,
+    ),
     (r"/corranalysis/{gameId:\w{8}}", analysis.analysis),
     (r"/analysis/{variant:[a-z0-9_-]+}", analysis.analysis),
     (r"/analysis/{variant:[a-z0-9_-]+}/{fen}", analysis.analysis),
@@ -550,6 +571,7 @@ post_routes: tuple[RouteDef, ...] = (
     (r"/simul/{simulId:\w{8}}/edit", simul_view.update_simul),
     ("/study", study_view.study_create),
     ("/study/from-analysis", study_view.study_from_analysis),
+    ("/study/import-pgn", study_view.study_create_pgn),
     (r"/study/{studyId:\w{8}}/edit", study_view.study_edit),
     (r"/study/{studyId:\w{8}}/clone", study_view.study_clone),
     (r"/study/{studyId:\w{8}}/like", study_view.study_like),
@@ -571,6 +593,11 @@ post_routes: tuple[RouteDef, ...] = (
         study_view.study_chapter_clear_variations,
     ),
     (r"/study/{studyId:\w{8}}/{chapterId:\w{8}}/delete", study_view.study_chapter_delete),
+    (
+        r"/practice/{variant:[a-z0-9_-]+}/{studyId:\w{8}}/{chapterId:\w{8}}/complete",
+        practice_view.practice_complete,
+    ),
+    (r"/practice/{variant:[a-z0-9_-]+}/reset", practice_view.practice_reset),
     ("/team/new", team_view.team_create),
     ("/team/{teamId}/edit", team_view.team_update),
     ("/team/{teamId}/leaders/add", team_view.team_leader_add),

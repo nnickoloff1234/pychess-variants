@@ -53,6 +53,12 @@ export interface AnalysisExtension {
     onSocketReconnect?(): void;
     onSocketClose?(): void;
     getPgn?(): string | undefined;
+    // Extension-owned content appended to the scrollable move list.
+    // Study uses this for the Lichess-style next-chapter action.
+    renderMoveListEnd?(): VNode[];
+    // Extension-owned controls fixed below the scrolling move list.
+    // Study uses this for Lichess-style fork choices.
+    renderMoveListFooter?(): VNode[];
     contextMenuActions?(path: string): VNode[];
     onInitialBoardLoaded?(): void;
     onOrientationChanged?(): void;

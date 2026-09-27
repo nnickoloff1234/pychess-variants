@@ -1,0 +1,96 @@
+.mansindam piece.a-piece.white {
+    background-image: url('../../images/pieces/green/mansindam/wA.svg');
+}
+.mansindam piece.a-piece.black {
+    background-image: url('../../images/pieces/green/mansindam/bA.svg');
+}
+.mansindam piece.c-piece.white {
+    background-image: url('../../images/pieces/green/mansindam/wC.svg');
+}
+.mansindam piece.c-piece.black {
+    background-image: url('../../images/pieces/green/mansindam/bC.svg');
+}
+.mansindam piece.m-piece.white {
+    background-image: url('../../images/pieces/green/mansindam/wM.svg');
+}
+.mansindam piece.m-piece.black {
+    background-image: url('../../images/pieces/green/mansindam/bM.svg');
+}
+.mansindam piece.p-piece.white {
+    background-image: url('../../images/pieces/green/mansindam/wP.svg');
+}
+.mansindam piece.p-piece.black {
+    background-image: url('../../images/pieces/green/mansindam/bP.svg');
+}
+.mansindam piece.b-piece.white {
+    background-image: url('../../images/pieces/green/wB.svg');
+}
+.mansindam piece.b-piece.black {
+    background-image: url('../../images/pieces/green/bB.svg');
+}
+.mansindam piece.n-piece.white {
+    background-image: url('../../images/pieces/green/wN.svg');
+}
+.mansindam piece.n-piece.black {
+    background-image: url('../../images/pieces/green/bN.svg');
+}
+.mansindam piece.r-piece.white {
+    background-image: url('../../images/pieces/green/wR.svg');
+}
+.mansindam piece.r-piece.black {
+    background-image: url('../../images/pieces/green/bR.svg');
+}
+.mansindam piece.pp-piece.white {
+    background-image: url('../../images/pieces/green/mansindam/w+P.svg');
+}
+.mansindam piece.pp-piece.black {
+    background-image: url('../../images/pieces/green/mansindam/b+P.svg');
+}
+.mansindam piece.pb-piece.white {
+    background-image: url('../../images/pieces/green/mansindam/w+B.svg');
+}
+.mansindam piece.pb-piece.black {
+    background-image: url('../../images/pieces/green/mansindam/b+B.svg');
+}
+.mansindam piece.pn-piece.white {
+    background-image: url('../../images/pieces/green/mansindam/w+N.svg');
+}
+.mansindam piece.pn-piece.black {
+    background-image: url('../../images/pieces/green/mansindam/b+N.svg');
+}
+.mansindam piece.pr-piece.white {
+    background-image: url('../../images/pieces/green/mansindam/w+R.svg');
+}
+.mansindam piece.pr-piece.black {
+    background-image: url('../../images/pieces/green/mansindam/b+R.svg');
+}
+.mansindam piece.pc-piece.white {
+    background-image: url('../../images/pieces/green/mansindam/w+C.svg');
+}
+.mansindam piece.pc-piece.black {
+    background-image: url('../../images/pieces/green/mansindam/b+C.svg');
+}
+.mansindam piece.pm-piece.white {
+    background-image: url('../../images/pieces/green/mansindam/w+M.svg');
+}
+.mansindam piece.pm-piece.black {
+    background-image: url('../../images/pieces/green/mansindam/b+M.svg');
+}
+.mansindam piece.q-piece.white {
+    background-image: url('../../images/pieces/green/wQ.svg');
+}
+.mansindam piece.q-piece.black {
+    background-image: url('../../images/pieces/green/bQ.svg');
+}
+.mansindam piece.k-piece.white.white {
+    background-image: url('../../images/pieces/green/wK.svg');
+}
+.mansindam piece.k-piece.white.black {
+    background-image: url('../../images/pieces/green/wK_r.svg');
+}
+.mansindam piece.k-piece.black.black {
+    background-image: url('../../images/pieces/green/bK.svg');
+}
+.mansindam piece.k-piece.black.white {
+    background-image: url('../../images/pieces/green/bK_r.svg');
+}

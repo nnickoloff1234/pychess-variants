@@ -25,6 +25,7 @@ from study.storage import (
     contributed_studies_page,
     count_studies_for_owner_view,
     create_study_from_draft,
+    create_study_from_drafts,
     create_study_with_chapter,
     delete_chapter,
     delete_study,
@@ -59,6 +60,29 @@ class StudyStorageTestCase(unittest.IsolatedAsyncioTestCase):
         self.client = AsyncMongoMockClient(tz_aware=True)
         self.db = self.client["pychess-test"]
         self.app_state = SimpleNamespace(db=self.db)
+
+    async def test_multi_draft_creation_rolls_back_when_later_batch_fails(self) -> None:
+        drafts = [
+            StudyChapterDraft(
+                variant="chess", initial_fen=FairyBoard.start_fen("chess"), name="One"
+            ),
+            StudyChapterDraft(
+                variant="chess", initial_fen=FairyBoard.start_fen("chess"), name="Two"
+            ),
+        ]
+        with (
+            patch(
+                "study.storage.add_chapters_from_drafts",
+                new=AsyncMock(side_effect=StudyStorageError("simulated import failure")),
+            ),
+            self.assertRaisesRegex(StudyStorageError, "simulated import failure"),
+        ):
+            await create_study_from_drafts(
+                cast(Any, self.app_state), "owner", drafts, name="Atomic import"
+            )
+
+        self.assertEqual(await self.db.study.count_documents({"owner": "owner"}), 0)
+        self.assertEqual(await self.db.study_chapter.count_documents({"owner": "owner"}), 0)
 
     async def test_create_list_and_owner_lookup(self) -> None:
         study, chapter = await create_study_with_chapter(
@@ -512,6 +536,20 @@ class StudyStorageTestCase(unittest.IsolatedAsyncioTestCase):
             {study.id: ("Chapter 1", "Second line", "Third line", "Fourth line")},
         )
 
+    async def test_chapter_previews_include_pgn_result_status(self) -> None:
+        draft = StudyChapterDraft(
+            variant="chess",
+            initial_fen=FairyBoard.start_fen("chess"),
+            name="Alice - Bob",
+            tags={"result": "1/2-1/2"},
+        )
+        study, chapter = await create_study_from_draft(cast(Any, self.app_state), "owner", draft)
+
+        previews = await chapter_previews(cast(Any, self.app_state), study.id)
+
+        self.assertEqual(previews[0]["id"], chapter.id)
+        self.assertEqual(previews[0]["status"], "½-½")
+
     async def test_chapter_crud_keeps_lightweight_ordered_previews(self) -> None:
         study, first = await create_study_with_chapter(cast(Any, self.app_state), "owner")
         second = await add_chapter(cast(Any, self.app_state), study, first)
@@ -584,6 +622,7 @@ class StudyStorageTestCase(unittest.IsolatedAsyncioTestCase):
                 comments=(StudyComment("Comment001", "owner", "Root note"),)
             ),
             root_gamebook=StudyGamebook(hint="Remove root lesson"),
+            root_eval_score={"cp": 25},
             root_clocks=(300000, 300000),
         )
         chapter = replace(chapter, root=tree)
@@ -600,6 +639,7 @@ class StudyStorageTestCase(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(node.annotations.empty for node in loaded.root.nodes.values()))
         self.assertTrue(loaded.root.root_gamebook.empty)
         self.assertTrue(loaded.root.nodes[main.id].gamebook.empty)
+        self.assertEqual(loaded.root.root_eval_score, {"cp": 25})
         self.assertEqual(loaded.root.root_clocks, (300000, 300000))
         self.assertEqual(loaded.root.nodes[main.id].clocks, (298000, 300000))
 

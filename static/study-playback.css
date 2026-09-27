@@ -75,7 +75,7 @@
     border: 0;
     border-radius: 0 0 3px 3px;
     background: transparent;
-    color: var(--link-color);
+    color: var(--link-color-blue);
     font: inherit;
     font-size: 1rem;
     text-align: left;
@@ -126,6 +126,8 @@
 
 .study-gamebook-play__feedback.play {
     justify-content: flex-start;
+    background: var(--bg-color0);
+    box-shadow: var(--base-shadow);
     font-size: .8em;
     text-align: left;
 }
@@ -252,11 +254,13 @@ button.study-gamebook-play__feedback.act:focus-visible {
     filter: brightness(1.08);
 }
 
-.study-gamebook-play-underboard {
+.study-gamebook-play-underboard,
+.study-gamebook-play__metadata {
     display: none;
 }
 
-.study-app.study-gamebook-playback .study-gamebook-play-underboard {
+.study-app.study-gamebook-playback .study-gamebook-play-underboard,
+.study-app.study-gamebook-playback .study-gamebook-play__metadata {
     display: block;
 }
 
@@ -270,6 +274,20 @@ button.study-gamebook-play__feedback.act:focus-visible {
 
 .study-gamebook-play-buttons[hidden] {
     display: none;
+}
+
+.study-gamebook-play-auto-next {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    margin-inline-end: auto;
+    padding: .35rem .65rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.study-gamebook-play-auto-next input {
+    margin: 0;
 }
 
 .study-gamebook-play-button {
@@ -297,13 +315,35 @@ button.study-gamebook-play__feedback.act:focus-visible {
     color: var(--link-color-blue);
 }
 
-.study-gamebook-play-underboard > .study-underboard__title {
+.study-gamebook-play__metadata {
+    overflow: hidden;
+    border-radius: 3px;
+    background: var(--bg-color0);
+    box-shadow: var(--base-shadow);
+}
+
+.study-gamebook-play__metadata > .study-underboard__title {
     margin: 0;
     padding: .45rem .6rem;
     border-bottom: 1px solid var(--border-color);
     background: var(--bg-color0);
-    box-shadow: var(--base-shadow);
     font-size: 1rem;
+}
+
+.study-gamebook-play__tags {
+    margin: 0;
+}
+
+.study-gamebook-play__tags th {
+    width: 1%;
+    color: color-mix(in srgb, var(--font-color) 70%, transparent);
+    font-weight: bold;
+    white-space: nowrap;
+}
+
+.study-gamebook-play__tags th,
+.study-gamebook-play__tags td {
+    padding: .55rem .7rem;
 }
 
 @media (max-width: 799px) {
@@ -345,6 +385,13 @@ button.study-gamebook-play__feedback.act:focus-visible {
     display: none !important;
 }
 
+/* Computer practice owns the browser engine while active. Match lila's forced
+   ceval presentation: there is no on/off switch, but the engine header and
+   evaluation gauge remain visible and are updated by the bounded practice search. */
+.study-app.study-practice-playback .engine-toggle {
+    display: none;
+}
+
 .study-practice {
     flex: 0 0 auto;
     min-width: 0;
@@ -361,7 +408,7 @@ button.study-gamebook-play__feedback.act:focus-visible {
 .study-practice__title {
     min-height: 30px;
     padding: 0 7px;
-    background: color-mix(in srgb, var(--bg-color2) 72%, var(--bg-color0));
+    background: color-mix(in srgb, var(--good) 40%, var(--bg-color0));
     font-size: .9rem;
     line-height: 30px;
 }
@@ -453,7 +500,7 @@ button.study-gamebook-play__feedback.act:focus-visible {
     border: 0;
     border-radius: 0;
     background: transparent;
-    color: var(--link-color);
+    color: var(--link-color-blue);
     font: inherit;
     cursor: pointer;
 }
@@ -482,6 +529,33 @@ button.study-gamebook-play__feedback.act:focus-visible {
 .study-practice__wait {
     padding-inline-start: 15px;
     opacity: .78;
+}
+
+.study-practice__next-chapter {
+    display: flex;
+    width: 100%;
+    min-height: 30px;
+    align-items: center;
+    gap: .35em;
+    padding: 0 .65rem;
+    border: 0;
+    background: color-mix(in srgb, var(--link-color-blue) 80%, var(--bg-color0));
+    color: #fff;
+    font: inherit;
+    line-height: 30px;
+    text-align: left;
+    cursor: pointer;
+    transition: background 150ms ease;
+}
+
+.study-practice__next-chapter:hover,
+.study-practice__next-chapter:focus-visible {
+    background: var(--link-color-blue);
+}
+
+.study-practice__next-chapter > [class^='icon-'],
+.study-practice__next-chapter > [class*=' icon-'] {
+    font-size: .9em;
 }
 
 .study-practice__verdict {
