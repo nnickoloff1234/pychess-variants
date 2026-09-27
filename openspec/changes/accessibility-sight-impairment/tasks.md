@@ -859,23 +859,6 @@ Ordinary semantics, always on, benefiting every keyboard user. `collapsibles-swe
       `redraw()` patches only the inner panel and updates `aria-label` by hand for that reason.
       Orca: *"Settings collapsed push button"* → Enter → *"expanded"*.
 
-- [ ] 4G.4 **The hamburger and the drawer, together and in this order** (F2 + F1a.3).
-
-      > **"Drawer" in this file means the narrow-viewport nav**: below 800px `.topnav` is pushed
-      > off-screen with `transform: translateX(-100%)` (`site.css:823`) and slid in by the hamburger.
-      > It does **not** mean the header **Settings panel** (`#settings`, inside
-      > `<div id="settings-panel">`) — that is what 4G.6/4G.7 are about, and calling it a drawer is
-      > what made two adjacent tasks here use one word for two elements. `engine.ts:276` uses
-      > "settings drawer" in a third, unrelated sense.
-
-      Below 800px
-      `.topnav` hides with `transform`, which does NOT remove anything from the tab order — verified,
-      an element translated to `x=-9889` is still focusable — so ~24 invisible links are tabbable
-      now, the mirror image of the desktop bug. Order matters or keyboard users end up worse off:
-      (a) the `<div class="hamburger">` becomes a real `<button aria-expanded aria-controls>` and
-      `.topnav` gains an id; (b) the handler at `client/main.ts:341-344` writes the attribute;
-      (c) ONLY THEN hide the closed drawer with `visibility: hidden`.
-
 - [x] 4G.5 **DONE.** `templates/template.html:11` `<div class="topnav">` →
       `<nav class="topnav" aria-label="{% trans %}Site{% endtrans %}">` (and its close at :71), plus
       `static/site.css:948` `div.topnav section:hover` → `.topnav section:hover` — the `div`
@@ -908,7 +891,7 @@ Ordinary semantics, always on, benefiting every keyboard user. `collapsibles-swe
       `/analysis` and `/variant/crazyhouse`. The name omits the word "navigation" because the role
       already supplies it. Labelling those two remaining `<nav>`s is a small follow-up.
 
-- [ ] 4G.6 **The Board Settings variant select has NO accessible name.** `client/settingsView.ts:248`
+- [x] 4G.6 **DONE 2026-09-28.** The Board Settings variant select had NO accessible name. `client/settingsView.ts:248`
       is the only `<label>` in the entire client written `props: { for: ... }`; all ~30 others use
       `attrs:`. Snabbdom's `props` module assigns `elm[key] = value`, and a label's reflecting DOM
       property is **`htmlFor`, not `for`** — so that line sets a junk own-property and no `for`
@@ -922,25 +905,34 @@ Ordinary semantics, always on, benefiting every keyboard user. `collapsibles-swe
       `label.control === null`: associated with nothing, so a 59-option combobox is exposed unnamed.
       WCAG 4.1.2. The fix is `props:` → `attrs:`, one word.
 
-      **Found 2026-09-28 while measuring for a question about landmarks, and it is NOT landmark work.**
-      I implemented it on the spot in `40edb4fde` and Nikolay reverted it: a defect found while
-      measuring gets written down here and done in sequence, not fixed mid-task. The fix is verified
-      to work — after it, the tree showed both comboboxes named — so this task is ready, not open.
+      **Applied after being reverted once, deliberately.** Found 2026-09-28 while measuring for a
+      question about landmarks, implemented on the spot in `40edb4fde`, and reverted by Nikolay: a
+      defect found while measuring gets written down here and done in sequence, not fixed mid-task.
+      It was then decided in on its own turn, which is the whole point of the rule.
+
+      **Severity, stated honestly, because it was oversold first time:** minor. The visible word
+      "Variant" precedes the control, so a browse-mode or swipe user reading linearly gets the context
+      anyway. It bites when tabbing straight to it in focus mode (the announcement is the name alone)
+      and when listing form controls, where it appears unnamed among named ones. Re-measured after the
+      fix: `control: 'settings-variant'`, and the tree shows `combobox "Variant"`. Gates: lint,
+      typecheck, md, test (94 suites / 775 tests).
 
       **It also exposes a hole in our method:** the Settings panel was CLOSED for every capture in this
       change, and this defect is only visible open. Every panel we have measured closed looked clean.
       See the same point in `tree-capture-sweep.md` under "What this sweep does not cover".
 
-- [ ] 4G.7 **Then disambiguate: two controls both named "Variant"** (do 4G.6 first — it creates this).
-      `#variant` in the aside picks the variant to **analyse**; `#settings-variant` picks whose
-      **piece style you are editing**. Both come from the shared `selectVariant()` helper, so once
-      4G.6 lands both read `combobox "Variant"` in the tree at the same time — measured, with the
-      Settings panel open. Position disambiguates them for a sighted user; nothing does for a screen reader
-      listing form controls.
+- [x] 4G.7 **CLOSED 2026-09-28 as acceptable — no change made.** 4G.6 leaves two comboboxes both
+      named `"Variant"`: `#variant` in the aside picks the variant to **analyse**, `#settings-variant`
+      picks whose **piece style you are editing**. Measured together with the Settings panel open:
+      `comboboxes exposed = 2; named exactly 'Variant' = 2`.
 
-      **Constraint on the new name:** it must still contain the visible word "Variant" (WCAG 2.5.3
-      Label in Name), so `Variant to customise` is allowed and `Piece style` is not. **Naming is
-      Nikolay's call** — see 5b.
+      **Nikolay's decision, and the reasoning:** use the name we already have a translation for. The
+      second control sits inside collapsible elements (Settings → Board Settings), so a user reaches
+      it through that structure and can tell the two apart by where they are — by the surrounding
+      context in browse mode, or by what they passed through when tabbing. A distinction sighted users
+      get from position does not justify a new translatable string.
+
+      **This also supersedes 5b.3**, which asked for a name. There is no name to pick.
 
 - [ ] 4G.8 **No `contentinfo` landmark anywhere** — `<footer>` is used by **zero** templates, so no
       page offers a "jump to the bottom" target. Recorded as a finding at line 171 of this file since
@@ -992,11 +984,10 @@ titles is safe — but do not touch `.drp` children.
       design reference does not — and they suggest that use themselves: *"sooner like an example of
       keyboard navigation design."* `user-report.md` sections 3 and 4 are already most of it.
 
-- [ ] 5b.3 **Name one of the two "Variant" comboboxes** (blocks 4G.7, which 4G.6 creates). The
-      sidebar one picks the variant to analyse; the Settings → Board Settings one picks whose piece
-      style you are editing. Whatever `#settings-variant` becomes must still contain the word
-      "Variant" (WCAG 2.5.3), so `Variant to customise` qualifies and `Piece style` does not. The
-      shorter the better — the same reasoning that picked "What's up" over a longer landmark name.
+- [x] 5b.3 **ANSWERED 2026-09-28 — no new name.** Keep `_('Variant')`, the string we already have
+      translated, on both comboboxes. Nikolay: the second one is inside collapsible elements, so
+      context before and after in browse mode, or the path taken when tabbing, tells them apart. See
+      4G.7.
 
 ## 6. Explicitly deferred
 
