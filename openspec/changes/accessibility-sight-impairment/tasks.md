@@ -719,7 +719,7 @@ Ordinary semantics, always on, benefiting every keyboard user. `collapsibles-swe
       mode — `notRendered` still 550, submenu links still absent with nothing focused — because a
       screen reader in browse mode focuses nothing.
 
-- [ ] 4G.2 **The six section titles become toggling disclosure buttons.** DECIDED by Nikolay
+- [x] 4G.2 **DONE 0a724de98.** The six section titles become toggling disclosure buttons. DECIDED by Nikolay
       2026-09-27, choosing one control over the W3C APG's split pattern (link + sibling button),
       which was rejected for six extra tab stops on every page plus a visible caret.
 
@@ -799,7 +799,7 @@ Ordinary semantics, always on, benefiting every keyboard user. `collapsibles-swe
         contains a `<form class="search-bar">`; `aria-controls` is largely ignored by NVDA, so add it
         as correctness but expect the win from `aria-expanded` alone.
 
-- [ ] 4G.3 **The three header panels announce their state** (F3) — the inconsistency Nikolay raised:
+- [x] 4G.3 **DONE 3b4fcfd84.** The three header panels announce their state (F3) — the inconsistency Nikolay raised:
       the nav drops open on focus while `#btn-settings` says only "push button". `aria-expanded` +
       `aria-controls` on `#btn-challenge` / `#btn-notify` / `#btn-settings`.
 
@@ -807,6 +807,15 @@ Ordinary semantics, always on, benefiting every keyboard user. `collapsibles-swe
       files** — `settingsView.ts:48,53`, `notifyView.ts:320,341`, `challengeView.ts:277,306` and
       **`gameCategoryIntro.ts:26-36`, a fourth open path that bypasses `showMainSettings()`** and
       would silently go stale. One shared helper, seven call sites routed through it.
+
+      **As built:** `setHeaderPanelExpanded()` in `headerPanel.ts` sets the class and the attribute
+      together, and `gameCategoryIntro` calls `showMainSettings()` rather than re-implementing it —
+      the duplication is deleted, not patched. The attribute is written in BOTH the Jinja template
+      and the snabbdom `attrs` map, because `updateAttrs` strips any attribute missing from the new
+      vnode, so a template-only one dies at hydration (verified surviving). Writing it imperatively
+      afterwards is safe because the buttons are rendered once and never re-patched — each
+      `redraw()` patches only the inner panel and updates `aria-label` by hand for that reason.
+      Orca: *"Settings collapsed push button"* → Enter → *"expanded"*.
 
 - [ ] 4G.4 **The hamburger and the drawer, together and in this order** (F2 + F1a.3). Below 800px
       `.topnav` hides with `transform`, which does NOT remove anything from the tab order — verified,
