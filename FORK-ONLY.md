@@ -26,6 +26,7 @@ the answer changes as work lands upstream.
 | `tests/reconnect_matrix/` | the reconnect scenario bed |
 | `tests/layout_matrix/` | the layout matrix bed |
 | `docker-compose.h2.yaml`, `docker/Caddyfile` | the opt-in HTTP/2 front for local dev |
+| `scripts/a11y_capture.py`, `a11y_diff.py`, `a11y_audit.py` | the accessibility-tree capture bed: dumps Chrome's `Accessibility.getFullAXTree` over CDP, diffs two captures, audits one. Measurement tooling, not product. |
 | `FORK-ONLY.md` | this file |
 
 ## Fragments inside files that DO go upstream — the dangerous class

@@ -11,6 +11,14 @@ Obtained without a browser: `curl` with a cookie jar, then `POST /run/toggle-bli
 `enable=1` and an `Origin: https://lichess.org` header (403 without it). Blind mode is a **server-side
 session flag**, so every page then comes back in its blind-mode form. Cheap to re-do.
 
+> **CORRECTED 2026-09-27 — this only works while LOGGED IN, and the paragraph above does not say so.**
+> Tested from a clean anonymous jar: the POST returns `303` and really does set a blind-mode cookie
+> (randomised name, e.g. `mBzamRgfXgRBSnXB=1`, HttpOnly, one year) alongside `lila2` — and the next
+> page still comes back in **normal** mode: `<body class="coords-in simple-board">`, the button still
+> reads "Enable blind mode", and the six nav `h3`s (§14) are absent. **The flag is stored against the
+> account, not the anonymous session.** Anything automated that needs blind mode therefore needs an
+> authenticated session; anonymous capture reaches normal mode only.
+
 ---
 
 ## 1. THE ARCHITECTURE — this answers task 3.3
@@ -308,3 +316,527 @@ example**, so the choice is audible rather than abstract — a nice touch worth 
 `<h2>Navigation</h2>` is emitted inside the site header's nav block. A heading for the nav, so a
 screen reader user can jump to it and skip past it. Cheap, and it applies to every page on the site
 rather than only the game.
+
+
+---
+
+# 10. SECOND PASS — 2026-09-27, live browser, BOTH modes
+
+Everything above §9 came from the tutorial's prose, the served HTML and **one** rendered DOM of a
+*finished* game. This pass was done in a real logged-in Chrome session driven through the browser
+tools: every page below was either navigated to or `fetch`ed from inside the page and parsed, and
+**two crazyhouse games were played move by move** — one in each mode — entirely by typing.
+
+**It corrects §9.3 and §9.8, and it overturns one assumption the change was resting on.**
+
+## 10.1 Method, and its one calibration lesson
+
+DOM auditing from inside the page (`document.querySelectorAll` + a name-resolution helper), plus a
+real HTML diff for §14. Two false positives this method produced, both worth remembering because
+**our own twelve sweeps have the same two failure modes**:
+
+- `h2#assets-missing` ("Your network blocks the Lichess assets!") is `display:none` on every page,
+  so a DOM auditor reports "every lichess page opens with a stray h2" and **no screen reader ever
+  sees it**. Always filter by `offsetParent` / computed display.
+- `#challenge-toggle` / `#notify-toggle` look unnamed but take their name from a **descendant's**
+  `aria-label`. A naive name check misses it; the real AX name computation does not. Same ~1-in-3
+  false-positive rate `alt-and-labels-sweep.md` L5 predicted for our own 44 flagged labels.
+
+## 10.2 The conclusion, in one sentence
+
+**lichess's accessibility divides in two: the site chrome is accessible through plain semantic HTML
+with essentially zero ARIA, and the board pages are not accessible at all in normal mode — every
+affordance a screen reader user needs there exists only inside `nvui`.**
+
+---
+
+# 11. NON-BLIND — the site chrome, and it is good
+
+## 11.1 The budget: four `aria-label`s per page
+
+Every non-board page carries **exactly `aria-label:4` and `role:8`**. That is the entire ARIA budget
+of lichess.org. The lobby has **171 tabbable elements and 5 unnamed ones**, two of which are the
+false positives above.
+
+The four labels are always the same: `INPUT[aria-label="Navigation"]` (the CSS hamburger checkbox —
+no `aria-expanded`), `INPUT[aria-label="Search"]`, and two `SPAN[role=status]` carrying
+`aria-label="Challenges: 0"` / `"Notifications: 1"`, so the header counts announce themselves.
+
+Other lobby facts:
+
+- **No `h1` on the lobby at all**, and **no skip link anywhere on the site** (zero `a[href^="#"]`).
+  Their answer to "skip the nav" is landmarks plus the blind-mode button being first — *not* a skip
+  link. Do not assume the skip link is the industry norm; the best-known chess site omits it.
+- `<nav id="topnav" class="hover">` with one `<section>` per menu: a title link plus a
+  `role="group"` of sublinks. CSS hover menus, no `aria-expanded`, no `aria-haspopup`.
+
+  **CORRECTED 2026-09-27 — an earlier draft of this bullet claimed the sublinks are "permanently in
+  the DOM and always tabbable, so presence beats ARIA". That is WRONG and the opposite is true.**
+  The `role="group"` is `visibility: hidden` until hover, and `visibility: hidden` removes elements
+  from the tab order *and* from the accessibility tree. Measured by calling `.focus()` on every one
+  and checking `document.activeElement`:
+
+  | | normal mode | blind mode |
+  |---|---|---|
+  | `#topnav a` present | 37 | 31 |
+  | **focusable** | **6** | **31** |
+
+  **In normal mode a keyboard or screen-reader user can reach exactly six destinations from the top
+  nav** — Play, Puzzles, Learn, Watch, Community, Tools. Study, Teams, Forum, Blog, Donate, Analysis
+  board, Board editor, Import game, Advanced search and 22 others are **unreachable without a mouse
+  hover**. There is no `:focus-within` fallback (`section:focus-within` matches, and the group stays
+  hidden). This is one of the worst defects on the site and it is invisible to any audit that only
+  counts elements in the DOM — including the one that produced the wrong bullet.
+- `img.uflair` (user flair) and ublog card images have **no `alt` attribute at all** — 9 and 12 per
+  page respectively.
+
+## 11.2 The lobby tabs — even lichess ships incomplete tab ARIA
+
+```html
+<div class="tabs-horiz" role="tablist">
+  <button class="active" role="tab">Quick pairing</button>
+  <button role="tab">Lobby</button>
+  <button role="tab">Correspondence</button>
+</div>
+```
+
+**No `aria-selected`, no `aria-controls`, no `tabpanel`.** The active tab is `class="active"` only.
+The same defect recurs on the analysis underboard tabs and in the setup dialog. **Direct caution for
+our two-board tabs.**
+
+## 11.3 The seek table — our exact analogue, done wrong
+
+```html
+<table class="hooks__list">
+  <thead><tr><th></th><th class="sortable sort"><icon data-icon></icon>Rating</th>
+             <th class="sortable">Time</th><th>Mode</th></tr></thead>
+  <tbody><tr class="hook join" role="button" title="Join the game | Bullet" data-id="np7nXce4">
+    <td><span class="ulink ulpt" data-href="/@/Snickers_01">Snickers_01</span></td>
+    <td>2268</td><td>½+0</td><td><span data-icon>Rated</span></td></tr>
+```
+
+- `<tr role="button">` **with no `tabindex`** — the row loses its table semantics *and* is
+  unreachable by keyboard. **Joining a game from the lobby list is keyboard-inaccessible on lichess.**
+- the player cell is a `<span data-href>`, not an `<a>` — not a link, not focusable
+- the first `<th>` is empty; `th.sortable` has no `aria-sort` and no button, so **sorting is
+  keyboard-unreachable**
+
+By contrast the quick-pairing pools are done right: `<div class="lpool" role="button" tabindex="0">`
+with the name "1+0 Bullet". Same site, same page, opposite quality.
+
+## 11.4 `/account/preferences/display` — the best pattern on the site, and directly copyable
+
+34 `<section>`s, one per preference:
+
+```html
+<section>
+  <a href="#pieceAnimation"><h2 id="pieceAnimation">Piece animation</h2></a>
+  <group class="radio">
+    <div><input id="irdisplay_animation_0" type="radio" name="display.animation" value="0">
+         <label for="irdisplay_animation_0">None</label></div>
+    … Fast / Normal / Slow
+  </group>
+</section>
+```
+
+**One `h2` per setting**, self-linked, so a screen reader user walks 34 settings with the `H` key.
+Real radio + `<label for>` pairs throughout. **No `<select>` and no slider anywhere on the page.**
+
+What they omit, and we should not: `<group>` is an invented element with **no `role="radiogroup"`
+and no `aria-labelledby` to the `h2`**, and there is no `<fieldset>`/`<legend>`. The radios are
+individually named but not programmatically grouped — orientation comes from the heading alone.
+
+pychess's Snabbdom `#settings` panel can take this shape almost verbatim and should add the
+grouping lichess skips.
+
+## 11.5 Heading outlines of the static pages (non-blind)
+
+Level sequences, ignoring the hidden `assets-missing` h2 that opens every one:
+
+| page | levels | note |
+|---|---|---|
+| `/forum` | 1-2-2-2-2 · 1-2×9 | two `h1`s (Lichess Forum, Your Team Boards) |
+| `/forum/general-chess-discussion` | 1 | topic list is a `table`, `th=4`, no caption, no scope |
+| `/tournament` | 2-2-1 | **`h1` comes last, after two `h2`s** |
+| `/@/blunderman1` | 3×19 · 1 · 2×7 | **19 rating-card `h3`s before the `h1` username** |
+| `/variant/crazyhouse` | 1-2-2-2-3-3-2 | clean |
+| `/account/preferences/display` | 1-2×34 | clean, and see §11.4 |
+| `/training`, `/inbox` | one `h2`, no `h1` | JS-built; server HTML is a shell |
+
+---
+
+# 12. NON-BLIND — the board pages, and they are not accessible
+
+Checked on `/analysis`, a finished game, a live game, `/training` and `/inbox`.
+
+## 12.1 Zero headings, and nothing announced
+
+**Every one of these pages has zero visible headings and no `h1`.** The game's own name
+("blunderman1 vs Stockfish level 1") exists only in `<title>`.
+
+On a **live** game the only `aria-live` on the page is `div.chat__members`, set to **`off`**. There
+is **no live region for the clock, the turn, the opponent's move, check, or the result**. On a
+finished game the only live region is the chat.
+
+**The result is silent.** "White resigned • Black is victorious" sits in four elements —
+`section.status`, `div.result-wrap`, `p.result`, `p.status` — **none with `aria-live` or
+`role=status`**. Compare §9.3's blind-mode `role=status aria-live=assertive`.
+
+## 12.2 Move list, board and pockets contribute nothing
+
+- **Analysis / finished game:** `<div class="tview2">` (no role) containing `<index>1</index>` and
+  `<move p="…"><san>e4</san></move>`. **No `tabindex`, no role, no `<a>`.** The site that invented
+  `<move>` exposes it as generic text — readable in browse mode, not a list, not focusable, and the
+  current move is `class="active"` only, with **no `aria-current`**. *This answers our open question
+  about `<move>` from the source itself.*
+- **Live game:** the move list is **randomised** — `<i5d><app><qzm>1</qzm><z7yx class="">e4</z7yx>
+  <z7yx class="a1t">e5</z7yx></app></i5d>`. Generic *and* unstable.
+- **Board:** `cg-container > cg-board > piece ×33`, plus `coords ×2` / `coord ×16`. No roles, no
+  labels, no text on pieces. **chessground contributes nothing to the AX tree but 16 `<coord>` text
+  nodes** — exactly our prediction for chessgroundx, confirmed on their implementation.
+- **Pockets (crazyhouse):**
+
+```html
+<div class="pocket is2d pocket-top">
+  <div class="pocket-c1"><div class="pocket-c2">
+    <piece class="pawn black" data-role="pawn" data-color="black" data-nb="2"></piece>
+```
+
+  Empty custom elements. **The count lives in `data-nb`, never as text.** No role, no tabindex, no
+  label, in any view. **In normal mode lichess's pocket is entirely absent from the accessibility
+  tree and entirely unreachable by keyboard.**
+
+## 12.3 The toolbar is anonymous
+
+**All nine analysis toolbar buttons are icon-only `<button data-icon>` with no text and no
+`aria-label`.** The four move-nav buttons (`.fbt.move`: first/prev/next/last) have **no `title`
+either**, so they are simply unnamed. The rest lean on `title` alone: "Show threat", "Engine
+settings", "Opening explorer", "Practice with computer", "Menu". One `role="button"` sits on a bare
+`<span>` with no name at all.
+
+On a live game the same applies: `.rcontrols` has **empty `innerText`** — `button.fbt.takeback-yes
+title="Propose a takeback"`, `.draw-yes title="Offer draw"`, `.resign title="Resign"`. Blind mode
+gives these as real `<button>`s with text (§15.1).
+
+The variant picker exists in **three mutually inconsistent forms**: checkbox + focusable `<tr>`s in
+the lobby dialog (§13 below), `role="menu"` on a `<label>` with `role=menuitem` anchors on the
+analysis board, and a real `<select>` in blind mode (§15.5). None of the first two has
+`aria-expanded`.
+
+## 12.4 The `?` overlay — and the nuance it exposes
+
+`?` (a **real** keypress; synthetic `KeyboardEvent`s are rejected) opens a `<dialog>` with
+`<h2>Keyboard shortcuts</h2>` and a real `<table>`, 2 `th`, 24 rows: arrows / `0` / `$` / home /
+end, `k`/`j`, shift-variation cycling, `f` flip board, `l` local analysis, `space` play best move,
+`x` show threat, `z`, `a`, `v`, `c` focus chat, `e` explorer, `b` board.
+
+The dialog has **no `aria-modal`, no `aria-labelledby`, and `:modal` is false** (`show()`, not
+`showModal()`). The setup dialog has the opposite defect: `aria-modal="true"` while `:modal` is
+false — **it claims a focus trap it does not have**.
+
+**The nuance that matters to us: the normal analysis board IS fully keyboard-operable and
+self-documents its keys. It is simply never announced. Keyboard operability ≠ screen-reader
+accessibility, and lichess has the first without the second.**
+
+## 12.5 Puzzles and inbox
+
+- `/training`: zero headings, **no live region** — so the feedback ("Find the best move for black",
+  then success/failure) is **never announced**, and whose turn it is is conveyed by an empty
+  `<piece class="king black">`, an image with no text.
+- `/inbox`: zero headings, and the conversation list is bare `div.msg-app__side__contact` — **not
+  links, no roles, no tabindex. The whole thread list is keyboard-unreachable.**
+
+---
+
+# 13. NON-BLIND — three affordances we did not know existed
+
+## 13.1 The keyboard move input — normal mode, and it is the editor our user says is missing
+
+```html
+<div class="keyboard-move">
+  <input spellcheck="false" autocomplete="off" class="ready">
+  <strong>Press <kbd>m</kbd> to focus</strong>
+</div>
+```
+
+Typing `?` into it opens its own `<dialog><h2>Keyboard input commands</h2>`:
+
+| | |
+|---|---|
+| moves | `e2e4` · `5254` (ICCF) · `Nc3` · `O-O` · `O-O-O` · `c8=Q` · **`R@b4` "Drop a rook at b4 (Crazyhouse variant only)"** |
+| commands | `/` focus chat · **`clock` read out clocks** · **`who` read out opponent's name** · `draw` · `resign` · `zerk` · `next`/`upv`/`downv` · `help`, `?` |
+
+"Including an `x` to indicate a capture is optional."
+
+**So typed moves *and* documented drop notation already exist outside blind mode.** Verified by
+playing: `P@e6` was accepted and rendered `@e6`.
+
+Its defects, all cheap to avoid:
+
+- **no `id`, `name`, `aria-label`, `placeholder`, `title` or `<label>` — zero accessible name.**
+  A screen reader announces "edit, blank".
+- the help text that appears on focus (`<em>Enter SAN (Nc3), ICCF (2133) or UCI (b1c3) moves…</em>`)
+  is **not linked by `aria-describedby`**.
+- an invalid move sets **`class="wrong"` and nothing else** — no `aria-invalid`, no `role="alert"`,
+  no live region. Blind mode announces "Invalid move: nd2".
+- **it auto-submits the moment the text is unambiguous** — `P@e6` executed before Enter. Fast, but
+  no review-before-commit, which matters more without sight.
+
+## 13.2 They speak through the Web Speech API, not through ARIA
+
+Monkey-patching `speechSynthesis.speak` and typing `clock` in normal mode:
+
+```
+speechSynthesis.speak("White - 28 minutes 14 seconds. Black - 30 minutes 51 seconds")
+```
+
+…and **no live region changed at all**. Moves are not spoken by default; only the explicit `clock` /
+`who` commands speak.
+
+**This is a delivery channel we had not costed: announcing clocks and moves with `SpeechSynthesis`
+needs no ARIA and no mode.** It must be a preference — with NVDA running it double-speaks.
+
+The same query is answered through a *different channel* in each mode: **normal → `speechSynthesis`,
+blind → the `div.notify` live region** (§15.2). Same feature, two mechanisms.
+
+## 13.3 The board menu
+
+`<div class="board-menu">` — **not a dialog, no `role="menu"`, no `aria-modal`, no heading, no
+label** — containing properly labelled checkboxes: Zen mode, **Blindfold**, Vibration feedback,
+Streamer mode, **Input moves with your voice**, **Input moves with the keyboard**, plus a FLIP BOARD
+button.
+
+**Voice move input (speech *recognition*) exists in normal mode.** Our user named Android with
+TalkBack and Jieshuo; voice input is a separate axis we had not considered at all.
+
+## 13.4 The one thing the live page does right
+
+**`<title>` carries the game state** — "Your turn – …", "Waiting for opponent – …", "Game Over – …".
+In normal mode it is the *only* turn signal that exists, and it is nearly free to copy.
+
+---
+
+# 14. BLIND MODE OUTSIDE THE BOARD — measured by diff, and it is smaller than expected
+
+**Method.** Fetched four pages with blind mode on, stored the normalised HTML, toggled blind mode
+off, re-fetched the same URLs and diffed token multisets. **Identical result on all four pages
+(`/forum`, `/variant/crazyhouse`, `/account/preferences/display`, `/tournament`): 22 tokens
+only-in-blind, 17 only-in-normal.** That is the complete difference:
+
+1. **The six top-nav section titles become headings — but that is a side effect, not the change.**
+
+   ```html
+   NORMAL:  <section><a href="/training">Puzzles</a><div role="group" style="visibility:hidden">…
+   BLIND:   <section><h3>Puzzles</h3>        <div role="group" style="visibility:visible">…
+   ```
+
+   **The actual change is that the hover menu is REVEALED** (`visibility: hidden` → `visible`),
+   taking the nav from **6 focusable links to 31** (§11.1). Once the group is visible its first
+   entry carries the title's own destination — `Puzzles` → `/training`, `Learn` → `/learn`,
+   `Watch` → `/broadcast`, `Community` → `/player`, `Tools` → `/analysis` — so the title link became
+   an adjacent duplicate with identical text, and they replaced it with the heading that labels the
+   revealed group. The sixth, the Play title pointing at `/`, is covered by the separate focusable
+   `lichess.org` logo link in the header. **Verified: nothing becomes unreachable.**
+
+   So this is a coherent design, not a shortcut — but the removal is still not necessary.
+   `<h3><a href="/training">Puzzles</a></h3>` would keep both, and is what we should do (§16.6).
+2. **one genuinely new heading: `<h2>Navigation</h2>`** (6 converted + 1 new = the +7 seen by counting)
+3. `<body class>` gains `blind-mode`
+4. **`<html>` loses `class="dark"`** — blind mode forces the light theme
+5. the nvui CSS/JS bundle preloads appear in `<meta>` / `<link>`
+6. the toggle button text flips to "Disable blind mode", a separator button appears, and **a new
+   `<a>Blind mode tutorial</a>` appears beside it**
+7. the header search `<input>`: `autocomplete` flips `false` → **`true`**
+
+**ARIA: zero differences.** The only element carrying any `aria-*` in the diff is that search input,
+and it has `aria-label="Search"` in **both** modes. No `role`, no `aria-live`, no `aria-expanded`,
+no `aria-current` is added anywhere outside the board module.
+
+> **Scope of this claim:** server-rendered HTML, non-board pages. `/training` and `/inbox` are
+> JS-built and *do* receive a full nvui module — `main.puzzle.puzzle--nvui` has its own five live
+> regions. And the board pages are the opposite of "no ARIA added".
+
+**This is the strongest available support for the no-mode position on everything that is not a
+board — and it now names the cost.**
+
+## 14.1 CORRECTION to §9.8
+
+§9.8 said `<h2>Navigation</h2>` "applies to every page on the site". True, **but only with blind
+mode enabled** — it is absent in normal mode, and six of the seven headings around it are
+conversions of existing links, not additions.
+
+---
+
+# 15. BLIND MODE ON THE BOARD — including a LIVE crazyhouse game, never captured before
+
+Two games played: `/GlSGD7ny` (normal mode) and `/abkPTnsJ` (blind mode), both Crazyhouse 30+20 vs
+Stockfish level 1, every move typed.
+
+## 15.1 The live round page
+
+`<h1>` — **"You play the white pieces Casual 30 + 20 Crazyhouse Game vs Stockfish level 1"** —
+followed by:
+
+> h2 Game info · Move list · Pieces (h3 White, h3 Black) · **Pockets (h3 White, h3 Black)** ·
+> Game status · Last move · **Your clock** · **Opponent clock** · Command input form · **Actions** ·
+> Board · Advanced settings (h3 Board settings) · Keyboard input commands ·
+> Command list when the board has focus
+
+The nvui **analysis** page differs: a single "Clock", no "Actions", plus Computer analysis, PGN and
+FEN, and Chat.
+
+- **Clocks:** `<div class="time" role="timer">30 minutes</div>`, under *separate* headings for your
+  clock and the opponent's. `role="timer"` carries an implicit `aria-live="off"`, so the ticking
+  never spams — the value is read on demand. Prose minutes and seconds, not `30:00`.
+- **Actions: real `<button>`s with text** — "Abort game", "Offer draw", "Resign"; afterwards
+  "Rematch" / "Analysis board". Normal mode gave these as icon + `title` only.
+- **Game info:** `<p>White:<a>blunderman1</a> 2116</p><p>Black:Stockfish level 1</p>
+  <p>Casual Crazyhouse</p><p>Clock30 + 20</p>`
+- **Command input — the entire difference from normal mode is one wrapping `<label>`:**
+
+```html
+<form id="move-form">
+  <label>Command input form<input class="move mousetrap" name="move" type="text" autocomplete="off"></label>
+</form>
+```
+
+## 15.2 What it actually announces — observed live
+
+| event | normal mode | blind mode |
+|---|---|---|
+| opponent moves | `<title>` only | `p.lastMove` assertive → "e 5" |
+| capture | — | `p.lastMove` → "knight takes e 5" |
+| **drop** | — | move log → **"4. pawn is dropped on e 6"** |
+| invalid move | `class="wrong"` | `div.notify` → **"Invalid move: Qh9"** |
+| result | silent | `div.status` → "0-1 White resigned • Black is victorious" |
+| `pocket white` | — | `div.notify` → "pawn: 1" |
+| `clock` | **`speechSynthesis.speak(…)`** | **`div.notify`** → "29 minutes 36 seconds - 30 minutes 52 seconds" |
+
+Round-page command list, from the page itself: `board`/`b` · **`clock`/`c`** · `last`/`l` · `abort` ·
+`resign` · `draw` · `takeback` · `p` (piece locations) · `s` (rank or file) · `opponent`/`o` ·
+**`pocket <colour>`**. Plus: "To promote to anything else than a queen, use equals. For example
+a-8-equals-n".
+
+### CORRECTION to §9.3
+
+`p.lastMove` is **`aria-live="assertive"` on a round page but `aria-live="polite"` on the analysis
+page**, and `div.status` is **polite** on the puzzle page. The politeness is per-page, not global.
+The analysis page also carries a **sixth** region, `p.position`.
+
+## 15.3 Pockets — the answer to Q2
+
+```html
+<h2>Pockets</h2>
+<div class="pieces">
+  <div class="white-pieces"><h3>White</h3><p>bishop: 1</p></div>
+  <div class="black-pieces"><h3>Black</h3><p>pawn: 2</p></div>
+</div>
+```
+
+Exactly the **Pieces** block's shape with a count instead of squares — `<p>bishop: c1, f1</p>`
+becomes `<p>bishop: 1</p>`. Plus the `pocket <colour>` command, drops typed as `R@b4`, and the
+spoken phrasing "pawn is dropped on e 6".
+
+**There are zero pocket buttons** (`.nvui .pocket button` = 0) and **no board-focus key for
+pockets**: the pocket is **read-only prose**, and drops happen only by typing.
+
+So lichess's entire non-visual crazyhouse story is: *a prose block, one command, a drop notation and
+a spoken phrasing.* Small, complete, and portable to every pychess pocket variant. **Our user's own
+model — vertical arrows through the pocket roles — is more ambitious than anything lichess has.**
+
+Two blemishes: **the pocket gaining a piece is never announced** (you must ask, or infer it from
+"knight takes e 5"), and the round page emits the entry as a bare text node (`<h3>White</h3>pawn: 1`)
+where the analysis page wraps it in `<p>`.
+
+## 15.4 The `table` board layout — captured for the first time
+
+```html
+<table class="board-wrapper">
+  <tr><td></td><th scope="col">a</th>…<th scope="col">h</th><td></td></tr>
+  <tr><th scope="row">8</th><td><button … >A8 black rook</button></td>…<th scope="row">8</th></tr>
+  …
+  <tr><td></td><th scope="col">a</th>…<th scope="col">h</th><td></td></tr>
+</table>
+```
+
+10 rows × 10 cells. **File headers on both top and bottom, rank headers on both left and right** —
+32 `<th>` in all, so a header is always near whichever way you traverse. Corners are empty `<td>`.
+**No caption, no role, no ARIA** — plain table semantics plus `scope`.
+
+**The 64 buttons are identical in both layouts.** `plain` and `table` differ *only* in the wrapper,
+so offering both is nearly free: one conditional around the same button markup.
+
+## 15.5 The setup dialog is rewritten — the most copyable thing on the site
+
+| | normal mode | blind mode |
+|---|---|---|
+| variant | checkbox + `<table>` of focusable `<tr>`s | **`<select id="sf_variant">`** |
+| time mode | `role="tab"` buttons | **`<select id="sf_timeMode">`** |
+| minutes | **unlabelled `<input type=range>`** | **`<select id="sf_time">`** — 0, ¼, ½, ¾, 1, 1.5, 2, 3 … 180 |
+| increment | **unlabelled `<input type=range>`** | **`<select id="sf_increment">`** |
+| level, side | radios | `<select id="sf_level">`, `<select id="sf_color">` |
+
+Each with a real association: `<label for="sf_time">Minutes per side</label><select id="sf_time">`.
+
+**The sliders become discrete `<select>`s.** That is precisely the fix for pychess's seek dialog —
+and for us it need not be mode-gated, it can simply be the control. Normal mode also offers preset
+buttons (`1+0` … `30+20`) beside the sliders: **give a slider a labelled button twin** is a cheap
+idea worth taking on its own.
+
+## 15.6 Two nvui bugs to avoid reproducing
+
+- **Deep-linking renders the wrong position.** Loading `/GlSGD7ny/white#12` renders the nvui panel
+  at the **start** position — Pieces shows all 32 men on home squares, Last move says "Game start",
+  Pockets is empty — while the move list is fully populated. One arrow key fixes it. **Whatever we
+  build must render the prose block from the current node on first paint.**
+- **`div.notify` is never cleared** — a stale "pawn: 1" sat there through several later moves.
+
+## 15.7 Puzzles have a third nvui
+
+`main.puzzle.puzzle--nvui`: h2 Puzzle info · Moves · Pieces · Puzzle status · Last move · Move form ·
+Actions · Board · h3 Puzzle Settings · Advanced settings · Keyboard shortcuts · Commands ·
+Command list when the board has focus · **Promotion**. So nvui is implemented three times — round,
+analysis, puzzle — for the same shape.
+
+---
+
+# 16. WHAT THIS CHANGES IN OUR PLAN
+
+1. **The change's premise splits.** "pychess pages are already capable of good enough accessibility
+   without a mode" is **confirmed for the site chrome** (§11, §14 — zero ARIA added outside the
+   board) and **contradicted for the board** (§12). lichess did not make its visual board pages good
+   enough and skip a mode; it left them unannounced and built a parallel block. That is exactly
+   where `tasks.md` 3.3c already confines the mode's job.
+2. **Four normal-mode items are now known to be feasible without any mode**, because lichess ships
+   them outside blind mode: a typed move field with a command set (§13.1), **drop notation for
+   crazyhouse** (`R@b4`), `SpeechSynthesis` announcements (§13.2), and voice input (§13.3).
+3. **Three fixes are one-liners with evidence:** wrap the move input in a `<label>` (§15.1); replace
+   the seek-dialog sliders with labelled `<select>`s (§15.5); put an `h2` on every settings row
+   (§11.4).
+4. **Pockets are solved cheaply** (§15.3) — prose block plus one command — and our user's model is
+   more ambitious than the precedent.
+5. **Do not copy**: any of the three variant pickers, the `<tr role=button>` seek row, `role=tab`
+   without `aria-selected`, `aria-modal` without `showModal()`, icon buttons named only by `title`,
+   or **a `visibility:hidden` hover menu with no focus fallback** (§11.1 — it costs lichess 31 of
+   its 37 nav links).
+
+6. **WHY LICHESS NEEDS A MODE AT ALL, and why we may not.** Every fix in blind mode is a
+   **replacement**, never an addition: hover menu → revealed list, title link → heading, slider →
+   `<select>`, board → 64 buttons, `<title>`-only state → live regions. A replacement changes what a
+   sighted user sees, so it *must* be gated behind a mode. Fixes written as **additions** — a
+   `<label>` around an existing input, an `aria-live` on an existing status div, an `<h3>` *wrapping*
+   an existing link, `aria-current` on the active move — are invisible to sighted users and need no
+   gate at all.
+
+   **lichess needs a mode because of how it chose to fix things, not because the fixes inherently
+   require one.** The only genuinely visual change in its whole non-board blind mode is revealing
+   the hover menus — and that one exists solely to repair a defect (§11.1) we do not have to ship in
+   the first place. This is the sharpest argument available for 3.3c.
+
+---
+
+# 17. STILL NOT CAPTURED
+
+- **a pending draw offer** — the control is `disabled` against the AI, so this needs a human opponent
+- a game with a **human** opponent generally: chat traffic, opponent-gone timers, the rematch flow
+- Android / TalkBack behaviour, and the touchscreen board support §7 mentions

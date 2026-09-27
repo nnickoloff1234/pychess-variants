@@ -84,7 +84,7 @@ picture is coherent rather than partial:
 
 | | Where | Effect |
 |---|---|---|
-| **F1** | `site.css:996` — add `:focus-within` beside `.topnav section:hover .drp` | **makes all secondary navigation keyboard-reachable. WCAG 2.1.1 Level A, in one selector.** |
+| **F1** | `site.css:996` — add `:focus-within` beside `.topnav section:hover .drp` | **makes all secondary navigation keyboard-reachable. WCAG 2.1.1 Level A, in one selector.** Measured 2026-09-27: **8 of 30 nav links focusable** today (`collapsibles-sweep.md` F1a). **Caveat: this fixes keyboard/focus mode only — `:focus-within` never fires in NVDA browse mode, so it is a partial fix, not the whole of F1.** The disclosure with `aria-expanded` is the rest, and we already ship that pattern for the login menu. |
 | T4 | `site.css:2302` `.btn-controls button:focus` | Draw/Resign focus becomes visible |
 | T5 | `site.css:2393` `button.icon:focus` | icon buttons' focus visible |
 | T6 | `site.css:3800` `.search-bar .input input` | search focus visible |

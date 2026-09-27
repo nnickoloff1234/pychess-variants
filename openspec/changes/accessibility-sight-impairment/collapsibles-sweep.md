@@ -52,12 +52,81 @@ keyboard.** The top-level link (Play, Learn, …) is reachable and its `href` wo
 
 - **WCAG 2.1.1 Keyboard — Level A.** Not AA, not AAA. Level A.
 - **Affects every keyboard-only user**, not only screen-reader users.
-- Below 800px the `visibility: hidden` does not apply, so the links are in normal flow — but reaching
-  them needs the hamburger, which is F2.
+- Below 800px the `visibility: hidden` does not apply. **CORRECTED — this bullet used to say the
+  links are "in normal flow but reaching them needs the hamburger". That understates it, and in the
+  keyboard sense it is backwards** (see F1a.3).
 
 **Fix shape:** add `:focus-within` beside the `:hover` rule, so tabbing into the section reveals it.
 That is one selector and it makes the menu keyboard-operable. Making it a proper button-driven
 disclosure with `aria-expanded` is the fuller answer and a larger change.
+
+---
+
+## F1a. F1 MEASURED IN A RUNNING BROWSER — 2026-09-27
+
+**The first runtime evidence anywhere in this change.** Everything else in the twelve sweeps is a
+source read; this was measured against the dev server on `127.0.0.1:8080` by calling `.focus()` on
+every `.topnav a` and checking `document.activeElement`.
+
+### F1a.1 The numbers, and they are worse than F1 implies
+
+| | pychess (measured) | lichess (measured, same method) |
+|---|---|---|
+| top-nav links in the DOM | 30 | 37 |
+| **focusable** | **8** | **6** |
+| unreachable | **22** | 31 |
+
+The 8 are the home link, the six section titles, and Donate. **22 of 30 navigation links cannot be
+reached by keyboard on any desktop viewport** — Tournaments, Simuls, Variants, Authors, Memory, Tv,
+Current games, Video library, Players, Friends, Teams, Forum, Blog, Editor, Analysis, Import game,
+Advanced search, Studies, My variants and the rest. Confirmed `.drp` computed `visibility: hidden`.
+
+**lichess has the identical defect** (`lichess-reference.md` §11.1). This is not us being behind;
+it is a pattern both sites share. What lichess *does* about it is §14: **its blind mode's only
+substantive non-board change is revealing this menu, taking its nav from 6 focusable links to 31.**
+
+### F1a.2 `:focus-within` fixes keyboard, NOT browse mode — and that qualifies the F1 fix
+
+`:focus-within` fires only when something is *focused*. In NVDA/JAWS **browse mode** the user arrows
+through a virtual buffer without focusing anything, so the rule never fires, and `visibility: hidden`
+keeps those 22 links out of the buffer entirely. **A browse-mode user still hears 8 links after the
+one-selector fix.**
+
+This is exactly the browse/focus-mode split our user described (`user-report.md`), showing up in the
+navigation rather than on the board. There is **no pure-CSS fix for it**: to be discoverable in
+browse mode the collapsed state has to be *announced* as collapsed, which needs a real control with
+`aria-expanded`. And the obvious dodge — keep the submenu in the accessibility tree while hiding it
+visually — is not available, because anything in the tree is also focusable, which is F1a.3.
+
+So: **`:focus-within` is still worth shipping** (one selector, no visual change, closes a Level A
+keyboard hole), but it must not be recorded as *the* fix for F1. The disclosure is.
+
+**And the disclosure is smaller than F1 suggests, because we already ship one.** The login menu is
+`<button class="login-btn" aria-haspopup="true" aria-expanded="false">` + `role="menu"`/`menuitem`
+(`templates/template.html:88-95`) with `aria-expanded` genuinely maintained in
+`client/main.ts:441-480`. `aria-expanded` is also used in `profileActionOverflow.ts:16`,
+`tournamentForm.ts:161`, `simulForm.ts:76` and `studyView.ts:366`. Giving the top nav the same
+treatment makes it consistent with a menu we already have working — it is not new machinery.
+
+### F1a.3 Below 800px the failure INVERTS: off-screen but still tabbable
+
+`site.css:823` hides the drawer with **`transform: translateX(-100%)`** on `.topnav` and on
+`.topnav a`, plus `section > a { display: none }`. `transform` does **not** remove an element from
+the tab order or the accessibility tree.
+
+Verified directly: a `.drp a` pushed to `translateX(-9999px)` (bounding rect fully off-screen,
+`right < 0`) still reported **`focusable: true`**, `offsetParent` non-null, computed
+`visibility: visible`.
+
+**So below 800px the nav links are in the tab order while the drawer looks closed** — a sighted
+keyboard user tabs through ~24 invisible links. That is the mirror image of the desktop bug, and it
+means F2 (the hamburger) is not what stands between a keyboard user and those links; it is what
+stands between them and *seeing* them.
+
+> **Evidence level.** F1a.1 and F1a.3's mechanism were measured live. The <800px layout itself was
+> reproduced by injecting that media block's rules, **not** observed at a real narrow viewport — i3
+> is a tiling WM and refuses the window resize. Worth one end-to-end check in the harness before this
+> is treated as settled.
 
 ## F2. The hamburger is a `<div>`, not a button
 

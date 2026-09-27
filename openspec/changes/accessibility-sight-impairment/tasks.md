@@ -643,7 +643,19 @@ before proceeding to implementation."* **These gate section 4. None is optional.
       **Chrome vs Firefox:** Chrome, for the CDP access. He is logged in on Firefox, so either he signs
       in on Chrome or we re-do the `POST /run/toggle-blind-mode` trick there — it worked over curl and
       will work in a browser session.
-- [ ] 3b.2 **SWEEP PYCHESS'S REAL RENDERED DOM, not its source.** All twelve sweeps read source only,
+- [~] 3b.2 **PARTLY DONE 2026-09-27 — see `tree-capture-sweep.md`.** Done better than asked: not the
+      rendered DOM but **Chrome's computed accessibility tree** via CDP `Accessibility.getFullAXTree`,
+      captured for 8 pages with `scripts/a11y_capture.py` / `a11y_audit.py` / `a11y_diff.py`.
+      **Three answers change the picture:** (1) **15 navigation destinations are reachable from
+      nowhere on the lobby** — Forum, Teams, Tournaments, Studies, Import game and 10 more;
+      (2) the board contributes **zero** nodes — no square, no pocket, no move — so the board page is
+      a variant dropdown and some download links; (3) six board buttons are named **"p" "l" "n" "o"
+      "m" "s"** because `content: attr(data-icon)` leaks the raw letter into the name.
+      **Zero live regions on all 8 pages.**
+      STILL OPEN inside 3b.2: the logged-in UI (server ran without `-a`), and a live game / two-board
+      page, so the positive-`tabindex` prediction T3 remains unverified.
+
+- [ ] 3b.2-orig **SWEEP PYCHESS'S REAL RENDERED DOM, not its source.** All twelve sweeps read source only,
       and `coverage-and-change-types.md` already names this as the largest gap: `#settings`,
       `#notify-app`, `#challenge-app` and both two-board pages are built by Snabbdom, so **nobody has
       seen the DOM they produce.**
