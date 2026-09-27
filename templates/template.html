@@ -11,8 +11,8 @@
             <div class="topnav">
                 <a class="nav-link active home" href="/">PyChess{% if dev %}<span>DEV</span>{% endif %}</a>
                 <section>
-                    <a class="nav-link" href="/?any">{% trans %}Play{% endtrans %}</a>
-                    <div class="drp" >
+                    <button type="button" class="nav-link nav-section" aria-expanded="false" aria-controls="nav-play">{% trans %}Play{% endtrans %}</button>
+                    <div class="drp" id="nav-play">
                         <a class="nav-link" href="/?any">{% trans %}Create a game{% endtrans %}</a>
                         <a class="nav-link" href="/tournaments">{% trans %}Tournaments{% endtrans %}</a>
                         {% if simuling %}
@@ -21,14 +21,14 @@
                     </div>
                 </section>
                 <section>
-                    <a class="nav-link" href="/puzzle/{{ menu_variant }}">{% trans %}Puzzles{% endtrans %}</a>
-                    <div class="drp" >
+                    <button type="button" class="nav-link nav-section" aria-expanded="false" aria-controls="nav-puzzles">{% trans %}Puzzles{% endtrans %}</button>
+                    <div class="drp" id="nav-puzzles">
                         <a class="nav-link" href="/puzzle/{{ menu_variant }}">{% trans %}Puzzles{% endtrans %}</a>
                     </div>
                 </section>
                 <section>
-                    <a class="nav-link" href="/variants">{% trans %}Learn{% endtrans %}</a>
-                    <div class="drp" >
+                    <button type="button" class="nav-link nav-section" aria-expanded="false" aria-controls="nav-learn">{% trans %}Learn{% endtrans %}</button>
+                    <div class="drp" id="nav-learn">
                         <a class="nav-link" href="/variants">{% trans %}Rules & Variants{% endtrans %}</a>
                         <a class="nav-link" href="/authors">{% trans %}Authors{% endtrans %}</a>
                         <a class="nav-link" href="/memory">{% trans %}Memory{% endtrans %}</a>
@@ -37,16 +37,16 @@
                     </div>
                 </section>
                 <section>
-                    <a class="nav-link" href="/tv">{% trans %}Watch{% endtrans %}</a>
-                    <div class="drp" >
+                    <button type="button" class="nav-link nav-section" aria-expanded="false" aria-controls="nav-watch">{% trans %}Watch{% endtrans %}</button>
+                    <div class="drp" id="nav-watch">
                         <a class="nav-link" href="/tv">{% trans %}Tv{% endtrans %}</a>
                         <a class="nav-link" href="/games">{% trans %}Current games{% endtrans %}</a>
                         <a class="nav-link" href="/video">{% trans %}Video library{% endtrans %}</a>
                     </div>
                 </section>
                 <section>
-                    <a class="nav-link" href="/players">{% trans %}Community{% endtrans %}</a>
-                    <div class="drp" >
+                    <button type="button" class="nav-link nav-section" aria-expanded="false" aria-controls="nav-community">{% trans %}Community{% endtrans %}</button>
+                    <div class="drp" id="nav-community">
                         <a class="nav-link" href="/players">{% trans %}Players{% endtrans %}</a>
                         {% if not anon %}
                         <a class="nav-link" href="/@/{{ username }}/following">{% trans %}Friends{% endtrans %}</a>
@@ -58,8 +58,8 @@
                     </div>
                 </section>
                 <section>
-                    <a class="nav-link" href="/editor/{{ menu_variant }}">{% trans %}Tools{% endtrans %}</a>
-                    <div class="drp" >
+                    <button type="button" class="nav-link nav-section" aria-expanded="false" aria-controls="nav-tools">{% trans %}Tools{% endtrans %}</button>
+                    <div class="drp" id="nav-tools">
                         <a class="nav-link" href="/editor/{{ menu_variant }}">{% trans %}Editor{% endtrans %}</a>
                         <a class="nav-link" href="/analysis/{{ menu_variant }}">{% trans %}Analysis{% endtrans %}</a>
                         <a class="nav-link" href="/paste">{% trans %}Import game{% endtrans %}</a>

@@ -709,6 +709,128 @@ before proceeding to implementation."* **These gate section 4. None is optional.
 - [ ] 4.1 To be filled from 3.4, which is still open. Left empty deliberately — the candidates and
       their costs are in `candidates.md`; turning one into tasks is what the gate authorises.
 
+### 4G. Candidate G, started 2026-09-27 — the header navigation. DOES NOT WAIT ON THE GATE.
+
+Ordinary semantics, always on, benefiting every keyboard user. `collapsibles-sweep.md` F1/F1a/F2/F3.
+
+- [x] 4G.1 **`:focus-within` beside `:hover`** on `.topnav section .drp` (`static/site.css:1010`).
+      Shipped in `4e7e6f04d`. Measured on the lobby: **8 of 31 focusable → 31 of 31.** WCAG 2.1.1
+      Level A closed for keyboard. A tree capture straight after confirms it does NOT reach browse
+      mode — `notRendered` still 550, submenu links still absent with nothing focused — because a
+      screen reader in browse mode focuses nothing.
+
+- [ ] 4G.2 **The six section titles become toggling disclosure buttons.** DECIDED by Nikolay
+      2026-09-27, choosing one control over the W3C APG's split pattern (link + sibling button),
+      which was rejected for six extra tab stops on every page plus a visible caret.
+
+      **Why a button at all, and why the click is lost.** A mouse user has two gestures — hover
+      opens, click navigates. A browse-mode screen-reader user has ONE: activation. So a single
+      control's activation is either navigate or toggle, and `aria-expanded` on a control that
+      navigates is a lie. The destination survives: every section's URL is already its submenu's
+      first item (`Play`→`/?any` is also "Create a game", `Learn`→`/variants` is also "Variants",
+      `Watch`→`/tv`, `Community`→`/players`, `Tools`→`/editor/{v}`, `Puzzles`→`/puzzle/{v}`).
+      It also **fixes touch**, where there is no hover and these menus are unreachable entirely.
+
+      **4G.1 IS SUPERSEDED AND MUST BE REMOVED BY THIS TASK.** Focus-open plus activate-toggle
+      fight: Tab opens, Enter immediately closes, and `aria-expanded` diverges from what is shown.
+      `.open` becomes the single source of truth for the announced state. `:hover` stays for mice,
+      and it is accepted that a hovered menu shows while its button still says `aria-expanded=false`
+      — nobody hovering is listening to a screen reader, and driving ARIA from hover would announce
+      menus to people who never asked.
+
+      Reuse, do not invent: **`initLoginDropdown()` `client/main.ts:429-490`** already does all of
+      it — `.open` class plus `aria-expanded` on click `:446`, outside-click `:458`, Escape `:471`
+      with focus return `:472`. And the header **already contains a `<button class="nav-link">`**,
+      the login button (`templates/template.html:90`), neutralised by `div button.login-btn`
+      (`static/site.css:4494-4504`) — there is no global button reset, so copy that block.
+
+      Seven element-keyed CSS rules stop matching once the title is a button and must be migrated:
+      `site.css:810, 817, 850, 868, 894, 905, 920`. Note `:768 .nav-link:link, .nav-link:visited`
+      sets the colour through link pseudo-classes a button never matches.
+
+      **REJECTED ALTERNATIVE, built and measured 2026-09-27 — keep every submenu permanently in
+      the tree.** Swap `.drp`'s `visibility: hidden` for `opacity: 0; pointer-events: none` and the
+      links never leave the accessibility tree; no button, no lost click, no JS. It works
+      mechanically — lobby exposed 296→372, interactive 47→70, all 23 links focusable, and ZERO
+      focusable while invisible because `:focus-within` reveals the section as focus lands. It was
+      still rejected, by Nikolay and on the evidence:
+
+      - **It flattens structure.** 23 extra links on every page with no boundaries and no state,
+        read as one run — including an audible stutter where a section title and its only item share
+        a label (Puzzles, `template.html:24` and `:26`). A disclosure keeps the nav at 8 and lets the
+        reader open what they want. Structure is better information than raw availability.
+      - **It rests on a side effect rather than a contract.** `opacity: 0` staying exposed is engine
+        behaviour; `aria-expanded` is a documented promise every reader implements.
+      - **An untested flaw:** the closed menu requires `pointer-events: none`, and it was never
+        verified that TalkBack's double-tap or NVDA's Enter survives that — on exactly the devices
+        that motivate this work.
+      - It would also force 4G.5 (the `nav` landmark) to become mandatory, since 23 unskippable
+        links would sit before the main content of every page.
+
+      **DESIGN, after review:**
+
+      - **Rendered in Jinja, not client-side.** `start()` in `client/main.ts` runs only after an
+        awaited `fetch` of `client.json`, so a client-built nav appears a round trip after paint and
+        changes roles under a reader that has already built its buffer. `client/headerPanel.ts`'s
+        docblock states the house rule: header controls ship in the initial HTML. `{% trans %}`
+        labels move verbatim, so no new msgids. (The snabbdom hydration hazard that affects 4G.3
+        does not apply — the nav is not snabbdom-rendered.)
+      - **`aria-expanded` IS the state — no companion class.** CSS reads the attribute directly, so
+        announced and displayed state cannot drift:
+        `.topnav section > .nav-section[aria-expanded='true'] + .drp { visibility: visible; }`
+      - **`:hover` stays** as a stateless preview. A hovered menu shows while the button still reads
+        `aria-expanded="false"`; accepted, because nothing hovering is running a screen reader and
+        the *latched* state — the only one a keyboard or AT interaction can produce — is always
+        truthful. Add `mouseleave` → close so a clicked-open menu does not latch for mouse users.
+      - **Nine CSS selectors break** when the title stops being an anchor: `site.css:768-771` (add
+        `button.nav-link`; `:link`/`:visited` never match a button, so the six would render in the
+        UA colour), `:810-816`, `:817-819`, `:850-856`, `:868-869`, `:920-922`, `:931-933`,
+        `:988-990`, `:1010-1011`. Plus a reset block modelled on `div button.login-btn`
+        (`site.css:4494-4504`) — there is no global button reset.
+      - **TWO `:focus-within` selectors to delete**, `:869` and `:1011`, not one.
+      - **`static/study.css:1231` is a second, independent copy** of the drawer CSS and needs the
+        same rename, or the titles reappear in the study drawer at 800-979px.
+      - **New `client/topNav.ts`**, modelled on `initLoginDropdown` (`client/main.ts:429-490`) but
+        one delegated listener instead of four copies: click toggles this section and closes the
+        others, outside click closes all, Escape closes and returns focus to the button, `mouseleave`
+        closes. Wire it in `client/main.ts` **outside `start()`**.
+      - Watch: `div.topnav section:hover` (`site.css:935`) is tag-qualified and dies silently if
+        4G.5 later changes `.topnav` to `<nav>`; `type="button"` on all six, since the header
+        contains a `<form class="search-bar">`; `aria-controls` is largely ignored by NVDA, so add it
+        as correctness but expect the win from `aria-expanded` alone.
+
+- [ ] 4G.3 **The three header panels announce their state** (F3) — the inconsistency Nikolay raised:
+      the nav drops open on focus while `#btn-settings` says only "push button". `aria-expanded` +
+      `aria-controls` on `#btn-challenge` / `#btn-notify` / `#btn-settings`.
+
+      The `shown` class is already the "is open" marker and is set at **seven sites across four
+      files** — `settingsView.ts:48,53`, `notifyView.ts:320,341`, `challengeView.ts:277,306` and
+      **`gameCategoryIntro.ts:26-36`, a fourth open path that bypasses `showMainSettings()`** and
+      would silently go stale. One shared helper, seven call sites routed through it.
+
+- [ ] 4G.4 **The hamburger and the drawer, together and in this order** (F2 + F1a.3). Below 800px
+      `.topnav` hides with `transform`, which does NOT remove anything from the tab order — verified,
+      an element translated to `x=-9889` is still focusable — so ~24 invisible links are tabbable
+      now, the mirror image of the desktop bug. Order matters or keyboard users end up worse off:
+      (a) the `<div class="hamburger">` becomes a real `<button aria-expanded aria-controls>` and
+      `.topnav` gains an id; (b) the handler at `client/main.ts:341-344` writes the attribute;
+      (c) ONLY THEN hide the closed drawer with `visibility: hidden`.
+
+- [ ] 4G.5 **Optional, one word, independent.** The lobby exposes `banner`, `complementary`, `main`
+      and **no `navigation` landmark** — `templates/template.html:11` is `<div class="topnav">`.
+      4G.2 edits that element anyway.
+
+**Verification for all of 4G** — gates (`yarn typecheck` only after deleting `tsconfig.tsbuildinfo`;
+an incremental run reported green over a syntax error on 2026-09-27), then: capture the tree closed
+and expect six `button` nodes with `expanded=false`; click one over CDP, re-capture, and
+`scripts/a11y_diff.py` the pair — only that section's submenu should move from absent to exposed;
+walk it by keyboard; confirm hover is visually unchanged; and **Orca is the acceptance test** —
+expect "Play collapsed button", then Enter, then "expanded".
+
+**Risk pinned:** `tests/test_following_page.py:69` asserts the exact string
+`<a class="nav-link" href="/@/owner/following">Friends</a>`. That is a submenu link, so converting
+titles is safe — but do not touch `.drp` children.
+
 ## 5. Verify
 
 - [ ] 5.1 Every shortlist item heard working with the stack named in 1.3, not merely inspected in
