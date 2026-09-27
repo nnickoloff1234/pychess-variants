@@ -681,7 +681,7 @@ function zoneB(
        `display: contents` until a zone B row is claimed for it, and a real flex box with a 5px
        `padding-top` and a background the moment one is — so a group placed for buttons that are
        not drawn is a 5px band of `--bg-color0` in the row above the tools bar, and the row it
-       takes comes off the stacks. Measured on p1 at 1920x1421, game over with the Chat tab
+       takes comes off the stacks. Measured at 1920x1421, game over with the Chat tab
        showing: the own stack ended 5px inside `zoneB1` and the band cut the bottom of both
        usernames and their presence dots.
        It was charged nothing for it, which is why nothing noticed: hidden buttons measure 0, so
