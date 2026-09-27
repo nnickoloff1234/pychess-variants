@@ -64,15 +64,14 @@ export class AnalysisSeatView {
 }
 
 export function renderSeatNames(ctrl: AnalysisController): void {
-    /* WHO IS ONLINE, FROM THE CONTROLLER — which asked the game's socket once, on connect.
-       It is `User.online`: online ANYWHERE on the site, not "connected to this game", which is the
-       round page's question and a different one. On a finished game the narrow reading would be
-       grey for almost everyone, including a player sitting in the lobby.
+    /* WHO IS IN THIS GAME, FROM THE CONTROLLER — which learns it from the game's own socket,
+       unasked (see `connectGameSocket`). The round page's reading of presence: connected to THIS
+       game, not online somewhere on the site. A player with this game open reads green, including
+       the reader themselves; anyone else reads grey.
 
-       KEYED BY USERNAME, not by board and colour, because that is what the answer names and what a
-       seat already carries. Unknown until an answer arrives, so a dot starts grey and turns green.
-
-       CORRECT AT CONNECT AND NOT AFTER — see `askWhoIsOnline`. */
+       KEYED BY USERNAME, because that is what the messages name and what a seat already carries.
+       Unknown until the server speaks, so a dot starts grey and turns green — and it stays live,
+       since joins and leaves are broadcast to everyone on the game. */
     const online = (username: string): boolean => ctrl.isOnline(username);
 
     const hasPlayers = ctrl.model['gameId'] !== '';

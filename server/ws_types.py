@@ -146,21 +146,6 @@ class UserPresenceMessage(TypedDict):
     username: str
 
 
-class UserOnlineMessage(TypedDict):
-    """Online ANYWHERE on the site, which is a different question from UserPresenceMessage.
-
-    `UserPresenceMessage` answers "has this user a socket open on THIS game", which is what the
-    round page wants while a game is being played. This one answers `User.online` -- any socket at
-    all, game or lobby or tournament or study -- which is what the player lists and profiles draw
-    their dot from, and the only reading that means anything on a FINISHED game's analysis page,
-    where nobody holds a socket on the game itself.
-    """
-
-    type: Literal["user_online"]
-    username: str
-    online: bool
-
-
 class FullChatMessage(TypedDict):
     type: Literal["fullchat"]
     lines: Sequence[ChatLine]

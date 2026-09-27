@@ -38,13 +38,11 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
 
     /* WHO IS ONLINE, ANSWERED ONCE PER SEAT WHEN THIS PAGE CONNECTS.
        ------------------------------------------------------------------------------------
-       Empty until the answers arrive, so every dot starts grey and turns green -- never the
-       other way round, which would be a page claiming presence it has not been told about.
+       Empty until the server speaks, so every dot starts grey and turns green -- never the other
+       way round, which would be a page claiming presence it has not been told about.
 
-       The question asked is `User.online`, online ANYWHERE on the site, not "connected to this
-       game". The narrow reading is what the round page wants mid-game; on a FINISHED game it is
-       grey for everyone, including a player sitting in the lobby, because nobody holds a socket
-       on a game that is over. */
+       These are the people connected to THIS GAME's socket, which is the round page's reading of
+       presence and the one that arrives for free. See `connectGameSocket`. */
     private readonly onlineUsers = new Set<string>();
 
     constructor(
@@ -161,51 +159,46 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
         // on the orientation set a few lines above.
         renderSeatNames(this);
         this.syncBoardHitAreas();
-        this.askWhoIsOnline();
+        this.connectGameSocket();
     }
 
-    /** Whether this username was reported online when the page connected. */
+    /** Whether this username is currently connected to this game's socket. */
     isOnline(username: string): boolean {
         return this.onlineUsers.has(username);
     }
 
-    /* ASK ONCE, ON CONNECT, AND NEVER SUBSCRIBE.
+    /* THE GAME'S SOCKET, WHICH THIS PAGE HAD NONE OF.
        ------------------------------------------------------------------------------------
-       The page opens the game's own socket -- the same `wsr/{gameId}` the single-board analysis
-       page opens, and for the same reason: it is where a question about a game's players is
-       answered. It asks `is_user_online` per seat and then listens for nothing else.
+       Opened for its own sake as much as for the dot: every page wants a socket now that
+       notifications and direct messages are pushed, and the analysis page was the one left out.
+       The presence icon is what it pays for first.
 
-       CORRECT WHEN GIVEN, STALE AFTERWARDS, AND THAT IS THE WHOLE SCOPE. If somebody leaves while
-       this page is open the dot stays green until a reload. Keeping it live means subscribing to
-       presence for four arbitrary users, which is `app-wide-online-presence`, not this.
+       NOTHING IS ASKED. `init_ws` on the server answers before being spoken to: it sends an
+       `is_user_present` result for every other non-bot player, then broadcasts `user_present` for
+       whoever just connected. Leaving broadcasts `user_disconnected`. So the four dots are correct
+       on connect AND stay live while the page is open, without a subscription or a single request.
 
-       An analysis board opened from the Tools menu has no game and no players, so there is nothing
-       to ask and no socket to open. */
-    private askWhoIsOnline(): void {
+       WHAT THE DOT MEANS HERE IS "IS IN THIS GAME", not "is online somewhere". Connecting registers
+       this page in `game_sockets`, so a player who also has this game open reads as present --
+       including the reader's own seat, whose `user_present` arrives in the same broadcast. It is
+       the narrower reading of the two and the one that costs nothing; `app-wide-online-presence`
+       is where the wider one belongs.
+
+       An analysis board opened from the Tools menu has no game, so there is no socket to open. */
+    private connectGameSocket(): void {
         const gameId = this.model['gameId'];
         if (gameId === '') return;
 
-        const usernames = new Set(
-            (['a', 'b'] as const).flatMap(board =>
-                (['white', 'black'] as const).map(color => this.seats.byBoardAndColor(board, color).player.username),
-            ),
-        );
-        usernames.delete('');
-
-        const sock = createWebsocket(
+        createWebsocket(
             'wsr/' + gameId,
-            () => {
-                for (const username of usernames) {
-                    sock.send(JSON.stringify({ type: 'is_user_online', username: username }));
-                }
-            },
+            () => {},
             () => {},
             () => {},
             (e: MessageEvent) => {
                 const msg = JSON.parse(e.data);
-                if (msg.type !== 'user_online') return;
-                if (msg.online) this.onlineUsers.add(msg.username);
-                else this.onlineUsers.delete(msg.username);
+                if (msg.type === 'user_present') this.onlineUsers.add(msg.username);
+                else if (msg.type === 'user_disconnected') this.onlineUsers.delete(msg.username);
+                else return;
                 renderSeatNames(this);
             },
         );
