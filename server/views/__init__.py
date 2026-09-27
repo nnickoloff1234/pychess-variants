@@ -330,10 +330,6 @@ def add_game_context(
     context["wplayer"] = game.wplayer.username
     context["wtitle"] = game.wplayer.title
     context["wpatron"] = game.wplayer.patron
-    # ONLINE ANYWHERE ON THE SITE, not "in this game" — the same `User.online` the player lists and
-    # profiles draw their dot from (`views/players50.py`). The per-game presence the round page uses
-    # is a different question, asked over the socket, and is not this. Correct at render time only;
-    # keeping an open page current is phase 2 of `analysis-page-presence-websocket`.
     context["wrating"] = game.wrating
     context["wrdiff"] = game.wrdiff
     context["chess960"] = game.chess960

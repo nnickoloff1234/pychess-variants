@@ -181,8 +181,6 @@ export type PyChessModel = {
     wplayer: string;
     wtitle: string;
     wpatron: boolean;
-    /** Online ANYWHERE on the site — the same `User.online` the player lists draw their dot from,
-     *  not the per-game presence the round socket reports. Correct at page load. */
     wrating: string; // string, because can contain "?" suffix for provisional rating
     wrdiff: number;
     wberserk: string;
