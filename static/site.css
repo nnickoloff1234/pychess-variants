@@ -3800,7 +3800,15 @@ input:invalid {
   overflow: hidden;
 }
 
-.search-bar.active {
+/* `:focus-within` beside `.active`, because the click is not the only way in. `overflow: hidden`
+   still makes this a SCROLL CONTAINER: tabbing to `#search-input` -- which is focusable but clipped
+   outside the collapsed 50px -- makes the browser scroll it into view, leaving `scrollLeft` at 36-60
+   depending on layout. The icon is then pushed out of the aperture and the input's text sits against
+   `#username`, reading as "SearchTest-Soldie...". Nothing ever resets it -- `collapse()` only removes
+   the class -- so the header stays wrong until a reload. Expanding on focus means the content fits,
+   so there is nothing to scroll and `scrollLeft` stays 0. Mouse behaviour is unchanged. */
+.search-bar.active,
+.search-bar:focus-within {
   width: 250px;
   overflow: inherit;
 }
