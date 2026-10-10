@@ -179,7 +179,7 @@ Same shape as F3, same fix, same line already being written.
 
 - **WCAG 4.1.2 — Level A.**
 
-## F5. The search icon is a non-focusable `<div>` — MINOR, and instructive
+## F5. The search icon is a non-focusable `<div>` — MINOR, and instructive — DROPPED 2026-10-10 (Nikolay): the search field itself is reachable and named
 
 `templates/template.html:74` is `<div class="search-icon"></div>` with `onclick` at
 `client/main.ts:359`. Not focusable, no role, no name.

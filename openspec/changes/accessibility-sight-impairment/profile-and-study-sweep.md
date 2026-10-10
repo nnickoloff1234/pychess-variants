@@ -8,7 +8,7 @@ to copy.**
 
 ---
 
-## PF1. The profile games table has no column headers
+## PF1. The profile games table has no column headers — DROPPED 2026-10-10 (Nikolay): each row is a card (one game link: mini board + info block), not columns of distinct values, so there is nothing a column header would name; no visual change wanted
 
 `client/profile.ts` renders `h('table#games')` (at `:77`, `:265`, `:285`) filled with
 `h('tr', [ … h('td') … ])` — and **`<thead>` count: 0, `<th>` count: 0.**
@@ -23,7 +23,7 @@ has the identical gap.
 Time, Variant, Mode) — see `lobby-and-tournament-sweep.md` LB4. **The two tables were built by
 different hands, and one of them is right.** The lobby's is the pattern to copy.
 
-## PF2. THE RATING CHART IS INVISIBLE — and the fix is ONE IMPORT LINE
+## PF2. THE RATING CHART IS INVISIBLE — and the fix is ONE IMPORT LINE — KNOWN LIMITATION 2026-10-10: module built, then removed (size cost, English-only; tasks.md 4Q.3)
 
 `client/stats.ts` renders the rating history with Highcharts into an empty `h('div#stats-chart')`
 (`:75`), and the file contains **0 `aria-`, 0 `role:`, 0 `alt:`**. Highcharts draws SVG; with no

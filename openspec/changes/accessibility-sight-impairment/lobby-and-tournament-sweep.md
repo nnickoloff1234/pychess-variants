@@ -113,13 +113,18 @@ reorder live as games finish, pairings appear, rounds advance — all silent.
 `client/tournament.ts:642` and `client/tournamentRR.ts:1373` repeat LB3's pattern exactly. With no
 `Escape` handler in `tournament.ts`, its dialog has the same trap.
 
-## TN5. 29 `<th>` but no `<thead>` in `tournament.ts`
+## TN5. 29 `<th>` but no `<thead>` in `tournament.ts` — NOT A DEFECT 2026-10-10: the `<th>`s are ROW labels ("Players | 12"), correct for label-value tables; `<thead>` is only for a row of column titles, which these tables do not have
 
 `client/tournament.ts` has 29 `<th>` and **0 `<thead>`**; `client/tournamentRR.ts` uses `<thead>`
 (3 of them). `<th>` in a first row is generally treated as a column header anyway, so this is
 inconsistency rather than a failure — but the two files disagree and one of them is right.
 
 ## TN6. Two odd controls in `tournamentRR.ts`
+
+**NOT A DEFECT — a false positive, re-checked 2026-10-11.** Neither element has a click handler,
+neither at the sweep's revision nor now: the `<h2>` "Player management" is a plain heading whose
+sibling button carries the handler, and the `<option>`s are a `<datalist>`'s username suggestions
+for the Kick field, which is the correct use. The scan matched a click handler a few lines away.
 
 - **`:1517` — an `<h2>` with a click handler.** A heading used as a control announces as a heading,
   so a screen-reader user has no reason to try activating it.
@@ -172,7 +177,7 @@ than only for the board.
 | TN3 | Standings/pairings changes silent | 4.1.3 AA | one attribute |
 | TN4 | Tournament dialog has no keyboard exit | 2.1.1 **A** | as LB3 |
 | TN5 | `<th>` without `<thead>` | — | consistency |
-| TN6 | Clickable `<h2>` and `<option>` | 4.1.2 **A** | two sites |
+| TN6 | ~~Clickable `<h2>` and `<option>`~~ not a defect (false positive) | — | — |
 
 **None of this touches the board, layout CSS or chessgroundx**, and all of it helps sighted
 keyboard-only users. Candidate G.

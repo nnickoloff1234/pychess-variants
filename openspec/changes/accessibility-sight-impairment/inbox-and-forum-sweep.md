@@ -8,7 +8,7 @@ because the mechanism that should trigger it already exists.
 
 ---
 
-## IB1. A PRIVATE MESSAGE ARRIVES AND NOTHING IS SAID
+## IB1. A PRIVATE MESSAGE ARRIVES AND NOTHING IS SAID — KNOWN LIMITATION 2026-10-10 (tasks.md 4Q.4)
 
 `client/inbox.ts:424`:
 
@@ -52,6 +52,8 @@ the better one; worth aligning on it.
 ---
 
 ## FR1. The forum's modals are visual only — no dialog semantics, no Escape
+
+**Fixed 2026-10-10 (tasks 4FR.1):** native `<dialog>` + `showModal()`.
 
 `client/forum.ts:1511-1519` builds `div.forum-relocate-modal` with a `div.forum-modal-backdrop` that
 dismisses on click, and `:1556-1566` provides a **real `<button.cancel props: { type: 'button' }>`** —
@@ -97,11 +99,40 @@ if a reply is posted without a page change.
 
 ## FR4. Carried from the labels sweep
 
+**Resolved 2026-10-11 (tasks 4FR4.1)** — two were truly unnamed (edit box, reply box).
+
 The forum's compose fields remain in `alt-and-labels-sweep.md` L5's unresolved set:
 `forum.ts:1104` (input), `:1460` (textarea), `:1688` `textarea#forum-reply-text`, `:1763`
 `input#forum-topic-title`, `:1774` `textarea#forum-topic-text`; and `inbox.ts:536` (input), `:629`
 `textarea.inbox-convo-post-text`. **Whether each is wrapped in a label needs the rendered DOM** — the
 same limitation recorded there.
+
+## FR6. A blind user cannot post at all: the captcha is a mouse-only board
+
+Found 2026-10-10. Every topic and reply needs a mate-in-one captcha (`server/forum/mutations.py`),
+and `renderCaptcha()` (`client/forum.ts`) offers only a chessgroundx mini board: the position has
+no text equivalent and the answer can only be dragged or clicked. Without it the server answers
+"Please solve the captcha." **A complete block, worse than any other forum finding.** WCAG 2.1.1 A,
+1.1.1 A.
+
+The Help link (`/{gameId}`) opens the source game, whose last move IS the mate, so the board
+summary there already reads the solution — but it cannot be entered back.
+
+Lichess (`modules/web/src/main/ui/CaptchaUi.scala`) exempts blind users: with blind mode on,
+the solution goes into the hidden `move` field. Pychess has no blind-mode preference.
+**Decided by Nikolay 2026-10-10, refined the same day:** make the captcha solvable by keyboard,
+built with E and F. The board summary under a heading saying this is the forum post's captcha,
+plus F's keyboard navigation on the captcha board (arrows speak each square, Enter/Space picks up
+and drops a piece). **Whether a typed move field is added too is decided when F works** — only if
+navigation plus summary is not enough, or both. The lichess exemption stays a future option should
+a blind-mode preference ever exist.
+
+Lichess reference (`ui/lib/src/nvui/`): its keyboard board is a SEPARATE table of 64 `<button>`s
+drawn instead of chessground in blind mode, each named "e4 white pawn"; arrows move focus,
+Enter/Space selects then drops, piece letters jump between pieces, digits jump ranks/files,
+`o` `l` `t` read square / last move / clocks. Selecting fills the hidden typed-move field and
+submits it, so there the board and the field are one mechanism. It is never used for the
+captcha, since blind mode skips the captcha.
 
 ---
 
@@ -129,6 +160,8 @@ Seven pages swept now, and the split is consistent enough to act on:
 |---|---|---|---|
 | **IB1** | **PM arrives silently, though `EventSource` already fires** | 4.1.3 AA | one attribute + a string |
 | FR1 | Forum modals lack `role="dialog"`, `aria-modal`, `Escape` | 4.1.2 A / 2.1.1 A | copy `addToStudy.ts` |
+| FR5 | Post buttons `visibility: hidden` until hover: not reachable by Tab | 2.1.1 A | `opacity` + `:focus-within` (fixed, 4FR.3) |
+| FR6 | Captcha is a mouse-only board: blind users cannot post | 2.1.1 A / 1.1.1 A | summary + F keyboard board; typed field decided later (open) |
 | FR2 | Forum announces nothing | 4.1.3 AA | one attribute |
 | IB2 | `title` where `aria-label` is more reliable | — | alignment, not a defect |
 

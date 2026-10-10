@@ -412,7 +412,7 @@ changes ... later we might think of a full solution, but for now we start with s
       moderator uses a screen reader the direct value is near zero, and there is nothing left to fix.
       Their value to this change is entirely as evidence of the house standard.**
 - [ ] 2.4d **Re-checked against the code 2026-10-10.** Done: F1, F3 (4G), H2 (4H2), RA1-RA3 (4RA1-3).
-      Also done: RA4-RA6 (4RA4-6), H1 for game pages (4H1), LB1 (4LB1), T1 and T3 (4T1-3), F2 and F4 (4F2-4), T4-T6 (4T4-6), SB1-SB3 (4SB), TN1 and TN4 (4TN), L1 L2 L5 PE2 (4L), PE3 (4PE3), PE1 (4PE1); T2 withdrawn by decision. Not a defect: LB3. Everything else listed here is still open.
+      Also done: RA4-RA6 (4RA4-6), H1 for game pages (4H1), LB1 (4LB1), T1 and T3 (4T1-3), F2 and F4 (4F2-4), T4-T6 (4T4-6), SB1-SB3 (4SB), TN1 and TN4 (4TN), L1 L2 L5 PE2 (4L), PE3 (4PE3), PE1 (4PE1), L3 L4 A1 (4Q), FR4 + duels (4FR4), RA7 (4RA7), FR1 + round-robin modal + FR5 (4FR). Open and scheduled with E: FR6 (4FR6). Known limitations by decision: PF2, IB1 (section 6). T2 withdrawn by decision. Not a defect: LB3, TN5, TN6 (false positive). Dropped by decision: PF1, F5. Everything else listed here is still open.
       **F1, F2, T1-T6, A1, L1-L5, H1-H6, D2-D6, LB1-TN6, PF1-ST3, IB1-FR4, RA1-RA8 and SB1-SB3 do
       not wait on the gate** — except RA8, which IS the gate (candidates B and D). **And per AD1 the
       dialog fixes are ONE change using `<dialog>`, not four; per PE3 the clickable-element fixes are
@@ -1242,9 +1242,14 @@ invalid but harmless to keys).
 - Verified on a live arena (`UCa8BBRV`, three windows, one game paired): Tab → a player's button →
   Enter opens the panel → Enter on Close closes it; every converted element measured identical to
   its old form in place (rows, cells, close, top game incl. pocket padding).
-- [ ] 4TN.6 **Not done:** focus does not return to the player's row after Close (would need code);
-      the round-robin modal still has no Escape (it is no native dialog; converting it is its own
-      change). Not exercised live: the round-robin modal.
+- [x] 4TN.6 **Opening a player's panel is now announced** (2026-10-11): `#stats` is
+      `aria-live="polite"`, so Enter on a row reads "1. <player> Performance … Games played …"
+      without moving focus. A static attribute, no logic.
+- [ ] 4TN.6b **WON'T FIX (Nikolay 2026-10-11):** focus stays on the row when the panel opens and
+      falls to `<body>` on Close; the panel sits after the standings (6-20 Tabs away). Nothing is
+      blocked. Fixing it would be ~3 lines of focus code plus a `data-player` on the row buttons.
+      `aria-expanded` was rejected for the same reason: the rows are not re-rendered on toggle, so
+      keeping it true would need code too. (The round-robin modal's Escape is done, 4FR.2.)
 
 ### 4L. Labels — done 2026-10-10.
 
@@ -1290,9 +1295,84 @@ followed — the forum's "cancel edit" link already does exactly this.
       computer's reply was never reported (`makeMove` updates it now: "Kg8"); and a puzzle solved
       after a wrong move shows no text, so its status falls back to "Puzzle complete!". Verified on
       a test puzzle inserted into the local database (1. Ra7 Kg8 2. Rb8#), removed afterwards.
-- [ ] 4PE1.2 **Found:** the vote buttons after a puzzle (`div.vote` thumbs up/down, "Vote to load
+- [x] 4PE1.2 **Done in 4Q.2.** **Found:** the vote buttons after a puzzle (`div.vote` thumbs up/down, "Vote to load
       the next one!") are clickable `<div>`s — not reachable by keyboard. "Continue training"
       (4PE3) is the keyboard way on meanwhile.
+
+### 4Q. Quick fixes — done 2026-10-10.
+
+- [x] 4Q.1 **L3:** the tournament form's read-only "Start date" / "End date" labels name their fields
+      (`for` + `id`). **L4:** three team-page fields named only by a placeholder carry it as an
+      `aria-label` too (admin moderation note, declined-requests search, add a leader).
+- [x] 4Q.2 **Puzzle votes** (found in PE1): the 👍/👎 `<div>`s are `<a href="#">` with
+      `preventDefault()`, named "👍" / "👎" — a screen reader reads the emoji's name in the
+      reader's own language, so no new strings. Measured identical to the old divs; a vote by
+      keyboard (Tab, Enter) is recorded (test puzzle, `u: 1`) and loads the next puzzle.
+- [x] 4Q.3 **PF2 — built, measured, then REMOVED by Nikolay; now a known limitation.** Highcharts'
+      accessibility module gave the statistics chart a hidden description and keyboard navigation,
+      pixel-identical on screen, but cost ~40 KB gzipped (139 KB minified) in the one bundle every
+      page loads, for one chart, with an untranslated English description. Not worth it. See 6.
+- [x] 4Q.4 **IB1 — dropped by Nikolay; a known limitation.** A live region on the conversation would
+      read the whole history on every message (it reloads through "Loading..."); the alternative,
+      an announcer built from the sender and the message, was ~15 lines of new behaviour. See 6.
+- [x] 4Q.5 **A1 (2026-10-11):** the About logo and the lobby's fairy and army illustrations are
+      decoration under their own headings, so `alt=""` (without it readers announce the file name).
+      The profile trophy image is the trophy's only content, so its `alt` is the same text as its
+      `title` ("Crazyhouse Top 10!") — no new string. Verified: the three in the live DOM, images
+      unchanged; the trophy by rendering the template block (no local profile has a trophy).
+
+### 4FR. Native dialogs: forum, round-robin, alerts — done 2026-10-10.
+
+- [x] 4FR.1 **FR1:** the forum's relocate and delete modals are `<dialog>`s opened with
+      `showModal()`: focus moves in (Cancel), Tab stays inside, Escape closes, the page behind is
+      inert. One shared `modalDialogHooks` (`client/document.ts`) opens it on insert and calls
+      `close()` on destroy, so the browser returns focus to the button that opened it.
+- [x] 4FR.2 **The round-robin arrangement modal** (was 4TN.6's Escape item): the same conversion;
+      its outside-click close is kept.
+- [x] 4FR.3 **Found while testing FR1 — FR5: the forum post's buttons (Edit, Delete, Quote, ...)
+      could not be reached by Tab.** They were `visibility: hidden` until hover, and hidden elements
+      are skipped. Now `opacity: 0` until the post is hovered **or holds focus** — identical for mouse.
+- [x] 4FR.4 **Found while converting the round-robin modal: `alertDialog` would have opened behind it**
+      (a plain `<div>`, inert under a modal). Converted to a native dialog exactly as upstream did
+      `confirmDialog` (7c6b214e6). Looks the same; OK takes focus, Enter/Escape close, focus returns.
+      `pasteImport.test.ts` stubs `showModal`/`close` (jsdom has neither), as `confirmDialog.test.ts` does.
+- Verified: forum delete modal by real keys on a live post (Tab → Delete → Enter → Escape, focus
+  back on Delete; then deleted the post by keyboard); replica measured identical as `<div>` and
+  `<dialog>`. Round-robin: `test_gui.py::test_round_robin_full_browser_flow` passes (opens the
+  modal, picks a date in its inline calendar, clicks its buttons). Alert: invalid PGN on `/paste`.
+- [ ] 4FR.5 **Not exercised live:** the relocate modal (moderators only; same hooks as delete).
+
+### 4FR4. Forum and inbox fields; tournament top games — done 2026-10-11.
+
+- [x] 4FR4.1 **FR4, checked in Chrome's accessibility tree** (the sweep could not tell from source):
+      the new-topic Subject and Message were already named. **Two real defects:** the post-edit box
+      had no name at all (now `aria-label` "Message"), and **the reply box had none either** — its
+      "Message" label was `display: none`, which removes it from the name too; it is `.sr-only` now
+      (the CSS rule deleted), measured at the identical spot. Three placeholder-only fields (forum
+      search, inbox "Type username…", the inbox message box) carry the placeholder as `aria-label`
+      too, as L4 did; the inbox one's state-dependent text moved into one `composePlaceholder`.
+- [x] 4FR4.2 **Tournament "Top games" (`div.duels`).** Each live game is a link around two lines
+      laid out as a 2x2 grid: line one is white's name + **black's** rating and rank, line two
+      white's rating + black's name, so it reads right on screen but a screen reader heard each
+      rating next to the wrong player. The link is now named "Open game: <white> – <black>", like
+      the top board (4TN.4). **Left:** the player names inside it are links too — nested links,
+      invalid HTML but harmless to keys (3 Tab stops per game); un-nesting changes how it looks
+      and clicks. **Not exercised live:** no running games in the local arena.
+
+### 4RA7. Engine lines by keyboard — done 2026-10-11.
+
+- [x] 4RA7.1 **RA7:** each engine line (`<pv-san>`, on the analysis and two-board analysis pages) was
+      clickable but had no role, no Tab stop and no Enter. Now `role="button"` + `tabindex="0"` +
+      Enter/Space, through one helper `pvLine()` in `client/view.ts`. Not a `<button>`: the line
+      ends in a CSS ellipsis, which a button would clip. One Tab stop per line (1-5), not per move.
+      Its name is the line itself, "1. e4 c5 2. Nf3 …", so the move it plays is heard first.
+- [x] 4RA7.2 **Focus stays on the line after playing.** Every new position cleared the lines to a
+      "-" placeholder and destroyed the focused element; the placeholder (`pvLinePending()`) is now
+      the same `pv-san` element, so Enter, Enter, Enter walks the engine's line while the board
+      summary announces each move. Measured: the "-" sits at the identical spot.
+- Verified live on `/analysis/chess`: Chrome's accessible name, Enter/Space by real keys, focus kept
+  over three moves, Tab to the next line; a mouse click still plays and shows no focus ring.
+  **Not exercised live:** the two-board analysis page (same helper).
 
 ### 4RA3. The clocks — decided by Nikolay 2026-10-10: on request, as lichess does.
 
@@ -1315,6 +1395,14 @@ once. No timed, per-turn or low-time announcements. A low-time warning was offer
 - [ ] 4RA3.2 **With E, the `c` command** reads both clocks out once through a live region. Prepared:
       `spokenTime()` (exported from `boardSummary.ts`) and the summary's per-colour clock state
       are what it will read; nothing else is needed from the clock side.
+
+- [ ] 4FR6 **With E and F: the forum captcha** (FR6, `inbox-and-forum-sweep.md`). A blind user
+      cannot post today. Decided by Nikolay 2026-10-10: the board summary under a heading naming it
+      the post's captcha (the existing "%1 to checkmate in one move" can head it — no new string),
+      plus F's keyboard navigation and Enter/Space moves on the captcha's chessground. **A typed
+      move field: decided once F works** (none, or added, or both). Note: the summary's "Last
+      move: Initial position" section means nothing here. Lichess's alternative — skip the
+      captcha in blind mode — needs a blind-mode preference pychess does not have; future option.
 
 ### 4Z. LAST — the guide for blind users. Added by Nikolay 2026-10-10.
 
@@ -1372,3 +1460,9 @@ Named here so they are visible rather than forgotten, and so 3.4 has somewhere t
 - **Low-vision work** — magnification, contrast, high-contrast mode — unless 1.1 raises it.
 - **Colour vision deficiency**, same condition.
 - **chessgroundx's board DOM**, unless 3.3 concludes it is unavoidable.
+- **KNOWN LIMITATION — the statistics chart (PF2) is not readable by screen readers.** Highcharts'
+  accessibility module fixes it but costs ~40 KB gzipped on every page for one chart, with an
+  English-only description. Decided against 2026-10-10.
+- **KNOWN LIMITATION — an arriving private message is not announced (IB1).** The inbox updates
+  live and visually; a screen-reader user notices only by reading the thread list. Decided against
+  2026-10-10.

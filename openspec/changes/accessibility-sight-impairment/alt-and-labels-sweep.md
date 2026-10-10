@@ -79,12 +79,12 @@ four radio buttons have no accessible name at all**; a screen reader announces "
 checked" four times with no way to tell which background each selects. Someone reasonably assumed
 `label=` would work.
 
-### L3. Labels with no `for`, on disabled inputs — `arena-new.html:528, 533`
+### L3. Labels with no `for`, on disabled inputs — `arena-new.html:528, 533` — FIXED 2026-10-10 (tasks.md 4Q)
 
 `<label class="form-label">Start date</label>` followed by, not wrapping, a `disabled` input. Not
 focusable, so the impact is small, but the association is still absent.
 
-### L4. Placeholder as the only name — 3 controls
+### L4. Placeholder as the only name — 3 controls — FIXED 2026-10-10 (tasks.md 4Q)
 
 `templates/admin_teams.html:48`, `templates/team-declined-requests.html:11`,
 `templates/team-leaders.html:12` — search and filter inputs with a `placeholder` and nothing else.
@@ -131,7 +131,7 @@ so there is no single convention to check against, which is why controls slip th
 
 | | What | Where | Size |
 |---|---|---|---|
-| A1 | 4 images with no `alt` (all decorative) | `profile.html:31`, `about.ts:26`, `layer2fairy.ts:15`, `layer2army.ts:16` | 4 × `alt=""` |
+| A1 | 4 images with no `alt` — **re-checked 2026-10-11: 3 decorative, 1 meaningful** | `about.ts:26` (logo above "About pychess"), `layer2fairy.ts:15`, `layer2army.ts:16` (illustrations under their headings); `profile.html:31` **the trophy image is the trophy's only content** — its name sits in the wrapper's `title`, which readers often skip | 3 × `alt=""`; the trophy gets `alt` = the same text as its `title` (no new string) |
 | L1 | `for="form3-byo"` points at a non-existent id | `arena-new.html:292` | one word |
 | L2 | `label=` is not an HTML attribute — 4 radios unnamed | `memory.html:74-77` | 4 lines |
 | L3 | `<label>` with no `for` on disabled inputs | `arena-new.html:528, 533` | 2 lines |
