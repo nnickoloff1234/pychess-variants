@@ -2,13 +2,17 @@
 
 Asked for 2026-09-27. **Findings only.** Method and limits: `focus-and-tabindex-sweep.md`.
 
+**STATUS 2026-10-10: RA1, RA2 and RA3 are FIXED** (`tasks.md` 4RA1, 4RA2, 4RA3.1), and the
+"zero live regions" half of RA8 by the board summary (4CD) and the offer region (4RA1.2).
+**RA4, RA5 and RA6 (chat) are FIXED too** (`tasks.md` 4RA4-6). **Still open: RA8's headings.** The findings below are the original record.
+
 **These are the pages our user cannot play on.** Earlier sweeps touched them in passing; this is the
 systematic pass, and it contains **the most severe finding in the whole change** — worse than the
 lobby's, because it happens mid-game under a clock.
 
 ---
 
-## RA1. YOU CANNOT ACCEPT OR DECLINE A DRAW, TAKEBACK OR REMATCH BY KEYBOARD
+## RA1. YOU CANNOT ACCEPT OR DECLINE A DRAW, TAKEBACK OR REMATCH BY KEYBOARD — FIXED 2026-10-10
 
 `client/roundCtrl.ts` builds every offer dialog from bare `<div>`s:
 
@@ -44,7 +48,7 @@ expires while they hunt.
 - **Fix shape:** two real `<button>`s with `aria-label`, in the shape `roundCtrl.ts:497` already uses
   for Resign. The pattern is eleven lines away in the same file.
 
-## RA2. The move-navigation buttons have no names
+## RA2. The move-navigation buttons have no names — FIXED 2026-10-10
 
 `client/movelist.ts` renders **7 buttons, of which 4 are unnamed** — and the split is within one file:
 
@@ -67,7 +71,7 @@ than a decision** — three of its siblings are named.
 
 - **WCAG 4.1.2 Name, Role, Value — Level A.**
 
-## RA3. The clock is readable, but unnamed and silent
+## RA3. The clock is readable, but unnamed and silent — FIXED 2026-10-10
 
 `client/clock.ts:240-254`:
 
@@ -89,7 +93,7 @@ things:
 `c` command in the input field and the `t` key on the board, plus a Clocks heading — see
 `lichess-reference.md` §3-5.
 
-## RA4. The chat's `<ol>` is malformed, so it is not a list
+## RA4. The chat's `<ol>` is malformed, so it is not a list — FIXED 2026-10-10
 
 `client/chat.ts:119`:
 
@@ -106,7 +110,7 @@ items", list navigation (`I` in NVDA) fails, and each message loses its position
 The fix is structural, not additive: patch the `<li>`s into the `<ol>` directly, or make the wrapper
 `<li>`. Either way it is the `<div>` that is wrong, not anything missing.
 
-## RA5. The chat's one accessible name is the one string that is not translated
+## RA5. The chat's one accessible name is the one string that is not translated — FIXED 2026-10-10
 
 `client/chat.ts:131`:
 
@@ -122,7 +126,7 @@ that field.
 `_('Chat input')` and a `lang/` entry. One word of change, and it matters more here than a visible
 string would, because it is the field's only name.
 
-## RA6. The chat never announces an incoming message
+## RA6. The chat never announces an incoming message — FIXED 2026-10-10
 
 `client/chat.ts`: **0 `aria-live`.** On a round page the chat is how your opponent talks to you —
 "good luck", "sorry, lag", a draw discussion. A blind player is never told a message arrived.

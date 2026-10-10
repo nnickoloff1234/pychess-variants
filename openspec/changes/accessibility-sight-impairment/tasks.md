@@ -1,10 +1,14 @@
 ## 0. Status
 
-**IMPLEMENTING CANDIDATE G ONLY — since 2026-09-27; the gate at 3.4 is STILL OPEN.** Section 4 stays
-empty until that gate. What is being built is **4G**, which is explicitly exempt because it is
-ordinary semantics benefiting every keyboard user and touches neither the board nor layout CSS.
-Shipped so far: 4G.1 `:focus-within`, 4G.2 the six disclosure buttons, 4G.3 the header panels,
-4G.5 the `navigation` landmark, plus names on the lobby's and players' `complementary` landmarks.
+**As of 2026-10-10 the gate at 3.4 is decided: the shortlist is C, D, E, F and G.** Shipped: 4G (the
+header and site chrome, PR #2377), 4CD (the board summary and the piece-name adapter, same PR),
+4H2 (`<html lang>`), 4RA1 (draw, takeback and rematch offers answerable by keyboard, and announced),
+4RA2 (move-list button names) and 4RA3.1 (clocks in the summary). Next: the move input (E), then
+arrow navigation on the board (F, after 3.4h). B (headings) waits on 3.4d; A is the help link
+of 3.4g. The spec delta (3.5) is still unwritten.
+
+**Superseded — the status from 2026-09-27 to 2026-10-10:** only candidate G was being built, with the
+gate open.
 
 **Superseded, kept for the record — the original planning-phase freeze (2026-09-27).** Nikolay:
 *"we will not fix anything today, we are just writing down our findings and making a plan ... we are
@@ -65,9 +69,12 @@ changes ... later we might think of a full solution, but for now we start with s
 - [ ] 2.2 Walk the target page as a non-visual user would: land on it, find the board, find whose
       turn it is, find the clock, find the last move, make a move. Record where it fails and at
       which step it becomes impossible.
-- [ ] 2.3 Confirm or correct the survey in the proposal: no `aria-live` on any game page, `<move>`
+- [x] 2.3 **CONFIRMED by the tree captures (3b.2):** the board contributed zero nodes and there were
+      zero live regions on all eight pages captured. Since fixed by 4CD and 4RA1.2.
+      Confirm or correct the survey in the proposal: no `aria-live` on any game page, `<move>`
       with no role or focus, no keyboard move entry, no non-visual mode anywhere.
-- [ ] 2.4 Note what already works. The chrome has real ARIA — 37 labels in templates, 61 in client,
+- [x] 2.4 **DONE in the sweeps:** every sweep in 2.4c–2.4p records its POSITIVES, and AD1/ST1/IB2/FR3
+      name the in-house patterns to copy. Note what already works. The chrome has real ARIA — 37 labels in templates, 61 in client,
       `aria-selected` tabs, `role="dialog"` modals. **Do not rebuild what works**; that is where
       the "minimum change" budget gets wasted.
 - [x] 2.4b **The "stacked layout with menus expanded" question is ANSWERED: do not copy it.**
@@ -166,7 +173,7 @@ changes ... later we might think of a full solution, but for now we start with s
       So `H` does nothing and there is no `h1` for the `1` key. This upgrades `candidates.md` B from
       "almost no headings" to none, and is why B is cheap — nothing to reconcile.
 
-      **H2. `<html>` has no `lang` — `base.html:2`.** WCAG 3.1.1, Level A, and **acute for pychess**:
+      **FIXED 2026-10-10 — 4H2.** **H2. `<html>` has no `lang` — `base.html:2`.** WCAG 3.1.1, Level A, and **acute for pychess**:
       the UI is translated through `lang/` gettext, and a screen reader picks its pronunciation from
       `lang`, so a Bulgarian page read by an English synthesiser is unusable rather than merely
       degraded. **The value is already to hand** — `base.html:71` emits `data-lang="{{ lang }}"` on
@@ -220,6 +227,10 @@ changes ... later we might think of a full solution, but for now we start with s
       no keyboard handler, and **there are zero keydown/keyup/keypress handlers in the entire file.**
       A keyboard or screen-reader user can read the whole seek list and then act on none of it. This
       is the site's primary action on the page everyone lands on. WCAG 2.1.1, **Level A**.
+
+      **CORRECTED 2026-10-10: LB3 was wrong.** The lobby's dialog has been a native `<dialog>` opened
+      with `showModal()` since March 2025 (`lobby.ts:681`), so Escape closes it; the source sweep
+      missed it. TN4 (tournament, round-robin) stands: no `<dialog>`, no Escape.
 
       **LB3 / TN4. Neither the lobby nor the tournament dialog can be closed by keyboard.** Close is
       a `<span.close>` (`lobby.ts:684`, `tournament.ts:642`, `tournamentRR.ts:1373`) and no `Escape`
@@ -304,6 +315,7 @@ changes ... later we might think of a full solution, but for now we start with s
 - [x] 2.4m **Round and analysis pages SWEPT — `round-and-analysis-sweep.md`. Contains the most severe
       finding in the change.**
 
+      **FIXED 2026-10-10 — 4RA1 (buttons) and 4RA1.2 (the offer is announced).**
       **RA1. YOU CANNOT ACCEPT OR DECLINE A DRAW, TAKEBACK OR REMATCH BY KEYBOARD.** `roundCtrl.ts`
       builds **nine accept/reject controls as bare `<div>`s** across **five offer types** — takeback
       (752, 758, 774), **draw (829, 833)**, correspondence move confirmation (852, 856), **rematch
@@ -313,12 +325,12 @@ changes ... later we might think of a full solution, but for now we start with s
       mid-game, under a clock. WCAG 2.1.1 **Level A**. The correct pattern is eleven lines away —
       `:497` `h('button#resign', { props: { title: _('Resign') } })`.
 
-      **RA2.** `movelist.ts` has 7 buttons and **4 are unnamed** — `icon-fast-backward` (:253),
+      **FIXED 2026-10-10 — 4RA2.** **RA2.** `movelist.ts` has 7 buttons and **4 are unnamed** — `icon-fast-backward` (:253),
       `icon-step-backward` (:267), `icon-step-forward` (:282), `icon-fast-forward` (:284) — while
       `refresh`, `exchange` and `bars` in the same file are named. A screen reader announces "button"
       four times for the primary way to review a game.
 
-      **RA3.** `clock.ts:240-254` emits real text (better than the board) but has **0 `aria-label`, 0
+      **FIXED 2026-10-10 — 4RA3.1.** **RA3.** `clock.ts:240-254` emits real text (better than the board) but has **0 `aria-label`, 0
       `role="timer"`, 0 `aria-live`** — so neither clock says whose it is, time is never announced, and
       it reads as three fragments, "5", ":", "23". Our user asked for exactly this.
 
@@ -399,7 +411,9 @@ changes ... later we might think of a full solution, but for now we start with s
       placeholder-only input (L4) — were all already recorded. **Priority stated honestly: if no
       moderator uses a screen reader the direct value is near zero, and there is nothing left to fix.
       Their value to this change is entirely as evidence of the house standard.**
-- [ ] 2.4d **F1, F2, T1-T6, A1, L1-L5, H1-H6, D2-D6, LB1-TN6, PF1-ST3, IB1-FR4, RA1-RA8 and SB1-SB3 do
+- [ ] 2.4d **Re-checked against the code 2026-10-10.** Done: F1, F3 (4G), H2 (4H2), RA1-RA3 (4RA1-3).
+      Also done: RA4-RA6 (4RA4-6). Not a defect: LB3. Everything else listed here is still open.
+      **F1, F2, T1-T6, A1, L1-L5, H1-H6, D2-D6, LB1-TN6, PF1-ST3, IB1-FR4, RA1-RA8 and SB1-SB3 do
       not wait on the gate** — except RA8, which IS the gate (candidates B and D). **And per AD1 the
       dialog fixes are ONE change using `<dialog>`, not four; per PE3 the clickable-element fixes are
       ONE RULE applied ~40 times, not forty decisions.**
@@ -462,7 +476,9 @@ changes ... later we might think of a full solution, but for now we start with s
       info, move list, the position in prose, status, last move, input form, clocks, real action
       buttons — then the board. Everything above the board is plain semantic HTML. A blind player
       reads the entire game state without the board at all. `lichess-reference.md` section 3.
-- [ ] 3.3c **Decide OUR structural answer — and the live DOM narrowed the choice.** `lichess-
+- [x] 3.3c **DECIDED 2026-10-10: inside the normal page, no separate bundle.** The board summary
+      (4CD) is rendered by the ordinary round, analysis and puzzle views and hidden with `.sr-only`.
+      **Decide OUR structural answer — and the live DOM narrowed the choice.** `lichess-
       reference.md` 9.1: lichess does NOT serve a separate page. The nvui content is one
       `<div class="nvui">` inside the ordinary `<main class="round">`, header and nav untouched, with
       `<body class="blind-mode">` as the only other marker. So a non-visual block rendered inside our
@@ -489,7 +505,9 @@ changes ... later we might think of a full solution, but for now we start with s
       buys, what it costs and what is still unknown, plus two possible groupings. **Explicitly not a
       decision**: Nikolay, 2026-09-26, *"we havent reached conclusion what to do yet, just good to
       have all this written down as options and findings."*
-- [ ] 3.4 **THE GATE — STILL OPEN. Choose from `candidates.md`.** Everything not chosen goes to a
+- [x] 3.4 **DECIDED 2026-10-10 by Nikolay: C, D, E and F, plus G already shipped.** C and D are built
+      (4CD), E then F are next; F takes the F(vi) delivery of 3.4g, with 3.4h's conditions still to
+      settle. B waits on its scope (3.4d). **Original text:** Choose from `candidates.md`. Everything not chosen goes to a
       named successor with the reason. **Short is the goal, not coverage.**
 
       **The tension to resolve**: the user's stated FLOOR is move entry (candidate E) and their
@@ -611,7 +629,7 @@ changes ... later we might think of a full solution, but for now we start with s
       and belong inside the component, not bolted on by a consumer guessing at internals. Ship on top
       first (cheap, no coordination), then propose upstream to `gbtami/chessgroundx`. **Postponing the
       upstreaming is fine; leaving it undocumented is not** — the code carries a comment saying so.
-- [ ] 3.4f **SUPERSEDED by 3.4g** — options A-E and naming the switch. Kept because A-E record what was
+- [x] 3.4f **SUPERSEDED by 3.4g** (closed 2026-10-10; kept for the record) — options A-E and naming the switch. Kept because A-E record what was
       weighed, and because 3.4g's hazard 4 may eventually argue for the fork after all. E is the one that dissolves the
       problem; B was recommended among A-D before E existed. Nikolay is not convinced any of A-D is good,
       which is the reason E was proposed.
@@ -629,7 +647,10 @@ changes ... later we might think of a full solution, but for now we start with s
 
       **So B's scope is seven modules, not two, and the lobby deserves to be first on traffic alone.**
       Full addendum in `headings-and-landmarks-sweep.md`.
-- [ ] 3.4c **Decide where the piece-naming table sits in the order.** 33 `pieceFamily` values,
+- [~] 3.4c **PARTLY ANSWERED 2026-10-10 — `client/pieceNames.ts` (4CD.6).** The adapter exists and
+      names the chess and xiangqi families plus shogi, shogun, seirawan, capablanca, capahouse,
+      grand and orda; every other variant still reads its letter until its table is filled.
+      **Decide where the piece-naming table sits in the order.** 33 `pieceFamily` values,
       roughly 200-350 translatable strings, and the role letter is a valid fallback meanwhile. It
       gates nothing, but it is the difference between *"A8 black r"* and *"A8 black rook"*.
 - [ ] 3.5 Write the spec delta for the shortlist only, and only then. The capability is unnamed
@@ -646,6 +667,11 @@ before proceeding to implementation."* **These gate section 4. None is optional.
       findings are recorded: landmarks are identical in both modes (§11), blind mode is **+7 headings**
       and zero ARIA change, it **converts** six nav links to `h3` rather than adding them (§14), and it
       **requires a logged-in account** — the cookie alone does not work anonymously.
+
+      **CORRECTED 2026-10-10: the live game WAS captured later, in `lichess-reference.md` §15** — two
+      crazyhouse games, the command input's markup (§15.1), what is announced (§15.2), pockets
+      (§15.3) and the `table` layout (§15.4). **Still missing (§17): a pending draw offer**, which needs
+      a human opponent. The paragraph below is the original, superseded wording.
 
       **WHAT IS STILL MISSING, and it is the part the task was written for:** no **live game** was ever
       captured. The crazyhouse game never started, so every state that only exists while a game is
@@ -748,8 +774,38 @@ before proceeding to implementation."* **These gate section 4. None is optional.
 
 ## 4. Build the shortlist
 
-- [ ] 4.1 To be filled from 3.4, which is still open. Left empty deliberately — the candidates and
-      their costs are in `candidates.md`; turning one into tasks is what the gate authorises.
+- [x] 4.1 **Filled from 3.4:** 4G, 4CD, 4H2, 4RA1, 4RA2 and 4RA3.1 done; E and F next, their task
+      lists written when each starts.
+
+### 4H2 and 4RA1 — the two small fixes before E. Ordered by Nikolay 2026-10-10.
+
+- [x] 4RA2 **DONE 2026-10-10.** The move-list controls. The sweep said four of seven were unnamed; the
+      tree said all six present were misnamed, as "p" "l" "n" "o" "m" "s" (R3): the icon font's
+      glyph is content, and content beats `title` in the name computation. Fix in
+      `movelist.ts`: the icons are `aria-hidden`, so the title names the button, and the four
+      navigation buttons get titles from existing strings (First move, Previous move, Next move,
+      Last move). Tree after: "Flip board", those four, "Switch boards" (alice), "Menu".
+
+- [x] 4H2 **DONE 2026-10-10.** `templates/base.html`: `<html lang="{{ lang|replace('_', '-') }}">` —
+      the locale codes use `_` (`zh_CN`, `gl_ES`), the attribute wants BCP 47's `-`. Verified by
+      switching the session language: `en`, `de`, `zh-CN`, `gl-ES` served.
+- [x] 4RA1 **DONE 2026-10-10.** The nine accept/decline controls in `roundCtrl.ts` (takeback offered
+      and sent, draw, correspondence confirm, rematch) are `<button>`s from one `offerButton()`
+      helper, named with existing strings (Accept, Decline, Cancel, Confirm) as both `aria-label` and
+      tooltip. `round.css` resets the button look; the dialog measured identical to the old divs
+      (same widths, heights, 46.8px row). Verified live with real keys: Enter declined a draw, Space
+      accepted a takeback, Enter accepted a rematch. Correspondence confirm not exercised.
+- [x] 4RA1.1 **FIXED 2026-10-10 (Nikolay: "make those fixes too").** After a takeback back to ply 0,
+      both boards and summaries returned to the start but the move list kept showing `1. e4 e5`:
+      `onMsgBoard` rebuilt the list only for `steps.length > 1`, and a takeback to the start sends
+      one step. Now a takeback always rebuilds it. Verified live: white taking back at ply 2 empties
+      both lists, a one-move takeback leaves `1. e4`, and play continues normally afterwards.
+- [x] 4RA1.2 **FIXED 2026-10-10.** An arriving offer was not announced: `#offer-dialog` was no live
+      region. All eight patches now go through one `offerDialog()` helper carrying
+      `aria-live="polite"`, applied from the controller's first patch at page load, so the region
+      exists before any offer arrives. Polite, so it waits for a move announcement to finish. The
+      reader hears the buttons' names with the text ("Decline, Your opponent offers a draw,
+      Accept"). Verified the attribute survives every offer and clear; **not yet heard in Orca.**
 
 ### 4G. Candidate G, started 2026-09-27 — the header, and site chrome. DOES NOT WAIT ON THE GATE.
 
@@ -1017,6 +1073,68 @@ single-board pages get one and each two-board board gets its own.
       read their letter until someone fills them in.
 - [ ] 4CD.7 Open: an empty pocket is a bare heading (kept, Nikolay 2026-10-10). Alice reads the
       active board only (kept). Squares stay algebraic for xiangqi-family variants.
+
+### 4RA4-6. Chat — decided by Nikolay 2026-10-10: like lichess, everywhere.
+
+Lichess (`ui/lib/src/chat/discussion.ts`) has one chat component for games, tournaments, studies
+and teams: `<ol role="log" aria-live="polite" aria-atomic="false">` with one `<li>` per line, so
+every chat is a list announced politely; presets are ordinary text lines; `c` focuses the input.
+
+- [x] 4RA4-6.1 **DONE 2026-10-10**, in the one shared `chat.ts`, so round, analysis, bughouse,
+      tournament, round-robin and simul chats all change together:
+      - **RA4** the list: the inner `div#messages` is `role="none"`, so the `<li>`s are the `<ol>`'s
+        items (tree: `list > listitem`). The three full-chat rebuilds keep the role.
+      - **RA6** announcement: `aria-live="polite" aria-relevant="additions"` on the `<ol>`. Kept as
+        a list rather than lichess's `role="log"`, which would drop list navigation.
+      - **RA5** the input is named `_('Chat')` (existing string; it read the hardcoded English
+        "Chat input").
+      - **History is not news:** our chat refills by appending on every load and reconnect, which a
+        live list would read out in full. `replayingChat()` silences the list for a second around
+        the four refill points (round, tournament, simul, the bughouse history rebuild).
+      - **Bughouse presets** were an empty CSS icon to a reader; they now carry `role="img"` and the
+        label of the preset button ("Need queen", "Don't give knight", "Sit/stall"), from one
+        `presetLabel()` that the buttons also use. When a partner's preset arrives, its recorded
+        voice clip and the screen reader both say it — accepted by Nikolay.
+      Verified live: a typed message reaches the other player as a `listitem` in a `list`
+      `live=polite`; three presets arrive named; the tree names the input "Chat". **Not yet heard.**
+
+### 4RA3. The clocks — decided by Nikolay 2026-10-10: on request, as lichess does.
+
+Lichess never announces a clock by itself: blind mode lists both under headings with
+`role="timer"` (read when reached, never spoken as it changes), and the `c` command reads both out
+once. No timed, per-turn or low-time announcements. A low-time warning was offered and declined
+("maybe never").
+
+- [x] 4RA3.1 **DONE 2026-10-10.** A "Time" section in the board summary: one `role="timer"` line per
+      colour, in words ("White: 2 minutes 57 seconds"), at the precision the clock shows (days and
+      hours, hours and minutes, minutes and seconds). `Clock.onRender()` reports every repaint,
+      ticking or not, and the summary redraws only when the spoken text changes. Single board:
+      `clock0` is the top clock, so its colour comes from the orientation; a flip swaps the times
+      and the colours stay right. Two board: each seat's clock feeds its own board's summary.
+      The visible clock is `aria-hidden`, since it read as "05", ":", "23" with no owner. New
+      strings: the `%1 minute` and `%1 second` plurals (`%1 hour`/`%1 day` already existed).
+      Verified live: a 3-minute crazyhouse game, both windows ticking and agreeing, colours
+      correct after a flip; a finished bughouse game shows four clocks. Not exercised: byoyomi
+      (the periods are not spoken), correspondence, a live two-board game.
+- [ ] 4RA3.2 **With E, the `c` command** reads both clocks out once through a live region. Prepared:
+      `spokenTime()` (exported from `boardSummary.ts`) and the summary's per-colour clock state
+      are what it will read; nothing else is needed from the clock side.
+
+### 4Z. LAST — the guide for blind users. Added by Nikolay 2026-10-10.
+
+Written once the features exist, because it documents them — but **it is a deliverable of this
+change, not an afterthought**: a keyboard interface nobody can discover is not usable
+(`lichess-reference.md` §7).
+
+- [ ] 4Z.1 **An entry point that is the first thing on every page, found the standard way:** a link
+      first in `<body>`, visually hidden until focused (the skip-link pattern, WCAG 2.4.1), so the
+      first Tab or the first line a screen reader reads offers it. This is candidate A in its 3.4g
+      form; lichess puts its blind-mode toggle and tutorial link in exactly that position.
+- [ ] 4Z.2 **The guide page itself:** how a game page is laid out (headings, the board summary, what
+      is announced and when), the move input and every command (`c` clocks, `l` last move, …), the
+      board's keys once F exists, pockets and drops, and how the screen-reader modes interact with
+      them (NVDA browse/focus, TalkBack). Written in the existing docs pipeline so it can be
+      translated like the rules pages.
 
 ## 5. Verify
 

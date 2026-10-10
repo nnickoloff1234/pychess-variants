@@ -107,7 +107,7 @@ picture is coherent rather than partial:
 | From | To | Count | Where |
 |---|---|---|---|
 | hrefless `<a>` | `<button>` | **21** | editor's whole control strip (9), analysis (5), puzzle (3), two-board (3), zen (1) |
-| `<div>` | `<button>` | **9** | draw / takeback / rematch / corr-move offer dialogs (RA1) |
+| `<div>` | `<button>` | **9** | draw / takeback / rematch / corr-move offer dialogs (RA1) — **fixed 2026-10-10** |
 | `<tr>` | row with an operable control | 2 patterns | lobby seeks (LB1), tournament standings (TN1) |
 | `<div>` | `<button>` | 2 | hamburger (F2), search icon (F5) |
 | `<span>` | `<button>` | 3 | dialog closes — and superseded by `<dialog>` below |

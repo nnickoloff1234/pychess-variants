@@ -96,7 +96,7 @@ Every client-side defect in this change is the same mistake:
 | Element used as a control | Where | Count |
 |---|---|---|
 | **hrefless `<a>`** | editor, analysis, puzzle, two-board, zen | **21** |
-| `<div>` | **offer dialogs** — draw, takeback, rematch (`round-and-analysis-sweep.md` RA1) | 9 |
+| `<div>` | **offer dialogs** — draw, takeback, rematch (`round-and-analysis-sweep.md` RA1) — **fixed 2026-10-10** | 9 |
 | `<tr>` | **lobby seeks** (LB1), tournament standings (TN1) | 2 patterns, every row |
 | `<div>` | hamburger (F2), search icon (F5) | 2 |
 | `<span>` | dialog closes — lobby, tournament, tournamentRR (LB3/TN4) | 3 |
