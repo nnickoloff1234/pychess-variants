@@ -974,6 +974,50 @@ expect "Play collapsed button", then Enter, then "expanded".
 `<a class="nav-link" href="/@/owner/following">Friends</a>`. That is a submenu link, so converting
 titles is safe — but do not touch `.drp` children.
 
+### 4CD. Candidates C and D — the board summary. Chosen by Nikolay 2026-10-10.
+
+Lichess's nvui text blocks, always on and visually hidden instead of mode-gated. One widget,
+`client/accessibility/boardSummary.ts` (`BoardSummaryView`), owned by every `GameController`, so
+single-board pages get one and each two-board board gets its own.
+
+- [x] 4CD.1 **Built.** Sections, all text: *Pieces* (per colour, one line per role, squares in file
+      order), *Pockets* (counts; only for pocket variants), *Last move* (SAN, `aria-live`,
+      "Initial position" before any), *Status* (`role="status"`, `result()`'s sentence; only when
+      there is a game). `.sr-only` in `site.css` hides it.
+- [x] 4CD.2 **Per page, as lichess does:** round `assertive`, analysis `polite`, declared by the page's
+      placeholder. Two-board: ids `board-summary-a/-b`, an `h2` "Board A"/"Board B" over each, and
+      the status only on the viewer's own board (A for spectators), so a result is spoken once.
+- [x] 4CD.3 **Hooks.** Single board: `GameController` constructor (first paint — lichess's deep-link
+      bug, 15.6), `goPly`, the end of round `onMsgBoard` (the live path sets the board itself), the
+      analysis tree path and local non-tree moves. Two board: `renderState()`, last move looked up
+      per board from `steps` up to the move-list cursor, or from the tree's active line on analysis.
+- [x] 4CD.4 **Verified live 2026-10-10** in the harness by dumping the summary over CDP: crazyhouse
+      analysis (moves, capture to pocket, history), crazyhouse round between two windows (opponent
+      move on both sides, drop `P@e6`, resignation), finished bughouse round (history on both
+      boards), bughouse analysis (moves on both boards, variation-free history), and a live
+      four-player bughouse game through to a two-player resignation. **Not yet heard in Orca.**
+- [x] 4CD.5 **Follow-ups done 2026-10-10.** Colour headings say their section ("Pieces: White"),
+      so they make sense out of order in a headings list. Pieces squares follow the variant's
+      notation for shogi (`76`, files from the right) and janggi (`83`, rank from the top, 10th is
+      0), checked against Fairy-Stockfish on 180 moves; xiangqi stays algebraic, since WXF names no
+      squares. Puzzle pages carry the summary too (`polite`; not checked on a real puzzle, the local
+      db has none). The 1px hidden box was measured to change no page's scroll size; a 0x0 box gives
+      an identical Chrome tree, but 1px stays as the standard practice (TalkBack untested).
+- [x] 4CD.6 **Piece names through one adapter, `client/pieceNames.ts`.** `pieceName(variant, role,
+      color)` tries the variant's `pieceNamesByColor`, then its `pieceNames`, then a family table
+      (chess for standard/capa/seirawan/shogun/orda, xiangqi for xiangqi/janggi), else the letter.
+      Tables hold English marked with the new `N_()` (extracted by pybabel's default keywords,
+      verified) and are translated with `_()` when shown; this also fixes the old
+      `pocket.pieceNames`, whose `_()` ran before translations loaded. Bughouse's and supply's
+      tables became redundant, makbug's moved; community variants keep their authors' names.
+      Filled from the rules pages: shogi, shogun, seirawan, capablanca, capahouse, grand, orda
+      (crazyhouse is covered by the chess table). Consumers: the summary and the bughouse chat
+      presets. **No other built-in variant has player-facing names anywhere machine-readable** —
+      `variants.ini` and the server's `PIECE_OPTION_NAMES` hold engine movement types — so the rest
+      read their letter until someone fills them in.
+- [ ] 4CD.7 Open: an empty pocket is a bare heading (kept, Nikolay 2026-10-10). Alice reads the
+      active board only (kept). Squares stay algebraic for xiangqi-family variants.
+
 ## 5. Verify
 
 - [ ] 5.1 Every shortlist item heard working with the stack named in 1.3, not merely inspected in
