@@ -412,7 +412,7 @@ changes ... later we might think of a full solution, but for now we start with s
       moderator uses a screen reader the direct value is near zero, and there is nothing left to fix.
       Their value to this change is entirely as evidence of the house standard.**
 - [ ] 2.4d **Re-checked against the code 2026-10-10.** Done: F1, F3 (4G), H2 (4H2), RA1-RA3 (4RA1-3).
-      Also done: RA4-RA6 (4RA4-6). Not a defect: LB3. Everything else listed here is still open.
+      Also done: RA4-RA6 (4RA4-6), H1 for game pages (4H1), LB1 (4LB1), T1 and T3 (4T1-3), F2 and F4 (4F2-4), T4-T6 (4T4-6), SB1-SB3 (4SB), TN1 and TN4 (4TN); T2 withdrawn by decision. Not a defect: LB3. Everything else listed here is still open.
       **F1, F2, T1-T6, A1, L1-L5, H1-H6, D2-D6, LB1-TN6, PF1-ST3, IB1-FR4, RA1-RA8 and SB1-SB3 do
       not wait on the gate** — except RA8, which IS the gate (candidates B and D). **And per AD1 the
       dialog fixes are ONE change using `<dialog>`, not four; per PE3 the clickable-element fixes are
@@ -611,6 +611,18 @@ changes ... later we might think of a full solution, but for now we start with s
       same mechanism that draws the focus ring decides whether to capture the arrows.** Needs real
       testing in Firefox and Chrome; the blunter fallback is overriding `Mousetrap.stopCallback`. **Same
       family as `pocketHotkeys.ts`'s global `1`-`9` bindings (task 1.6) — decide both together.**
+
+      **Q1 addendum, 2026-10-10 (Nikolay's question: does the board need a heading, and can we tell
+      how focus arrived?).** (a) **Heading: yes, with F** — lichess's blind mode has `h2 Board`
+      right before its board; we have the string. Not before F, since the board is empty to a
+      reader today. (b) **A heading jump moves the reader's virtual cursor, not focus**, so it
+      triggers nothing; the user then Tabs onto the board (one tab stop). (c) **Detectable:** Tab and
+      reader-driven focus give `:focus-visible`; a mouse click does not; a browse-mode Enter/Space
+      arrives as a click with `event.detail === 0`. TalkBack's double-tap: unverified. (d) **The
+      deciding question is the board's role:** plain buttons leave NVDA in browse mode (arrows
+      swallowed until NVDA+Space, lichess's way), while `role="application"` or a grid makes NVDA
+      switch to focus mode on Tab by itself. Leaning towards the automatic switch; test in Orca and
+      NVDA first.
 
       **Q2. Pockets — research lichess's crazyhouse FIRST.** Not yet done; the tutorial section we read
       says nothing about pockets. Note we already have our user's own model, more specific than lichess's
@@ -1097,6 +1109,142 @@ every chat is a list announced politely; presets are ordinary text lines; `c` fo
         voice clip and the screen reader both say it — accepted by Nikolay.
       Verified live: a typed message reaches the other player as a `listitem` in a `list`
       `live=polite`; three presets arrive named; the tree names the input "Chat". **Not yet heard.**
+
+### 4H1. Headings on game pages — the minimal set, chosen by Nikolay 2026-10-10.
+
+Lichess's normal game page has no headings at all (§12.1); its blind mode is organised by them
+(§15.1). The board summary already supplies the state headings, so only the jump targets it lacks
+were added — visually hidden (`srHeading()` / `pageHeading()` in `view.ts`), no new strings:
+
+- [x] 4H1.1 **DONE 2026-10-10.** An `h1` on every round and analysis page, single and two-board,
+      reading the server's tab title ("Crazyhouse • Alice vs Bob", "Analysis" on a bare board).
+      Single-board round: `h2` Moves, Actions, Chat. Single-board analysis: Moves, and Chat when the
+      page has one. Two-board round: Actions; its Moves and Chat are already named tabs. Verified by
+      tree capture on four page types; scroll size unchanged with and without them, portrait
+      included. **Not done: headings on the lobby and other pages (3.4d).**
+
+### 4LB1. Accepting a seek by keyboard — done 2026-10-10.
+
+- [x] 4LB1.1 Lichess gets this wrong too (`<tr role="button">` with no `tabindex`, §11.3), so the
+      standard pattern instead: the row's first cell, the colour icon, is a `<button>` inside the
+      table, so the table keeps its headers. It has no handler of its own — Enter/Space click it and
+      the click reaches the row's existing one, so mouse and keyboard share one path. Named from
+      existing strings: "Join: Alice, 5+3, Crazyhouse", or "Cancel: 5+3, Crazyhouse" on your own
+      seek. `site.css` resets the button look and highlights the row while its button has keyboard
+      focus. Verified: cell width, row height and icon position identical to the old markup; a real
+      Tab lands on it, Enter joined a game, Space cancelled an own seek. Bughouse seek rows already
+      had real Join buttons per seat.
+
+### 4T1-3. Tab lists: buttons, like lichess — decided by Nikolay 2026-10-10.
+
+**Arrow keys were built first and withdrawn.** They needed a key handler, and it broke an existing
+behaviour: clicking a tab focuses it, after which Left/Right switched tabs instead of stepping
+through the moves. No screen reader announces the arrow convention, and in browse mode users reach a
+tab with the reading cursor and press Enter anyway. Lichess's tabs are plain
+`<button role="tab">` — every tab a Tab stop, Enter/Space native.
+
+- [x] 4T1-3.1 **DONE 2026-10-10.** The lobby, analysis and two-board tabs are
+      `<button role="tab" class="site-tab">`, with no `tabindex` and no key handling: T1 (lobby tabs
+      unreachable) and T3 (two-board tabs and panels with positive `tabindex`, hoisted ahead of the
+      page) are both gone. `site.css` styles `button.site-tab` beside every `span[role=tab]` rule,
+      plus a reset; swapped in place against the old span, every tab measured identical (position,
+      size, font, colours, underline) on the lobby, analysis, bughouse round and bughouse analysis,
+      landscape and portrait. Also fixed: the analysis "Move times" tab was hard-coded
+      `aria-selected=true` while another tab opened; the initial tab is marked `data-initial`, no
+      longer by `tabindex`. Verified with real keys: Tab reaches each tab, Enter and Space select,
+      Left on a focused tab still steps the moves, a first Tab on a bughouse page reaches the header.
+- [ ] 4T1-3.2 **Not changed:** the round-robin tabs (`<span role="tab">`, own roving tabindex) and
+      the two study tab lists (`<button>`s, own roving and arrow handling). **One day: a single tab
+      widget used everywhere** (Nikolay) — the shared `view.ts` helpers, `two-board/common/tabs.ts`,
+      round-robin and study are four implementations today.
+
+### 4F2-4. The two menu buttons that hid their state — done 2026-10-10.
+
+- [x] 4F2-4.1 **F2:** the mobile menu's hamburger was a `<div>`, unreachable by keyboard. It is the
+      `<button>` the "hamburgers" stylesheet was written for (its inner divs are spans, as a button
+      may not contain divs), named "Menu" and carrying `aria-expanded` / `aria-controls="site-nav"`,
+      kept in step by its click handler. "Menu" is new to the server catalog (the client has it).
+      Verified on the 386px portrait window: the first Tab lands on it, Enter opens (25 links),
+      Space closes; geometry identical to the old div. **F4:** the analysis/puzzle "Menu" button
+      (`#bars`) now carries `aria-expanded`, set by `toggleSettings()` and at render; verified
+      false → true → false with Enter.
+- [x] 4F2-4.2 **FIXED 2026-10-10.** On mobile the CLOSED menu's links were only moved off-screen
+      (`transform`), so Tab walked through 25 invisible links and the page's content began at Tab
+      stop 31. `site.css` (below 800px only) gives closed links `visibility: hidden` and transitions
+      visibility with the slide, so they still animate out. Measured on the 386px window: closed 0
+      reachable, content at stop 6; open 25; mid-close still visible. Desktop unchanged (8 items).
+      **Test-bed note:** the harness windows sit on a hidden workspace, where Chrome does not advance
+      transitions, so a visibility transition there never finishes until the animations are
+      finished by hand (`document.getAnimations().forEach(a => a.finish())`).
+
+### 4T4-6. Focus rings removed for everyone — done 2026-10-10.
+
+- [x] 4T4-6.1 `site.css` removed the browser's focus ring outright in places, so a sighted keyboard
+      user could not see where focus was — on Draw/Resign above all. Each removal now applies only to
+      mouse focus (`:focus:not(:focus-visible)`), the pattern `study.css` already uses: mouse users
+      see what they saw, keyboard users get the browser's ring. **T4** `.btn-controls button` (game
+      controls and move-list buttons), **T5** `button.icon`, plus two found while looking: `.slider`
+      and the textarea in a tab panel (a text field counts as keyboard-focused even when clicked, so
+      it now shows the ring either way — the browser default). **Not changed, already visible:**
+      the header search (T6) expands on focus since 4G, and the username field recolours its border.
+      Verified: "First move" by Tab shows the ring (screenshot), by mouse click none; the time slider
+      the same. Not exercised individually: `button.icon` (same rule shape as T4), the textarea.
+
+### 4SB. Settings — done 2026-10-10.
+
+- [x] 4SB1 **323 unnamed board-theme and piece-set radios.** Each label is a picture with empty
+      text. The radios now carry `aria-label`s made from the names the settings already use:
+      board files ("8x8brown.svg" → "brown", "USOpenBoard.svg" → "US Open Board"), piece CSS names
+      ("cburnett", "letters", "invisible"). Not translated: they are style names, not words.
+- [x] 4SB3 **Untranslated `aria-label`s**, which replace the announced name: the header's Search
+      (also its visible placeholder), Settings, Administration, Challenges: N, Notifications: N;
+      the analysis tab list (now "Analysis"); the lobby tab list (label dropped, optional, no
+      translation existed); the authors, friendly-sites, admin and Betza-legend pages. Reused
+      existing strings where they existed; new: Challenges and Notifications (server), Notifications
+      and Settings (client), Administration and the four page labels. Verified in a Turkish
+      session ("Ara", "Ayarlar"); German has those msgids untranslated today.
+- [x] 4SB2 **Escape for the header panels, by unifying the header dropdowns.** Three copies of the
+      same dismissal — the nav menus (`topNav.ts`), the login chooser and the Settings,
+      Notifications and Challenges panels (`main.ts`) — are one now: `registerHeaderDropdown()` in
+      `headerPanel.ts`, a single click-outside and a single Escape listener (Escape closes and
+      returns focus to the button). Each control keeps its own opening. The panels gained Escape,
+      which they never had. Verified with real keys on Settings, Notifications and Play; opening one
+      closes another; a click outside closes all. **Not verified live: the login chooser**, which
+      the harness never shows (`server.py -a` makes every visitor a logged-in test user).
+- [ ] 4SB2.1 **Future: the HTML `popover` attribute.** With `<div popover>` and
+      `<button popovertarget>`, the browser itself toggles, dismisses on Escape and outside click,
+      returns focus and reports the expanded state — replacing the dismissal and most of the
+      toggling above with no script. Shipped in Chrome 114 (May 2023), Safari 17 (Sep 2023),
+      Firefox 125 (Apr 2024); "widely available" by the web-platform convention around Oct 2026.
+      Kept as JavaScript by Nikolay's decision for now; reconsider once it is mature. Would need
+      CSS to undo the top-layer centring and place each panel under its button.
+
+### 4TN. Tournament pages — done 2026-10-10.
+
+What is there: arena/Swiss pages have no modal — the "dialog" is the player panel a standings row
+opens; round-robin has one true modal, game scheduling; the live games (`div.duels`) are real links
+already, so keyboard-reachable (each holds the players' profile links inside it — nested links,
+invalid but harmless to keys).
+
+- [x] 4TN.1 **TN1, standings rows:** the rank cell holds a `<button>` named after the player; its
+      click reaches the row's existing handler (the LB1 pattern). No `aria-expanded`: the table is
+      not redrawn when the panel toggles, so it would go stale.
+- [x] 4TN.2 **The player panel's game rows:** the same pattern, named "Open game: <opponent>".
+- [x] 4TN.3 **TN4, the closes:** the three `<span class="close">` — arena player panel, round-robin
+      scheduling modal, the lobby's create-game dialog — are buttons named "Close"/"Cancel" (the
+      icon font's "j" would otherwise be the name). Their red highlight is now keyboard-focus only
+      (`:focus-visible`): the native dialog focuses its first control on opening, which turned the
+      lobby's close red for mouse users.
+- [x] 4TN.4 **The top game** was a `<div>` with a click handler; it is a real link now (no script),
+      named "Open game: <black> – <white>".
+- [x] 4TN.5 **Found here: the pager's buttons** (First/Prev/Next/Last/Scroll to your player) carried
+      their titles on the icon, the RA2 defect again; the title is on the button, the icon hidden.
+- Verified on a live arena (`UCa8BBRV`, three windows, one game paired): Tab → a player's button →
+  Enter opens the panel → Enter on Close closes it; every converted element measured identical to
+  its old form in place (rows, cells, close, top game incl. pocket padding).
+- [ ] 4TN.6 **Not done:** focus does not return to the player's row after Close (would need code);
+      the round-robin modal still has no Escape (it is no native dialog; converting it is its own
+      change). Not exercised live: the round-robin modal.
 
 ### 4RA3. The clocks — decided by Nikolay 2026-10-10: on request, as lichess does.
 

@@ -7,7 +7,7 @@ one generalises into a site-wide cluster that has nothing to do with settings.
 
 ---
 
-## SB1. 323 THEME AND PIECE RADIOS HAVE NO NAME — and the names are already in the data
+## SB1. 323 THEME AND PIECE RADIOS HAVE NO NAME — and the names are already in the data — FIXED 2026-10-10 (tasks.md 4SB)
 
 `client/boardSettings.ts` builds every picker the same way:
 
@@ -49,7 +49,7 @@ whether board themes deserve nicer names than their filenames.
 
 - **WCAG 4.1.2 Name, Role, Value — Level A.**
 
-## SB2. The settings panel has no dialog semantics and no keyboard dismissal
+## SB2. The settings panel has no dialog semantics and no keyboard dismissal — FIXED 2026-10-10 (tasks.md 4SB)
 
 `client/settingsView.ts:16-20` renders `div#settings-panel` containing `div#settings`, opened by
 `#btn-settings` (`:34`) and hidden with `display: none` (`static/site.css:1046-1047`).
@@ -64,7 +64,7 @@ So it is the third instance of the same shape — after the lobby/tournament dia
 house pattern that gets it right is `client/study/addToStudy.ts`**, which registers a real `document`
 keydown and closes on Escape.
 
-## SB3. UNTRANSLATED `aria-label`s — a site-wide cluster, and the settings button is one of them
+## SB3. UNTRANSLATED `aria-label`s — a site-wide cluster, and the settings button is one of them — FIXED 2026-10-10 (tasks.md 4SB)
 
 `settingsView.ts:34` is `attrs: { 'aria-label': 'Settings' }` — raw English. That turned out not to be
 local:

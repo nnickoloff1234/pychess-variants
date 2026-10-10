@@ -128,7 +128,7 @@ stands between them and *seeing* them.
 > is a tiling WM and refuses the window resize. Worth one end-to-end check in the harness before this
 > is treated as settled.
 
-## F2. The hamburger is a `<div>`, not a button
+## F2. The hamburger is a `<div>`, not a button — FIXED 2026-10-10 (tasks.md 4F2-4)
 
 **`templates/template.html:6`:**
 
@@ -168,7 +168,7 @@ already touches the button, so the attribute goes on the line that is already th
 
 - **WCAG 4.1.2 Name, Role, Value — Level A.**
 
-## F4. The analysis and puzzle settings menu has no `aria-expanded`
+## F4. The analysis and puzzle settings menu has no `aria-expanded` — FIXED 2026-10-10 (tasks.md 4F2-4)
 
 `client/movelist.ts:311` renders `h('button#bars', …)` with `title: _('Menu')` — a real button.
 `AnalysisController.toggleSettings()` (`client/analysis/analysisCtrl.ts:663-676`) swaps

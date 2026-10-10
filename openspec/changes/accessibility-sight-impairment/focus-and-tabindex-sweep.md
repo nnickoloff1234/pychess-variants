@@ -32,7 +32,7 @@ awaiting a real screen reader.
 
 ---
 
-## T1. The lobby tablist has no keyboard entry point
+## T1. The lobby tablist has no keyboard entry point — FIXED 2026-10-10 (tasks.md 4T1-3)
 
 `client/lobby.ts:2082, 2089, 2103, 2123` — **all four tabs are hardcoded `tabindex: '-1'`.**
 
@@ -48,7 +48,7 @@ so a keyboard user cannot switch between Lobby, Correspondence and games-in-play
   (`tabindex: this.viewMode === mode ? '0' : '-1'`), so it is copying local precedent, not inventing.
 - `client/analysis/index.ts:115-116` also gets this right — one tab receives `'0'`.
 
-## T2. No tablist on the site has arrow-key navigation
+## T2. No tablist on the site has arrow-key navigation — WITHDRAWN 2026-10-10: tabs are buttons, like lichess (tasks.md 4T1-3)
 
 `client/view.ts:202` `setAriaTabClick()` binds **`click` only**. `changeTabs()` (`view.ts:210-226`)
 manages `aria-selected` and panel `display` and **never touches `tabindex` or listens for keys**.
@@ -59,7 +59,7 @@ is worse than plain buttons, because the screen reader tells the user those keys
 
 Affects the lobby, analysis, crosstable and two-board tablists.
 
-## T3. The two-board tabs emit POSITIVE tabindex values
+## T3. The two-board tabs emit POSITIVE tabindex values — FIXED 2026-10-10 (tasks.md 4T1-3)
 
 `client/two-board/common/tabs.ts:116` (panels) and `:143` (tabs) — **`tabindex: String(t)`**, where
 `t` is the tab's index. So the round and analysis bughouse pages emit `tabindex="0"`, `"1"`, `"2"`,
@@ -78,7 +78,7 @@ Two things make this clearly a slip rather than a decision:
 **Fix:** `t === first ? '0' : '-1'` on the tabs; panels want `-1` (they are focus targets for
 programmatic focus, not tab stops).
 
-## T4-T6. Focus indicators removed with no replacement — WCAG 2.4.7, Level AA
+## T4-T6. Focus indicators removed with no replacement — WCAG 2.4.7, Level AA — FIXED 2026-10-10 (tasks.md 4T4-6)
 
 `outline: none` with nothing substituted means a keyboard user cannot see where they are.
 

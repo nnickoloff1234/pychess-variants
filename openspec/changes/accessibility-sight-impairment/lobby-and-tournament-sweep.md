@@ -10,7 +10,7 @@ primary action on its front page.
 
 ---
 
-## LB1. YOU CANNOT ACCEPT A GAME FROM THE LOBBY BY KEYBOARD
+## LB1. YOU CANNOT ACCEPT A GAME FROM THE LOBBY BY KEYBOARD — FIXED 2026-10-10 (tasks.md 4LB1)
 
 `client/lobby.ts:1333-1337`:
 
@@ -82,7 +82,7 @@ around a real `<button props: { type: 'button' }>`**. Creating a game is keyboar
 
 ---
 
-## TN1. Tournament standings rows are click-only
+## TN1. Tournament standings rows are click-only — FIXED 2026-10-10 (tasks.md 4TN)
 
 `client/tournament.ts:469`:
 
@@ -108,7 +108,7 @@ re-read it. Same gap as the game clock, and the same one-attribute fix.
 `client/tournament.ts` and `client/tournamentRR.ts`: **0 `aria-live` between them.** Standings
 reorder live as games finish, pairings appear, rounds advance — all silent.
 
-## TN4. `<span.close>` dialog closes, again
+## TN4. `<span.close>` dialog closes, again — FIXED 2026-10-10 (tasks.md 4TN)
 
 `client/tournament.ts:642` and `client/tournamentRR.ts:1373` repeat LB3's pattern exactly. With no
 `Escape` handler in `tournament.ts`, its dialog has the same trap.
