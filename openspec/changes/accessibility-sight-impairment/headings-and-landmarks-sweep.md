@@ -6,7 +6,7 @@ each finding below names the file that actually renders it.
 
 ---
 
-## H1. THE GAME, ANALYSIS, PUZZLE AND STUDY PAGES HAVE **ZERO** HEADINGS
+## H1. THE GAME, ANALYSIS, PUZZLE AND STUDY PAGES HAVE **ZERO** HEADINGS — GAME PAGES FIXED 2026-10-10 (tasks.md 4H1); puzzle, study, editor and other pages still open (3.4d)
 
 Not "few". None.
 
@@ -32,7 +32,7 @@ it is why candidate B is cheap: there is nothing to reconcile, only headings to 
 For contrast, lichess's blind-mode game page carries ten: Game info, Move list, Pieces, Game status,
 Last move, Input form, Clocks, Actions, Board, Advanced settings.
 
-## H2. `<html>` HAS NO `lang` — and the value is already to hand
+## H2. `<html>` HAS NO `lang` — and the value is already to hand — FIXED 2026-10-10 (tasks.md 4H2)
 
 **`templates/base.html:2` is `<html>`**, bare.
 

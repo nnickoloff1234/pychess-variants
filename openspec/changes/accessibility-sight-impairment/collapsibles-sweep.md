@@ -33,7 +33,7 @@ bug rather than a cosmetic one.
 
 ---
 
-## F1. The main nav's submenus are hover-only — WORST
+## F1. The main nav's submenus are hover-only — WORST — FIXED 2026-09-27 (tasks.md 4G.1/4G.2)
 
 **`static/site.css:939-940` and `:996`, inside `@media (min-width: 800px)`:**
 
@@ -150,7 +150,7 @@ focus and nothing to announce.
 existing handler, and `aria-controls` pointing at `.topnav`. The visual `hamburger--vortex` markup can
 stay inside the button.
 
-## F3. Three header panels have no `aria-expanded`
+## F3. Three header panels have no `aria-expanded` — FIXED 2026-09-28 (tasks.md 4G.3)
 
 `templates/template.html:141, 147, 157` — `#btn-challenge`, `#btn-notify`, `#btn-settings`.
 

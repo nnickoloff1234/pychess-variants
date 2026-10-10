@@ -412,7 +412,7 @@ changes ... later we might think of a full solution, but for now we start with s
       moderator uses a screen reader the direct value is near zero, and there is nothing left to fix.
       Their value to this change is entirely as evidence of the house standard.**
 - [ ] 2.4d **Re-checked against the code 2026-10-10.** Done: F1, F3 (4G), H2 (4H2), RA1-RA3 (4RA1-3).
-      Also done: RA4-RA6 (4RA4-6), H1 for game pages (4H1), LB1 (4LB1), T1 and T3 (4T1-3), F2 and F4 (4F2-4), T4-T6 (4T4-6), SB1-SB3 (4SB), TN1 and TN4 (4TN); T2 withdrawn by decision. Not a defect: LB3. Everything else listed here is still open.
+      Also done: RA4-RA6 (4RA4-6), H1 for game pages (4H1), LB1 (4LB1), T1 and T3 (4T1-3), F2 and F4 (4F2-4), T4-T6 (4T4-6), SB1-SB3 (4SB), TN1 and TN4 (4TN), L1 L2 L5 PE2 (4L), PE3 (4PE3), PE1 (4PE1); T2 withdrawn by decision. Not a defect: LB3. Everything else listed here is still open.
       **F1, F2, T1-T6, A1, L1-L5, H1-H6, D2-D6, LB1-TN6, PF1-ST3, IB1-FR4, RA1-RA8 and SB1-SB3 do
       not wait on the gate** — except RA8, which IS the gate (candidates B and D). **And per AD1 the
       dialog fixes are ONE change using `<dialog>`, not four; per PE3 the clickable-element fixes are
@@ -1245,6 +1245,54 @@ invalid but harmless to keys).
 - [ ] 4TN.6 **Not done:** focus does not return to the player's row after Close (would need code);
       the round-robin modal still has no Escape (it is no native dialog; converting it is its own
       change). Not exercised live: the round-robin modal.
+
+### 4L. Labels — done 2026-10-10.
+
+- [x] 4L.1 **L1:** `arena-new.html`'s "Byoyomi periods" label pointed at an id that does not exist;
+      it names its select now (`label.control` resolves). **L2:** the memory game's four
+      background radios used `label=`, which is no attribute on `<input>`; they carry `aria-label`s
+      (zen, kinkaku, oak, zen2 — style names). **L5:** the lobby's four rating-range sliders (seek
+      dialog and auto-pairing) are named "Rating range −" / "Rating range +", matching the
+      "-1000 / +1000" beside them, from the existing "Rating range". **PE2:** the editor's FEN field
+      had no name, and the lobby's FEN field only its placeholder; both are named "FEN" (the
+      notation's own name, not translated). Verified in the browser on all four pages.
+
+### 4PE3. Links that were not links — done 2026-10-10.
+
+An `<a>` without `href` is not focusable, has no link role and ignores Enter. **Buttons were
+measured first and rejected:** swapped in place on the editor and analysis pages they changed
+height, padding, background, border, radius, font and alignment; `href="#"` changed nothing.
+Nikolay chose `href="#"`, with `event.preventDefault()` in each handler so the `#` is never
+followed — the forum's "cancel edit" link already does exactly this.
+
+- [x] 4PE3.1 **19 of the 21 converted:** the editor's whole control strip (9), analysis Download
+      PGN / Copy UCI / PNG image / Delete game (4), the two "Go deeper" engine links (also given an
+      `aria-label`: icon-only, so the glyph would name them), puzzle Hint / View the solution /
+      Continue training (3), and the zen-mode exit (1). Verified with real keys: Tab reaches Flip,
+      Enter flips (the king moves) without changing the address or scroll; Clear and Analysis board
+      act; with zen mode on, the first Tab lands on the exit and Enter leaves zen mode — before,
+      a keyboard user could not get out of it from the page.
+- [ ] 4PE3.2 **Left as they are:** the two two-board analysis "Copy" links, whose handlers only log
+      "not implemented" — reachable dead controls would help nobody; they stay unreachable until
+      they do something. **Not exercised live:** the puzzle links (no puzzles in the local
+      database) and "Go deeper" (shown only at maximum engine depth). Screen readers announce these
+      as links, not buttons — slightly imprecise for actions, and accepted.
+
+### 4PE1. Puzzle feedback, spoken — done 2026-10-10.
+
+- [x] 4PE1.1 The puzzle's feedback ("Best move!", "Try something else.") was replaced silently. It now
+      also goes to the board summary's **Status** line (polite, as lichess's puzzle status is), so it
+      is announced: the start ("Your turn. Find the best move for White."), each wrong move
+      ("Ra3? That's not the move! Try something else."), each right one ("Best move! Keep
+      going..."), the end ("Success!" / "Puzzle complete!"). Not an attribute on `.feedback`:
+      completion replaces that element, and text inside a freshly inserted element is usually not
+      announced. Two gaps found while testing, fixed: puzzle moves bypassed the summary, so the
+      computer's reply was never reported (`makeMove` updates it now: "Kg8"); and a puzzle solved
+      after a wrong move shows no text, so its status falls back to "Puzzle complete!". Verified on
+      a test puzzle inserted into the local database (1. Ra7 Kg8 2. Rb8#), removed afterwards.
+- [ ] 4PE1.2 **Found:** the vote buttons after a puzzle (`div.vote` thumbs up/down, "Vote to load
+      the next one!") are clickable `<div>`s — not reachable by keyboard. "Continue training"
+      (4PE3) is the keyboard way on meanwhile.
 
 ### 4RA3. The clocks — decided by Nikolay 2026-10-10: on request, as lichess does.
 

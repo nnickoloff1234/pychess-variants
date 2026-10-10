@@ -50,7 +50,7 @@ exists. This is precisely the case `aria-live` exists for.
 `role="log"` on the seek table with a `polite` politeness is the shape lichess uses for its move list
 — see `lichess-reference.md` 9.3, and note their deliberate choice of politeness per region.
 
-## LB3. The seek dialog cannot be closed by keyboard
+## LB3. The seek dialog cannot be closed by keyboard — NOT A DEFECT (native <dialog>, Escape closes it; see tasks.md 2.4j correction); its close is a named button since 4TN
 
 `client/lobby.ts:684`:
 

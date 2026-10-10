@@ -34,7 +34,7 @@ So a blind reader gets the actual rules of every variant we document. **That is 
 these documents are written**, and it is the reason a blind user told us our rules pages are usable
 while our game page is not. **Whatever else changes, do not let this regress.**
 
-## D2. `<html lang>` BITES HARDEST HERE — the sharpest version of the earlier finding
+## D2. `<html lang>` BITES HARDEST HERE — the sharpest version of the earlier finding — FIXED 2026-10-10 (tasks.md 4H2)
 
 `headings-and-landmarks-sweep.md` H2 found `templates/base.html:2` is a bare `<html>` with no `lang`.
 The docs make it acute rather than theoretical:

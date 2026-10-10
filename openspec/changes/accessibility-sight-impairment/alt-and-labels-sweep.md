@@ -54,7 +54,7 @@ not worth its own decision.
 Templates: **134 labelable controls**, 13 unresolved, of which **2 are intentional** and **1 is a
 false positive**, leaving 10.
 
-### L1. An orphaned `for` — `templates/arena-new.html:292`
+### L1. An orphaned `for` — `templates/arena-new.html:292` — FIXED 2026-10-10 (tasks.md 4L)
 
 ```html
 <label class="form-label" for="form3-byo">Byoyomi periods</label>
@@ -65,7 +65,7 @@ false positive**, leaving 10.
 points at nothing and the select has no accessible name. A typo that only a checker finds, because it
 looks correct and reads correctly on screen.
 
-### L2. `label=` is not an HTML attribute — `templates/memory.html:74-77`
+### L2. `label=` is not an HTML attribute — `templates/memory.html:74-77` — FIXED 2026-10-10 (tasks.md 4L)
 
 ```html
 <input label="zen" type="radio" id="zen" name="game-bg" checked>
@@ -92,7 +92,7 @@ Screen readers do announce a placeholder, but it is not a label: it disappears t
 types, so the field loses its name exactly when they need to check what they are filling in. Mostly
 admin and team-management pages.
 
-### L5. Client-side controls — a real gap, but the NUMBER needs runtime confirmation
+### L5. Client-side controls — a real gap, but the NUMBER needs runtime confirmation — FIXED 2026-10-10 (tasks.md 4L)
 
 **78 form controls rendered from `client/*.ts`; 44 have no label this sweep could resolve.**
 

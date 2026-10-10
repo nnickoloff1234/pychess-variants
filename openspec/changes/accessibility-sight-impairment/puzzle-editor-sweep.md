@@ -7,7 +7,7 @@ and the most complete single-feature failure (PE1).
 
 ---
 
-## PE1. THE PUZZLE NEVER TELLS A BLIND USER WHETHER THEY WERE RIGHT
+## PE1. THE PUZZLE NEVER TELLS A BLIND USER WHETHER THEY WERE RIGHT — FIXED 2026-10-10 (tasks.md 4PE1)
 
 `client/puzzleCtrl.ts` patches its feedback on every move:
 
@@ -40,7 +40,7 @@ IB1, RA6, LB2 and TN2.
 
 - **WCAG 4.1.3 Status Messages — Level AA.**
 
-## PE2. The editor HAS a text path — and it is the one control with no name
+## PE2. The editor HAS a text path — and it is the one control with no name — FIXED 2026-10-10 (tasks.md 4L)
 
 `client/editor/editorCtrl.ts:93`:
 
@@ -65,7 +65,7 @@ in two places.
 **Positive:** the castling checkboxes *are* labelled — `editorCtrl.ts:122`
 `h('label.OO', { attrs: { for: 'wOO' } }, _('White') + ' O-O')`, and so on for the other three.
 
-## PE3. ALL 21 HREFLESS ANCHORS — the unifying diagnosis
+## PE3. ALL 21 HREFLESS ANCHORS — the unifying diagnosis — 19 FIXED 2026-10-10 (tasks.md 4PE3); 2 unfinished two-board stubs left
 
 Every `<a>` in `client/` that carries a click handler was checked:
 
