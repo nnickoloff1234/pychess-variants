@@ -891,6 +891,12 @@ nothing in it touched the board, chessgroundx or layout CSS.**
       `hidden` → `visible` on hover; the inset box-shadow is intact; and the 4G.2 disclosure still
       sets `aria-expanded=true` and reveals on click. 1312 Python tests OK, 40 simul tests pass.
 
+      **2026-10-10, label REMOVED, and the side-panel names reworded to existing msgids.** "Site"
+      had no translation anywhere, and 4G.9 found only one navigation landmark per page, so
+      plain "navigation" is unambiguous. Panel names: players `Online` and `Leaderboard`, lobby
+      `Create a game`; lobby `What's up` kept as the one tolerated new string (no existing
+      alternative). The paragraph below is the original reasoning.
+
       **Named, where lichess does not.** Theirs is `<nav id="topnav">` with no label. Ours gets
       `aria-label="Site"` because some of our pages carry a second `<nav>` (`following.html:38` and
       friends are labelled "Pagination"; `team-menu.html:1` and `variants.html:137` are NOT), and an
