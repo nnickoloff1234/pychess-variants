@@ -1214,9 +1214,11 @@ tab with the reading cursor and press Enter anyway. Lichess's tabs are plain
 ### 4SB. Settings — done 2026-10-10.
 
 - [x] 4SB1 **323 unnamed board-theme and piece-set radios.** Each label is a picture with empty
-      text. The radios now carry `aria-label`s made from the names the settings already use:
-      board files ("8x8brown.svg" → "brown", "USOpenBoard.svg" → "US Open Board"), piece CSS names
-      ("cburnett", "letters", "invisible"). Not translated: they are style names, not words.
+      text. The radios now carry the style's raw identifier as `aria-label`: the board file
+      ("8x8brown.svg") or the piece CSS name ("cburnett"); the letters and invisible sets, which
+      have neither, stay unnamed. **Changed 2026-10-11 at Nikolay's review:** a `styleName()`
+      heuristic that made "brown" / "US Open Board" out of those was dropped as hackish. A
+      readable, translatable name would need real metadata per style; future option, not planned.
 - [x] 4SB3 **Untranslated `aria-label`s**, which replace the announced name: the header's Search
       (also its visible placeholder), Settings, Administration, Challenges: N, Notifications: N;
       the analysis tab list (now "Analysis"); the lobby tab list (label dropped, optional, no
