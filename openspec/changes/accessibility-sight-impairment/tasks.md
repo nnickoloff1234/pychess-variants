@@ -1113,8 +1113,17 @@ every chat is a list announced politely; presets are ordinary text lines; `c` fo
       - **RA5** the input is named `_('Chat')` (existing string; it read the hardcoded English
         "Chat input").
       - **History is not news:** our chat refills by appending on every load and reconnect, which a
-        live list would read out in full. `replayingChat()` silences the list for a second around
-        the four refill points (round, tournament, simul, the bughouse history rebuild).
+        live list would read out in full. `replayingChat()` sets the list `aria-live="off"` before
+        each of the four refills (round, tournament, simul, the bughouse history rebuild); history
+        lines are added with `chatMessage(…, history = true)` (`chatMessageBug` likewise), and any
+        other message sets the list back to `polite` before it is added. **Changed 2026-10-11 at
+        Nikolay's review:** it was a one-second timer, which also swallowed a real message arriving
+        just after a reconnect. Measured with AT-SPI events (Orca decides politeness from the event
+        source's `container-live`, read when it handles the event): a reload's whole refill arrives
+        `off`, the next typed message `polite`. Rejected on the way, both measured: `aria-live="off"`
+        on each history item (Chrome also reports the insertion from the list, which is `polite`)
+        and replacing the list element (a fresh `polite` list is announced like the old one).
+        Not measurable here: Windows screen readers, where Chrome itself decides.
       - **Bughouse presets** were an empty CSS icon to a reader; they now carry `role="img"` and the
         label of the preset button ("Need queen", "Don't give knight", "Sit/stall"), from one
         `presetLabel()` that the buttons also use. When a partner's preset arrives, its recorded
