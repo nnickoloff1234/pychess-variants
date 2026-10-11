@@ -71,7 +71,7 @@ changes ... later we might think of a full solution, but for now we start with s
       `tree-capture-sweep.md` section O — it is what downgraded R4 (Orca drops the PUA glyph
       silently) and what confirmed R3 by ear ("l", "n", "o", "m" for the move buttons). Nikolay now
       runs it himself to verify changes, so **every later claim is checkable by both of us**.
-- [ ] 2.2 Walk the target page as a non-visual user would: land on it, find the board, find whose
+- [x] 2.2 **Walked 2026-10-11 (with 5.2), see 5.2.** Walk the target page as a non-visual user would: land on it, find the board, find whose
       turn it is, find the clock, find the last move, make a move. Record where it fails and at
       which step it becomes impossible.
 - [x] 2.3 **CONFIRMED by the tree captures (3b.2):** the board contributed zero nodes and there were
@@ -760,7 +760,11 @@ before proceeding to implementation."* **These gate section 4. None is optional.
         of the document — visible directly in the tree's focus order.
 
       Same method as 3b.1, so the two can share a session.
-- [ ] 3b.3 **ESTABLISH WHAT WE CAN ACTUALLY TEST WITH.** The tool Nikolay could not remember is
+- [x] 3b.3 **DECIDED 2026-10-11 (Nikolay): Orca's log plus Chrome's accessibility tree and real keys;
+      hearing the speech is not required.** Orca 46.1 runs with speech disabled
+      (`orca --replace -e braille-monitor -d speech --debug-file=…`); it presents only the X-focused
+      window, so the evidence is the AT-SPI events it logs plus an AT-SPI dump of the page (the
+      tree Orca reads), never a focus switch to the harness workspace. **ESTABLISH WHAT WE CAN ACTUALLY TEST WITH.** The tool Nikolay could not remember is
       **NVDA** — our user's primary, named in all three of their messages (`user-report.md` §2), with
       **JAWS** on Windows and **TalkBack** and **Jieshuo** on Android.
 
@@ -1564,12 +1568,44 @@ change, not an afterthought**: a keyboard interface nobody can discover is not u
 
 - [ ] 5.1 Every shortlist item heard working with the stack named in 1.3, not merely inspected in
       the DOM or checked by a linter.
-- [ ] 5.2 Re-run 2.2's walk end to end and record where it now succeeds or still fails. **Say
-      plainly what is still impossible** — a partial fix described as a fix is worse than none,
-      because it stops anyone looking again.
-- [ ] 5.3 Nothing regresses for sighted users: `yarn lint`, `yarn typecheck`, `yarn md`,
-      `yarn test`, plus a layout matrix run diffed by ROW SET if any markup that the stylesheets
-      select on has changed.
+- [x] 5.2 **DONE 2026-10-11, a live crazyhouse game between two windows, 60+0.** Over AT-SPI:
+      the `h1` names the game; Chat, Moves, Actions and the summary's Pieces, Pockets, Last move,
+      Time, Status are headings; the game is joined from the lobby by Enter on "Join: …, 60+0,
+      CRAZYHOUSE". Orca's log: the opponent's moves arrive as text inserted into the assertive
+      Last move ("e4", "e5"); the clocks change every second as non-live timers (not spoken, by
+      design); a draw offer inserts "Your opponent offers a draw" plus Accept / Decline into the
+      polite offer region, and Enter on Decline answers it; a chat message is a new item in the
+      polite chat list; resignation inserts "Black resigned • White won" into the assertive status.
+      Draw's confirmation dialog opens with focus on "Offer draw". **Still impossible: making a
+      move** (E and F, the next PR). **New defects found on the way: 5.5.**
+- [x] 5.3 **DONE 2026-10-11.** Gates green after every change. Layout matrix (286 rows) on fork master
+      `3ba097823` against the same commit with the PR's diff reversed: 2 failing rows in both, 0
+      broken, 0 fixed; `P5-C3` differs only in naming the element under an identical 40x3px overlap
+      (`site-tab`, the two-board tabs' new `<button>`, instead of `SPAN`). Players' striped rows
+      measured with seeded scores, identical with and without the additions.
+
+- [x] 5.5 **New defects found by verification, 2026-10-11** (an AX sweep for controls named by one
+      character or nothing, on 16 pages). **V1–V7 FIXED the same day as proposed**, attributes only,
+      existing strings; checked in Chrome's AX tree: Abort / Draw / Resign / Give 15 seconds;
+      crosstable links "Open game: 1–0"; the engine switch "Computer analysis" on analysis, puzzle
+      and two-board analysis (there in `renderInput()`, which re-patches the input); `#fullfen`
+      "FEN" / "BFEN"; two-board arrows First / Previous / Next / Last move. V7 checked in code only.
+      The sweep is now clean except the recorded items below.
+      - **V1. Round: Abort reads "j", Resign "d", Draw "½".** The icon `<i>` inside each button beats
+        its correct `title` (the 4RA2 mechanism; these three were never covered).
+      - **V2. "Give 15 seconds" reads "W"**: the glyph is the button's own `::before`.
+      - **V3. The crosstable's result links read "1" / "0"** (two per earlier game, each a link to it).
+      - **V4. The engine on/off switch has no name** (analysis, puzzle, two-board analysis): a
+        checkbox in an empty `<label>`, drawn as a toggle.
+      - **V5. Analysis: the read-only FEN field `#fullfen` has no name.**
+      - **V6. Two-board analysis move-list buttons read "p", ">", "l", "n", "o", "m"**: 4RA2 fixed
+        only the single-board list; here the four arrows also lack titles.
+      - **V7. Two-board round controls** put the icon glyph before the visible label (read from
+        code, `two-board/round/roundControls.ts`; a live bughouse game was not run).
+      - **Recorded, no change proposed:** puzzle votes named by emoji ("👍", read "thumbs up
+        sign"); chessgroundx's two empty overlay SVGs read as unnamed images (a chessgroundx
+        change); the lobby's online-players link is empty only while its counter is unset locally.
+      - **Not a defect, but H6 was moot there:** `templates/closed.html` is rendered by nothing.
 
 ## 5b. Not code — for Nikolay to answer
 
