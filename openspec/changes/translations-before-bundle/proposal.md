@@ -22,8 +22,10 @@ in English**, although `lang/hu/LC_MESSAGES/client.po` has `msgstr "Játék kate
   `translatedVariantDisplayNames`, `translatedCustomStartPositions`, `translatedTooltips`, …), headed
   *"Do not use / These lists are only here to mark these texts translatable"*: arrays of `_()` calls
   whose values nobody reads, only so `pybabel extract` finds the strings;
-- PR #2377's `N_()` (52 calls, the piece-name tables in `client/pieceNames.ts` and
-  `client/variants.ts`), plus `pieceName()` translating with `_(name)` at display time;
+- PR #2377's piece-name tables (`client/pieceNames.ts`, `client/variants.ts`) and bughouse chat
+  presets (`two-board/round/chatPresets.ts`): entries written with `_()`, which returns English at
+  load, then translated again with `_(name)` at display time (`pieceName()`, `presetLabel()`). An
+  `N_()` marker was tried for this and dropped in review;
 - upstream `variants.ts` pocket tables written `'p-piece': _('pawn')` at module level, which are
   therefore always English (replaced by `pieceName()` in PR #2377);
 - the comment in `main.ts` explaining why the header menus are wired *before* the translation
@@ -49,8 +51,7 @@ in order, so it is there before any module code runs.
 4. **`client/main.ts`**: remove `loadTranslations()` and its `fetch`; call `start()` directly. The
    early `initTopNavDisclosures()` special case and its comment can go back to normal order.
 5. **Cleanup the constraint made necessary:**
-   - remove `N_()`; the piece tables use `_('gold general')` directly and `pieceName()` returns
-     the table entry without its own `_()`;
+   - `pieceName()` and `presetLabel()` return the table entry without their second `_()`;
    - `translatedGameCategory` becomes correct with no change (verify in Hungarian);
    - the marker-only lists in `i18n.ts`: delete each one whose strings are now written with `_()`
      where they are used; keep any that still mark strings built from runtime data (e.g. a

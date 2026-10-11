@@ -1086,9 +1086,11 @@ single-board pages get one and each two-board board gets its own.
 - [x] 4CD.6 **Piece names through one adapter, `client/pieceNames.ts`.** `pieceName(variant, role,
       color)` tries the variant's `pieceNamesByColor`, then its `pieceNames`, then a family table
       (chess for standard/capa/seirawan/shogun/orda, xiangqi for xiangqi/janggi), else the letter.
-      Tables hold English marked with the new `N_()` (extracted by pybabel's default keywords,
-      verified) and are translated with `_()` when shown; this also fixes the old
-      `pocket.pieceNames`, whose `_()` ran before translations loaded. Bughouse's and supply's
+      Table entries are written with `_()` (the usual marker) and `pieceName()` translates them
+      again when shown, which is what makes them translated: the tables are built before the
+      translations load. This also fixes the old `pocket.pieceNames`, translated only at load.
+      (A no-op `N_()` marker was used first and dropped at Nikolay's review, 2026-10-11: one
+      convention, `_()`, everywhere; the real fix is `translations-before-bundle`.) Bughouse's and supply's
       tables became redundant, makbug's moved; community variants keep their authors' names.
       Filled from the rules pages: shogi, shogun, seirawan, capablanca, capahouse, grand, orda
       (crazyhouse is covered by the chess table). Consumers: the summary and the bughouse chat

@@ -13,7 +13,7 @@
 - [ ] 2.3 `i18n.ts` loads `window.PYCHESS_I18N` and sets the locale on creation; English fallback.
 - [ ] 2.4 `main.ts`: drop `loadTranslations()`, call `start()` directly; restore normal order for
       `initTopNavDisclosures()`.
-- [ ] 2.5 Remove `N_()`; piece tables use `_()`; `pieceName()` stops translating.
+- [ ] 2.5 `pieceName()` and `presetLabel()` stop translating a second time.
 - [ ] 2.6 Delete the marker-only lists whose strings are now marked where used.
 
 ## 3. Verify
