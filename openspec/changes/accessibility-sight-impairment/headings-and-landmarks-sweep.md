@@ -66,6 +66,14 @@ No "skip to content" link in `templates/`, `client/` or any stylesheet.
 
 ## H4. Ten templates with multiple `<h1>` — eight are one markdown source
 
+**FIXED 2026-10-11 (4H4).** In all 7 `terminology.md` sources and `battleofideologies.md`, every
+heading after the title moves down one level; the text is untouched. Built pages: one `h1` each,
+then `h2` sections. `battleofideologies`' army lists (`###`) now sit one level under their section,
+which also removes its H5 skip, and its `## |All movement are shown from white side|` (a table row
+with a heading marker) is a plain sentence. Visible: the sections render at `h2` size, as on every
+other rules page. Live-checked on `/variants/terminology`; `battleofideologies` is a community
+variant not catalogued locally, so only its built HTML was checked.
+
 **CORRECTED 2026-10-11: eight, not ten — docs only.** `studies.html` and `variants.html` each hold
 two `<h1>`s in opposite `if/elif/else` branches, so a page renders one; both are false positives.
 What remains is the docs: `terminology` (one markdown source, 7 files: English + 6 translations)
@@ -89,15 +97,21 @@ one source document in eight translations — **one fix covers all eight.** `stu
 
 ## H5. Five heading-level skips
 
+**FIXED 2026-10-11 (4H5).** All five, plus the lobby's `h4` (below). Details in `tasks.md` 4H5.
+
 - `templates/patron.html` — **h1 to h6**, the worst
 - `templates/features.html` — h1 to h3
-- `templates/docs/battleofideologies.html`, `docs/dragon.html`, `docs/dragon.zh_CN.html` — h1 to h3
+- ~~`templates/docs/battleofideologies.html`~~ (fixed with H4), `docs/dragon.html`, `docs/dragon.zh_CN.html` — h1 to h3
 
 A skip leaves a screen-reader user unable to tell whether an `h3` is nested under a missing `h2` or is
 a sibling. The `docs/` ones are markdown-sourced, as above. `patron.html`'s h6 is almost certainly a
 heading chosen for its small text size rather than its level — the classic cause.
 
 ## H6. Four full pages with no `<h1>`
+
+**FIXED 2026-10-11 (4H5): three pages; the fourth is a false positive.** `cwda_diagrams.html` is not
+a page but a fragment included in `docs/cwda.html` under its `h2` "Piece movement", so its `h3`s nest
+correctly.
 
 Verified by `extends` so partials are excluded:
 
@@ -143,9 +157,9 @@ heading, not a landmark, and it costs one line in `template.html`.
 | **H1** | **Game/analysis/puzzle/study pages have zero headings** | 1.3.1 **A** | this is candidate B |
 | **H2** | **`<html>` has no `lang`; value already in `data-lang`** | 3.1.1 **A** | **one line** |
 | H3 | No skip link | 2.4.1 **A** | one link + CSS |
-| H4 | ~~10~~ 8 templates with multiple `h1`, all docs (studies/variants were if/else false positives) | — (breaks the `1` convention) | 2 markdown sources |
-| H5 | 5 heading-level skips, incl. `patron.html` h1→h6 | 1.3.1 **A** | per file |
-| H6 | 4 full pages with no `h1` | 1.3.1 **A** | 4 lines |
+| H4 | **FIXED (4H4)** ~~10~~ 8 templates with multiple `h1`, all docs (studies/variants were if/else false positives) | — (breaks the `1` convention) | 2 markdown sources |
+| H5 | **FIXED (4H5)** 5 heading-level skips, incl. `patron.html` h1→h6 | 1.3.1 **A** | per file |
+| H6 | **FIXED (4H5)** ~~4~~ 3 full pages with no `h1` (one false positive) | 1.3.1 **A** | 4 lines |
 | — | Landmarks | **already good** | nothing |
 
 **H2 is the single best line-for-value item found in any sweep so far**: one attribute, Level A, and it

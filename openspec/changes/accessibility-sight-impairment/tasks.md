@@ -413,7 +413,7 @@ changes ... later we might think of a full solution, but for now we start with s
       moderator uses a screen reader the direct value is near zero, and there is nothing left to fix.
       Their value to this change is entirely as evidence of the house standard.**
 - [ ] 2.4d **Re-checked against the code 2026-10-10.** Done: F1, F3 (4G), H2 (4H2), RA1-RA3 (4RA1-3).
-      Also done: RA4-RA6 (4RA4-6), H1 for game pages (4H1), LB1 (4LB1), T1 and T3 (4T1-3), F2 and F4 (4F2-4), T4-T6 (4T4-6), SB1-SB3 (4SB), TN1 and TN4 (4TN), L1 L2 L5 PE2 (4L), PE3 (4PE3), PE1 (4PE1), L3 L4 A1 (4Q), FR4 + duels (4FR4), H3 (4Z.0), RA7 (4RA7), FR1 + round-robin modal + FR5 (4FR). Open and scheduled with E: FR6 (4FR6). Known limitations by decision: PF2, IB1 (section 6). T2 withdrawn by decision. Not a defect: LB3, TN5, TN6 (false positive), ST3 (false positive; H4 also shrinks to the docs). Closed with no change: ST2 (arrows + the summary's Last move). Moved to its own change: LB2 (`lobby-seek-announcements`). Dropped by decision: PF1, F5, TN2, TN3, FR2 (2026-10-11: on demand is enough; the countdown already has audio). Everything else listed here is still open.
+      Also done: RA4-RA6 (4RA4-6), H1 for game pages (4H1), LB1 (4LB1), T1 and T3 (4T1-3), F2 and F4 (4F2-4), T4-T6 (4T4-6), SB1-SB3 (4SB), TN1 and TN4 (4TN), L1 L2 L5 PE2 (4L), PE3 (4PE3), PE1 (4PE1), L3 L4 A1 (4Q), FR4 + duels (4FR4), H3 (4Z.0), RA7 (4RA7), H4 (4H4), H5 and H6 (4H5), D3 (4D3), D6 (with 4H4/4H5), FR1 + round-robin modal + FR5 (4FR). Open and scheduled with E: FR6 (4FR6). Known limitations by decision: PF2, IB1 (section 6). T2 withdrawn by decision. Not a defect: LB3, TN5, TN6 (false positive), ST3 (false positive; H4 shrank to the docs). Closed with no change: ST2 (arrows + the summary's Last move). Moved to its own change: LB2 (`lobby-seek-announcements`). Dropped by decision: PF1, F5, TN2, TN3, FR2 (2026-10-11: on demand is enough; the countdown already has audio). Rejected as out of scope: D4 (2026-10-11: rules content, not technical accessibility), D5 (2026-10-11: invalid `<th>` ids, harmless to screen readers). Everything else listed here is still open.
       **F1, F2, T1-T6, A1, L1-L5, H1-H6, D2-D6, LB1-TN6, PF1-ST3, IB1-FR4, RA1-RA8 and SB1-SB3 do
       not wait on the gate** — except RA8, which IS the gate (candidates B and D). **And per AD1 the
       dialog fixes are ONE change using `<dialog>`, not four; per PE3 the clickable-element fixes are
@@ -1374,6 +1374,63 @@ followed — the forum's "cancel edit" link already does exactly this.
 - Verified live on `/analysis/chess`: Chrome's accessible name, Enter/Space by real keys, focus kept
   over three moves, Tab to the next line; a mouse click still plays and shows no focus ring.
   **Not exercised live:** the two-board analysis page (same helper).
+
+### 4H4. One `h1` on the docs pages — Nikolay 2026-10-11
+
+- [x] 4H4.1 **H4:** the `terminology` page (7 markdown sources: English + es, fr, hu, pt, zh_CN,
+      zh_TW) and `battleofideologies` made every section an `h1`. Every heading after the title
+      moves down one level; text untouched, so no translator is needed. `battleofideologies`' army
+      lists stay `###` (now one level under their section, closing its H5 skip), and its
+      `## |All movement are shown from white side|` is a plain sentence. Visible by design: the
+      sections render at `h2` size, like every other rules page. Built HTML: one `h1` per page.
+      Verified live on `/variants/terminology`; `battleofideologies` is not catalogued locally, so
+      only its built HTML was checked.
+
+### 4H5. Heading levels and missing titles — Nikolay 2026-10-11
+
+Previewed page by page and approved before the change. Rule: the hierarchy follows the content,
+and CSS keeps every converted element looking exactly as before.
+
+- [x] 4H5.1 **H5, level skips:**
+      - `patron.html`: the `h6` under the title was a tagline, now `p.banner-sub`; the three
+        questions `h3` → `h2` (siblings under the title). `patron.css` keeps both sizes.
+      - `features.html`: "All registered accounts" was an `h3` inside a column header; it is a
+        column label, already announced by its `<th>`, so it is a `div.col-title` styled as before.
+        "Website" stays the only heading.
+      - `dragon.md` + `zh_CN/dragon.md`: `###` → `##` (visible: one size up, as with H4).
+      - `lobby.ts`: the create-game dialog's "A.I. Level" `h4` → `h3` under the dialog's `h2`;
+        `lobby.css` keeps its h4 look.
+- [x] 4H5.2 **H6, no `h1`:** `closed.html` username `h3` → `h1` (`site.css` keeps the size);
+      `reports.html` and `mod_public_chat.html` get an `.sr-only` `h1` named as in the admin menu
+      ("Reports", "Public chats"; English like the rest of the admin area; the other five admin
+      pages already have a visible one). `cwda_diagrams.html`: not a defect (a fragment under an
+      `h2`).
+- [x] 4H5.3 **Verified:** outlines read live on `/patron`, `/features`, `/variants/dragon`; patron
+      and features measured against the old tags swapped back in the same page — identical
+      positions and sizes; the lobby heading's computed font, weight and margins identical.
+      **Not exercised live:** `closed.html` (needs a closed account), the two admin pages (need a
+      moderator). Gates: `yarn lint`, `yarn typecheck`, `yarn md`, `yarn test` (830).
+
+### 4D3. Image labels in the rules pages — Nikolay 2026-10-11
+
+Previewed and approved, including the empty alt after a challenge: `alt=""` is the alt rule's own
+value for an image whose information the adjacent text already gives (W3C images tutorial), not a
+removed alt; the icon's alt only repeated the name and described nothing.
+
+- [x] 4D3.1 **Title icons, 296 files.** `# ![Name](icon) Name` → `# ![](icon) Name`, only for an
+      image at the start of a heading line. Measured before: the `h1` of `/variants/crazyhouse960`
+      was named "Crazyhouse960 Crazyhouse 960"; after: "Crazyhouse 960". The generated `h1` ids
+      change with it (they embed the heading text); nothing links to them.
+- [x] 4D3.2 **154 diagram labels** made readable, in the "Horse movement" form xiangqi already uses;
+      translations keep English labels, as they already did. Shogi/minishogi `KingDiagram` …
+      `HorseDiagram` → "King movement" … "Horse movement" ("Lancee" typo fixed), `Black/WhiteKings`;
+      makruk/cambodian `ProPawn` → "Promoted pawn"; chak's endgame positions (`KvsKO` → "King versus
+      king and offering", …); synochess `QueenslayerGoneWrong*`, es `MataDamas`; torishogi quails;
+      cannonshogi and shoshogi `image` → named from each file; battleofideologies `King1/2`;
+      melonvariant `stratpos` → "Starting position", `machine`; racingkings' setup diagram →
+      "Starting position".
+- [x] 4D3.3 **Verified** in Chrome's accessibility tree on crazyhouse960, shogi, chak and
+      cannonshogi. `yarn md` clean.
 
 ### 4RA3. The clocks — decided by Nikolay 2026-10-10: on request, as lichess does.
 

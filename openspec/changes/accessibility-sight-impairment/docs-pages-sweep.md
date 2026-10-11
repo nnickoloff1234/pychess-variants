@@ -54,6 +54,10 @@ The docs make it acute rather than theoretical:
 
 ## D3. Alt text labels the diagram rather than describing it — acceptable, but inconsistent
 
+**FIXED 2026-10-11 (4D3), and wider than recorded.** Besides the run-together labels, every rules
+page's `h1` began with the variant icon whose alt repeated the title: Chrome named the heading
+*"Crazyhouse960 Crazyhouse 960"*. Details in `tasks.md` 4D3.
+
 Given D1 the labelling choice is defensible: the diagram illustrates prose that already carries the
 rule, so a short label is right and a long description would duplicate the paragraph below it.
 
@@ -69,6 +73,13 @@ Two things worth tidying rather than fixing:
 
 ## D4. Board-setup diagrams have no prose equivalent
 
+**REJECTED 2026-10-11 (Nikolay): out of scope.** This change handles general technical accessibility,
+not rules content. Filling the gap properly needs expert knowledge of each variant, which we will not
+pretend to have. A future direction, not planned: interactive chessgroundx boards in the rules pages
+that explain themselves. Options weighed and dropped: a FEN in every markdown file; a generated
+"Starting position" section in `variants.html` (link to the analysis board, whose board summary reads
+the position, plus the engine's FEN).
+
 `![Boards]` opens `shogi.md:3`, `xiangqi.md:3`, `bughouse.md:3` — and is followed by an introduction
 to the game, not by the starting array in words. So a blind reader learning shogi gets every piece's
 move but never the initial position.
@@ -78,6 +89,12 @@ and the starting position is the one thing they would need that the prose does n
 code block would satisfy it completely and is one line per variant.
 
 ## D5. The pipeline emits invalid `<th id="">` — 431 of them
+
+**REJECTED 2026-10-11 (Nikolay): out of scope.** It fixes nothing a screen reader notices; a nice-to-have
+for another day. Re-measured before rejecting: 29 empty and 61 within-page duplicate `<th>` ids among
+326 across 54 built pages (down from 431, the docs changed); nothing links to, styles or queries them.
+The fix, if ever wanted: `converter.setOption('tablesHeaderId', false)` in `md2html.js`. The `scope`
+question is answered: every table has one header row and no `<th>` in its body, so none needs it.
 
 `showdown` produces `<th id="">` on every table header cell: **431 across 115 tables** in the built
 docs (16 markdown files use tables).
@@ -92,6 +109,8 @@ docs (16 markdown files use tables).
 headers. Those need `scope="col"` / `scope="row"`, which showdown will not add. Simple tables do not.
 
 ## D6. Heading defects in docs are markdown-source defects
+
+**DONE 2026-10-11 with H4 and H5 (4H4, 4H5):** fixed in the markdown sources, as this says.
 
 Carried from `headings-and-landmarks-sweep.md` H4 and H5, restated here because the fix location is
 what matters:
@@ -111,10 +130,10 @@ what matters:
 |---|---|---|---|
 | **D1** | **Prose-first docs already serve blind readers** | — | **nothing; protect it** |
 | **D2** | **`<html lang>` missing while the server picks by locale** | `base.html:2` | **one line, Level A** |
-| D3 | Movement-diagram alts inconsistent (`HorseDiagram`) | markdown sources | per file, cheap |
-| D4 | No starting position in text | markdown sources | one FEN per variant |
-| D5 | `<th id="">` × 431, invalid but harmless | `md2html.js` | one place, 323 pages |
-| D6 | 6 `h1` in terminology; 3 files skip h1→h3 | markdown sources | 1 source = 8 files |
+| D3 | **FIXED (4D3)** Movement-diagram alts inconsistent (`HorseDiagram`); title icons doubled every `h1` | markdown sources | per file, cheap |
+| D4 | **REJECTED (out of scope)** No starting position in text | markdown sources | one FEN per variant |
+| D5 | **REJECTED (out of scope)** `<th id="">` × 431, invalid but harmless | `md2html.js` | one place, 323 pages |
+| D6 | **DONE (4H4, 4H5)** 6 `h1` in terminology; 3 files skip h1→h3 | markdown sources | 1 source = 8 files |
 
 **The order this suggests:** D2 first and alone — one line, Level A, and it is the difference between
 seven of our eight documentation languages being pronounced correctly or not. Everything else here is
