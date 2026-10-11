@@ -1384,7 +1384,10 @@ followed — the forum's "cancel edit" link already does exactly this.
       summary announces each move. Measured: the "-" sits at the identical spot.
 - Verified live on `/analysis/chess`: Chrome's accessible name, Enter/Space by real keys, focus kept
   over three moves, Tab to the next line; a mouse click still plays and shows no focus ring.
-  **Not exercised live:** the two-board analysis page (same helper).
+  **Two-board analysis verified live 2026-10-11** on `/analysis/bughouse`: each board's lines are
+  buttons named by the line; Enter, Enter, Enter played e4, e6, Nc3 on board A with focus kept on
+  `#pv-a-1` and board A's Last move reading each; Tab went to the next line; a click still plays
+  (d5) and shows no focus ring.
 
 ### 4H4. One `h1` on the docs pages — Nikolay 2026-10-11
 
