@@ -96,6 +96,13 @@ cheaper to review and cannot drift from house style.
 
 ## ST2. The study move tree shares the `<move>` problem — so one fix covers four pages
 
+**CLOSED, NO CHANGE — Nikolay 2026-10-11.** The list's text reads fine ("1 e4 e5 2 Nf3 …");
+moving through the game is the arrow keys (Left/Right, Up/Down), each step spoken by the board
+summary's "Last move", which is exactly the highlighted move (the tree path, in analysis). Considered
+and not needed: `aria-current` on the active move (repeats "Last move"; only adds position while
+reading the list as text), a button per ply (one Tab stop per half-move), list roles (the layout is
+a grid, not a list).
+
 `client/study/studySync.ts:3` imports `updateMovelist` from `../movelist`, and `client/movelist.ts`
 renders 6 `h('move', …)` — the custom `<move>` element with **no role, not focusable, not a list**,
 first recorded in the proposal's survey.
@@ -105,6 +112,10 @@ Whatever is decided for `<move>` — a real `<ol>`/`<li>`, or focusable buttons 
 four at once. That is the largest single piece of leverage found in any sweep.
 
 ## ST3. Smaller
+
+**NOT A DEFECT — re-checked 2026-10-11.** The two `<h1>`s in `studies.html` sit in opposite
+branches of an `if/else` (topics index vs. study list), so a page renders one; the second note is an
+observation, not a finding.
 
 - `templates/studies.html` has **2 `<h1>`** — already `headings-and-landmarks-sweep.md` H4.
 - `studyTree.ts`, `commentEditor.ts`, `studyChapterForm.ts`, `chapterNavigation.ts` show zero
@@ -135,8 +146,8 @@ over-reports, and no hit should be quoted without eyeballing the source.**
 | **PF2** | **Rating chart has no accessibility layer; the module is installed and unused** | 1.1.1 **A** | **one import line** |
 | PF1 | Profile + game-search tables have no `<th>` | 1.3.1 **A** | copy the lobby's `<thead>` |
 | PF3 | `profile.html` skips `<h2>` | 1.3.1 A | one line |
-| **ST2** | **`<move>` is shared by round, analysis, puzzle and study** | 1.3.1 A | **one fix, four pages** |
-| ST3 | 2 `<h1>` in `studies.html` | — | one line |
+| ST2 | `<move>` is shared by round, analysis, puzzle and study | — | closed, no change (arrows + summary) |
+| ST3 | ~~2 `<h1>` in `studies.html`~~ not a defect (if/else) | — | — |
 | **ST1** | **Study is the house model for dialogs, focus and live regions** | — | **nothing; copy it** |
 
 **None of this touches the board, layout CSS or chessgroundx.** Candidate G.

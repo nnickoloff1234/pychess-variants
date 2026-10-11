@@ -41,14 +41,10 @@ action of the site, and the lobby is the page everyone lands on.
 
 ## LB2. The seek table is never announced when it changes
 
-No `aria-live`, no `role="status"`, no `role="log"` anywhere in `client/lobby.ts`.
-
-Seeks appear and vanish continuously as players create and cancel them. A screen-reader user reads a
-list that is **silently changing underneath them**, and may try to accept a seek that no longer
-exists. This is precisely the case `aria-live` exists for.
-
-`role="log"` on the seek table with a `polite` politeness is the shape lichess uses for its move list
-— see `lichess-reference.md` 9.3, and note their deliberate choice of politeness per region.
+**MOVED OUT OF SCOPE by Nikolay 2026-10-11 → `openspec/changes/lobby-seek-announcements/`.** Not a
+one-attribute fix: the table is rebuilt from scratch on every change, so the rows must be keyed and
+patched first. The problem statement, the plan and the alternatives (`role="alert"`, `role="log"`)
+all live in that proposal now.
 
 ## LB3. The seek dialog cannot be closed by keyboard — NOT A DEFECT (native <dialog>, Escape closes it; see tasks.md 2.4j correction); its close is a named button since 4TN
 
@@ -97,6 +93,8 @@ Same class as LB1, lower stakes — this is navigation to a player, not the core
 
 ## TN2. The tournament countdown clock has no live region
 
+**DROPPED by Nikolay 2026-10-11.** The last 10 seconds already count down in audio (`sound.countDown`), a pairing plays a sound and redirects to the game, and the clock is plain text, readable on demand. A live region would duplicate the audio or speak every tick.
+
 `client/tournamentClock.ts` — **0 `aria-live`, 0 `role="status"`.**
 
 The clock counts down to the start and then through the tournament. A screen-reader user is never
@@ -104,6 +102,8 @@ told how long until it begins, or that it has begun, unless they navigate back t
 re-read it. Same gap as the game clock, and the same one-attribute fix.
 
 ## TN3. Nothing on a tournament page is announced at all
+
+**DROPPED by Nikolay 2026-10-11.** Standings reorder after every game, so a live region would narrate other people's games; what concerns the player (their pairing) already arrives as sound and a redirect, and the end and standings can be read on demand — the same choice as the game clocks (4RA3).
 
 `client/tournament.ts` and `client/tournamentRR.ts`: **0 `aria-live` between them.** Standings
 reorder live as games finish, pairings appear, rounds advance — all silent.
@@ -160,7 +160,7 @@ So the worklist is three patterns:
 1. **A row that acts needs an operable control** — LB1 (critical), TN1, `tournamentRR.ts:1507`.
 2. **A dialog needs a focusable close and an `Escape`** — LB3, TN4. Currently a keyboard user who
    opens either dialog cannot get out.
-3. **Anything that changes on its own needs a live region** — LB2, TN2, TN3, and the game page's
+3. **Anything that changes on its own needs a live region** — LB2 (since moved to its own change), TN2, TN3 (since dropped), and the game page's
    missing announcements already recorded in `candidates.md` D.
 
 **Pattern 3 is the same fix as candidate D**, so whatever is decided for the game page's move
@@ -170,7 +170,7 @@ than only for the board.
 | | What | WCAG | Size |
 |---|---|---|---|
 | **LB1** | **Cannot accept a lobby seek by keyboard** | 2.1.1 **A** | one control per row |
-| LB2 | Seek list changes silently | 4.1.3 AA | one attribute |
+| LB2 | Seek list changes silently | 4.1.3 AA | moved to `lobby-seek-announcements` |
 | LB3 | Seek dialog has no keyboard exit | 2.1.1 **A** | focusable close + Escape |
 | TN1 | Standings rows click-only | 2.1.1 **A** | as LB1 |
 | TN2 | Tournament clock silent | 4.1.3 AA | one attribute |

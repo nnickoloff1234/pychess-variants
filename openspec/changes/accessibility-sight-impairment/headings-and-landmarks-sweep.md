@@ -52,6 +52,8 @@ first step.
 
 ## H3. No skip link anywhere
 
+**FIXED 2026-10-11 (tasks 4Z.0):** "Skip to main content" + "Accessibility guide", first on every page.
+
 No "skip to content" link in `templates/`, `client/` or any stylesheet.
 
 - **WCAG 2.4.1 Bypass Blocks — Level A.**
@@ -63,6 +65,11 @@ No "skip to content" link in `templates/`, `client/` or any stylesheet.
   a skip link more valuable, not less.
 
 ## H4. Ten templates with multiple `<h1>` — eight are one markdown source
+
+**CORRECTED 2026-10-11: eight, not ten — docs only.** `studies.html` and `variants.html` each hold
+two `<h1>`s in opposite `if/elif/else` branches, so a page renders one; both are false positives.
+What remains is the docs: `terminology` (one markdown source, 7 files: English + 6 translations)
+and `battleofideologies` — 8 files, 2 sources.
 
 | File | `h1` count |
 |---|---|
@@ -136,7 +143,7 @@ heading, not a landmark, and it costs one line in `template.html`.
 | **H1** | **Game/analysis/puzzle/study pages have zero headings** | 1.3.1 **A** | this is candidate B |
 | **H2** | **`<html>` has no `lang`; value already in `data-lang`** | 3.1.1 **A** | **one line** |
 | H3 | No skip link | 2.4.1 **A** | one link + CSS |
-| H4 | 10 templates with multiple `h1` (8 = one markdown source) | — (breaks the `1` convention) | 3 sources |
+| H4 | ~~10~~ 8 templates with multiple `h1`, all docs (studies/variants were if/else false positives) | — (breaks the `1` convention) | 2 markdown sources |
 | H5 | 5 heading-level skips, incl. `patron.html` h1→h6 | 1.3.1 **A** | per file |
 | H6 | 4 full pages with no `h1` | 1.3.1 **A** | 4 lines |
 | — | Landmarks | **already good** | nothing |

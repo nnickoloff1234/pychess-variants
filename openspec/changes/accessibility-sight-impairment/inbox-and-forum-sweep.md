@@ -76,6 +76,8 @@ in-house pattern; the forum is two thirds of the way to it.**
 
 ## FR2. Nothing on the forum is announced
 
+**DROPPED by Nikolay 2026-10-11.** Nothing is pushed; a posted reply reloads the topic in place and a failure already opens a (spoken) alert dialog. The one forum message that must be spoken — the captcha's "Checkmate." / "Not a checkmate. Try again." — belongs to 4FR6.
+
 `client/forum.ts`: **0 `aria-live`.** Lower priority than IB1 because the forum does not push updates —
 there is no `EventSource`, so new posts appear on navigation rather than arriving. Worth one attribute
 if a reply is posted without a page change.

@@ -236,7 +236,8 @@ changes ... later we might think of a full solution, but for now we start with s
       a `<span.close>` (`lobby.ts:684`, `tournament.ts:642`, `tournamentRR.ts:1373`) and no `Escape`
       handler exists in either file — so a keyboard user who opens a dialog is **trapped in it**.
 
-      **LB2 / TN2 / TN3. Nothing that changes is announced.** Zero `aria-live` in `lobby.ts`,
+      **LB2 / TN2 / TN3. Nothing that changes is announced.** *(2026-10-11: LB2 moved to its own
+      change `lobby-seek-announcements`; TN2 and TN3 dropped.)* Zero `aria-live` in `lobby.ts`,
       `tournament.ts`, `tournamentRR.ts` or `tournamentClock.ts`. Seeks appear and vanish silently;
       the tournament countdown is never spoken; standings reorder in silence.
 
@@ -412,7 +413,7 @@ changes ... later we might think of a full solution, but for now we start with s
       moderator uses a screen reader the direct value is near zero, and there is nothing left to fix.
       Their value to this change is entirely as evidence of the house standard.**
 - [ ] 2.4d **Re-checked against the code 2026-10-10.** Done: F1, F3 (4G), H2 (4H2), RA1-RA3 (4RA1-3).
-      Also done: RA4-RA6 (4RA4-6), H1 for game pages (4H1), LB1 (4LB1), T1 and T3 (4T1-3), F2 and F4 (4F2-4), T4-T6 (4T4-6), SB1-SB3 (4SB), TN1 and TN4 (4TN), L1 L2 L5 PE2 (4L), PE3 (4PE3), PE1 (4PE1), L3 L4 A1 (4Q), FR4 + duels (4FR4), RA7 (4RA7), FR1 + round-robin modal + FR5 (4FR). Open and scheduled with E: FR6 (4FR6). Known limitations by decision: PF2, IB1 (section 6). T2 withdrawn by decision. Not a defect: LB3, TN5, TN6 (false positive). Dropped by decision: PF1, F5. Everything else listed here is still open.
+      Also done: RA4-RA6 (4RA4-6), H1 for game pages (4H1), LB1 (4LB1), T1 and T3 (4T1-3), F2 and F4 (4F2-4), T4-T6 (4T4-6), SB1-SB3 (4SB), TN1 and TN4 (4TN), L1 L2 L5 PE2 (4L), PE3 (4PE3), PE1 (4PE1), L3 L4 A1 (4Q), FR4 + duels (4FR4), H3 (4Z.0), RA7 (4RA7), FR1 + round-robin modal + FR5 (4FR). Open and scheduled with E: FR6 (4FR6). Known limitations by decision: PF2, IB1 (section 6). T2 withdrawn by decision. Not a defect: LB3, TN5, TN6 (false positive), ST3 (false positive; H4 also shrinks to the docs). Closed with no change: ST2 (arrows + the summary's Last move). Moved to its own change: LB2 (`lobby-seek-announcements`). Dropped by decision: PF1, F5, TN2, TN3, FR2 (2026-10-11: on demand is enough; the countdown already has audio). Everything else listed here is still open.
       **F1, F2, T1-T6, A1, L1-L5, H1-H6, D2-D6, LB1-TN6, PF1-ST3, IB1-FR4, RA1-RA8 and SB1-SB3 do
       not wait on the gate** — except RA8, which IS the gate (candidates B and D). **And per AD1 the
       dialog fixes are ONE change using `<dialog>`, not four; per PE3 the clickable-element fixes are
@@ -1403,6 +1404,8 @@ once. No timed, per-turn or low-time announcements. A low-time warning was offer
       move field: decided once F works** (none, or added, or both). Note: the summary's "Last
       move: Initial position" section means nothing here. Lichess's alternative — skip the
       captcha in blind mode — needs a blind-mode preference pychess does not have; future option.
+      **The result line must be a live region** ("Checkmate." / "Not a checkmate. Try again." is
+      only visual today) — moved here from FR2 (Nikolay 2026-10-11).
 
 ### 4Z. LAST — the guide for blind users. Added by Nikolay 2026-10-10.
 
@@ -1410,10 +1413,30 @@ Written once the features exist, because it documents them — but **it is a del
 change, not an afterthought**: a keyboard interface nobody can discover is not usable
 (`lichess-reference.md` §7).
 
-- [ ] 4Z.1 **An entry point that is the first thing on every page, found the standard way:** a link
+- [x] 4Z.1 **(Done in 4Z.0.)** **An entry point that is the first thing on every page, found the standard way:** a link
       first in `<body>`, visually hidden until focused (the skip-link pattern, WCAG 2.4.1), so the
       first Tab or the first line a screen reader reads offers it. This is candidate A in its 3.4g
       form; lichess puts its blind-mode toggle and tutorial link in exactly that position.
+- [x] 4Z.0 **DONE 2026-10-11 (also closes H3 and 4Z.1).** Built as decided below; the skip target
+      is one empty `div#main-content` in `base.html` between the header and content blocks, so every
+      page has it without per-template ids. Verified with real keys on lobby, analysis, forum,
+      players and the guide: first Tab = skip link (visible box over the logo), Enter then Tab lands
+      on the page's first control; header and content measured unmoved; Chrome reads "list, 2
+      items". On round-robin pages the `#main-content` hash matches no arrangement (harmless).
+      New msgids: the two link texts and the guide's paragraphs (piece/section names reused).
+      **Decided by Nikolay 2026-10-11 — start now, with H3, with a preliminary guide.**
+      A two-item `<ul>` first in the page, hidden until focused, no JS: "Skip to main content"
+      (WCAG G1 order: skip first) then "Accessibility guide". The guide is an ordinary PAGE, like
+      lichess's `/page/blind-mode-tutorial` (Back escapes it, no popup): `/page/accessibility`,
+      built exactly like `/page/forum-etiquette` (`server/views/forum_etiquette.py`, Jinja template
+      with one `{% trans %}` per paragraph; route in `server/routes.py`). Findings so far: the list
+      goes at the start of `{% block header %}` in `templates/template.html` (embed pages have no
+      header, so none); skip target `#main-wrap` exists on 60/73 templates and most client views
+      (`client/main.ts`), but NOT on: `allplayers`, `patron`, `features`, profile (`div#profile`),
+      calendar, stats, games/search views — give those an id or retarget. New msgids needed
+      ("Skip to main content", "Accessibility guide") — check `.po` first. Preliminary content:
+      game-page headings, the board summary, arrow-key move stepping, engine-line buttons, offers.
+      Python gates apply (new view).
 - [ ] 4Z.2 **The guide page itself:** how a game page is laid out (headings, the board summary, what
       is announced and when), the move input and every command (`c` clocks, `l` last move, …), the
       board's keys once F exists, pockets and drops, and how the screen-reader modes interact with
