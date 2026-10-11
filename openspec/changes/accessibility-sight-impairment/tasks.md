@@ -1599,10 +1599,14 @@ change, not an afterthought**: a keyboard interface nobody can discover is not u
 - [x] 5.5 **New defects found by verification, 2026-10-11** (an AX sweep for controls named by one
       character or nothing, on 16 pages). **V1–V7 FIXED the same day as proposed**, attributes only,
       existing strings; checked in Chrome's AX tree: Abort / Draw / Resign / Give 15 seconds;
-      crosstable links "Open game: 1–0"; the engine switch "Computer analysis" on analysis, puzzle
-      and two-board analysis (there in `renderInput()`, which re-patches the input); `#fullfen`
+      crosstable links "Open game: 1–0"; the engine switch "Computer analysis" on two-board
+      analysis (in `renderInput()`, which re-patches the input); `#fullfen`
       "FEN" / "BFEN"; two-board arrows First / Previous / Next / Last move. V7 checked in code only.
       The sweep is now clean except the recorded items below.
+      **V4 on analysis and puzzle: REVERTED and accepted as a known defect, Nikolay 2026-10-11.**
+      That switch is the only `toggleSwitch()` caller with no visible text, and an `ariaLabel`
+      parameter on the shared helper for a single caller was judged not worth it. Future option: give
+      the switch a visible label, as the other switches have.
       - **V1. Round: Abort reads "j", Resign "d", Draw "½".** The icon `<i>` inside each button beats
         its correct `title` (the 4RA2 mechanism; these three were never covered).
       - **V2. "Give 15 seconds" reads "W"**: the glyph is the button's own `::before`.
