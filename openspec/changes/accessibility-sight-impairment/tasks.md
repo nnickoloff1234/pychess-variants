@@ -1,6 +1,11 @@
 ## 0. Status
 
-**As of 2026-10-10 the gate at 3.4 is decided: the shortlist is C, D, E, F and G.** Shipped: 4G (the
+**PR scope decided 2026-10-11 (Nikolay): PR #2377 ships everything done so far; E and F (and what
+waits on them: 3.4h, 4FR6, 4RA3.2, 4Z.2) go to a separate PR under this same change** — no archive,
+no split of the spec. Before wrapping #2377: verify the finished items (5.1-5.3, by Orca's log and
+Chrome's accessibility tree; hearing the speech is not required), then Nikolay reviews the PR.
+
+**Superseded — the status from 2026-10-10:** the gate at 3.4 is decided: the shortlist is C, D, E, F and G.** Shipped: 4G (the
 header and site chrome, PR #2377), 4CD (the board summary and the piece-name adapter, same PR),
 4H2 (`<html lang>`), 4RA1 (draw, takeback and rematch offers answerable by keyboard, and announced),
 4RA2 (move-list button names) and 4RA3.1 (clocks in the summary). Next: the move input (E), then
@@ -453,7 +458,7 @@ changes ... later we might think of a full solution, but for now we start with s
 
       **Deferred by Nikolay on 2026-09-27 to keep the change in planning.** Decide at the gate
       whether they ship as candidate G work ahead of, or alongside, whatever else is chosen.
-- [ ] 2.5 **Test the Android path too**, since 1.3 made it a named target: TalkBack, and Jieshuo if
+- [x] 2.5 **REJECTED 2026-10-11 (Nikolay): no Android device to test with.** **Test the Android path too**, since 1.3 made it a named target: TalkBack, and Jieshuo if
       it can be obtained. Mobile was not in anyone's plan and is in the user's.
 
 ## 3. The reference, then the shortlist
@@ -646,7 +651,9 @@ changes ... later we might think of a full solution, but for now we start with s
       weighed, and because 3.4g's hazard 4 may eventually argue for the fork after all. E is the one that dissolves the
       problem; B was recommended among A-D before E existed. Nikolay is not convinced any of A-D is good,
       which is the reason E was proposed.
-- [ ] 3.4d **CANDIDATE B IS WIDER THAN WRITTEN — decide its scope.** Asked 2026-09-27: which pages
+- [x] 3.4d **DECIDED AND DONE 2026-10-11 (4PH), page by page with a preview each:** puzzle, lobby,
+      players, editor, stats, games; profile already had its `h1`; round and analysis were done in
+      4H1. **CANDIDATE B IS WIDER THAN WRITTEN — decide its scope.** Asked 2026-09-27: which pages
       besides the game page need headings? Measured by headings emitted per **client module**, since the
       busy pages are Snabbdom-rendered: **seven modules emit ZERO** — `roundCtrl.ts`,
       `analysis/index.ts`, `puzzleCtrl.ts`, `editor/editorCtrl.ts`, `profile.ts`, `stats.ts`,
@@ -1341,7 +1348,7 @@ followed — the forum's "cancel edit" link already does exactly this.
   back on Delete; then deleted the post by keyboard); replica measured identical as `<div>` and
   `<dialog>`. Round-robin: `test_gui.py::test_round_robin_full_browser_flow` passes (opens the
   modal, picks a date in its inline calendar, clicks its buttons). Alert: invalid PGN on `/paste`.
-- [ ] 4FR.5 **Not exercised live:** the relocate modal (moderators only; same hooks as delete).
+- [x] 4FR.5 **Dropped 2026-10-11 (Nikolay): moderator-only pages are not verified.** The relocate modal (moderators only; same hooks as delete).
 
 ### 4FR4. Forum and inbox fields; tournament top games — done 2026-10-11.
 
@@ -1408,8 +1415,8 @@ and CSS keeps every converted element looking exactly as before.
 - [x] 4H5.3 **Verified:** outlines read live on `/patron`, `/features`, `/variants/dragon`; patron
       and features measured against the old tags swapped back in the same page — identical
       positions and sizes; the lobby heading's computed font, weight and margins identical.
-      **Not exercised live:** `closed.html` (needs a closed account), the two admin pages (need a
-      moderator). Gates: `yarn lint`, `yarn typecheck`, `yarn md`, `yarn test` (830).
+      **Not exercised live:** `closed.html` (needs a closed account). The two admin pages: dropped
+      from verification 2026-10-11 (Nikolay: admin pages not important). Gates: `yarn lint`, `yarn typecheck`, `yarn md`, `yarn test` (830).
 
 ### 4D3. Image labels in the rules pages — Nikolay 2026-10-11
 
@@ -1431,6 +1438,59 @@ removed alt; the icon's alt only repeated the name and described nothing.
       "Starting position".
 - [x] 4D3.3 **Verified** in Chrome's accessibility tree on crazyhouse960, shogi, chak and
       cannonshogi. `yarn md` clean.
+
+### 4PH. Page headings beyond the game pages (3.4d) — Nikolay 2026-10-11
+
+Rule agreed: weigh each heading against the landmarks already there. A heading at the start of
+`main` mostly duplicates the `main` landmark; it is still added because users press `1` for the
+page title by habit. Headings inside `main`, at sections no landmark marks, are the real gain.
+
+- [x] 4PH.1 **Puzzle:** hidden `h1` "Puzzle" via the shared `pageHeading()` (the tab title), first
+      in `main` as on analysis. Measured: every `main` child's box identical before and after.
+- [x] 4PH.2 **Lobby**, walked through three use cases (followed players' activity, starting a game,
+      reading the open challenges). Before: no `h1`, only the catalogue's six orphan `h3`s; the
+      timeline's `aria-label` sat on a plain `div`, where readers ignore it. Now, in reading order:
+      `h1` Lobby (hidden, start of `main`) › `h2` What's up › `h3` Timeline › `h2` Challenges (before
+      the seek tabs; Nikolay chose it over "Waiting for players", though the header's Challenges
+      panel shares the name) › `h2` Variants › the six `h3`s › `h2` Create a game › `h2`
+      Leaderboard, Tournament winners, Puzzle of the day. The last three are the visible titles with
+      `role="heading" aria-level="2"` (a real `h2` is invalid inside the puzzle's `<span>` and would
+      need CSS pinning); the rest are `srHeading()` (now also `h3`). Headings are added for the two
+      named side panels too, because most users navigate by headings, not landmarks. Existing
+      strings only. Measured: 28 lobby boxes identical before and after. Seek changes are still
+      silent (LB2, `lobby-seek-announcements`).
+- [x] 4PH.3 **Players** (`templates/players.html`). Before: no headings; reaching one variant's top
+      players meant reading through every card before it (64 cards, up to 10 players each live).
+      Now: `h1` Players (hidden) › `h2` Online, `h2` Leaderboard (hidden, top of each named panel) ›
+      `h3` per card: `role="heading" aria-level="3"` on the inner `div.variant`, so the name is the
+      variant alone (the outer title bar would add the icon glyph). Nothing added inside a card,
+      whose rows stripe by `:nth-child`. Existing server strings. Measured: identical before and
+      after the rebuild, and with the additions removed again in the same page; 67 headings.
+- [x] 4PH.4 **Editor:** hidden `h1` "Editor" via `pageHeading()`, the `1` habit only. No heading over
+      the controls (no visible title; the FEN field, the page's only text field, is one `E` away and
+      is how a blind user sets up a position today) or the board (with F). **Correction to the
+      3.4d walk-through:** the editor's and the puzzle's variant picker is one `<select>`, not ~80
+      links, as first reported from a text dump.
+- [x] 4PH.5 **New, found on the editor and fixed (Nikolay 2026-10-11, `aria-label`):** the
+      side-to-move `<select>` had no name (now "Color", the closest existing string); the two
+      queenside castling boxes were both "O-O-O" (now "White O-O-O" / "Black O-O-O", built like the
+      visible white labels). Measured: 30 editor boxes identical before and after; names read from
+      Chrome's accessibility tree.
+- [x] 4PH.6 **Stats.** **New finding, fixed:** the page had no `main` landmark (`client/main.ts`
+      mounted it as a bare `div#stats` in the body); it is `main#stats` now, the CSS targets `#stats`.
+      Plus a hidden `h1` "Stats" via `pageHeading()`. Measured: the 7 stats boxes and their display,
+      margin and padding identical. The chart itself stays unreadable: PF2, a known limitation
+      (4Q.3: Highcharts' accessibility module costs ~40 KB gzipped on every page, English only).
+- [x] 4PH.7 **Games (`/games`). New finding, the larger one: the live-game cards could not be opened
+      by keyboard** — each `<minigame>` had only a mouse click handler (no link, no `tabindex`), so the
+      page's one purpose was mouse-only. Now `role="link"`, `tabindex="0"`, Enter calls the same
+      navigation, and the name is "Open game: white – black, VARIANT, 5+0" (existing "Open game";
+      the variant's display name is upper-case, as in the seek labels). Kept `<minigame>`: an `<a>`
+      wrapper would break `games.css`'s `minigame > div`. **Also new:** the game grid sat in an
+      unnamed `<aside>` beside another unnamed one ("complementary, complementary"); the grid's is a
+      `<div>` now and the variant list's is named "Variants". Hidden `h1` "Games" (server string).
+      Verified with a live random-mover game: 25 boxes identical before/after and in an in-page
+      A/B; the card is a named link in the accessibility tree; a trusted Enter on it opened the game.
 
 ### 4RA3. The clocks — decided by Nikolay 2026-10-10: on request, as lichess does.
 
@@ -1510,17 +1570,8 @@ change, not an afterthought**: a keyboard interface nobody can discover is not u
 - [ ] 5.3 Nothing regresses for sighted users: `yarn lint`, `yarn typecheck`, `yarn md`,
       `yarn test`, plus a layout matrix run diffed by ROW SET if any markup that the stylesheets
       select on has changed.
-- [ ] 5.4 Offer it back to the user who wrote in, if Nikolay is willing to ask. They are the only
-      real acceptance test.
 
 ## 5b. Not code — for Nikolay to answer
-
-- [ ] 5b.1 **They asked for a reply and deserve one.** *"Please, give me an answer on both
-      proposals."* Two offers: their .NET project, and playing in the pychess Discord voice rooms.
-- [ ] 5b.2 **The project offer is best taken as an interaction specification, not as source.**
-      pychess is AGPL-3.0, so porting C# of unknown licence raises a question that using it as a
-      design reference does not — and they suggest that use themselves: *"sooner like an example of
-      keyboard navigation design."* `user-report.md` sections 3 and 4 are already most of it.
 
 - [x] 5b.3 **ANSWERED 2026-09-28 — no new name.** Keep `_('Variant')`, the string we already have
       translated, on both comboboxes. Nikolay: the second one is inside collapsible elements, so
