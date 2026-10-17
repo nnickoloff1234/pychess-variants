@@ -667,9 +667,9 @@ changes ... later we might think of a full solution, but for now we start with s
 
       **So B's scope is seven modules, not two, and the lobby deserves to be first on traffic alone.**
       Full addendum in `headings-and-landmarks-sweep.md`.
-- [~] 3.4c **PARTLY ANSWERED 2026-10-10 — `client/pieceNames.ts` (4CD.6).** The adapter exists and
-      names the chess and xiangqi families plus shogi, shogun, seirawan, capablanca, capahouse,
-      grand and orda; every other variant still reads its letter until its table is filled.
+- [~] 3.4c **PARTLY ANSWERED 2026-10-10 — `pieceName()` (4CD.6, moved into `variants.ts` by
+      4CD.6b).** Family tables now name every sibling of a named variant; the variants listed in
+      4CD.6b still read their letter until their names are filled in.
       **Decide where the piece-naming table sits in the order.** 33 `pieceFamily` values,
       roughly 200-350 translatable strings, and the role letter is a valid fallback meanwhile. It
       gates nothing, but it is the difference between *"A8 black r"* and *"A8 black rook"*.
@@ -1097,6 +1097,20 @@ single-board pages get one and each two-board board gets its own.
       presets. **No other built-in variant has player-facing names anywhere machine-readable** —
       `variants.ini` and the server's `PIECE_OPTION_NAMES` hold engine movement types — so the rest
       read their letter until someone fills them in.
+- [x] 4CD.6b **Folded into `variants.ts` at Nikolay's review, 2026-10-18** — `pieceNames.ts` won
+      nothing. Shared tables (`CHESS_NAMES`, `CAPA_NAMES`, `GRAND_NAMES`, `SEIRAWAN_NAMES`,
+      `MAKRUK_NAMES`, `XIANGQI_NAMES`, `SHOGI_NAMES`, `SHOGUN_NAMES`, `ORDA_NAMES`) sit on the
+      `PIECE_FAMILIES` entries; `variant()` merges the family's names under the variant's own, so a
+      variant names only what differs (grand and grandhouse point at `GRAND_NAMES`; shoshogi adds
+      its drunken elephant and crown prince; orda keeps `pieceNamesByColor` for the khan).
+      `FAMILY_TABLES` is gone and `pieceName()` lives in `variants.ts`. Siblings that had read
+      letters are now named: shouse, grandhouse, embassy(house), gothic, gothhouse, minishogi,
+      gorogoro(plus), shoshogi, makruk, makrukhouse, makpong, cambodian, plus dragon, shako and
+      asean (all from their rules pages; embassy has none and takes capa's, as its tooltip says
+      "like Capablanca"). **Still letters**, each needing its own names from its rules page:
+      shatranj, hoppelpoppel, sittuyin, manchu's banner, makruk's promoted `m~`, kyoto, dobutsu,
+      tori, yokai, cannonshogi, xiangfu, borderlands, cwda, khans, synochess, shinobi(plus),
+      empire, ordamirror, chak, chennis, spartan, mansindam, ataxx.
 - [ ] 4CD.7 Open: an empty pocket is a bare heading (kept, Nikolay 2026-10-10). Alice reads the
       active board only (kept). Squares stay algebraic for xiangqi-family variants.
 
