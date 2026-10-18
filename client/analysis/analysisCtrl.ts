@@ -44,6 +44,20 @@ import { animatePassMove } from '../passMove';
 import { mergeServerAdvice, renderFullTreePgnMoveText, renderNodeAnnotations } from './analysisTree';
 import { AnalysisTreeController } from './analysisTreeCtrl';
 import { analysisContext, type AnalysisContext } from './analysisContext';
+import { BrowserSearchBackend } from './browserSearchBackend';
+import type { AnalysisSearchBackend, AnalysisSearch } from './searchBackend';
+import { ExternalSearchBackend, ExternalEngineError, externalEngineSupports } from './externalSearchBackend';
+import { externalRulesIni, hashExternalRules } from './externalRules';
+import {
+    preferredEngineSource,
+    saveEngineSource,
+    preferredExternalEngineId,
+    registeredExternalEngines,
+    type ExternalConnection,
+    rememberExternalConnection,
+    forgetExternalConnection,
+    mayRestoreExternalConnection,
+} from './externalEngineSettings';
 import type {
     AnalysisExtension,
     AnalysisEvaluationDelivery,
@@ -97,6 +111,7 @@ export class AnalysisController extends GameController {
     isAnalysisBoard: boolean;
     isEngineReady: boolean;
     arrow: boolean;
+    showServerAnalysis: boolean;
     multipv: number;
     threads: number;
     hash: number;
@@ -124,8 +139,19 @@ export class AnalysisController extends GameController {
     private readonly onKeyboardHelpShortcutKeyDown: (event: KeyboardEvent) => void;
     private readonly onKeyboardHelpKeyDown: (event: KeyboardEvent) => void;
     private readonly pvHoverPreview: PvHoverPreview;
-    private awaitingStopReadyok: boolean;
-    private pendingGoAfterStopReadyok: boolean;
+    private readonly browserSearch: BrowserSearchBackend;
+    private searchBackend: AnalysisSearchBackend;
+    engineSource: 'browser' | 'external' = 'browser';
+    externalEngines: ExternalConnection[] = [];
+    externalEngineId = preferredExternalEngineId();
+    private readonly externalSearch: ExternalSearchBackend;
+    private readonly externalAllowed: boolean;
+    private externalRulesText?: string;
+    private externalRulesInvalid = false;
+    private externalRulesPayload?: Promise<{ ini: string; sha256: string }>;
+    private externalFailure?: string;
+    private searchGeneration = 0;
+    private connectionGeneration = 0;
     private fsfOriginalPrompt?: typeof window.prompt;
     private fsfInputQueue: string[];
     private loadedNnueFilename?: string;
@@ -147,6 +173,12 @@ export class AnalysisController extends GameController {
             '',
         );
         this.analysisContext = analysisContext(model);
+        this.externalAllowed =
+            !model.study?.practice &&
+            model.study?.chapter.mode !== 'practice' &&
+            !this.variant.twoBoards &&
+            !this.variant.hiddenInfo &&
+            !['fogofwar', 'jieqi'].includes(this.variant.name);
         this.tree = new AnalysisTreeController(this);
         this.analysisExtension = extensionFactory?.(this);
         this.pvHoverPreview = new PvHoverPreview(this.variant);
@@ -169,6 +201,7 @@ export class AnalysisController extends GameController {
         };
 
         this.ongoing = this.analysisContext.ongoing;
+        this.showServerAnalysis = analysisSettings.settings['showServerAnalysis'].value as boolean;
 
         // is local stockfish.wasm engine supported at all
         this.localEngine = false;
@@ -215,8 +248,52 @@ export class AnalysisController extends GameController {
         this.importedBy = '';
         this.lastBroadcastLocalAnalysisFen = undefined;
         this.keyboardHelpOpen = false;
-        this.awaitingStopReadyok = false;
-        this.pendingGoAfterStopReadyok = false;
+        this.browserSearch = new BrowserSearchBackend({
+            postMessage: command => this.fsfPostMessage(command),
+            capabilities: () => ({
+                available: this.localEngine && this.isEngineReady,
+                supportsVariant: this.variantSupportedByFSF,
+            }),
+            canSearch: () =>
+                !this.destroyed &&
+                this.engineSource === 'browser' &&
+                this.localAnalysis &&
+                !this.ongoing &&
+                !this.isLocalAnalysisBlockedByAntiCheat() &&
+                this.isLocalAnalysisAllowedByExtension(),
+            onEvaluation: ceval => this.deliverLocalEvaluation(ceval),
+        });
+        this.externalSearch = new ExternalSearchBackend({
+            canSearch: () => this.engineSource === 'external' && this.localAnalysis && this.canUseExternalEngine(),
+            onEvaluation: ceval => {
+                if (
+                    this.destroyed ||
+                    this.engineSource !== 'external' ||
+                    !this.canUseExternalEngine() ||
+                    !this.localAnalysis
+                )
+                    return;
+                if (ceval.p && !this.pvStartsLegalInCurrentPosition(ceval.p)) return;
+                this.deliverLocalEvaluation(ceval);
+            },
+            onStatusChanged: () => {
+                if (this.destroyed) return;
+                this.refreshLocalAnalysisAvailabilityForAntiCheat();
+                analysisSettings.externalEngine.refresh();
+            },
+        });
+        // Keep WASM available while discovering account engines. A saved native
+        // preference takes over only when this page can restore its connection.
+        this.searchBackend = this.browserSearch;
+        try {
+            this.externalRulesText = externalRulesIni(
+                variantConfigIni(variantsIni, this.variant.name),
+                this.engineVariant,
+            );
+        } catch {
+            this.externalFailure = 'rules_mismatch';
+            this.externalRulesInvalid = true;
+        }
         this.fsfInputQueue = [];
         this.onKeyboardHelpShortcutKeyDown = (event: KeyboardEvent) => {
             if (this.keyboardHelpOpen || !isKeyboardHelpShortcut(event)) return;
@@ -269,6 +346,7 @@ export class AnalysisController extends GameController {
                 select: this.onSelect(),
             },
             drawable: {
+                eraseOnClick: this.analysisContext.mode !== 'study',
                 onChange: shapes => this.analysisExtension?.onShapesChanged?.(shapes),
             },
         });
@@ -399,6 +477,9 @@ export class AnalysisController extends GameController {
         }, 0);
 
         analysisSettings.ctrl = this;
+        analysisSettings.externalEngine.refresh();
+        this.refreshEngineLabel();
+        void this.restoreExternalEngine();
 
         Mousetrap.bind('p', () =>
             copyTextToClipboard(`${this.fullfen};variant ${this.variant.name};site ${model.home}/${this.gameId}\n`),
@@ -413,8 +494,13 @@ export class AnalysisController extends GameController {
     override destroy(): void {
         this.cancelAnalysisSession();
         this.analysisExtension?.onDestroy?.();
-        this.engineStop();
+        // fsfPostMessage rejects commands after destruction, including the
+        // browser backend's stop/readiness barrier.
+        this.browserSearch.destroy();
         this.destroyed = true;
+        this.searchGeneration++;
+        this.connectionGeneration++;
+        this.externalSearch.destroy();
         this.restoreFsfPrompt();
         window.removeEventListener('storage', this.onAntiCheatStorage);
         window.removeEventListener('beforeunload', this.onEngineBoardUnload);
@@ -662,7 +748,36 @@ export class AnalysisController extends GameController {
     }
 
     shouldDisplayAnalysisEvaluation(evaluation: AnalysisEvaluationDelivery): boolean {
-        return this.analysisExtension?.onEvaluation?.(evaluation) !== false;
+        const allowed = this.analysisExtension?.onEvaluation?.(evaluation) !== false;
+        return allowed && (evaluation.source === 'local' || this.showServerAnalysis !== false);
+    }
+
+    setServerAnalysisVisibility(visible: boolean): void {
+        this.showServerAnalysis = visible;
+        updateMovelist(this, true, false);
+        const chartEl = document.getElementById('chart-analysis');
+        if (chartEl) {
+            chartEl.style.display = visible && this.steps.some(step => step.analysis !== undefined) ? 'block' : 'none';
+        }
+        if (visible && chartEl && this.analysisContext.capabilities.evalCharts) analysisChart(this);
+        this.analysisExtension?.onServerAnalysisVisibilityChanged?.();
+        if (!this.localAnalysis && this.analysisContext.capabilities.positionEvaluation) {
+            this.clearPvlines();
+            this.autoShapes = Array.from({ length: this.multipv }, () => []);
+            this.chessground.setAutoShapes([]);
+            const step = this.getTreeNodeAtPath(this.analysisPath ?? '')?.step ?? this.steps[this.ply];
+            const allowed =
+                visible &&
+                step &&
+                this.shouldDisplayAnalysisEvaluation({
+                    source: 'stored',
+                    ply: this.ply,
+                    fen: step.fen,
+                    ceval: step.ceval,
+                    scoreStr: step.scoreStr,
+                });
+            this.drawEval(allowed ? step.ceval : undefined, allowed ? step.scoreStr : undefined, this.turnColor);
+        }
     }
 
     toggleSettings() {
@@ -690,6 +805,196 @@ export class AnalysisController extends GameController {
         return this.analysisExtension?.allowComputerSearch?.() !== false;
     }
 
+    canUseExternalEngine(): boolean {
+        return (
+            !this.destroyed &&
+            !this.anon &&
+            this.externalAllowed &&
+            this.analysisContext.capabilities.engineTools &&
+            this.analysisContext.capabilities.localAnalysisAllowed &&
+            !this.isLocalAnalysisBlockedByAntiCheat() &&
+            this.isLocalAnalysisAllowedByExtension()
+        );
+    }
+
+    isSelectedEngineReady(): boolean {
+        if (this.engineSource === 'external') {
+            return (
+                this.canUseExternalEngine() &&
+                !this.externalRulesInvalid &&
+                this.externalSearch.supports({
+                    engineVariant: this.engineVariant,
+                    chess960: this.chess960,
+                    rules: this.externalRulesText ? { ini: this.externalRulesText, sha256: '' } : undefined,
+                })
+            );
+        }
+        return this.localEngine && this.isEngineReady && this.variantSupportedByFSF;
+    }
+
+    get externalEngineStatus() {
+        return this.externalFailure ? 'error' : this.externalSearch.status;
+    }
+
+    supportsExternalEngine(connection: ExternalConnection): boolean {
+        return !this.externalRulesInvalid && externalEngineSupports(connection.engine, {
+            engineVariant: this.engineVariant,
+            chess960: this.chess960,
+            rules: this.externalRulesText ? { ini: this.externalRulesText, sha256: '' } : undefined,
+        });
+    }
+
+    async selectExternalEngine(id: string): Promise<void> {
+        if (!this.canUseExternalEngine()) return;
+        this.externalSearch.disconnect();
+        this.externalEngineId = id;
+        this.externalFailure = undefined;
+        this.selectEngineSource('external');
+        const generation = this.connectionGeneration;
+        try {
+            const engines = await registeredExternalEngines();
+            if (this.destroyed || generation !== this.connectionGeneration) return;
+            this.externalEngines = engines;
+            const connection = engines.find(engine => engine.id === id);
+            if (!connection) throw new ExternalEngineError('engine_unavailable');
+            if (!this.supportsExternalEngine(connection)) throw new ExternalEngineError('unsupported_variant');
+            await this.connectExternalEngine(connection.address, connection.token);
+        } catch (error) {
+            if (this.destroyed || generation !== this.connectionGeneration) return;
+            this.externalFailure = error instanceof ExternalEngineError ? error.code : 'connection_failed';
+            analysisSettings.externalEngine.refresh();
+        }
+    }
+
+    async removeExternalEngine(): Promise<void> {
+        const id = this.externalEngineId;
+        if (!id || !this.canUseExternalEngine()) return;
+        try {
+            const response = await fetch('/api/external-engine/' + encodeURIComponent(id) + '/delete', { method: 'POST' });
+            if (!response.ok) throw new ExternalEngineError('registration_unavailable');
+            if (this.destroyed) return;
+            this.externalEngines = this.externalEngines.filter(engine => engine.id !== id);
+            if (this.externalEngineId === id) {
+                this.disconnectExternalEngine(true);
+                this.externalEngineId = undefined;
+            }
+        } catch {
+            if (this.destroyed || this.externalEngineId !== id) return;
+            this.externalFailure = 'registration_unavailable';
+        }
+        analysisSettings.externalEngine.refresh();
+    }
+
+    externalEngineStatusText(): string {
+        if (!this.canUseExternalEngine()) return _('External engines are unavailable on this page.');
+        const code = this.externalFailure ?? this.externalSearch.errorCode;
+        if (code === 'invalid_address') return _('Use a local address such as http://127.0.0.1:9670.');
+        if (code === 'invalid_pairing' || code === 'pairing_required')
+            return _('Start your local engine app, then select your engine again.');
+        if (code === 'engine_unavailable') return _('Start your local engine app, then reload this page.');
+        if (code === 'registration_unavailable') return _('Unable to load your engines. Reload this page to try again.');
+        if (code === 'engine_busy') return _('Another tab is using the engine. Stop analysis there and try again.');
+        if (
+            [
+                'unsupported_variant',
+                'unsupported_rules',
+                'incompatible_rules',
+                'rules_mismatch',
+                'invalid_rules',
+            ].includes(code ?? '')
+        )
+            return _('Your engine and rules library cannot use this variant definition.');
+        if (code === 'connection_failed')
+            return _('Unable to connect. Start the local app and allow local network access in your browser.');
+        if (code) return _('External analysis failed. Check the local app and reconnect.');
+        if (this.externalSearch.status === 'loading') return _('Connecting…');
+        if (this.externalSearch.status === 'disconnected') return _('Disconnected');
+        if (this.engineSource === 'external' && !this.isSelectedEngineReady())
+            return _('This engine cannot analyse this variant.');
+        return this.externalSearch.engineCapabilities?.name ?? _('Disconnected');
+    }
+
+    selectEngineSource(source: 'browser' | 'external'): void {
+        if (source === 'external' && !this.canUseExternalEngine()) return;
+        this.connectionGeneration++;
+        this.engineStop();
+        // Cancel pending pairing as well as searches when changing source.
+        this.externalSearch.stop();
+        this.engineSource = source;
+        this.searchBackend = source === 'external' ? this.externalSearch : this.browserSearch;
+        saveEngineSource(source);
+        this.refreshEngineLabel();
+        this.refreshLocalAnalysisAvailabilityForAntiCheat();
+        analysisSettings.externalEngine.refresh();
+        this.pvboxIni();
+    }
+
+    async connectExternalEngine(address: string, token: string): Promise<void> {
+        if (!this.canUseExternalEngine()) return;
+        this.engineStop();
+        const generation = ++this.connectionGeneration;
+        this.engineSource = 'external';
+        this.searchBackend = this.externalSearch;
+        this.externalFailure = undefined;
+        this.refreshEngineLabel();
+        try {
+            await this.externalSearch.connect(address, token);
+            if (this.destroyed || generation !== this.connectionGeneration) return;
+            const registration = this.externalEngines.find(engine => engine.id === this.externalEngineId);
+            if (registration) rememberExternalConnection(registration);
+            saveEngineSource('external');
+            this.refreshEngineLabel();
+            this.refreshLocalAnalysisAvailabilityForAntiCheat();
+            this.pvboxIni();
+        } catch (error) {
+            if (this.destroyed || generation !== this.connectionGeneration) return;
+            this.externalFailure = error instanceof ExternalEngineError ? error.code : 'connection_failed';
+        }
+        this.refreshEngineLabel();
+        analysisSettings.externalEngine.refresh();
+    }
+
+    disconnectExternalEngine(forget = false): void {
+        this.connectionGeneration++;
+        this.externalSearch.disconnect();
+        this.externalFailure = undefined;
+        if (forget) forgetExternalConnection();
+        this.selectEngineSource('browser');
+    }
+
+    private async restoreExternalEngine(): Promise<void> {
+        if (this.anon || !this.externalAllowed) return;
+        const generation = this.connectionGeneration;
+        const restore = preferredEngineSource() === 'external';
+        try {
+            const engines = await registeredExternalEngines();
+            if (this.destroyed || generation !== this.connectionGeneration) return;
+            this.externalEngines = engines;
+            analysisSettings.externalEngine.refresh();
+        } catch {
+            return;
+        }
+        const connection = this.externalEngines.find(engine => engine.id === this.externalEngineId);
+        if (!restore || !connection || !this.canUseExternalEngine() || !this.supportsExternalEngine(connection)) return;
+        if (!(await mayRestoreExternalConnection(connection.address))) return;
+        if (this.destroyed || generation !== this.connectionGeneration || !this.canUseExternalEngine()) return;
+        await this.connectExternalEngine(connection.address, connection.token);
+        // Explicit selection keeps its actionable connection error. Automatic
+        // restoration falls back without overriding a later user selection.
+        if (!this.destroyed && this.connectionGeneration === generation + 1 && this.externalFailure)
+            this.disconnectExternalEngine();
+    }
+
+    private refreshEngineLabel(): void {
+        const label = document.getElementById('analysis-engine-name');
+        if (label)
+            label.textContent =
+                this.engineSource === 'external'
+                    ? (this.externalSearch.engineCapabilities?.name ?? _('External engine')) + ' '
+                    : 'Fairy-Stockfish 14+ ';
+        this.refreshNnueIndicator();
+    }
+
     refreshLocalAnalysisAvailabilityForAntiCheat() {
         const blocked = this.isLocalAnalysisBlockedByAntiCheat();
         const extensionAllowed = this.isLocalAnalysisAllowedByExtension();
@@ -702,10 +1007,9 @@ export class AnalysisController extends GameController {
                 !this.analysisContext.capabilities.localAnalysisAllowed ||
                 blocked ||
                 !extensionAllowed ||
-                !this.localEngine ||
-                !this.isEngineReady ||
-                !this.variantSupportedByFSF;
+                !this.isSelectedEngineReady();
         }
+        analysisSettings.externalEngine.refresh();
         this.analysisExtension?.onComputerSearchAvailabilityChanged?.();
     }
 
@@ -722,7 +1026,7 @@ export class AnalysisController extends GameController {
     }
 
     nnueClear() {
-        const restartAnalysis = this.localAnalysis && this.isEngineReady;
+        const restartAnalysis = this.engineSource === 'browser' && this.localAnalysis && this.isEngineReady;
         if (restartAnalysis) this.engineStop();
 
         if (this.loadedNnueFilename && window.fsf) {
@@ -742,6 +1046,13 @@ export class AnalysisController extends GameController {
     refreshNnueIndicator() {
         const nnueEl = document.querySelector('.nnue') as HTMLElement | null;
         if (!nnueEl) return;
+        if (this.engineSource === 'external') {
+            patch(
+                nnueEl,
+                h('span.nnue', { props: { title: _('Engine and networks configured in the local app.') } }, 'NATIVE'),
+            );
+            return;
+        }
 
         const active = this.nnue && this.nnueOk && this.evalFile !== '';
         const title = active
@@ -774,7 +1085,7 @@ export class AnalysisController extends GameController {
             return;
         }
 
-        const restartAnalysis = this.localAnalysis && this.isEngineReady;
+        const restartAnalysis = this.engineSource === 'browser' && this.localAnalysis && this.isEngineReady;
         if (restartAnalysis) this.engineStop();
 
         if (this.loadedNnueFilename && this.loadedNnueFilename !== filename) {
@@ -864,8 +1175,8 @@ export class AnalysisController extends GameController {
             loaderEl.style.display = 'block';
         }
         const chartEl = document.getElementById('chart-analysis') as HTMLElement;
-        chartEl.style.display = 'block';
-        analysisChart(this);
+        chartEl.style.display = this.showServerAnalysis ? 'block' : 'none';
+        if (this.showServerAnalysis) analysisChart(this);
     };
 
     checkStatus(msg: MsgBoard | MsgAnalysisBoard) {
@@ -1163,14 +1474,9 @@ export class AnalysisController extends GameController {
 
         if (line.includes('readyok')) {
             this.isEngineReady = true;
-            if (this.awaitingStopReadyok) {
-                this.awaitingStopReadyok = false;
-                if (this.pendingGoAfterStopReadyok && this.localAnalysis) {
-                    this.pendingGoAfterStopReadyok = false;
-                    this.engineGo();
-                }
-            }
+            this.browserSearch.onReady();
         }
+        if (line.startsWith('bestmove')) this.browserSearch.onCompleted();
 
         if (line.startsWith('Fairy-Stockfish')) {
             this.loadVariantsIntoFsfEngine();
@@ -1185,12 +1491,12 @@ export class AnalysisController extends GameController {
 
             window.addEventListener('beforeunload', this.onEngineBoardUnload);
 
-            if (this.localAnalysis) this.pvboxIni();
+            if (this.localAnalysis && this.engineSource === 'browser') this.pvboxIni();
         }
 
         this.refreshLocalAnalysisAvailabilityForAntiCheat();
 
-        if (!this.localAnalysis || !this.isEngineReady || this.awaitingStopReadyok) return;
+        if (!this.browserSearch.canDeliverEvaluation) return;
 
         const matches = line.match(EVAL_REGEX);
         if (!matches) {
@@ -1227,7 +1533,10 @@ export class AnalysisController extends GameController {
         } else {
             score = { cp: povEv };
         }
-        const knps = nodes / elapsedMs;
+        this.browserSearch.deliver({ d: depth, multipv: multiPv, p: moves, s: score, k: nodes / elapsedMs });
+    };
+
+    private deliverLocalEvaluation(ceval: Ceval): void {
         if (this.lastBroadcastLocalAnalysisFen !== this.fullfen) {
             publishCevalPosition(buildCevalPositionPayload(this.variant.name, this.chess960, this.fullfen));
             this.lastBroadcastLocalAnalysisFen = this.fullfen;
@@ -1236,10 +1545,10 @@ export class AnalysisController extends GameController {
             type: 'local-analysis',
             ply: this.ply,
             color: this.turnColor.slice(0, 1),
-            ceval: { d: depth, multipv: multiPv, p: moves, s: score, k: knps },
+            ceval,
         };
         this.onMsgAnalysis(msg);
-    };
+    }
 
     onMoreDepth = () => {
         this.maxDepth = 99;
@@ -1300,8 +1609,8 @@ export class AnalysisController extends GameController {
         const gaugeEl = document.getElementById('gauge') as HTMLElement | null;
         if (gaugeEl) {
             const fillEl = gaugeEl.querySelector('div.fill') as HTMLElement | null;
-            if (fillEl && ceval !== undefined) {
-                const score = ceval.s;
+            if (fillEl) {
+                const score = ceval?.s;
                 if (score !== undefined) {
                     const ev = povChances(turnColor, score);
                     fillEl.style.height = String(100 - (ev + 1) * 50) + '%';
@@ -1416,6 +1725,7 @@ export class AnalysisController extends GameController {
 
     // Updates chart and score in movelist
     drawServerEval = (ply: number, scoreStr?: string) => {
+        if (this.showServerAnalysis === false) return;
         if (ply > 0) {
             const evalEl = document.getElementById('ply' + String(ply)) as HTMLElement;
             if (evalEl) patch(evalEl, h('eval#ply' + String(ply), scoreStr));
@@ -1433,55 +1743,66 @@ export class AnalysisController extends GameController {
 
     /** True when extension-owned bounded searches may safely take over the shared engine. */
     isPracticeEngineIdle(): boolean {
-        return !this.awaitingStopReadyok && !this.pendingGoAfterStopReadyok;
+        return this.browserSearch.idle;
     }
 
     engineStop = () => {
-        // Keep the toggle enabled, but still synchronize restart sequencing.
-        // We wait for the matching `readyok` before sending the next `position/go`
-        // so stale PV output from the previous position does not flood the UI.
-        this.awaitingStopReadyok = true;
-        this.pendingGoAfterStopReadyok = false;
-        this.fsfPostMessage('stop');
-        this.fsfPostMessage('isready');
+        this.searchGeneration++;
+        this.searchBackend.stop();
     };
 
     engineGo = () => {
-        if (!this.variantSupportedByFSF) return;
-        if (this.awaitingStopReadyok) {
-            this.pendingGoAfterStopReadyok = true;
+        if (
+            !this.localAnalysis ||
+            this.ongoing ||
+            this.isLocalAnalysisBlockedByAntiCheat() ||
+            !this.isLocalAnalysisAllowedByExtension()
+        )
+            return;
+        this.lastBroadcastLocalAnalysisFen = undefined;
+        const search: AnalysisSearch = {
+            variant: this.variant.name,
+            engineVariant: this.engineVariant,
+            chess960: this.chess960,
+            initialFen: this.steps[0]?.fen ?? this.fullfen,
+            currentFen: this.fullfen,
+            moves: [...this.UCImovelist],
+            threads: this.threads,
+            hash: this.hash,
+            multiPv: this.multipv,
+            maxDepth: this.maxDepth,
+            nnue: { file: this.evalFile, enabled: this.nnueOk && this.nnue },
+        };
+        if (this.engineSource === 'browser') {
+            this.searchBackend.start(search);
             return;
         }
-        this.pendingGoAfterStopReadyok = false;
-        this.lastBroadcastLocalAnalysisFen = undefined;
-
-        // A Study keeps the engine alive while switching chapters and variants.
-        this.fsfPostMessage('setoption name UCI_Variant value ' + this.engineVariant);
-        this.fsfPostMessage('setoption name UCI_Chess960 value ' + this.chess960);
-        if (this.evalFile === '' || !this.nnueOk || !this.nnue) {
-            this.fsfPostMessage('setoption name Use NNUE value false');
-        } else {
-            this.fsfPostMessage('setoption name Use NNUE value true');
-            this.fsfPostMessage('setoption name EvalFile value ' + this.evalFile);
-        }
-
-        this.fsfPostMessage('setoption name Hash value ' + this.hash);
-
-        this.fsfPostMessage('setoption name Threads value ' + this.threads);
-
-        this.fsfPostMessage('setoption name MultiPV value ' + this.multipv);
-
-        let position: string = 'position fen ' + this.fullfen;
-        if (this.UCImovelist.length > 0) {
-            position = 'position fen ' + this.steps[0].fen + ' moves ' + this.UCImovelist.join(' ');
-        }
-        this.fsfPostMessage(position);
-
-        if (this.maxDepth >= 99) {
-            this.fsfPostMessage('go depth 99');
-        } else {
-            this.fsfPostMessage('go movetime 90000 depth ' + this.maxDepth);
-        }
+        if (!this.isSelectedEngineReady()) return;
+        const generation = ++this.searchGeneration;
+        const path = this.analysisPath;
+        const session = this.analysisSessionGeneration;
+        if (this.externalRulesText && !this.externalRulesPayload)
+            this.externalRulesPayload = hashExternalRules(this.externalRulesText);
+        void (this.externalRulesPayload ?? Promise.resolve(undefined))
+            .then(rules => {
+                if (
+                    this.destroyed ||
+                    generation !== this.searchGeneration ||
+                    search.currentFen !== this.fullfen ||
+                    path !== this.analysisPath ||
+                    !this.isAnalysisSessionCurrent(session) ||
+                    this.engineSource !== 'external' ||
+                    !this.localAnalysis ||
+                    !this.canUseExternalEngine()
+                )
+                    return;
+                this.externalSearch.start({ ...search, rules });
+            })
+            .catch(() => {
+                if (generation !== this.searchGeneration || this.destroyed) return;
+                this.externalFailure = 'rules_mismatch';
+                analysisSettings.externalEngine.refresh();
+            });
     };
 
     fsfPostMessage(msg: string, debug = true) {
@@ -1704,6 +2025,8 @@ export class AnalysisController extends GameController {
                 if (displayEvaluation) {
                     this.drawEval(step.ceval, step.scoreStr, step.turnColor);
                     if (node.mainlinePly !== undefined) this.drawServerEval(node.mainlinePly, step.scoreStr);
+                } else if (this.showServerAnalysis === false) {
+                    this.drawEval(undefined, undefined, step.turnColor);
                 }
             }
 
@@ -1768,6 +2091,8 @@ export class AnalysisController extends GameController {
             if (displayEvaluation) {
                 this.drawEval(step.ceval, step.scoreStr, step.turnColor);
                 this.drawServerEval(ply, step.scoreStr);
+            } else if (this.showServerAnalysis === false) {
+                this.drawEval(undefined, undefined, step.turnColor);
             }
         }
 

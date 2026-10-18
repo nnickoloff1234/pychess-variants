@@ -23,14 +23,18 @@ import {
 import { AnalysisController } from './analysisCtrl';
 import { patch } from '../document';
 import { updateMovelist } from '../movelist';
+import { ExternalEngineSettings } from './externalEngineSettings';
 
 class AnalysisSettings {
     ctrl: AnalysisController;
     settings: { [key: string]: Settings<number | boolean | string> };
     assetURL: string;
+    readonly externalEngine = new ExternalEngineSettings(() => this.ctrl);
 
     constructor() {
         this.settings = {};
+        this.settings['showServerAnalysis'] = new ServerAnalysisSettings(this);
+        this.settings['showGauge'] = new GaugeSettings();
         this.settings['arrow'] = new ArrowSettings(this);
         this.settings['inlineNotation'] = new InlineNotationSettings(this);
         this.settings['disclosureMode'] = new DisclosureModeSettings(this);
@@ -57,33 +61,62 @@ class AnalysisSettings {
     }) {
         if (!variant.name) return h('div.analysis-settings');
 
-        const settingsList: VNode[] = [];
-
-        settingsList.push(this.settings['multipv'].view());
-
-        settingsList.push(this.settings['threads'].view());
-
-        settingsList.push(this.settings['hash'].view());
-
-        settingsList.push(this.settings['arrow'].view());
-
-        settingsList.push(this.settings['inlineNotation'].view());
-
-        settingsList.push(this.settings['disclosureMode'].view());
-
-        settingsList.push(this.settings['infiniteAnalysis'].view());
-
-        settingsList.push(this.settings['nnue'].view());
-
         const nnueFileSettings = this.getSettings(variant.name);
         nnueFileSettings.setLookupContext(nnueLookupContextForVariant(variant));
-        settingsList.push(nnueFileSettings.view());
 
-        settingsList.push(this.settings['fsfDebug'].view());
+        return h('div.analysis-settings', [
+            this.externalEngine.view(),
+            h('div.analysis-settings-group', [
+                this.settings['multipv'].view(),
+                this.settings['threads'].view(),
+                this.settings['hash'].view(),
+            ]),
+            h('div.analysis-settings-group', [
+                this.settings['showServerAnalysis'].view(),
+                this.settings['showGauge'].view(),
+                this.settings['arrow'].view(),
+                this.settings['inlineNotation'].view(),
+                this.settings['disclosureMode'].view(),
+                this.settings['infiniteAnalysis'].view(),
+            ]),
+            h('div.analysis-settings-group.browser-engine-settings', [
+                this.settings['nnue'].view(),
+                nnueFileSettings.view(),
+            ]),
+            h('div.analysis-settings-group.browser-engine-settings', [this.settings['fsfDebug'].view()]),
+        ]);
+    }
+}
 
-        settingsList.push();
+class ServerAnalysisSettings extends BooleanSettings {
+    constructor(private readonly analysisSettings: AnalysisSettings) {
+        super('showServerAnalysis', true);
+    }
 
-        return h('div.analysis-settings', settingsList);
+    update(): void {
+        this.analysisSettings.ctrl.setServerAnalysisVisibility(this.value);
+    }
+
+    view(): VNode {
+        return h(
+            'div.serverAnalysis-toggle',
+            toggleSwitch(this, 'serverAnalysis-enabled', _('Show server analysis'), false),
+        );
+    }
+}
+
+class GaugeSettings extends BooleanSettings {
+    constructor() {
+        super('showGauge', true);
+    }
+
+    update(): void {
+        document.querySelector('.analysis-app')?.classList.toggle('gauge-off', !this.value);
+        window.dispatchEvent(new Event('resize'));
+    }
+
+    view(): VNode {
+        return h('div.gauge-toggle', toggleSwitch(this, 'gauge-enabled', _('Show evaluation gauge'), false));
     }
 }
 
@@ -240,10 +273,8 @@ const isIPad = (): boolean => navigator?.maxTouchPoints > 2 && /iPad|Macintosh/.
 // steer the high performance crowd towards external engine as it gets better
 const maxHashMB = (): number => {
     let maxHash = 512; // allocating 1024 often fails and offers little benefit over 512, or 16 for that matter
-    if (isAndroid())
-        maxHash = 64; // budget androids are easy to crash @ 128
-    else if (isIPad())
-        maxHash = 64; // iPadOS safari pretends to be desktop but acts more like iphone
+    if (isAndroid()) maxHash = 64; // budget androids are easy to crash @ 128
+    else if (isIPad()) maxHash = 64; // iPadOS safari pretends to be desktop but acts more like iphone
     else if (isIOS()) maxHash = 32;
     return maxHash;
 };
@@ -294,13 +325,7 @@ class NnueSettings extends BooleanSettings {
     }
 
     view(): VNode {
-        return h('div.nnue-toggle-settings', [
-            h('div.nnue-toggle', toggleSwitch(this, 'nnue-enabled', _('Use NNUE'), false)),
-            h(
-                'small.nnue-toggle-help',
-                _('Uses the installed NNUE network when available. Downloads are managed separately.'),
-            ),
-        ]);
+        return h('div.nnue-toggle', toggleSwitch(this, 'nnue-enabled', _('Use NNUE'), false));
     }
 }
 
@@ -685,9 +710,7 @@ export class EngineSettings extends BooleanSettings {
                 !this.ctrl.analysisContext.capabilities.localAnalysisAllowed ||
                     this.ctrl.isLocalAnalysisBlockedByAntiCheat() ||
                     !this.ctrl.isLocalAnalysisAllowedByExtension() ||
-                    !this.ctrl.localEngine ||
-                    !this.ctrl.isEngineReady ||
-                    !this.ctrl.variantSupportedByFSF,
+                    !this.ctrl.isSelectedEngineReady(),
             ),
         );
     }

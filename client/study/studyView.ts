@@ -17,7 +17,8 @@ import { _, ngettext } from '../i18n';
 import { updateMovelist } from '../movelist';
 import { renderLinkifiedText } from '../richTextEnhance';
 import type { PyChessModel, StudyFeatureSelection, StudyPageModel } from '../types';
-import { loadCataloguedVariantsFromJson, variantConfigIni } from '../variants';
+import { activateStudyEngineRules, loadCataloguedVariantsFromJson, variantConfigIni } from '../variants';
+import { buildStudyEngineRules } from './variantRules';
 import { variantsIni } from '../variantsIni';
 import { createWebsocket } from '../socket/webSocketUtils';
 import { displayUsername, userLink } from '../user';
@@ -2683,6 +2684,7 @@ function runStudyGround(
                     study.serverAnalysisError = undefined;
                     updateStudyServerEvalContent(study, modeActions);
                 },
+                onServerAnalysisVisibilityChanged: () => modeActions.showServerAnalysis?.(),
                 onServerAnalysisUnavailable: reason => {
                     study.serverAnalysisError = reason;
                     updateStudyServerEvalContent(study, modeActions);
@@ -2971,6 +2973,9 @@ function runStudyGround(
             // the current board. Alice and the ordinary variants use separate modules.
             analysisTreeFromStudy(data.board.steps[0], data.study.chapter.tree);
             const alice = data.study.chapter.variant === 'alice';
+            const rules = data.study.chapter.variantIni
+                ? await buildStudyEngineRules(data.study.chapter.variant, variantsIni, data.cataloguedVariants)
+                : undefined;
             const ffish = await loadStudyModule(alice);
             await ctrl.whenEngineConfigured();
             if (!isCurrent()) return;
@@ -3009,6 +3014,7 @@ function runStudyGround(
             };
             updateStudyUnderboardChapter(study, model, modeActions, practiceProgress);
             loadCataloguedVariantsFromJson(JSON.stringify(data.cataloguedVariants));
+            activateStudyEngineRules(rules);
             ffish.loadVariantConfig(variantConfigIni(variantsIni, model.variant));
             document.body.dataset.variant = model.variant;
             document.title = studyDocumentTitle(study);
@@ -3260,6 +3266,7 @@ export function studyView(model: PyChessModel): VNode[] {
     page[0].data = {
         ...page[0].data,
         class: {
+            ...page[0].data?.class,
             'study-app': true,
             'has-players': studyHasGamePlayers(study),
             'study-conceal-playback': isConcealPlayback(effectiveStudySessionPolicy(study)),

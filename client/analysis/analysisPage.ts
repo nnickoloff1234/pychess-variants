@@ -42,7 +42,7 @@ export function renderAnalysisPage(model: PyChessModel, parts: AnalysisPageParts
            `complementary`: a screen reader's landmark jump landed in the sidebar and the board
            belonged to no region at all. The round pages have had `main` all along
            (`main.ts:212`). */
-        h('main.analysis-app', [
+        h('main.analysis-app', { class: { 'gauge-off': !analysisSettings.settings['showGauge'].value } }, [
             pageHeading(),
             h('aside.sidebar-first', parts.side),
             h(`selection#mainboard.${variant.boardFamily}.${variant.pieceFamily}.${variant.ui.boardMark}`, [
@@ -82,7 +82,7 @@ export function analysisTools(isOngoingGame: boolean = false, afterMoves?: VNode
                   h('div.engine', [
                       h('score#score', ''),
                       h('div.info', [
-                          'Fairy-Stockfish 14+ ',
+                          h('span#analysis-engine-name', 'Fairy-Stockfish 14+ '),
                           h(
                               'span.nnue',
                               { props: { title: _('Multi-threaded WebAssembly (classical evaluation)') } },

@@ -2,6 +2,7 @@ import { h, InsertHook, VNode } from 'snabbdom';
 
 import * as cg from 'chessgroundx/types';
 import * as util from 'chessgroundx/util';
+import { read as readFen } from 'chessgroundx/fen';
 
 import { registerCataloguedPremove, unregisterCataloguedPremove } from './cataloguedPremove';
 
@@ -132,6 +133,11 @@ export const BOARD_FAMILIES: Record<string, BoardFamily> = {
         dimensions: { width: 7, height: 9 },
         cg: 'cg-448-664',
         boardCSS: ['YariPlain.svg'],
+    },
+    shogi6x6: {
+        dimensions: { width: 6, height: 6 },
+        cg: 'cg-312',
+        boardCSS: ['judkins.svg'],
     },
     shogi5x5: {
         dimensions: { width: 5, height: 5 },
@@ -290,7 +296,7 @@ const ORDA_NAMES: PieceNameTable = {
 
 export const PIECE_FAMILIES: Record<string, PieceFamily> = {
     amazons: { pieceCSS: ['classic', 'arrow', 'disguised'], wallCSS: ['classic', 'arrow'] },
-    paradigm: { pieceCSS: ["paradigm0", "paradigm1", "paradigm2", "paradigm3", "disguised"] },
+    paradigm: { pieceCSS: ['paradigm0', 'paradigm1', 'paradigm2', 'paradigm3', 'disguised'] },
     ataxx: { pieceCSS: ['disguised', 'virus', 'zombie', 'cat-dog'] },
     standard: {
         pieceNames: CHESS_NAMES,
@@ -402,6 +408,7 @@ export const PIECE_FAMILIES: Record<string, PieceFamily> = {
     },
     shatranj: { pieceCSS: ['shatranj0', 'shatranj1', 'disguised'] },
     courier: { pieceCSS: ['courier', 'disguised'] },
+    opulent: { pieceCSS: ['opulent', 'disguised'] },
     shako: {
         pieceCSS: ['shako0', 'shako1', 'shako2', 'disguised'],
         pieceNames: { ...CHESS_NAMES, e: _('elephant'), c: _('cannon') },
@@ -2206,6 +2213,11 @@ export interface CataloguedVariantClientDocument {
 }
 
 const cataloguedVariantInis: Record<string, string> = {};
+let studyEngineRules: { variant: string; engineVariant: string; ini: string } | undefined;
+
+export function activateStudyEngineRules(rules: typeof studyEngineRules): void {
+    studyEngineRules = rules;
+}
 const cataloguedVariantBaseNames: Record<string, string> = {};
 const cataloguedVariantNames = new Set<string>();
 const favoriteCataloguedVariantNames = new Set<string>();
@@ -2215,6 +2227,7 @@ export function allVariantsIni(baseIni: string): string {
 }
 
 export function variantConfigIni(baseIni: string, variantName: string): string {
+    if (studyEngineRules?.variant === variantName) return [baseIni, studyEngineRules.ini].filter(Boolean).join('\n');
     const requiredInis: string[] = [];
     const seen = new Set<string>();
     let name = variantName;
@@ -3158,8 +3171,16 @@ export function moddedVariant(
     castling: string,
     initialFen: string = '',
 ): string {
+    if (studyEngineRules?.variant === variantName) return studyEngineRules.engineVariant;
     if (variantName === 'cwda') return cwdaEngineVariant(initialFen);
     if (!chess960 && ['capablanca', 'capahouse'].includes(variantName)) {
+        // Preserve the original castling profile when replaying a game or tree.
+        // Current kings/rights can no longer identify it after castling.
+        const root = initialFen.split(' ');
+        if (initialFen && root.length >= 3) {
+            pieces = readFen(initialFen, { width: 10, height: 8 }).pieces;
+            castling = root[2];
+        }
         const whiteKing = pieces.get('e1');
         const blackKing = pieces.get('e8');
         const whiteCanCastle =
