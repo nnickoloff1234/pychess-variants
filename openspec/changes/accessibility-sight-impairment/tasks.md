@@ -1592,8 +1592,19 @@ starts. Already known to belong here:
 
 ### 4F. Candidate F — the board layer. Task list written 2026-10-25.
 
-The design is `candidates.md`, "F(vi) REVISED"; 3.4h holds the decisions. One widget file under
-`client/accessibility/`, view plus controller like the board summary, owned per board.
+The design is `candidates.md`, "F(vi) REVISED"; 3.4h holds the decisions.
+
+**Implementation shape, decided by Nikolay 2026-10-25.** All the logic in one file,
+`client/accessibility/chessgroundKeyboard.ts`, class **`ChessgroundKeyboard`** (the name says its
+proper home is chessground, Q4; the pychess-only parts — `pieceName()`, the variant square names,
+`l`/`t` reading the summary — stay visible as such). Existing files change only to plug it in.
+**No placeholders:** the page view constructs it (`new ChessgroundKeyboard(variant, boardName)`),
+puts `boardView()` beside `div.cg-wrap` and `pocketView('top' | 'bottom')` beside `#pocket0` /
+`#pocket1` (retained vnodes through `insert` hooks, no ids), and passes it through `runGround()` into
+the controller's constructor, which calls `attach(chessground, boardSummary)` — so the first paint
+(4CD.3) labels the board too — and `update()` wherever the summary updates and on a flip. Three
+views, not one composed view: the pockets sit apart from the board, with clocks and players between.
+`f` is not handled; it bubbles to the existing Mousetrap flip. 4F.11's first pass is confirmed.
 
 - [ ] 4F.1 **The layer.** A sibling of `div.cg-wrap` inside the board's `selection`, covering the same
       box: a CSS grid of `width x height` `<button>`s in percentages, `pointer-events: none`,
@@ -1620,7 +1631,7 @@ The design is `candidates.md`, "F(vi) REVISED"; 3.4h holds the decisions. One wi
 - [ ] 4F.9 **The focus ring:** styled to read on light and dark squares, checked on a light and a
       dark board theme; keyboard only (`:focus-visible`), so mouse users see nothing new.
 - [ ] 4F.10 **An `h2` "Board" heading** before the layer (3.4h Q1 addendum (a); the string exists).
-- [ ] 4F.11 **Board keys, first pass — PROPOSED, to confirm with 4EF.4.** lichess's: `l` last move,
+- [ ] 4F.11 **Board keys, first pass — CONFIRMED by Nikolay 2026-10-25.** lichess's: `l` last move,
       `t` clocks (with 4RA3.2), `f` flip, `k q r b n p` (and the variant's letters) jump to the next
       piece of that type, `1`-`9` ranks / `Shift` files, `m` legal moves of the selected piece. Later:
       `x` the attack rays, variant help.
