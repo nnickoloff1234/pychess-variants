@@ -1732,8 +1732,14 @@ views, not one composed view: the pockets sit apart from the board, with clocks 
       Confirmation on selecting h8 and the pocket knight; Error on the empty pocket pawn; the
       symlinked files are served as audio (nes, piano, sfx, robot: 200, real sizes).
       Original task: Sounds (4EF.7): bump, `select`, `error`.
-- [ ] 4F.9 **The focus ring:** styled to read on light and dark squares, checked on a light and a
-      dark board theme; keyboard only (`:focus-visible`), so mouse users see nothing new.
+- [x] 4F.9 **CLOSED 2026-10-25, no change: the browser's own ring is kept.** Chrome draws
+      `:focus-visible` on the square button as a two-tone ring (blue outside, white inside), so it
+      reads on any colour. Checked by screenshot on the cursor square: brown (light square with the
+      last-move highlight), and on an empty dark square (d8) on the blue, green, wood4 and purple
+      themes — clearly visible on all. Keyboard only, so mouse users see nothing new. Not checked:
+      Firefox's and Safari's own rings. Original task: styled to read on light and dark squares,
+      checked on a light and a dark board theme; keyboard only (`:focus-visible`), so mouse users
+      see nothing new.
 - [ ] 4F.10 **An `h2` "Board" heading** before the layer (3.4h Q1 addendum (a); the string exists).
 - [ ] 4F.11 **Board keys, first pass — CONFIRMED by Nikolay 2026-10-25.** lichess's: `l` last move,
       `t` clocks (with 4RA3.2), `f` flip, `k q r b n p` (and the variant's letters) jump to the next
