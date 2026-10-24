@@ -1,10 +1,12 @@
 import { h, VNode } from 'snabbdom';
+import * as cg from 'chessgroundx/types';
 import * as util from 'chessgroundx/util';
 import { Api } from 'chessgroundx/api';
 
 import { patch } from '@/document';
-import { Variant } from '@/variants';
+import { pieceName, Variant } from '@/variants';
 import { BoardName } from '@/types';
+import { colorName, squareName } from './boardSummary';
 
 /**
  * Keyboard access to a chessgroundx board: one button per square, laid over the board.
@@ -37,6 +39,14 @@ export class ChessgroundKeyboard {
         this.boardVNode = patch(this.boardVNode, this.renderBoard());
     }
 
+    // "e4 White pawn"; an empty square is just its name. Squares in the variant's own notation.
+    private label(key: cg.Key): string {
+        const square = squareName(key, this.variant.notation, this.variant.board.dimensions);
+        const piece = this.chessground?.state.boardState.pieces.get(key);
+        if (piece === undefined) return square;
+        return `${square} ${colorName(this.variant, piece.color)} ${pieceName(this.variant, piece.role, piece.color)}`;
+    }
+
     // Rows top to bottom as the player sees them, so the reading order follows the screen.
     private renderBoard(): VNode {
         const { width, height } = this.variant.board.dimensions;
@@ -46,7 +56,12 @@ export class ChessgroundKeyboard {
         for (let row = 0; row < height; row++) {
             for (let col = 0; col < width; col++) {
                 const key = util.pos2key(asWhite ? [col, height - 1 - row] : [width - 1 - col, row]);
-                squares.push(h('button', { key, attrs: { type: 'button', tabindex: '-1', 'data-key': key } }));
+                squares.push(
+                    h('button', {
+                        key,
+                        attrs: { type: 'button', tabindex: '-1', 'data-key': key, 'aria-label': this.label(key) },
+                    }),
+                );
             }
         }
         return h(

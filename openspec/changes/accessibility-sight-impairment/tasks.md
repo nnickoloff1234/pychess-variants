@@ -618,7 +618,7 @@ changes ... later we might think of a full solution, but for now we start with s
       so Mousetrap on `document` never sees them. `:focus-visible` is not needed.
       **Q1(d): lichess's plain board** — `<button>`s, no role, the user enters focus mode by hand as
       on lichess; one improvement, a roving tabindex (one tab stop, lichess has 64). Label: square
-      first, then the piece (`pieceName()`), or `+`/`-` for an empty dark/light square. Arrows
+      first, then the piece (`pieceName()`); an empty square is just its name (4F.2). Arrows
       follow the orientation; at the edge focus stays and a bump sound plays, nothing spoken. The
       table layout is not built (redundant with the square names and board keys; a later setting if
       asked). **Q2:** our user's model, see `candidates.md`; entering a pocket lands on its first
@@ -1621,7 +1621,15 @@ views, not one composed view: the pockets sit apart from the board, with clocks 
       box: a CSS grid of `width x height` `<button>`s in percentages, `pointer-events: none`,
       visually transparent. Row and column order from the orientation. The code comment: temporary,
       its proper home is chessgroundx, to be proposed upstream (Q4).
-- [ ] 4F.2 **Labels.** Square first, in the variant's notation (as the summary: shogi `76`, janggi
+- [x] 4F.2 **DONE 2026-10-25.** `aria-label` = square in the variant's notation, then the variant's
+      colour name and `pieceName()`: "e4 White pawn". **An empty square says only its name
+      (Nikolay 2026-10-25), on every board:** lichess's `+`/`-` (dark/light) was dropped, since many
+      of our boards (shogi, xiangqi, janggi, ataxx, makruk, sittuyin) have no square colours and
+      the parity rule would be false there. `squareName()` and a new `colorName()` are exported from
+      `boardSummary.ts`, so both widgets say the same words. Verified live: crazyhouse both sides
+      (after 1. e4 e5: "e4 White pawn", "e5 Black pawn", empty "e2"/"e7"), and shogi both sides
+      ("91 White lance" top-left for sente, "19 Black lance" for gote, "28 Black rook", "55").
+      Original task: Square first, in the variant's notation (as the summary: shogi `76`, janggi
       `83`), then colour and `pieceName()`, or `+`/`-` for an empty dark/light square. Rebuilt at
       the summary's update points (4CD.3) and on a flip.
 - [ ] 4F.3 **One tab stop.** Roving tabindex: one button `0`, the rest `-1`; the cursor starts on
