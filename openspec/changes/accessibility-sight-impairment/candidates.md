@@ -739,6 +739,12 @@ fallback is "a table or another element" (line 128).
 
 ## Q2 — pockets, our user's model
 
+**REVISED 2026-10-25 after Nikolay used it (`tasks.md` 4F.6):** pychess draws both pockets right of
+the board, yours at the bottom, so the colour-bound sides and Up/Down roles below did not match the
+screen. Now Right past the right edge enters the pocket of the colour you can move (by half when
+both or neither can), Left/Right step the roles as drawn, Left past the first returns to the board.
+The original rules, kept for the record:
+
 1. White's pocket is one step past the a-file edge, black's one step past the last file. Tied to the
    files, so on a board seen from black white's pocket is reached with Right. The focus ring jumps to
    where the pocket is drawn.

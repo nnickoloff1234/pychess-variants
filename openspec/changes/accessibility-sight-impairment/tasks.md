@@ -622,7 +622,8 @@ changes ... later we might think of a full solution, but for now we start with s
       follow the orientation; at the edge focus stays and a bump sound plays, nothing spoken. The
       table layout is not built (redundant with the square names and board keys; a later setting if
       asked). **Q2:** our user's model, see `candidates.md`; entering a pocket lands on its first
-      role, and a zero-count role is a stop. **Q3:** one layer per board, so bughouse gets it, one
+      role, and a zero-count role is a stop. (Revised by 4F.6 to follow the screen: Right enters
+      your own pocket, Left/Right step the roles.) **Q3:** one layer per board, so bughouse gets it, one
       tab stop per board; verified on single-board pages only. **Q4:** unchanged in spirit — the
       code comment says temporary, proper home chessgroundx; the first test becomes "labels match
       chessground's state after a move and after a flip" (nothing has to survive `render()`).
@@ -1676,6 +1677,17 @@ views, not one composed view: the pockets sit apart from the board, with clocks 
       roles (both ends stop), Left (outward) stayed, Right returned to h3; Space selected the pawn,
       arrows to d6, Space dropped `P@d6`; from a6 Right entered white's pocket, Space there did
       nothing; Tab from the pocket left the tab stop on a6, Shift+Tab came back to a6.
+      **REVISED the same day after Nikolay tried it (Q2's model did not match the screen):** both
+      pockets are drawn right of the board, yours at the bottom, so Right reaching the opponent's
+      pocket and roles stepped with Up/Down (while drawn side by side) both felt wrong. Now
+      **only Right past the right edge enters a pocket — the colour chessgroundx lets you move
+      (`movable.color`), so always your own on a round page, even flipped; when both colours move
+      (analysis, editor) or none (a spectator), by half: lower half the bottom pocket, upper half
+      the top.** In a pocket Left/Right step the roles as drawn (every role a stop), Left past the
+      first returns to the square you came from, Right past the last and Up/Down stay. The left
+      edge is just an edge. Verified live: white h1 → Right "White pocket: pawn, 1", knight 1,
+      bishop 0, rook 0, queen 0, queen (stays), Up stays, Left back to h1; black a7 → Right
+      "Black pocket: pawn, 0", knight 0. The by-half rule waits for 4F.12 (analysis).
       Original task: **Pockets (Q2).** One step past the a-file edge is white's pocket, past the last file
       black's; enter at the first role, leave back to the square you came from; Up/Down through the
       roles in drawn order, zero counts included; "White pocket: knight, 2"; Space selects your own
