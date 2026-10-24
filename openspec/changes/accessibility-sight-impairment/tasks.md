@@ -1632,7 +1632,18 @@ views, not one composed view: the pockets sit apart from the board, with clocks 
       Original task: Square first, in the variant's notation (as the summary: shogi `76`, janggi
       `83`), then colour and `pieceName()`, or `+`/`-` for an empty dark/light square. Rebuilt at
       the summary's update points (4CD.3) and on a flip.
-- [ ] 4F.3 **One tab stop.** Roving tabindex: one button `0`, the rest `-1`; the cursor starts on
+- [x] 4F.3 **DONE 2026-10-25.** One button `tabindex="0"` (the cursor), the rest `-1`. The cursor
+      starts on the king of the side at the bottom (`variant.kingRoles`), else that side's
+      bottom-left square, and **follows the orientation until the board is first focused**: a
+      round page turns the board to the player's colour only after `GameController`'s first
+      paint, so a cursor fixed at first paint put black's on "e1 White king". After a `focusin`
+      it stays where the player left it. The listener sits in the rendered view, so `update()`
+      patches never drop it. Verified with real keys (new `--cdp <n> key …` in the harness,
+      trusted `Input.dispatchKeyEvent`): from the top of a live crazyhouse page the 21st Tab
+      lands on "e1 White king" (after the header, players, chat input and Chat), the next Tab
+      leaves for "Give 15 seconds", Shift+Tab returns to e1 with `:focus-visible`; black starts on
+      "e8 Black king"; with focus on the board, Ng1-f3 by mouse kept focus and the cursor on e1.
+      Original task: Roving tabindex: one button `0`, the rest `-1`; the cursor starts on
       the player's king square (or the first square of the player's back rank) and is remembered.
 - [ ] 4F.4 **Arrows.** Follow the orientation (Up = away from the player); past the edge focus stays
       and the bump sound plays. Handled keys stop propagating, so Mousetrap never sees them; every
