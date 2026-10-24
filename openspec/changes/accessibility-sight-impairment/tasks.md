@@ -1701,7 +1701,10 @@ views, not one composed view: the pockets sit apart from the board, with clocks 
       chessgroundx's 1ms move-callback timeout, measured: the chooser does not exist before it.
       **While open, the arrows move only between the choices; leaving never cancels (Nikolay).**
       Enter clicks the choice (the mouse path), Escape clicks the backdrop (cancel, as a click
-      outside does); on close the cursor returns to the square moved to. Labels (new msgids,
+      outside does); on close the cursor returns to the square moved to — **or, after Escape, to
+      the square the piece came from, where it is again (Nikolay 2026-10-25).** Verified on
+      promotion: e7-e8, Escape → cursor on "e7 White pawn", no move, white to move; then e8 again,
+      Enter on the queen → `1. e8=Q+`, cursor on "e8 White queen". Labels (new msgids,
       proposed 2026-10-25): "Promote to %1", "Do not promote" (the unpromoted choice, shogi),
       "Gate %1", "No gating". Verified live by real keys: S-chess Ng1-f3 → cursor to "g1 No
       gating", Up "Gate hawk", "Gate elephant", the ends and sideways stay, Enter on the hawk
