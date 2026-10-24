@@ -1590,6 +1590,49 @@ starts. Already known to belong here:
       `client/sound.ts` where one fits, else lichess's (Nikolay 2026-10-25: take theirs) — check
       lila's `COPYING.md` for each file's licence and record the attribution.
 
+### 4F. Candidate F — the board layer. Task list written 2026-10-25.
+
+The design is `candidates.md`, "F(vi) REVISED"; 3.4h holds the decisions. One widget file under
+`client/accessibility/`, view plus controller like the board summary, owned per board.
+
+- [ ] 4F.1 **The layer.** A sibling of `div.cg-wrap` inside the board's `selection`, covering the same
+      box: a CSS grid of `width x height` `<button>`s in percentages, `pointer-events: none`,
+      visually transparent. Row and column order from the orientation. The code comment: temporary,
+      its proper home is chessgroundx, to be proposed upstream (Q4).
+- [ ] 4F.2 **Labels.** Square first, in the variant's notation (as the summary: shogi `76`, janggi
+      `83`), then colour and `pieceName()`, or `+`/`-` for an empty dark/light square. Rebuilt at
+      the summary's update points (4CD.3) and on a flip.
+- [ ] 4F.3 **One tab stop.** Roving tabindex: one button `0`, the rest `-1`; the cursor starts on
+      the player's king square (or the first square of the player's back rank) and is remembered.
+- [ ] 4F.4 **Arrows.** Follow the orientation (Up = away from the player); past the edge focus stays
+      and the bump sound plays. Handled keys stop propagating, so Mousetrap never sees them; every
+      other key passes through unchanged.
+- [ ] 4F.5 **Space and Enter** call `selectSquare()`: select (with the `select` sound), move, or
+      replace the selection, as a click does — premoves included.
+- [ ] 4F.6 **Pockets (Q2).** One step past the a-file edge is white's pocket, past the last file
+      black's; enter at the first role, leave back to the square you came from; Up/Down through the
+      roles in drawn order, zero counts included; "White pocket: knight, 2"; Space selects your own
+      non-empty role with `selectPocket()` (`error` otherwise, and always in gating variants), then
+      Space on a square drops. Board plus both pockets is one roving group.
+- [ ] 4F.7 **The promotion and gating choosers (4EF.6)** reachable and operable by keyboard, and
+      their choices named.
+- [ ] 4F.8 **Sounds (4EF.7):** bump, `select`, `error`.
+- [ ] 4F.9 **The focus ring:** styled to read on light and dark squares, checked on a light and a
+      dark board theme; keyboard only (`:focus-visible`), so mouse users see nothing new.
+- [ ] 4F.10 **An `h2` "Board" heading** before the layer (3.4h Q1 addendum (a); the string exists).
+- [ ] 4F.11 **Board keys, first pass — PROPOSED, to confirm with 4EF.4.** lichess's: `l` last move,
+      `t` clocks (with 4RA3.2), `f` flip, `k q r b n p` (and the variant's letters) jump to the next
+      piece of that type, `1`-`9` ranks / `Shift` files, `m` legal moves of the selected piece. Later:
+      `x` the attack rays, variant help.
+- [ ] 4F.12 **Pages:** round, analysis and puzzle (single board), and each board on the two-board
+      pages (Q3: built, not verified). Alice: the main board only, like the summary.
+- [ ] 4F.13 **The two tests (4EF.5):** the labels match chessground's state after a move and after a
+      flip; orientation.
+- [ ] 4F.14 **Verify** as 5.2 did (Orca's log, the AX tree, real keys): a crazyhouse game played by
+      keyboard only — moves, a capture, a drop, a promotion; a flip mid-game; a 10x10 and a 9x9
+      variant; mouse play unchanged; arrows on the move list unchanged when the board is not
+      focused. Plus the layout matrix, row set against the base.
+
 ### 4Z. LAST — the guide for blind users. Added by Nikolay 2026-10-10.
 
 Written once the features exist, because it documents them — but **it is a deliverable of this
