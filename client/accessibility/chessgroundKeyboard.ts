@@ -46,6 +46,8 @@ export class ChessgroundKeyboard {
     private visited = false;
     // The square a pocket was entered from, to return to.
     private pocketOrigin: cg.Key | undefined;
+    // The square a move was made to; the cursor returns there when a promotion or gating chooser closes.
+    private moveDest: cg.Key | undefined;
 
     constructor(
         private readonly variant: Variant,
@@ -105,12 +107,21 @@ export class ChessgroundKeyboard {
             e.stopPropagation();
             return;
         }
+        const chooser = this.chooser();
+        // Escape cancels a chooser, as a click outside its choices does.
+        if (e.key === 'Escape' && chooser !== undefined) {
+            e.stopPropagation();
+            chooser.el.click();
+            this.closeChooser();
+            return;
+        }
         const step = ARROWS[e.key];
         if (step === undefined || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
         e.preventDefault();
         e.stopPropagation();
         const next = this.step(step);
-        if (next === undefined) return;
+        // While a chooser is open the cursor moves only between its choices; leaving never cancels.
+        if (next === undefined || (chooser !== undefined && !chooser.choices.has(next as cg.Key))) return;
         this.cursor = next;
         this.update();
         this.focusCursor();
@@ -121,15 +132,69 @@ export class ChessgroundKeyboard {
     private onActivate(e: MouseEvent): void {
         const spot = (e.target as HTMLElement).dataset.spot;
         if (spot === undefined || this.chessground === undefined) return;
+        const open = this.chooser();
+        if (open !== undefined) {
+            open.choices.get(spot as cg.Key)?.el.click();
+            this.closeChooser();
+            return;
+        }
         this.cursor = spot;
         const piece = parsePocketSpot(spot);
         if (piece === undefined) {
+            this.moveDest = spot as cg.Key;
             this.chessground.selectSquare(spot as cg.Key);
+            // A promotion or gating chooser opens on the move: go to its first choice. chessgroundx
+            // runs its move callbacks in a 1ms timeout, so the chooser exists only after that.
+            setTimeout(() => {
+                const chooser = this.chooser();
+                if (chooser === undefined) return;
+                this.cursor = chooser.choices.keys().next().value;
+                this.update();
+                this.focusCursor();
+            }, 1);
             return;
         }
         // Gating variants never drop: their pocket pieces enter only by gating.
         const count = this.chessground.state.boardState.pockets?.[piece.color].get(piece.role) ?? 0;
         if (!this.variant.rules.gate && count > 0) this.chessground.selectPocket(piece);
+    }
+
+    private closeChooser(): void {
+        if (this.moveDest !== undefined) this.cursor = this.moveDest;
+        this.update();
+        this.focusCursor();
+    }
+
+    // The promotion or gating chooser pychess draws over board squares (client/input/promotion.ts,
+    // gating.ts), keyed by the square each choice covers, in the order drawn. Undefined when none is
+    // open. It is read from that DOM: each choice is a `square` placed by top/left percentages.
+    private chooser(): { el: HTMLElement; choices: Map<cg.Key, { el: HTMLElement; label: string }> } | undefined {
+        const state = this.chessground?.state;
+        const el = state?.dom.elements.container.querySelector<HTMLElement>('#extension_choice');
+        if (state === undefined || el === null || el === undefined) return undefined;
+        const gating = el.classList.contains('top') || el.classList.contains('bottom');
+        const moved = this.moveDest === undefined ? undefined : state.boardState.pieces.get(this.moveDest)?.role;
+        const { width, height } = this.variant.board.dimensions;
+        const asWhite = state.orientation === 'white';
+        const choices = new Map<cg.Key, { el: HTMLElement; label: string }>();
+        for (const square of el.querySelectorAll<HTMLElement>('square')) {
+            const col = Math.round(parseFloat(square.style.left) / (100 / width));
+            const row = Math.round(parseFloat(square.style.top) / (100 / height));
+            const key = util.pos2key(asWhite ? [col, height - 1 - row] : [width - 1 - col, row]);
+            const piece = square.firstElementChild;
+            const role = [...(piece?.classList ?? [])].find(c => c.endsWith('-piece')) as cg.Role | undefined;
+            const color: cg.Color = piece?.classList.contains('white') ? 'white' : 'black';
+            const name = role === undefined ? '' : pieceName(this.variant, role, color);
+            const label = gating
+                ? role === undefined
+                    ? _('No gating')
+                    : _('Gate %1', name)
+                : role === moved
+                  ? _('Do not promote')
+                  : _('Promote to %1', name);
+            choices.set(key, { el: square, label });
+        }
+        return choices.size === 0 ? undefined : { el, choices };
     }
 
     private focusCursor(): void {
@@ -224,6 +289,7 @@ export class ChessgroundKeyboard {
 
     // Rows top to bottom as the player sees them, so the reading order follows the screen.
     private renderBoard(): VNode {
+        const choices = this.chooser()?.choices;
         const { width, height } = this.variant.board.dimensions;
         const asWhite = (this.chessground?.state.orientation ?? 'white') === 'white';
         const suffix = this.boardName === '' ? '' : `-${this.boardName}`;
@@ -231,7 +297,7 @@ export class ChessgroundKeyboard {
         for (let row = 0; row < height; row++) {
             for (let col = 0; col < width; col++) {
                 const key = util.pos2key(asWhite ? [col, height - 1 - row] : [width - 1 - col, row]);
-                squares.push(this.button(key, this.squareLabel(key)));
+                squares.push(this.button(key, choices?.get(key)?.label ?? this.squareLabel(key)));
             }
         }
         return h(

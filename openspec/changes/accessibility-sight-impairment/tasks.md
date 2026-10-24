@@ -1584,7 +1584,7 @@ starts. Already known to belong here:
       orientation (a wrong `asWhite` puts a piece somewhere it is not). **Revised by 3.4h,
       2026-10-25:** the first becomes "the layer's labels match chessground's state after a move
       and after a flip".
-- [ ] 4EF.6 **The promotion and gating choosers, by keyboard (Nikolay 2026-10-25: in F).**
+- [x] 4EF.6 **Done by 4F.7, from the layer.** **The promotion and gating choosers, by keyboard (Nikolay 2026-10-25: in F).**
       `client/input/promotion.ts` and `gating.ts` draw `<square>`s with only a click handler, so
       a keyboard promotion, or a seirawan/shouse back-rank move, opens a chooser nobody can use.
 - [ ] 4EF.7 **Sounds:** the bump (`outOfBound`), `select` and `error`, from pychess's own
@@ -1693,8 +1693,26 @@ views, not one composed view: the pockets sit apart from the board, with clocks 
       roles in drawn order, zero counts included; "White pocket: knight, 2"; Space selects your own
       non-empty role with `selectPocket()` (`error` otherwise, and always in gating variants), then
       Space on a square drops. Board plus both pockets is one roving group.
-- [ ] 4F.7 **The promotion and gating choosers (4EF.6)** reachable and operable by keyboard, and
-      their choices named.
+- [x] 4F.7 **DONE 2026-10-25, with no change to `promotion.ts` or `gating.ts` (Nikolay: why not the
+      board's own approach?).** Both choosers draw their choices as `square`s over real board
+      squares, so the layer covers them: `chooser()` reads `#extension_choice` in this board's
+      container, maps each choice to the square under it (its top/left percentages), and relabels
+      those buttons. When a keyboard move opens one, the cursor goes to the first choice — after
+      chessgroundx's 1ms move-callback timeout, measured: the chooser does not exist before it.
+      **While open, the arrows move only between the choices; leaving never cancels (Nikolay).**
+      Enter clicks the choice (the mouse path), Escape clicks the backdrop (cancel, as a click
+      outside does); on close the cursor returns to the square moved to. Labels (new msgids,
+      proposed 2026-10-25): "Promote to %1", "Do not promote" (the unpromoted choice, shogi),
+      "Gate %1", "No gating". Verified live by real keys: S-chess Ng1-f3 → cursor to "g1 No
+      gating", Up "Gate hawk", "Gate elephant", the ends and sideways stay, Enter on the hawk
+      played `1. Nf3/H` and g1 read "g1 White hawk", cursor back on f3; Escape cancelled and the
+      knight returned to g1; chess e7-e8 → "Promote to queen" on e8, Down knight, rook, bishop,
+      Enter on the knight played `1. e8=N`. **To measure in 4F.14:** promotion's first choice is
+      the destination square itself, so focus does not move and only its label changes —
+      whether a screen reader re-reads it; if not, announce through the board's notice region
+      (4F.11). Not exercised: shogi's "Do not promote".
+      Original task: The promotion and gating choosers (4EF.6) reachable and operable by
+      keyboard, and their choices named.
 - [ ] 4F.8 **Sounds (4EF.7):** bump, `select`, `error`.
 - [ ] 4F.9 **The focus ring:** styled to read on light and dark squares, checked on a light and a
       dark board theme; keyboard only (`:focus-visible`), so mouse users see nothing new.
