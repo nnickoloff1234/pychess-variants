@@ -1606,7 +1606,18 @@ the controller's constructor, which calls `attach(chessground, boardSummary)` �
 views, not one composed view: the pockets sit apart from the board, with clocks and players between.
 `f` is not handled; it bubbles to the existing Mousetrap flip. 4F.11's first pass is confirmed.
 
-- [ ] 4F.1 **The layer.** A sibling of `div.cg-wrap` inside the board's `selection`, covering the same
+- [x] 4F.1 **DONE 2026-10-25, round page only (the other pages are 4F.12).** `ChessgroundKeyboard`
+      in `client/accessibility/chessgroundKeyboard.ts`, constructed in `round.ts` and passed
+      `runGround → RoundController → GameController` (optional there until 4F.12), which attaches
+      it and calls `update()` from `updateBoardSummary()` and `toggleOrientation()`. `.cg-keyboard`
+      in `site.css`: placed exactly like `cg-container` (`top: 0; right: 0`, sized by the
+      `--cg-width`/`--cg-height` variables chessgroundx publishes, suffixed per board — the wrap is a
+      few px wider than the board, so `inset: 0` would not do), a grid of `width x height`
+      buttons, `pointer-events: none`, `z-index: 20`. Verified live in a crazyhouse game: every
+      sampled square's button has its piece's exact box, white (a8 first) and black (h1 first),
+      before and after a flip; the point under the mouse is still `cg-board`; e2-e4 by real clicks
+      played and focus stayed on `body`. The buttons are unnamed and unreachable until 4F.2/4F.3.
+      Original task: A sibling of `div.cg-wrap` inside the board's `selection`, covering the same
       box: a CSS grid of `width x height` `<button>`s in percentages, `pointer-events: none`,
       visually transparent. Row and column order from the orientation. The code comment: temporary,
       its proper home is chessgroundx, to be proposed upstream (Q4).

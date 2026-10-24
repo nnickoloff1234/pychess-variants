@@ -4818,3 +4818,22 @@ div button.login-btn {
     white-space: nowrap;
     border: 0;
 }
+
+/* The keyboard layer over a board (client/accessibility/chessgroundKeyboard.ts): placed like
+   cg-container, invisible, and never in the way of the mouse. */
+.cg-keyboard {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: grid;
+    z-index: 20;
+    pointer-events: none;
+}
+
+.cg-keyboard button {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    pointer-events: none;
+}
