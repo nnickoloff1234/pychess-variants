@@ -8,6 +8,13 @@ import { pieceName, Variant } from '@/variants';
 import { BoardName } from '@/types';
 import { colorName, squareName } from './boardSummary';
 
+const ARROWS: Record<string, [number, number]> = {
+    ArrowUp: [0, 1],
+    ArrowDown: [0, -1],
+    ArrowLeft: [-1, 0],
+    ArrowRight: [1, 0],
+};
+
 /**
  * Keyboard access to a chessgroundx board: one button per square, laid over the board.
  *
@@ -49,6 +56,29 @@ export class ChessgroundKeyboard {
         if (key === undefined) return;
         this.visited = true;
         this.cursor = key;
+    }
+
+    // Keys the board handles never reach Mousetrap on document, so they do not also step the move list.
+    private onKey(e: KeyboardEvent): void {
+        const step = ARROWS[e.key];
+        if (step === undefined || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+        e.preventDefault();
+        e.stopPropagation();
+        this.moveCursor(step);
+    }
+
+    // Arrows follow the orientation: Up is always away from the player. Past the edge, nothing moves.
+    private moveCursor([df, dr]: [number, number]): void {
+        if (this.cursor === undefined || this.chessground === undefined) return;
+        const sign = this.chessground.state.orientation === 'white' ? 1 : -1;
+        const [file, rank] = util.key2pos(this.cursor);
+        const target: cg.Pos = [file + sign * df, rank + sign * dr];
+        const { width, height } = this.variant.board.dimensions;
+        if (target[0] < 0 || target[0] >= width || target[1] < 0 || target[1] >= height) return;
+        this.cursor = util.pos2key(target);
+        this.update();
+        const board = this.boardVNode?.elm as HTMLElement | undefined;
+        board?.querySelector<HTMLElement>(`[data-key="${this.cursor}"]`)?.focus();
     }
 
     // The king of the side at the bottom, else that side's bottom-left square.
@@ -94,7 +124,7 @@ export class ChessgroundKeyboard {
         return h(
             'div.cg-keyboard',
             {
-                on: { focusin: (e: FocusEvent) => this.onFocus(e) },
+                on: { focusin: (e: FocusEvent) => this.onFocus(e), keydown: (e: KeyboardEvent) => this.onKey(e) },
                 style: {
                     width: `var(--cg-width${suffix})`,
                     height: `var(--cg-height${suffix})`,

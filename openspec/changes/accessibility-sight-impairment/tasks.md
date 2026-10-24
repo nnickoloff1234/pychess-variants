@@ -1645,9 +1645,16 @@ views, not one composed view: the pockets sit apart from the board, with clocks 
       "e8 Black king"; with focus on the board, Ng1-f3 by mouse kept focus and the cursor on e1.
       Original task: Roving tabindex: one button `0`, the rest `-1`; the cursor starts on
       the player's king square (or the first square of the player's back rank) and is remembered.
-- [ ] 4F.4 **Arrows.** Follow the orientation (Up = away from the player); past the edge focus stays
-      and the bump sound plays. Handled keys stop propagating, so Mousetrap never sees them; every
-      other key passes through unchanged.
+- [x] 4F.4 **DONE 2026-10-25 (the bump sound waits for 4F.8).** A `keydown` on the layer
+      (unmodified arrows only) moves the cursor, re-renders the tabindex and focuses the new
+      square; `preventDefault()` + `stopPropagation()`, so Mousetrap's move-list arrows never see
+      them; every other key passes through. Verified with real keys in a live crazyhouse game:
+      white e1 → Up e2, e3 → Left d3 → Down d2, d1, d1 (edge) → Right e1, f1, g1, h1, h1 (edge);
+      black e8 → Up e7, e6 → Left f6 → Down f7, f8, f8 → Right e8, d8, c8, b8 — the move list
+      stayed on Nf3 throughout; Tab off the board, and Left/Right stepped the list again
+      (e5, e4, e5, Nf3); Shift+Tab returned to h1. Original task: Follow the orientation (Up = away
+      from the player); past the edge focus stays and the bump sound plays. Handled keys stop
+      propagating, so Mousetrap never sees them; every other key passes through unchanged.
 - [ ] 4F.5 **Space and Enter** call `selectSquare()`: select (with the `select` sound), move, or
       replace the selection, as a click does — premoves included.
 - [ ] 4F.6 **Pockets (Q2).** One step past the a-file edge is white's pocket, past the last file
