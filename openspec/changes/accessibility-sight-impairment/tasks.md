@@ -1587,7 +1587,7 @@ starts. Already known to belong here:
 - [x] 4EF.6 **Done by 4F.7, from the layer.** **The promotion and gating choosers, by keyboard (Nikolay 2026-10-25: in F).**
       `client/input/promotion.ts` and `gating.ts` draw `<square>`s with only a click handler, so
       a keyboard promotion, or a seirawan/shouse back-rank move, opens a chooser nobody can use.
-- [ ] 4EF.7 **Sounds:** the bump (`outOfBound`), `select` and `error`, from pychess's own
+- [x] 4EF.7 **Done by 4F.8 — lichess's standard sounds turned out non-free; see there.** **Sounds:** the bump (`outOfBound`), `select` and `error`, from pychess's own
       `client/sound.ts` where one fits, else lichess's (Nikolay 2026-10-25: take theirs) — check
       lila's `COPYING.md` for each file's licence and record the attribution.
 
@@ -1713,7 +1713,22 @@ views, not one composed view: the pockets sit apart from the board, with clocks 
       (4F.11). Not exercised: shogi's "Do not promote".
       Original task: The promotion and gating choosers (4EF.6) reachable and operable by
       keyboard, and their choices named.
-- [ ] 4F.8 **Sounds (4EF.7):** bump, `select`, `error`.
+- [x] 4F.8 **DONE 2026-10-25.** `sound.ts` gains three tracks, `OutOfBound`, `Error` and
+      `Confirmation`, which pychess already shipped (from lichess, commit `0508c5f1a`) and never
+      played. The bump plays when an arrow cannot move (board edge, past a pocket's ends, outside
+      an open chooser); `Confirmation` when Space/Enter leaves a piece selected (board or pocket);
+      `Error` when a pocket activation selects nothing (empty, the opponent's, gating). At most one
+      cue per 100ms, as lichess. **Licensing, found on the way:** lichess's `COPYING.md` lists
+      "the other sounds in public/sound" — `standard` included — as **non-free**; only futuristic,
+      nes, piano, sfx (Enigmahack, AGPLv3+) and lisp (CC BY-NC-SA) are free, and in those sets
+      `OutOfBound`/`Error` are only symlinks to `standard`. So **no `Select`** (non-free, not
+      taken; `Confirmation` plays instead, Nikolay 2026-10-25), and the theme gaps are filled
+      with the same symlinks lichess uses (futuristic, nes, piano, sfx, plus robot's
+      `OutOfBound`): no new audio. pychess's existing `standard` copies predate this change.
+      Verified live (Howl.play logged): bump at the bottom and left edges and past the queen;
+      Confirmation on selecting h8 and the pocket knight; Error on the empty pocket pawn; the
+      symlinked files are served as audio (nes, piano, sfx, robot: 200, real sizes).
+      Original task: Sounds (4EF.7): bump, `select`, `error`.
 - [ ] 4F.9 **The focus ring:** styled to read on light and dark squares, checked on a light and a
       dark board theme; keyboard only (`:focus-visible`), so mouse users see nothing new.
 - [ ] 4F.10 **An `h2` "Board" heading** before the layer (3.4h Q1 addendum (a); the string exists).
