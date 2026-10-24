@@ -685,3 +685,84 @@ top of chessground without its knowledge."*
 
 **Whatever is built under F(vi) carries a comment saying this**, so the next reader knows it is a
 deliberate temporary arrangement with a destination, and not someone's clever trick.
+
+---
+
+# F(vi) REVISED — settled with Nikolay, 2026-10-25
+
+Checked against chessgroundx **11.0.0** (upstream's upgrade after #2377), which overturns two of
+the facts above.
+
+## Why the layer moves out of `cg-board`
+
+- **A flip wipes it.** `toggleOrientation()` calls `redrawAll()`, which runs `element.innerHTML = ''`
+  on the `.cg-wrap` and builds a new `cg-board` (`wrap.ts:162`). The tagName skip in `render()` still
+  holds (`render.ts:217-218`), but anything we put inside would be gone after every `f`. A test that
+  our elements survive `render()` would not have caught it.
+- **chessgroundx draws the pockets now** (`pocket.ts`, into our `#pocket0`/`#pocket1`), and clears
+  them on every redraw too. `pocketRow.ts` only sets CSS variables.
+
+**So the layer is ours:** a sibling of `div.cg-wrap` inside `selection#mainboard` (and the same over
+each pocket's `div.cg-wrap.pocket`), covering the same box, a CSS grid of `width x height` buttons
+sized in percentages (so a resize needs nothing — hazard 2 gone), `pointer-events: none`. It reads
+`chessground.state` and calls `selectSquare()`/`selectPocket()`; it depends on no chessgroundx DOM.
+Labels are rebuilt where the board summary already updates (4CD.3), plus a flip.
+
+## Q1 — the arrows
+
+A mouse can never focus the board: the buttons ignore the pointer, and chessgroundx calls
+`preventDefault()` on every mouse press (`drag.ts:42`), which also keeps focus where it was. So a
+mouse-only user keeps today's arrows on the move list. After Tab puts focus on the board, our
+`keydown` handles its keys and calls `stopPropagation()`; Mousetrap listens on `document` and never
+sees them. Tab leaves the board and the arrows go back to the move list.
+
+## Q1(d) — copy lichess's plain board, one improvement
+
+lichess (`ui/lib/src/nvui/handler.ts`, `render.ts`, read 2026-10-25):
+
+- Plain `<button>`s, no role, text = label: "e2 white pawn", "e3 -" (light, empty), "e4 +" (dark,
+  empty). The user enters focus mode by hand (NVDA+Space), as their tutorial teaches.
+- `arrowKeyHandler(pov, borderSound)`: arrows follow the orientation; past the edge focus stays and
+  a throttled `outOfBound` sound plays, nothing spoken, no wrap. `select` on Space, `error` when a
+  piece-jump key finds nothing.
+- No `tabindex`: Tab walks all 64 squares.
+
+**Ours:** the same, plus a **roving tabindex** (one tab stop). Square names follow the variant's
+notation as the summary's do (shogi `76`, janggi `83`). **The table layout is not built:** its gains
+(browse-mode table keys, row/column headers) repeat what the square names and board keys give; a
+later setting if anyone asks, as on lichess. `role="grid"` (NVDA would enter focus mode by itself) is
+a possible later improvement, measured in Orca first; it changes the feel lichess users know.
+
+A correction to an earlier claim: our user's "advanced editing field" (`user-report.md` §3) does not
+favour plain buttons. They accept switching modes by hand, which makes plain buttons workable; their
+fallback is "a table or another element" (line 128).
+
+## Q2 — pockets, our user's model
+
+1. White's pocket is one step past the a-file edge, black's one step past the last file. Tied to the
+   files, so on a board seen from black white's pocket is reached with Right. The focus ring jumps to
+   where the pocket is drawn.
+2. From any square on that edge file, the sideways arrow enters the pocket **at its first role**; the
+   opposite arrow returns to the square it came from. On a variant without pockets, the bump.
+3. Up/Down step through the roles in the drawn order (the variant's pocket order); past either end,
+   or further sideways, the bump. **Every role is a stop, zero included**, so positions never shift.
+4. Spoken: "White pocket: knight, 2" / "White pocket: queen, 0".
+5. Space on your own role with a count selects it (`select` sound); then arrow to a square and Space
+   drops — `select(piece)` then `select(key)` is chessgroundx's own drop path (`board.ts:184-205`),
+   premove drops included. Zero count, the opponent's pocket, or a gating variant (seirawan,
+   shouse — pieces enter only by gating): the `error` sound.
+6. Board plus both pockets is one roving group: one tab stop.
+7. Not announced: a piece arriving in your pocket (lichess does not either); the summary's Pockets
+   section answers on demand.
+
+## Q3 and Q4
+
+**Q3:** one layer per board, so a bughouse board is one tab stop including its pockets; verified on
+single-board pages only. **Q4:** the code carries the comment — temporary, its proper home is
+chessgroundx, to be proposed upstream. The tests (granted 2026-10-24): labels match chessground's
+state after a move and after a flip; and orientation.
+
+## Found on the way
+
+**The promotion and gating choosers are mouse-only** (`client/input/promotion.ts`, `gating.ts`:
+`<square>`s with a click handler). In F (Nikolay 2026-10-25), task 4EF.6.

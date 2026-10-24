@@ -607,7 +607,28 @@ changes ... later we might think of a full solution, but for now we start with s
       ignored visibility; this one holds because **there is only one board and it is already visible.**
       Candidate A returns to a visually hidden help **link**; E stays a preference; C stays always-on and
       visually hidden, because hearing twelve lines beats walking 64 squares.
-- [ ] 3.4h **F(vi) HAS FOUR CONDITIONS — settle them before committing.** `candidates.md`, "open
+- [x] 3.4h **SETTLED 2026-10-25 (Nikolay) — full answer in `candidates.md`, "F(vi) REVISED".**
+      Re-read against chessgroundx 11.0.0 first: a flip runs `redrawAll()`, which empties the whole
+      `.cg-wrap` (`wrap.ts:162`), so buttons inside `cg-board` would vanish on every `f`; and
+      chessgroundx now draws the pockets itself, also wiped on redraw. **So the layer is ours,
+      laid over the board as a sibling of `.cg-wrap`, never inside chessgroundx's DOM.**
+      **Q1:** a mouse can never focus the board (`pointer-events: none`, and chessgroundx calls
+      `preventDefault()` on every mouse press, `drag.ts:42`), so mouse users keep today's arrows;
+      once Tab puts focus on the board, our `keydown` handles its keys and stops their propagation,
+      so Mousetrap on `document` never sees them. `:focus-visible` is not needed.
+      **Q1(d): lichess's plain board** — `<button>`s, no role, the user enters focus mode by hand as
+      on lichess; one improvement, a roving tabindex (one tab stop, lichess has 64). Label: square
+      first, then the piece (`pieceName()`), or `+`/`-` for an empty dark/light square. Arrows
+      follow the orientation; at the edge focus stays and a bump sound plays, nothing spoken. The
+      table layout is not built (redundant with the square names and board keys; a later setting if
+      asked). **Q2:** our user's model, see `candidates.md`; entering a pocket lands on its first
+      role, and a zero-count role is a stop. **Q3:** one layer per board, so bughouse gets it, one
+      tab stop per board; verified on single-board pages only. **Q4:** unchanged in spirit — the
+      code comment says temporary, proper home chessgroundx; the first test becomes "labels match
+      chessground's state after a move and after a flip" (nothing has to survive `render()`).
+      The original conditions, kept for the record:
+
+      **F(vi) HAS FOUR CONDITIONS — settle them before committing.** `candidates.md`, "open
       questions". Raised by Nikolay 2026-09-27 and recorded as conditions on the option, not
       afterthoughts.
 
@@ -1551,14 +1572,23 @@ starts. Already known to belong here:
 - [ ] 4EF.2 **How moves are spoken** (design, open questions): the summary reads SAN ("Nf3");
       lichess says "knight takes e 5" and "pawn is dropped on e 6". Decide with E, which also echoes
       moves.
-- [ ] 4EF.3 **`pocketHotkeys.ts` (1.6)** — global `1`-`9`, `0`, `-`, `=`, unreachable in browse
-      mode. Decided with Q1 (3.4h), so it is F's.
+- [x] 4EF.3 **`pocketHotkeys.ts` (1.6) — ANSWERED by 3.4h, 2026-10-25: left as it is.** Its global
+      `1`-`9`, `0`, `-`, `=` stay for mouse users; screen-reader users reach the pockets through
+      the board (Q2).
 - [ ] 4EF.4 **The user's wants with no task yet** (`user-report.md` §4): #3 which pieces attack a
       square (F's `x`), #5 the board from black's side (F's `f`), #6 short help for the active
       variant, #8 possible moves (F's `m`). Say which are in the first pass.
 - [ ] 4EF.5 **Unit tests: an exception to "no new unit tests", granted by Nikolay 2026-10-24** —
       for the two 3.4g and Q4 call for: our square elements survive chessgroundx's `render()`, and
-      orientation (a wrong `asWhite` puts a piece somewhere it is not).
+      orientation (a wrong `asWhite` puts a piece somewhere it is not). **Revised by 3.4h,
+      2026-10-25:** the first becomes "the layer's labels match chessground's state after a move
+      and after a flip".
+- [ ] 4EF.6 **The promotion and gating choosers, by keyboard (Nikolay 2026-10-25: in F).**
+      `client/input/promotion.ts` and `gating.ts` draw `<square>`s with only a click handler, so
+      a keyboard promotion, or a seirawan/shouse back-rank move, opens a chooser nobody can use.
+- [ ] 4EF.7 **Sounds:** the bump (`outOfBound`), `select` and `error`, from pychess's own
+      `client/sound.ts` where one fits, else lichess's (Nikolay 2026-10-25: take theirs) — check
+      lila's `COPYING.md` for each file's licence and record the attribution.
 
 ### 4Z. LAST — the guide for blind users. Added by Nikolay 2026-10-10.
 
