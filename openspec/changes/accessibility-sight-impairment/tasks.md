@@ -1655,8 +1655,16 @@ views, not one composed view: the pockets sit apart from the board, with clocks 
       (e5, e4, e5, Nf3); Shift+Tab returned to h1. Original task: Follow the orientation (Up = away
       from the player); past the edge focus stays and the bump sound plays. Handled keys stop
       propagating, so Mousetrap never sees them; every other key passes through unchanged.
-- [ ] 4F.5 **Space and Enter** call `selectSquare()`: select (with the `select` sound), move, or
-      replace the selection, as a click does — premoves included.
+- [x] 4F.5 **DONE 2026-10-25 (the `select` sound waits for 4F.8).** The square button's `click`
+      calls `selectSquare()`: a click is what Enter and Space produce on a button, and what NVDA
+      sends when it activates a button from browse mode (no key reaches the page then); the mouse
+      cannot produce it, the layer lets the pointer through. Enter and Space stop propagating,
+      since Mousetrap binds Enter on document (`skipGating`). **The first keyboard-only moves,**
+      live: black Nb8-c6 (arrows + Space), white Bf1-c4 (arrows + Enter), then a premove Nb1-c3 by
+      keyboard, played the moment black answered Nf6 by mouse; a non-destination Enter (b1 then
+      b3) dropped the selection, as a click does. Original task: Space and Enter call
+      `selectSquare()`: select (with the `select` sound), move, or replace the selection, as a
+      click does — premoves included.
 - [ ] 4F.6 **Pockets (Q2).** One step past the a-file edge is white's pocket, past the last file
       black's; enter at the first role, leave back to the square you came from; Up/Down through the
       roles in drawn order, zero counts included; "White pocket: knight, 2"; Space selects your own
