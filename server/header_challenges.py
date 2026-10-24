@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 import aiohttp_session
 from aiohttp import web
-from aiohttp_sse import sse_response
 from const import SSE_SNAPSHOT_QUEUE_MAXSIZE
 from json_utils import json_dumps, json_response
 from misc import time_control_str
@@ -20,7 +19,13 @@ from seek import (
     resolve_decline_reason,
 )
 from session_security import session_expiry_timeout
-from sse_utils import SSEResponse, consume_sse_queue, enqueue_sse_payload, send_sse_payload
+from sse_utils import (
+    SSEResponse,
+    consume_sse_queue,
+    enqueue_sse_payload,
+    log_sse_failure,
+    sse_response,
+)
 from utils import join_seek, remove_seek
 
 if TYPE_CHECKING:
@@ -302,8 +307,7 @@ async def subscribe_header(request: web.Request) -> web.StreamResponse:
     response: web.StreamResponse = web.Response(status=200)
     try:
         async with session_expiry_timeout(session, user), sse_response(request) as response:
-            await send_sse_payload(
-                response,
+            await response.send(
                 json_dumps(
                     {
                         "channel": "challenges",
@@ -319,7 +323,7 @@ async def subscribe_header(request: web.Request) -> web.StreamResponse:
                 },
             )
     except Exception:
-        pass
+        log_sse_failure("header_challenges")
     finally:
         user.challenge_channels.discard(challenge_queue)
         user.notify_channels.discard(notify_queue)
@@ -348,13 +352,12 @@ async def subscribe_challenges(request: web.Request) -> web.StreamResponse:
     response: web.StreamResponse = web.Response(status=200)
     try:
         async with session_expiry_timeout(session, user), sse_response(request) as response:
-            await send_sse_payload(
-                response,
+            await response.send(
                 json_dumps(challenge_envelope(app_state, session_user)),
             )
             await consume_sse_queue(response, queue)
     except Exception:
-        pass
+        log_sse_failure("header_challenges")
     finally:
         user.challenge_channels.discard(queue)
         queue.shutdown(immediate=True)

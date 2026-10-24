@@ -153,7 +153,7 @@ class GamesApiCategoryFilterTestCase(AioHTTPTestCase):
 
     async def test_direct_anonymous_profile_uses_restricted_rendering(self):
         app_state = get_app_state(self.app)
-        await app_state.db.ublog_post.insert_one(
+        await app_state.db.ublog_post2.insert_one(
             {
                 "_id": "restricted-profile-post",
                 "author": self.profile_probe,
@@ -175,7 +175,7 @@ class GamesApiCategoryFilterTestCase(AioHTTPTestCase):
 
     async def test_internal_profile_navigation_keeps_full_rendering(self):
         app_state = get_app_state(self.app)
-        await app_state.db.ublog_post.insert_one(
+        await app_state.db.ublog_post2.insert_one(
             {
                 "_id": "internal-profile-post",
                 "author": self.profile_probe,
@@ -1228,7 +1228,8 @@ class SSESubscribeErrorFallbackTestCase(unittest.IsolatedAsyncioTestCase):
                 return True
 
             async def send(self, _payload):
-                await asyncio.Event().wait()
+                async with asyncio.timeout(0.01):
+                    await asyncio.Event().wait()
 
         slow_response = SlowResponse()
 
@@ -1240,7 +1241,6 @@ class SSESubscribeErrorFallbackTestCase(unittest.IsolatedAsyncioTestCase):
         with (
             patch("game_api.get_app_state", return_value=app_state),
             patch("game_api.sse_response", slow_sse_response),
-            patch("sse_utils.SSE_SEND_TIMEOUT", 0.01),
         ):
             response = await game_api.subscribe_games(request)
 

@@ -25,6 +25,25 @@ import { patch } from '../document';
 import { updateMovelist } from '../movelist';
 import { ExternalEngineSettings } from './externalEngineSettings';
 
+function installEnginePreferencesDismissal(vnode: VNode): void {
+    const panel = vnode.elm as HTMLElement;
+    const gear = document.getElementById('analysis-engine-gear');
+    const close = () => { panel.hidden = true; gear?.setAttribute('aria-expanded', 'false'); };
+    const onPointerDown = (event: PointerEvent) => {
+        if (!panel.contains(event.target as Node) && !gear?.contains(event.target as Node)) close();
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+        if (event.key === 'Escape' && !panel.hidden) { close(); (gear as HTMLElement | null)?.focus(); }
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    (panel as HTMLElement & { removeEngineDismissal?: () => void }).removeEngineDismissal = () => {
+        document.removeEventListener('pointerdown', onPointerDown);
+        document.removeEventListener('keydown', onKeyDown);
+    };
+}
+
+
 class AnalysisSettings {
     ctrl: AnalysisController;
     settings: { [key: string]: Settings<number | boolean | string> };
@@ -36,6 +55,9 @@ class AnalysisSettings {
         this.settings['showServerAnalysis'] = new ServerAnalysisSettings(this);
         this.settings['showGauge'] = new GaugeSettings();
         this.settings['arrow'] = new ArrowSettings(this);
+        this.settings['variationArrows'] = new VariationArrowSettings(this);
+        this.settings['maneuverArrows'] = new ManeuverArrowSettings(this);
+        this.settings['showMoveAnnotationsOnBoard'] = new MoveAnnotationsSettings(this);
         this.settings['inlineNotation'] = new InlineNotationSettings(this);
         this.settings['disclosureMode'] = new DisclosureModeSettings(this);
         this.settings['infiniteAnalysis'] = new InfiniteAnalysisSettings(this);
@@ -54,29 +76,25 @@ class AnalysisSettings {
         return this.settings[fullName] as NnueFileSettings;
     }
 
-    view(variant: {
+    engineView(variant: {
         readonly name: string;
         readonly cataloguedSource?: 'user' | 'fairy-stockfish-builtin';
         readonly nnueFingerprint?: string;
-    }) {
-        if (!variant.name) return h('div.analysis-settings');
-
+    }): VNode {
         const nnueFileSettings = this.getSettings(variant.name);
         nnueFileSettings.setLookupContext(nnueLookupContextForVariant(variant));
-
-        return h('div.analysis-settings', [
+        return h('div.analysis-engine-preferences', {
+            attrs: { hidden: true, id: 'analysis-engine-preferences' },
+            hook: {
+                insert: installEnginePreferencesDismissal,
+                destroy: vnode => (vnode.elm as HTMLElement & { removeEngineDismissal?: () => void }).removeEngineDismissal?.(),
+            },
+        }, [
             this.externalEngine.view(),
             h('div.analysis-settings-group', [
                 this.settings['multipv'].view(),
                 this.settings['threads'].view(),
                 this.settings['hash'].view(),
-            ]),
-            h('div.analysis-settings-group', [
-                this.settings['showServerAnalysis'].view(),
-                this.settings['showGauge'].view(),
-                this.settings['arrow'].view(),
-                this.settings['inlineNotation'].view(),
-                this.settings['disclosureMode'].view(),
                 this.settings['infiniteAnalysis'].view(),
             ]),
             h('div.analysis-settings-group.browser-engine-settings', [
@@ -84,6 +102,34 @@ class AnalysisSettings {
                 nnueFileSettings.view(),
             ]),
             h('div.analysis-settings-group.browser-engine-settings', [this.settings['fsfDebug'].view()]),
+        ]);
+    }
+
+    view(variant: {
+        readonly name: string;
+        readonly cataloguedSource?: 'user' | 'fairy-stockfish-builtin';
+        readonly nnueFingerprint?: string;
+    }) {
+        if (!variant.name) return h('div.analysis-settings');
+
+        return h('div.analysis-settings', [
+            h('fieldset.analysis-general-settings-group', [
+                h('legend', _('Move list')),
+                this.settings['inlineNotation'].view(),
+                this.settings['disclosureMode'].view(),
+            ]),
+            h('fieldset.analysis-general-settings-group', [
+                h('legend', _('Board')),
+                this.settings['arrow'].view(),
+                this.settings['variationArrows'].view(),
+                this.settings['maneuverArrows'].view(),
+                this.settings['showMoveAnnotationsOnBoard'].view(),
+            ]),
+            h('fieldset.analysis-general-settings-group', [
+                h('legend', _('General')),
+                this.settings['showServerAnalysis'].view(),
+                this.settings['showGauge'].view(),
+            ]),
         ]);
     }
 }
@@ -179,6 +225,63 @@ class ArrowSettings extends BooleanSettings {
 
     view(): VNode {
         return h('div.arrow-toggle', toggleSwitch(this, 'arrow-enabled', _('Best move arrow'), false));
+    }
+}
+
+class VariationArrowSettings extends BooleanSettings {
+    constructor(private readonly analysisSettings: AnalysisSettings) {
+        super('variationArrows', true);
+    }
+
+    update(): void {
+        const ctrl = this.analysisSettings.ctrl;
+        ctrl.variationArrows = this.value;
+        ctrl.setAutoShapes();
+    }
+
+    view(): VNode {
+        return h(
+            'div.variation-arrows-toggle',
+            toggleSwitch(this, 'variation-arrows-enabled', _('Show variation arrows'), false),
+        );
+    }
+}
+
+class ManeuverArrowSettings extends BooleanSettings {
+    constructor(private readonly analysisSettings: AnalysisSettings) {
+        super('maneuverArrows', true);
+    }
+
+    update(): void {
+        const ctrl = this.analysisSettings.ctrl;
+        ctrl.maneuverArrowsEnabled = this.value;
+        ctrl.setAutoShapes();
+    }
+
+    view(): VNode {
+        return h(
+            'div.maneuver-arrows-toggle',
+            toggleSwitch(this, 'maneuver-arrows-enabled', _('Show maneuver arrows'), false),
+        );
+    }
+}
+
+class MoveAnnotationsSettings extends BooleanSettings {
+    constructor(private readonly analysisSettings: AnalysisSettings) {
+        super('showMoveAnnotationsOnBoard', true);
+    }
+
+    update(): void {
+        const ctrl = this.analysisSettings.ctrl;
+        ctrl.showMoveAnnotationsOnBoard = this.value;
+        ctrl.setAutoShapes();
+    }
+
+    view(): VNode {
+        return h(
+            'div.move-annotations-toggle',
+            toggleSwitch(this, 'move-annotations-enabled', _('Show move annotations'), false),
+        );
     }
 }
 
@@ -706,11 +809,12 @@ export class EngineSettings extends BooleanSettings {
             toggleSwitch(
                 this,
                 'engine-enabled',
-                '',
+                _('Local engine'),
                 !this.ctrl.analysisContext.capabilities.localAnalysisAllowed ||
                     this.ctrl.isLocalAnalysisBlockedByAntiCheat() ||
                     !this.ctrl.isLocalAnalysisAllowedByExtension() ||
                     !this.ctrl.isSelectedEngineReady(),
+                true,
             ),
         );
     }

@@ -85,10 +85,3 @@ docker compose up --build
 ```
 This recompiles the frontend and starts the server and DB. Once it is up, you can connect to `localhost:8080` in your browser.
 For more detailed Docker workflows, including contributor checks and the optional `ci` service, see [docker/README.md](docker/README.md).
-
-
-## Supported browsers
-
-Pychess-variants should support almost all browsers. Though older browsers (including any version of Internet Explorer) will not work. For your own sake, please upgrade. Security and performance, think about it!
-
-Only [Fairy-Stockfish analysis](https://www.pychess.org/analysis/chess) might not work on all browsers.
