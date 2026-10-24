@@ -1,6 +1,10 @@
 ## 0. Status
 
-**PR scope decided 2026-10-11 (Nikolay): PR #2377 ships everything done so far; E and F (and what
+**2026-10-24: PR #2377 is merged upstream (2026-10-18, `e4547c09e`).** What is left is board
+interaction — E, F and what waits on them (4EF, 3.4h, 4RA3.2, 4FR6, 4Z.2) — as one new PR under
+this change, then the spec delta (3.5) and the archive.
+
+**Superseded — PR scope decided 2026-10-11 (Nikolay): PR #2377 ships everything done so far; E and F (and what
 waits on them: 3.4h, 4FR6, 4RA3.2, 4Z.2) go to a separate PR under this same change** — no archive,
 no split of the spec. Before wrapping #2377: verify the finished items (5.1-5.3, by Orca's log and
 Chrome's accessibility tree; hearing the speech is not required), then Nikolay reviews the PR.
@@ -417,7 +421,7 @@ changes ... later we might think of a full solution, but for now we start with s
       placeholder-only input (L4) — were all already recorded. **Priority stated honestly: if no
       moderator uses a screen reader the direct value is near zero, and there is nothing left to fix.
       Their value to this change is entirely as evidence of the house standard.**
-- [ ] 2.4d **Re-checked against the code 2026-10-10.** Done: F1, F3 (4G), H2 (4H2), RA1-RA3 (4RA1-3).
+- [x] 2.4d **CLOSED 2026-10-24: every item is done, decided or moved; FR6 lives in 4FR6.** Re-checked against the code 2026-10-10. Done: F1, F3 (4G), H2 (4H2), RA1-RA3 (4RA1-3).
       Also done: RA4-RA6 (4RA4-6), H1 for game pages (4H1), LB1 (4LB1), T1 and T3 (4T1-3), F2 and F4 (4F2-4), T4-T6 (4T4-6), SB1-SB3 (4SB), TN1 and TN4 (4TN), L1 L2 L5 PE2 (4L), PE3 (4PE3), PE1 (4PE1), L3 L4 A1 (4Q), FR4 + duels (4FR4), H3 (4Z.0), RA7 (4RA7), H4 (4H4), H5 and H6 (4H5), D3 (4D3), D6 (with 4H4/4H5), FR1 + round-robin modal + FR5 (4FR). Open and scheduled with E: FR6 (4FR6). Known limitations by decision: PF2, IB1 (section 6). T2 withdrawn by decision. Not a defect: LB3, TN5, TN6 (false positive), ST3 (false positive; H4 shrank to the docs). Closed with no change: ST2 (arrows + the summary's Last move). Moved to its own change: LB2 (`lobby-seek-announcements`). Dropped by decision: PF1, F5, TN2, TN3, FR2 (2026-10-11: on demand is enough; the countdown already has audio). Rejected as out of scope: D4 (2026-10-11: rules content, not technical accessibility), D5 (2026-10-11: invalid `<th>` ids, harmless to screen readers). Everything else listed here is still open.
       **F1, F2, T1-T6, A1, L1-L5, H1-H6, D2-D6, LB1-TN6, PF1-ST3, IB1-FR4, RA1-RA8 and SB1-SB3 do
       not wait on the gate** — except RA8, which IS the gate (candidates B and D). **And per AD1 the
@@ -673,7 +677,8 @@ changes ... later we might think of a full solution, but for now we start with s
       **Decide where the piece-naming table sits in the order.** 33 `pieceFamily` values,
       roughly 200-350 translatable strings, and the role letter is a valid fallback meanwhile. It
       gates nothing, but it is the difference between *"A8 black r"* and *"A8 black rook"*.
-- [ ] 3.5 Write the spec delta for the shortlist only, and only then. The capability is unnamed
+- [ ] 3.5 **At the end of the change, covering everything shipped, as a new `accessibility`
+      capability (2026-10-24).** Write the spec delta for the shortlist only, and only then. The capability is unnamed
       until this point on purpose — see the proposal.
 
 ## 3b. BEFORE IMPLEMENTATION — three things that could still alter the plan
@@ -682,7 +687,7 @@ Raised by Nikolay 2026-09-27: *"before we go to implementing it, i will ask you 
 lets write them down like something that could potentially alter our plans and we should do it first
 before proceeding to implementation."* **These gate section 4. None is optional.**
 
-- [~] 3b.1 **PARTLY DONE 2026-09-28 — folded into `lichess-reference.md` §§10–17.** Swept the live
+- [x] 3b.1 **CLOSED 2026-10-24: what remained no longer matters (our draw offer is built, 4RA1).** **PARTLY DONE 2026-09-28 — folded into `lichess-reference.md` §§10–17.** Swept the live
       site in Chrome over CDP, first in normal mode and then the same pages in blind mode, and the
       findings are recorded: landmarks are identical in both modes (§11), blind mode is **+7 headings**
       and zero ARIA change, it **converts** six nav links to `h3` rather than adding them (§14), and it
@@ -720,7 +725,7 @@ before proceeding to implementation."* **These gate section 4. None is optional.
       **Chrome vs Firefox:** Chrome, for the CDP access. He is logged in on Firefox, so either he signs
       in on Chrome or we re-do the `POST /run/toggle-blind-mode` trick there — it worked over curl and
       will work in a browser session.
-- [~] 3b.2 **PARTLY DONE 2026-09-27 — see `tree-capture-sweep.md`.** Done better than asked: not the
+- [x] 3b.2 **CLOSED 2026-10-24: the live game and two-board pages were covered by 5.2 and 5.5.** **PARTLY DONE 2026-09-27 — see `tree-capture-sweep.md`.** Done better than asked: not the
       rendered DOM but **Chrome's computed accessibility tree** via CDP `Accessibility.getFullAXTree`,
       captured for 8 pages with `scripts/a11y_capture.py` / `a11y_audit.py` / `a11y_diff.py`.
       **Three answers change the picture:** (1) **15 navigation destinations are reachable from
@@ -732,7 +737,7 @@ before proceeding to implementation."* **These gate section 4. None is optional.
       STILL OPEN inside 3b.2: the logged-in UI (server ran without `-a`), and a live game / two-board
       page, so the positive-`tabindex` prediction T3 remains unverified.
 
-- [~] 3b.2-orig **PARTLY DONE — superset of 3b.2 above; read that entry first.** Added 2026-09-28:
+- [x] 3b.2-orig **CLOSED with 3b.2.** **PARTLY DONE — superset of 3b.2 above; read that entry first.** Added 2026-09-28:
       `#settings` has now been captured **open** (Settings → Board Settings), which is what found the
       unnamed combobox now tracked as 4G.6 — a defect invisible in every closed-panel capture. Seven
       pages were also re-captured for the landmark inventory in 4G.5.
@@ -1111,8 +1116,6 @@ single-board pages get one and each two-board board gets its own.
       shatranj, hoppelpoppel, sittuyin, manchu's banner, makruk's promoted `m~`, kyoto, dobutsu,
       tori, yokai, cannonshogi, xiangfu, borderlands, cwda, khans, synochess, shinobi(plus),
       empire, ordamirror, chak, chennis, spartan, mansindam, ataxx.
-- [ ] 4CD.7 Open: an empty pocket is a bare heading (kept, Nikolay 2026-10-10). Alice reads the
-      active board only (kept). Squares stay algebraic for xiangqi-family variants.
 
 ### 4RA4-6. Chat — decided by Nikolay 2026-10-10: like lichess, everywhere.
 
@@ -1190,10 +1193,6 @@ tab with the reading cursor and press Enter anyway. Lichess's tabs are plain
       `aria-selected=true` while another tab opened; the initial tab is marked `data-initial`, no
       longer by `tabindex`. Verified with real keys: Tab reaches each tab, Enter and Space select,
       Left on a focused tab still steps the moves, a first Tab on a bughouse page reaches the header.
-- [ ] 4T1-3.2 **Not changed:** the round-robin tabs (`<span role="tab">`, own roving tabindex) and
-      the two study tab lists (`<button>`s, own roving and arrow handling). **One day: a single tab
-      widget used everywhere** (Nikolay) — the shared `view.ts` helpers, `two-board/common/tabs.ts`,
-      round-robin and study are four implementations today.
 
 ### 4F2-4. The two menu buttons that hid their state — done 2026-10-10.
 
@@ -1250,13 +1249,6 @@ tab with the reading cursor and press Enter anyway. Lichess's tabs are plain
       which they never had. Verified with real keys on Settings, Notifications and Play; opening one
       closes another; a click outside closes all. **Not verified live: the login chooser**, which
       the harness never shows (`server.py -a` makes every visitor a logged-in test user).
-- [ ] 4SB2.1 **Future: the HTML `popover` attribute.** With `<div popover>` and
-      `<button popovertarget>`, the browser itself toggles, dismisses on Escape and outside click,
-      returns focus and reports the expanded state — replacing the dismissal and most of the
-      toggling above with no script. Shipped in Chrome 114 (May 2023), Safari 17 (Sep 2023),
-      Firefox 125 (Apr 2024); "widely available" by the web-platform convention around Oct 2026.
-      Kept as JavaScript by Nikolay's decision for now; reconsider once it is mature. Would need
-      CSS to undo the top-layer centring and place each panel under its button.
 
 ### 4TN. Tournament pages — done 2026-10-10.
 
@@ -1284,11 +1276,6 @@ invalid but harmless to keys).
 - [x] 4TN.6 **Opening a player's panel is now announced** (2026-10-11): `#stats` is
       `aria-live="polite"`, so Enter on a row reads "1. <player> Performance … Games played …"
       without moving focus. A static attribute, no logic.
-- [ ] 4TN.6b **WON'T FIX (Nikolay 2026-10-11):** focus stays on the row when the panel opens and
-      falls to `<body>` on Close; the panel sits after the standings (6-20 Tabs away). Nothing is
-      blocked. Fixing it would be ~3 lines of focus code plus a `data-player` on the row buttons.
-      `aria-expanded` was rejected for the same reason: the rows are not re-rendered on toggle, so
-      keeping it true would need code too. (The round-robin modal's Escape is done, 4FR.2.)
 
 ### 4L. Labels — done 2026-10-10.
 
@@ -1316,11 +1303,6 @@ followed — the forum's "cancel edit" link already does exactly this.
       Enter flips (the king moves) without changing the address or scroll; Clear and Analysis board
       act; with zen mode on, the first Tab lands on the exit and Enter leaves zen mode — before,
       a keyboard user could not get out of it from the page.
-- [ ] 4PE3.2 **Left as they are:** the two two-board analysis "Copy" links, whose handlers only log
-      "not implemented" — reachable dead controls would help nobody; they stay unreachable until
-      they do something. **Not exercised live:** the puzzle links (no puzzles in the local
-      database) and "Go deeper" (shown only at maximum engine depth). Screen readers announce these
-      as links, not buttons — slightly imprecise for actions, and accepted.
 
 ### 4PE1. Puzzle feedback, spoken — done 2026-10-10.
 
@@ -1558,6 +1540,26 @@ once. No timed, per-turn or low-time announcements. A low-time warning was offer
       **The result line must be a live region** ("Checkmate." / "Not a checkmate. Try again." is
       only visual today) — moved here from FR2 (Nikolay 2026-10-11).
 
+### 4EF. Board interaction — E and F, the next PR. Opened 2026-10-24.
+
+Task lists for E (the move input) and F (the board, F(vi) per 3.4g and 3.4h) are written when each
+starts. Already known to belong here:
+
+- [ ] 4EF.1 **OPEN — Nikolay cannot decide yet (2026-10-24):** whether the move input is a
+      preference (3.4g: off by default, lichess's `keyboardMove`), or simply always on; and if a
+      preference, where it lives. Blocks E.
+- [ ] 4EF.2 **How moves are spoken** (design, open questions): the summary reads SAN ("Nf3");
+      lichess says "knight takes e 5" and "pawn is dropped on e 6". Decide with E, which also echoes
+      moves.
+- [ ] 4EF.3 **`pocketHotkeys.ts` (1.6)** — global `1`-`9`, `0`, `-`, `=`, unreachable in browse
+      mode. Decided with Q1 (3.4h), so it is F's.
+- [ ] 4EF.4 **The user's wants with no task yet** (`user-report.md` §4): #3 which pieces attack a
+      square (F's `x`), #5 the board from black's side (F's `f`), #6 short help for the active
+      variant, #8 possible moves (F's `m`). Say which are in the first pass.
+- [ ] 4EF.5 **Unit tests: an exception to "no new unit tests", granted by Nikolay 2026-10-24** —
+      for the two 3.4g and Q4 call for: our square elements survive chessgroundx's `render()`, and
+      orientation (a wrong `asWhite` puts a piece somewhere it is not).
+
 ### 4Z. LAST — the guide for blind users. Added by Nikolay 2026-10-10.
 
 Written once the features exist, because it documents them — but **it is a deliverable of this
@@ -1596,7 +1598,7 @@ change, not an afterthought**: a keyboard interface nobody can discover is not u
 
 ## 5. Verify
 
-- [ ] 5.1 Every shortlist item heard working with the stack named in 1.3, not merely inspected in
+- [x] 5.1 **CLOSED 2026-10-24 (Nikolay): 3b.3 made Orca's log plus the accessibility tree the method, and 5.2 is that check; E and F are verified the same way.** Every shortlist item heard working with the stack named in 1.3, not merely inspected in
       the DOM or checked by a linter.
 - [x] 5.2 **DONE 2026-10-11, a live crazyhouse game between two windows, 60+0.** Over AT-SPI:
       the `h1` names the game; Chat, Moves, Actions and the summary's Pieces, Pockets, Last move,
@@ -1643,6 +1645,10 @@ change, not an afterthought**: a keyboard interface nobody can discover is not u
 
 ## 5b. Not code — for Nikolay to answer
 
+- [x] 5b.1-2 and 5.4 **CLOSED 2026-10-24 (Nikolay).** Replying to the user who wrote in (their
+      .NET project, the Discord voice rooms) and offering the change back to them were dropped from
+      the list on 2026-10-11 with no reason recorded; Nikolay confirmed the closure.
+
 - [x] 5b.3 **ANSWERED 2026-09-28 — no new name.** Keep `_('Variant')`, the string we already have
       translated, on both comboboxes. Nikolay: the second one is inside collapsible elements, so
       context before and after in browse mode, or the path taken when tabbing, tells them apart. See
@@ -1667,3 +1673,36 @@ Named here so they are visible rather than forgotten, and so 3.4 has somewhere t
 - **KNOWN LIMITATION — an arriving private message is not announced (IB1).** The inbox updates
   live and visually; a screen-reader user notices only by reading the thread list. Decided against
   2026-10-10.
+
+
+### Decided, not done — moved from section 4 on 2026-10-24
+
+Open checkboxes that were really decisions (kept, won't fix, or future). Text unchanged.
+
+- 4CD.7 Open: an empty pocket is a bare heading (kept, Nikolay 2026-10-10). Alice reads the
+      active board only (kept). Squares stay algebraic for xiangqi-family variants.
+
+- 4T1-3.2 **Not changed:** the round-robin tabs (`<span role="tab">`, own roving tabindex) and
+      the two study tab lists (`<button>`s, own roving and arrow handling). **One day: a single tab
+      widget used everywhere** (Nikolay) — the shared `view.ts` helpers, `two-board/common/tabs.ts`,
+      round-robin and study are four implementations today.
+
+- 4SB2.1 **Future: the HTML `popover` attribute.** With `<div popover>` and
+      `<button popovertarget>`, the browser itself toggles, dismisses on Escape and outside click,
+      returns focus and reports the expanded state — replacing the dismissal and most of the
+      toggling above with no script. Shipped in Chrome 114 (May 2023), Safari 17 (Sep 2023),
+      Firefox 125 (Apr 2024); "widely available" by the web-platform convention around Oct 2026.
+      Kept as JavaScript by Nikolay's decision for now; reconsider once it is mature. Would need
+      CSS to undo the top-layer centring and place each panel under its button.
+
+- 4TN.6b **WON'T FIX (Nikolay 2026-10-11):** focus stays on the row when the panel opens and
+      falls to `<body>` on Close; the panel sits after the standings (6-20 Tabs away). Nothing is
+      blocked. Fixing it would be ~3 lines of focus code plus a `data-player` on the row buttons.
+      `aria-expanded` was rejected for the same reason: the rows are not re-rendered on toggle, so
+      keeping it true would need code too. (The round-robin modal's Escape is done, 4FR.2.)
+
+- 4PE3.2 **Left as they are:** the two two-board analysis "Copy" links, whose handlers only log
+      "not implemented" — reachable dead controls would help nobody; they stay unreachable until
+      they do something. **Not exercised live:** the puzzle links (no puzzles in the local
+      database) and "Go deeper" (shown only at maximum engine depth). Screen readers announce these
+      as links, not buttons — slightly imprecise for actions, and accepted.

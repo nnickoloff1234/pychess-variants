@@ -70,6 +70,10 @@ The change therefore runs in this order, and the shortlist is written only at th
 The gate at step 4 is explicit: **anything that cannot be justified as high impact for small,
 contained change is deferred to a successor**, not smuggled in.
 
+**Update 2026-10-24: step 4 is done.** The shortlist is C, D, E, F and G (`tasks.md` 3.4); G, C and
+D shipped in PR #2377 with the smaller fixes, and E and F are the next PR. The paragraphs below are
+the planning-phase wording, kept for the record.
+
 **Steps 1 to 3 are done. Step 4 is NOT.** `candidates.md` holds seven costed options (A to G) and two
 possible groupings — Nikolay, 2026-09-26: *"we havent reached conclusion what to do yet, just good to
 have all this written down as options and findings."*
@@ -88,11 +92,18 @@ ordinary semantics, always on, benefiting everyone.
 
 ## Capabilities
 
+**Decided 2026-10-24:** a new `accessibility` capability, written at the end of the change for
+everything shipped (`tasks.md` 3.5). Original wording:
+
 To be decided once the shortlist exists. Likely a new `accessibility` capability covering what the
 site guarantees to a non-visual user. Naming requirements before knowing which ones we can keep
 would put promises in the living spec that the code does not meet.
 
 ## Impact
+
+**Corrected 2026-10-24:** stylesheets did change (`site.css`'s `.sr-only` and the tab and button
+resets, `round.css`), and F(vi) (`tasks.md` 3.4g) puts our own elements inside chessgroundx's
+`cg-board`, without changing the package. Original wording:
 
 Unknown until the shortlist exists. **Notably NOT in the list: chessgroundx, and any stylesheet.**
 Candidates B to E are markup in pages we already render; candidate F adds elements beside the board

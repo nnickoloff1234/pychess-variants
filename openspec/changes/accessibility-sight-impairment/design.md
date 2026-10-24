@@ -204,6 +204,11 @@ user's agreement already on record rather than assumed.
 
 ### Decision 7: NO MODE **EXCEPT FOR THE BOARD** — 2026-09-27, CORRECTED THE SAME DAY
 
+**SUPERSEDED 2026-10-10 by `tasks.md` 3.4g — there is no mode.** The board gets one button per
+square on chessgroundx's own board (F(vi), `candidates.md`), visible because the board is, so the
+visibility argument below no longer applies. Candidate A became the skip link plus the
+"Accessibility guide" link (4Z.0), not a toggle. The move input's shape is still open (4EF.1).
+
 **Read the correction at the end of this decision before acting on it.** As first written it concluded
 "no mode at all"; that is wrong for candidate F, and Nikolay's original instinct — which named the board
 as the exception — was right.
