@@ -57,7 +57,7 @@ export function roundView(model: PyChessModel): VNode[] {
                 h('div.material.material-top.' + variant.pieceFamily + '.disabled'),
                 h('div.pocket-top', [
                     h('div.' + variant.pieceFamily + '.' + model['variant'], [
-                        h('div.cg-wrap.pocket', [h('div#pocket0.pocketrow')]),
+                        h('div.cg-wrap.pocket', [h('div#pocket0.pocketrow'), keyboard.pocketView('top')]),
                     ]),
                 ]),
                 h('div.info-wrap0', [
@@ -77,7 +77,7 @@ export function roundView(model: PyChessModel): VNode[] {
                 h('div.info-wrap1', [h('div.clock-wrap', [h('div#clock1'), h('div#berserk1')]), h('div#misc-info1')]),
                 h('div.pocket-bot', [
                     h('div.' + variant.pieceFamily + '.' + model['variant'], [
-                        h('div.cg-wrap.pocket', [h('div#pocket1.pocketrow')]),
+                        h('div.cg-wrap.pocket', [h('div#pocket1.pocketrow'), keyboard.pocketView('bottom')]),
                     ]),
                 ]),
                 h('div.material.material-bottom.' + variant.pieceFamily + '.disabled'),

@@ -1665,7 +1665,18 @@ views, not one composed view: the pockets sit apart from the board, with clocks 
       b3) dropped the selection, as a click does. Original task: Space and Enter call
       `selectSquare()`: select (with the `select` sound), move, or replace the selection, as a
       click does — premoves included.
-- [ ] 4F.6 **Pockets (Q2).** One step past the a-file edge is white's pocket, past the last file
+- [x] 4F.6 **DONE 2026-10-25, round page (sounds wait for 4F.8).** `pocketView('top' | 'bottom')`
+      beside `#pocket0`/`#pocket1`: `div.cg-keyboard-pocket`, a grid laid out by `pocketShape()`,
+      now exported from `pocketRow.ts` so the overlay and the drawn row share one rule (one row,
+      or two for 8+ roles). The cursor is a square or a pocket role (`"white:n"`); `focusout` to
+      outside the layers puts the tab stop back on the square the pocket was entered from. New
+      msgid `%1 pocket`. Verified live in crazyhouse, black's side, all by real keys: the pocket
+      buttons sit exactly on chessgroundx's pocket squares (both windows, both pockets); black
+      Nf6xe4 by keyboard; from h3 Left entered "Black pocket: pawn, 1", Down/Up stepped the
+      roles (both ends stop), Left (outward) stayed, Right returned to h3; Space selected the pawn,
+      arrows to d6, Space dropped `P@d6`; from a6 Right entered white's pocket, Space there did
+      nothing; Tab from the pocket left the tab stop on a6, Shift+Tab came back to a6.
+      Original task: **Pockets (Q2).** One step past the a-file edge is white's pocket, past the last file
       black's; enter at the first role, leave back to the square you came from; Up/Down through the
       roles in drawn order, zero counts included; "White pocket: knight, 2"; Space selects your own
       non-empty role with `selectPocket()` (`error` otherwise, and always in gating variants), then
