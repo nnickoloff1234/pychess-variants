@@ -8,6 +8,7 @@ import { patch } from '@/document';
 import { pieceName, Variant } from '@/variants';
 import { BoardName } from '@/types';
 import { pocketShape } from '@/pocketRow';
+import { sound } from '@/sound';
 import { colorName, squareName } from './boardSummary';
 
 const ARROWS: Record<string, [number, number]> = {
@@ -48,6 +49,7 @@ export class ChessgroundKeyboard {
     private pocketOrigin: cg.Key | undefined;
     // The square a move was made to; the cursor returns there when a promotion or gating chooser closes.
     private moveDest: cg.Key | undefined;
+    private lastSound = 0;
 
     constructor(
         private readonly variant: Variant,
@@ -121,7 +123,10 @@ export class ChessgroundKeyboard {
         e.stopPropagation();
         const next = this.step(step);
         // While a chooser is open the cursor moves only between its choices; leaving never cancels.
-        if (next === undefined || (chooser !== undefined && !chooser.choices.has(next as cg.Key))) return;
+        if (next === undefined || (chooser !== undefined && !chooser.choices.has(next as cg.Key))) {
+            this.play(() => sound.outOfBound());
+            return;
+        }
         this.cursor = next;
         this.update();
         this.focusCursor();
@@ -143,6 +148,7 @@ export class ChessgroundKeyboard {
         if (piece === undefined) {
             this.moveDest = spot as cg.Key;
             this.chessground.selectSquare(spot as cg.Key);
+            if (this.chessground.state.selectable.selected === spot) this.play(() => sound.confirmation());
             // A promotion or gating chooser opens on the move: go to its first choice. chessgroundx
             // runs its move callbacks in a 1ms timeout, so the chooser exists only after that.
             setTimeout(() => {
@@ -157,6 +163,17 @@ export class ChessgroundKeyboard {
         // Gating variants never drop: their pocket pieces enter only by gating.
         const count = this.chessground.state.boardState.pockets?.[piece.color].get(piece.role) ?? 0;
         if (!this.variant.rules.gate && count > 0) this.chessground.selectPocket(piece);
+        const selected = this.chessground.state.selectable.selected;
+        const picked = selected !== undefined && util.isPiece(selected) && util.samePiece(selected, piece);
+        this.play(picked ? () => sound.confirmation() : () => sound.error());
+    }
+
+    // As lichess does: at most one cue per 100ms, so a held arrow at the edge does not machine-gun.
+    private play(cue: () => void): void {
+        const now = performance.now();
+        if (now - this.lastSound < 100) return;
+        this.lastSound = now;
+        cue();
     }
 
     private closeChooser(): void {
