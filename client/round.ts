@@ -6,12 +6,13 @@ import { renderTimeago } from './datetime';
 import { VARIANTS } from './variants';
 import { PyChessModel } from './types';
 import { BoardSummaryView } from './accessibility/boardSummary';
+import { ChessgroundKeyboard } from './accessibility/chessgroundKeyboard';
 import { _ } from './i18n';
 import { pageHeading, srHeading } from './accessibility/headings';
 
-function runGround(vnode: VNode, model: PyChessModel, aliceBoardVNode?: VNode) {
+function runGround(vnode: VNode, model: PyChessModel, keyboard: ChessgroundKeyboard, aliceBoardVNode?: VNode) {
     const el = vnode.elm as HTMLElement;
-    const ctrl = new RoundController(el, model, aliceBoardVNode?.elm as HTMLElement | undefined);
+    const ctrl = new RoundController(el, model, keyboard, aliceBoardVNode?.elm as HTMLElement | undefined);
     const cg = ctrl.chessground;
     window['cg'] = cg;
 }
@@ -21,6 +22,7 @@ export function roundView(model: PyChessModel): VNode[] {
     const isAlice = variant.name === 'alice';
     let mainboardVNode: VNode;
     let aliceBoardVNode: VNode | undefined;
+    const keyboard = new ChessgroundKeyboard(variant, '');
 
     renderTimeago();
 
@@ -31,13 +33,14 @@ export function roundView(model: PyChessModel): VNode[] {
             'div.round-app',
             {
                 class: { 'alice-round': isAlice },
-                hook: { insert: () => runGround(mainboardVNode, model, aliceBoardVNode) },
+                hook: { insert: () => runGround(mainboardVNode, model, keyboard, aliceBoardVNode) },
             },
             [
                 h(`selection#mainboard.${variant.boardFamily}.${variant.pieceFamily}.${variant.ui.boardMark}`, [
                     h('div.cg-wrap.' + variant.board.cg, {
                         hook: { insert: vnode => (mainboardVNode = vnode) },
                     }),
+                    keyboard.boardView(),
                 ]),
                 !isAlice
                     ? ''
