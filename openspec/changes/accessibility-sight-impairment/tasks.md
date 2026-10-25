@@ -1777,8 +1777,39 @@ views, not one composed view: the pockets sit apart from the board, with clocks 
       colours, `4`, `Shift+1`, `q`, `p` wrapping, `m` from a board piece and a pocket, `z` ignored,
       `f` from a square and from a pocket), chess on p3/p4 (`m` gives "a7, b7" for the checked
       king, "No legal moves" off turn).
-- [ ] 4F.12 **Pages:** round, analysis and puzzle (single board), and each board on the two-board
+- [x] 4F.12 **Pages:** round, analysis and puzzle (single board), and each board on the two-board
       pages (Q3: built, not verified). Alice: the main board only, like the summary.
+      **Done 2026-10-25.** Every page that builds a `GameController` now constructs the layer in
+      its view, so `keyboard` is required there (`aliceBoardEl` became an explicit
+      `HTMLElement | undefined` before it): analysis and analysis embed (`index.ts`,
+      `renderAnalysisPage` gains `parts.keyboard`, `renderEmbedPage` a `keyboard` argument), study
+      and study embed, puzzle, and the two-board round and analysis pages (`{a, b}` keyboards
+      through `TwoBoardController` into each `GameControllerBughouse`, whose own
+      `updateBoardSummary()` now updates its layer). The existing smoke test's mocks follow the
+      new signatures (`tests/analysisPageSmoke.test.ts`); no test added.
+      Fixed on the way:
+      - **The layer painted only on the first update after insert.** A controller is built in
+        the board's insert hook, before the layer's own runs, so the analysis board stayed
+        unlabelled until the first move. The views' insert hooks now paint.
+      - **Two layers on one page stole focus from each other:** the refocus and the pocket blur
+        checked "any layer", so a move on A focused B. Both now ask this board's own views.
+      - **Two-board pockets are sized per layout by `two-boards/components/seats/pockets.css`**
+        (`--bug-pocket-sq` in short landscape and portrait), not from the board square, and their
+        wrapper is the pocket's size; a named board's pocket layer is `100%` of the wrapper.
+      - **A study chapter switch patches from plain DOM** (`toVNode`), which would reuse the old
+        layer's element and its listeners; the layer's roots are keyed, so they are replaced.
+        Each chapter gets its own keyboard (it can change the variant).
+      Verified, alignment against `cg-container` and each pocket row, in every case exact:
+      crazyhouse analysis; puzzle; a finished bughouse game's round and analysis pages in all
+      three layout modes (p1 desktop 1276x626, p3 short landscape 1276x413, p4 portrait 386x835);
+      a test study (private, `kbtest`, dev db) switched chess -> crazyhouse in place, then a keyboard
+      `e4` and the pocket. Keyboard moves on analysis and on both two-board analysis boards.
+      **Pocket entry on analysis:** `movable.color` is the side to move there, not `both`, so
+      Right enters the mover's pocket; the by-half rule applies only where both colours are
+      movable, which no page sets today (the editor has no `GameController`).
+      **Seen, not ours:** on the two-board analysis page `f` flips board B only (pre-existing:
+      each board's controller binds it). **Still open from 4F.10:** two-board pages now have both
+      the summary's `h2 Board A` and the layer's.
 - [ ] 4F.13 **The two tests (4EF.5):** the labels match chessground's state after a move and after a
       flip; orientation.
 - [ ] 4F.14 **Verify** as 5.2 did (Orca's log, the AX tree, real keys): a crazyhouse game played by
