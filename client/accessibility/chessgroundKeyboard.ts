@@ -17,6 +17,10 @@ import { colorName, squareName } from './boardSummary';
 export class ChessgroundKeyboard {
     private chessground: Api | undefined;
     private boardVNode: VNode | undefined;
+    // The one square Tab reaches. Until the player first focuses the board it follows the side at
+    // the bottom, which a round page sets only after the first paint; after that it stays put.
+    private cursor: cg.Key | undefined;
+    private visited = false;
 
     constructor(
         private readonly variant: Variant,
@@ -36,7 +40,25 @@ export class ChessgroundKeyboard {
 
     update(): void {
         if (this.boardVNode === undefined || this.chessground === undefined) return;
+        if (!this.visited) this.cursor = this.startSquare(this.chessground.state);
         this.boardVNode = patch(this.boardVNode, this.renderBoard());
+    }
+
+    private onFocus(e: FocusEvent): void {
+        const key = (e.target as HTMLElement).dataset.key as cg.Key | undefined;
+        if (key === undefined) return;
+        this.visited = true;
+        this.cursor = key;
+    }
+
+    // The king of the side at the bottom, else that side's bottom-left square.
+    private startSquare(state: Api['state']): cg.Key {
+        const color = state.orientation;
+        for (const [key, piece] of state.boardState.pieces) {
+            if (piece.color === color && this.variant.kingRoles.includes(piece.role)) return key;
+        }
+        const { width, height } = this.variant.board.dimensions;
+        return util.pos2key(color === 'white' ? [0, 0] : [width - 1, height - 1]);
     }
 
     // "e4 White pawn"; an empty square is just its name. Squares in the variant's own notation.
@@ -59,7 +81,12 @@ export class ChessgroundKeyboard {
                 squares.push(
                     h('button', {
                         key,
-                        attrs: { type: 'button', tabindex: '-1', 'data-key': key, 'aria-label': this.label(key) },
+                        attrs: {
+                            type: 'button',
+                            tabindex: key === this.cursor ? '0' : '-1',
+                            'data-key': key,
+                            'aria-label': this.label(key),
+                        },
                     }),
                 );
             }
@@ -67,6 +94,7 @@ export class ChessgroundKeyboard {
         return h(
             'div.cg-keyboard',
             {
+                on: { focusin: (e: FocusEvent) => this.onFocus(e) },
                 style: {
                     width: `var(--cg-width${suffix})`,
                     height: `var(--cg-height${suffix})`,
