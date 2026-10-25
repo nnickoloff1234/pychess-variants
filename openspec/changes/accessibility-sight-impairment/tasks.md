@@ -1807,9 +1807,7 @@ views, not one composed view: the pockets sit apart from the board, with clocks 
       **Pocket entry on analysis:** `movable.color` is the side to move there, not `both`, so
       Right enters the mover's pocket; the by-half rule applies only where both colours are
       movable, which no page sets today (the editor has no `GameController`).
-      **Seen, not ours:** on the two-board analysis page `f` flips board B only (pre-existing:
-      each board's controller binds it). **Still open from 4F.10:** two-board pages now have both
-      the summary's `h2 Board A` and the layer's.
+      **From 4F.10, decided in 4F.15:** the summary's heading is "Board A: Summary".
 - [x] 4F.13 **The two tests (4EF.5):** the labels match chessground's state after a move and after a
       flip; orientation.
       **Done 2026-10-25:** `tests/chessgroundKeyboard.test.ts`, a real chessground in jsdom with the
@@ -1854,12 +1852,37 @@ views, not one composed view: the pockets sit apart from the board, with clocks 
       reaches the page (or moves Orca's virtual cursor instead) is untested here, and in NVDA it is
       the 3.4h Q1 question; it needs a person at a real keyboard (Nikolay, then our user).
       **New findings, not fixed:**
-      - **Two equal moves in a row are not announced:** `3...Nxd5 4. Nxd5` leaves the summary's Last
-        move text unchanged, so the second is silent. The summary's region (5.x), not the layer; the
-        notice region's alternating no-break space is the known fix.
+      - **Two equal moves in a row are not announced** — fixed in 4F.15.
       - **Shogi digits are inverted against the spoken names:** `3` goes to row "7" and `Shift+7` to
         file "3", as 4F.11 predicted. For variant help.
       - `m` on a pocket piece reads every drop square (33 in the test); a count or grouping later.
+
+- [x] 4F.15 **Repeated announcements, and the two "Board A" headings — Nikolay 2026-10-25.**
+      **Root cause:** a live region is spoken only when its text changes, and Snabbdom writes nothing
+      when the new text equals the old, so `3...Nxd5 4. Nxd5` (or `O-O` answered by `O-O`, or
+      `exd5 exd5`) left the second move silent. **Why it was missed:** 4CD.4 checked the summary by
+      dumping its text, which was right and cannot show what is spoken; 5.2 heard it in Orca, but in
+      a game where no move repeated the one before; and when 4F.11 met the same condition in the
+      notice region, the fix stayed there and the other regions were not checked for it.
+      **Fix:** the Last move keys "is this a new move?" on the pieces on the board (`writeBoard`),
+      not on the call, so a redraw, a flip or a bughouse pocket change says nothing again; a new
+      move with the same words gets the alternating no-break space. The status keeps today's rule
+      (the game result is set again on every move), and a caller marks an event to repeat it: the
+      puzzle's "Best move!" and "That's not the move!".
+      **Found on the way:** a puzzle's `gameId` is its source game, so every puzzle move also wrote
+      that game's result into the status, overwritten in the same tick; Chrome then reported no net
+      change and the second "Best move!" stayed silent even with the fix. The puzzle now reports
+      only its own feedback (`updateBoardSummary` overridden, as the two-board controller does).
+      **Audit of the other live regions:** the layer's notice already alternates; chat adds a new
+      `li` per message; the offer region is emptied (`clearDialog`) between offers; study's practice
+      and lesson statuses rebuild their nodes; tournament stats repeating is correctly silent.
+      **Heading:** the summary on a two-board page is "Board A: Summary", the layer keeps "Board A"
+      (one new msgid, "Summary"; "Position" was not in the catalogue either).
+      **Verified in Orca 2026-10-25:** chess analysis by keys, `1. e4 d5 2. exd5 Nf6 3. Nc3 Nxd5 4. Nxd5`,
+      all seven presented including both `Nxd5`; `f` presents nothing; with the board unfocused
+      Left, Left, Right, Right presents Nxd5, Nc3, Nxd5, Nxd5. Puzzle (local test puzzle `kbpz1`,
+      with a source game id): two "Best move! Keep going..." and two "d4? That's not the move!"
+      all presented. Two-board heading list: Board B, Board A, Board A: Summary, Board B: Summary.
 
 ### 4Z. LAST — the guide for blind users. Added by Nikolay 2026-10-10.
 
