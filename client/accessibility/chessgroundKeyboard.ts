@@ -47,7 +47,9 @@ export class ChessgroundKeyboard {
     private visited = false;
     // The square a pocket was entered from, to return to.
     private pocketOrigin: cg.Key | undefined;
-    // The square a move was made to; the cursor returns there when a promotion or gating chooser closes.
+    // A move's squares: when a promotion or gating chooser closes the cursor returns to where the
+    // piece went, or, if the chooser was cancelled, to where it came from.
+    private moveOrig: cg.Key | undefined;
     private moveDest: cg.Key | undefined;
     private lastSound = 0;
 
@@ -114,7 +116,7 @@ export class ChessgroundKeyboard {
         if (e.key === 'Escape' && chooser !== undefined) {
             e.stopPropagation();
             chooser.el.click();
-            this.closeChooser();
+            this.closeChooser(this.moveOrig);
             return;
         }
         const step = ARROWS[e.key];
@@ -140,12 +142,14 @@ export class ChessgroundKeyboard {
         const open = this.chooser();
         if (open !== undefined) {
             open.choices.get(spot as cg.Key)?.el.click();
-            this.closeChooser();
+            this.closeChooser(this.moveDest);
             return;
         }
         this.cursor = spot;
         const piece = parsePocketSpot(spot);
         if (piece === undefined) {
+            const selected = this.chessground.state.selectable.selected;
+            this.moveOrig = selected !== undefined && util.isKey(selected) ? selected : undefined;
             this.moveDest = spot as cg.Key;
             this.chessground.selectSquare(spot as cg.Key);
             if (this.chessground.state.selectable.selected === spot) this.play(() => sound.confirmation());
@@ -176,8 +180,8 @@ export class ChessgroundKeyboard {
         cue();
     }
 
-    private closeChooser(): void {
-        if (this.moveDest !== undefined) this.cursor = this.moveDest;
+    private closeChooser(to: cg.Key | undefined): void {
+        this.cursor = to ?? this.moveDest ?? this.cursor;
         this.update();
         this.focusCursor();
     }
