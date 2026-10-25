@@ -31,6 +31,13 @@ export type Politeness = 'assertive' | 'polite';
 
 const COLORS: cg.Color[] = ['white', 'black'];
 
+// level: its top heading's, under the page's own (the forum captcha sits lower than a game page).
+// lastMove: false where a position has no history (the forum captcha).
+interface SummaryOptions {
+    level?: number;
+    lastMove?: boolean;
+}
+
 // A live region speaks only when its text changes, so the same words again (Nxd5 answered by Nxd5)
 // get a trailing no-break space, added and dropped in turn.
 function respoken(shown: string, text: string): string {
@@ -78,6 +85,7 @@ export class BoardSummaryView {
     constructor(
         private readonly variant: Variant,
         private readonly boardName: BoardName,
+        private readonly options: SummaryOptions = {},
     ) {}
 
     /** The page decides where the summary goes and how urgently it speaks. */
@@ -111,8 +119,9 @@ export class BoardSummaryView {
         this.setClock(color(), clock.duration);
     }
 
-    /** What the "Last move" section says, for the board's `l` key. */
+    /** What the "Last move" section says, for the board's `l` key; empty where there is none. */
     lastMoveText(): string {
+        if (this.options.lastMove === false) return '';
         return this.lastMove ?? _('Initial position');
     }
 
@@ -192,8 +201,9 @@ export class BoardSummaryView {
     private render(): VNode {
         // A two-board page heads each board's summary, so the sections sit one level lower.
         const titled = this.boardName !== '';
-        const section = titled ? 'h3' : 'h2';
-        const side = titled ? 'h4' : 'h3';
+        const top = this.options.level ?? 2;
+        const section = `h${titled ? top + 1 : top}`;
+        const side = `h${titled ? top + 2 : top + 1}`;
         const region = { 'aria-live': this.live, 'aria-atomic': 'true' };
 
         const byColor = (title: string, rows: (color: cg.Color) => VNode[]) => [
@@ -204,11 +214,12 @@ export class BoardSummaryView {
 
         return h(`div#${elementId(this.boardName)}.sr-only`, { attrs: { 'data-live': this.live } }, [
             // "Summary", so it is told apart from the keyboard board's own "Board A" heading.
-            ...(titled ? [h('h2', `${_('Board')} ${this.boardName.toUpperCase()}: ${_('Summary')}`)] : []),
+            ...(titled ? [h(`h${top}`, `${_('Board')} ${this.boardName.toUpperCase()}: ${_('Summary')}`)] : []),
             ...byColor(_('Pieces'), color => this.piecesByColor(color)),
             ...(this.variant.pocket ? byColor(_('Pockets'), color => this.pocketByColor(color)) : []),
-            h(section, _('Last move')),
-            h('p', { attrs: region }, this.lastMoveShown),
+            ...(this.options.lastMove === false
+                ? []
+                : [h(section, _('Last move')), h('p', { attrs: region }, this.lastMoveShown)]),
             // role="timer" is never announced as it changes; the time is read when the reader gets there.
             ...(Object.keys(this.clocks).length === 0
                 ? []

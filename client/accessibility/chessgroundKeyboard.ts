@@ -61,6 +61,8 @@ export class ChessgroundKeyboard {
     constructor(
         private readonly variant: Variant,
         private readonly boardName: BoardName,
+        // Its heading's level: lower under a page's own section (the forum captcha).
+        private readonly level = 2,
     ) {}
 
     /** The square buttons; the page puts this beside the board's `.cg-wrap`. */
@@ -205,7 +207,7 @@ export class ChessgroundKeyboard {
         const arrow = ARROWS[e.key];
         if (arrow !== undefined) return e.shiftKey ? undefined : () => this.step(arrow);
         const key = e.key.toLowerCase();
-        if (key === 'l' && !e.shiftKey) return this.summary?.lastMoveText();
+        if (key === 'l' && !e.shiftKey) return this.summary?.lastMoveText() || undefined;
         if (key === 't' && !e.shiftKey) return this.summary?.clockText() || undefined;
         if (key === 'm' && !e.shiftKey) return this.legalMoves();
         // 1-9 and 0 (the tenth) go to that rank in the cursor's file; with Shift, that file in its
@@ -344,7 +346,8 @@ export class ChessgroundKeyboard {
         const target: cg.Pos = [file + sign * df, rank + sign * dr];
         const off = target[0] < 0 || target[0] >= width || target[1] < 0 || target[1] >= height;
         if (!off) return util.pos2key(target);
-        if (df !== 1 || !this.variant.pocket) return undefined;
+        // Not where the page draws no pockets (the forum captcha).
+        if (df !== 1 || !this.variant.pocket || this.pocketVNodes.bottom === undefined) return undefined;
         const mover = state.movable.color;
         const lowerHalf = (sign === 1 ? rank : height - 1 - rank) < height / 2;
         const color =
@@ -410,7 +413,7 @@ export class ChessgroundKeyboard {
         // .sr-only is absolutely positioned, so the heading takes no grid cell.
         const heading = `${_('Board')} ${this.boardName.toUpperCase()}`.trim();
         const children: VNode[] = [
-            h('h2.sr-only', { key: 'heading' }, heading),
+            h(`h${this.level}.sr-only`, { key: 'heading' }, heading),
             ...this.squares().map(key => this.button(key, choices?.get(key)?.label ?? this.squareLabel(key))),
             h('p.sr-only', { key: 'notice', attrs: { 'aria-live': 'assertive', 'aria-atomic': 'true' } }, this.notice),
         ];
@@ -422,8 +425,9 @@ export class ChessgroundKeyboard {
                 key: 'cg-keyboard',
                 on: this.handlers(),
                 style: {
-                    width: `var(--cg-width${suffix})`,
-                    height: `var(--cg-height${suffix})`,
+                    // A board no page sizes (the forum captcha) is its wrapper's size.
+                    width: `var(--cg-width${suffix}, 100%)`,
+                    height: `var(--cg-height${suffix}, 100%)`,
                     gridTemplateColumns: `repeat(${width}, 1fr)`,
                     gridTemplateRows: `repeat(${height}, 1fr)`,
                 },

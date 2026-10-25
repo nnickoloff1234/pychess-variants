@@ -1552,7 +1552,7 @@ once. No timed, per-turn or low-time announcements. A low-time warning was offer
       `spokenTime()` (exported from `boardSummary.ts`) and the summary's per-colour clock state
       are what it will read; nothing else is needed from the clock side.
 
-- [ ] 4FR6 **With E and F: the forum captcha** (FR6, `inbox-and-forum-sweep.md`). A blind user
+- [x] 4FR6 **With E and F: the forum captcha** (FR6, `inbox-and-forum-sweep.md`). A blind user
       cannot post today. Decided by Nikolay 2026-10-10: the board summary under a heading naming it
       the post's captcha (the existing "%1 to checkmate in one move" can head it — no new string),
       plus F's keyboard navigation and Enter/Space moves on the captcha's chessground. **A typed
@@ -1561,6 +1561,25 @@ once. No timed, per-turn or low-time announcements. A low-time warning was offer
       captcha in blind mode — needs a blind-mode preference pychess does not have; future option.
       **The result line must be a live region** ("Checkmate." / "Not a checkmate. Try again." is
       only visual today) — moved here from FR2 (Nikolay 2026-10-11).
+      **Done 2026-10-25 with the keyboard board (Nikolay); the typed field still waits for E.**
+      `client/forum.ts`: the captcha's chessground gets a `ChessgroundKeyboard` and a
+      `BoardSummaryView` (Pieces only: `lastMove: false`). The forum redraws its whole page on every
+      change, so the layer goes into an empty host the redraw leaves alone, and the summary into its
+      usual placeholder. "%1 to checkmate in one move" is now the heading (`h2` on the new-topic
+      form, `h3` under "Reply to this topic"), with the summary and the layer one level below; the
+      explanation comes first in the DOM and the board is still drawn first (`order: -1`). The two
+      results sit in a `role="status"` region; a repeated failure alternates a no-break space,
+      because the hide in between lasts 7ms and Chrome reports no change (measured).
+      Widget changes: a heading level on both (default as before), `--cg-width` falls back to
+      `100%` (the captcha's wrapper is the board), and Right past the edge enters a pocket only
+      where the page draws pockets (minishogi and seirawan captchas have none).
+      **Verified in Orca 2026-10-25,** new-topic form: Tab from the etiquette link lands on "d4
+      White king push button"; `m` "e5, c4"; `Ra8` three times, "Not a checkmate. Try again."
+      each time; `Qe8` "Checkmate."; Tab, Tab, Enter on "Create the topic" posted it. Reply form on
+      that topic: headings Reply to this topic (h2), White to checkmate in one move (h3), Pieces
+      (h4), Board (h4); mate by keys, Enter on "Reply" posted. The next captcha by mouse: solved,
+      square names follow. Layer and board coincide (256x256, offsets 0). Layout unchanged.
+      Local test data: topic "Keyboard captcha test" in off-topic, with one reply.
 
 ### 4EF. Board interaction — E and F, the next PR. Opened 2026-10-24.
 
