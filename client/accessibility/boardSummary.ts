@@ -1,6 +1,7 @@
 import { h, VNode } from 'snabbdom';
 import * as cg from 'chessgroundx/types';
 import * as util from 'chessgroundx/util';
+import { writeBoard } from 'chessgroundx/fen';
 
 import { _, ngettext } from '@/i18n';
 import { patch } from '@/document';
@@ -29,6 +30,12 @@ export function spokenTime(millis: number): string {
 export type Politeness = 'assertive' | 'polite';
 
 const COLORS: cg.Color[] = ['white', 'black'];
+
+// A live region speaks only when its text changes, so the same words again (Nxd5 answered by Nxd5)
+// get a trailing no-break space, added and dropped in turn.
+function respoken(shown: string, text: string): string {
+    return shown === text ? `${text}\u00a0` : text;
+}
 
 function elementId(boardName: BoardName): string {
     return boardName === '' ? 'board-summary' : `board-summary-${boardName}`;
@@ -63,6 +70,8 @@ export class BoardSummaryView {
     private live: Politeness = 'polite';
     private boardState: cg.BoardState | undefined;
     private lastMove: string | undefined;
+    private lastMoveShown = '';
+    private pieces = '';
     private status: string | undefined;
     private clocks: Partial<Record<cg.Color, string>> = {};
 
@@ -77,8 +86,14 @@ export class BoardSummaryView {
     }
 
     setPosition(boardState: cg.BoardState, lastMove: string | undefined): void {
+        // A new move changes the pieces; a redraw, a flip or a bughouse pocket change does not.
+        const pieces = writeBoard(boardState.pieces, this.variant.board.dimensions);
+        const moved = pieces !== this.pieces;
         this.boardState = boardState;
+        this.pieces = pieces;
         this.lastMove = lastMove;
+        const text = this.lastMoveText();
+        if (moved || this.lastMoveShown.trimEnd() !== text) this.lastMoveShown = respoken(this.lastMoveShown, text);
         this.redraw();
     }
 
@@ -112,8 +127,10 @@ export class BoardSummaryView {
         );
     }
 
-    setStatus(status: string): void {
-        this.status = status;
+    // An event (a puzzle's "Best move!") is spoken even in the words the status already holds;
+    // the game result is set again on every move and must not be.
+    setStatus(status: string, event = false): void {
+        this.status = event ? respoken(this.status ?? '', status) : status;
         this.redraw();
     }
 
@@ -186,11 +203,12 @@ export class BoardSummaryView {
         ];
 
         return h(`div#${elementId(this.boardName)}.sr-only`, { attrs: { 'data-live': this.live } }, [
-            ...(titled ? [h('h2', `${_('Board')} ${this.boardName.toUpperCase()}`)] : []),
+            // "Summary", so it is told apart from the keyboard board's own "Board A" heading.
+            ...(titled ? [h('h2', `${_('Board')} ${this.boardName.toUpperCase()}: ${_('Summary')}`)] : []),
             ...byColor(_('Pieces'), color => this.piecesByColor(color)),
             ...(this.variant.pocket ? byColor(_('Pockets'), color => this.pocketByColor(color)) : []),
             h(section, _('Last move')),
-            h('p', { attrs: region }, this.lastMoveText()),
+            h('p', { attrs: region }, this.lastMoveShown),
             // role="timer" is never announced as it changes; the time is read when the reader gets there.
             ...(Object.keys(this.clocks).length === 0
                 ? []

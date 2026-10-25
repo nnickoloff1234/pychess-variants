@@ -1,3 +1,4 @@
+import * as Mousetrap from 'mousetrap';
 import { materializeTwoBoardHistory } from '../common/gameHistory';
 import * as cg from 'chessgroundx/types';
 
@@ -65,6 +66,8 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
         movetimeChartView: MovetimeChartView,
     ) {
         super(el1, el1Pocket1, el1Pocket2, el2, el2Pocket1, el2Pocket2, model, keyboards, movelistView, gameInfoView);
+        // Each board binds 'f' to flip itself and board B's binding wins; flip both, as the round does.
+        Mousetrap.bind('f', () => this.flipBoards());
 
         // orient the boards as the viewer experienced the game: own/partner color at
         // the bottom for participants, white-A/black-B for spectators (the old default)

@@ -322,6 +322,13 @@ export class PuzzleController extends AnalysisController {
         }
     }
 
+    // The status line is the puzzle's own feedback; gameId names the source game, whose result
+    // would otherwise overwrite it on every move.
+    updateBoardSummary(lastMove: string | undefined): void {
+        this.boardSummary.setPosition(this.chessground.state.boardState, lastMove);
+        this.keyboard.update();
+    }
+
     makeMove(move: string) {
         const san = this.ffishBoard.sanMove(move, this.notationAsObject);
         this.moves.push(move as UCIMove);
@@ -408,7 +415,7 @@ export class PuzzleController extends AnalysisController {
                 ]),
             ]),
         );
-        this.boardSummary.setStatus(`${san}? ${_("That's not the move!")} ${_('Try something else.')}`);
+        this.boardSummary.setStatus(`${san}? ${_("That's not the move!")} ${_('Try something else.')}`, true);
         const feedbackEl = document.querySelector('.feedback') as HTMLInputElement;
         feedbackEl.classList.toggle('good', false);
         feedbackEl.classList.toggle('fail', true);
@@ -422,7 +429,7 @@ export class PuzzleController extends AnalysisController {
                 h('div.instruction', [h('strong', _('Best move!')), h('em', _('Keep going...'))]),
             ]),
         );
-        this.boardSummary.setStatus(`${_('Best move!')} ${_('Keep going...')}`);
+        this.boardSummary.setStatus(`${_('Best move!')} ${_('Keep going...')}`, true);
         const feedbackEl = document.querySelector('.feedback') as HTMLInputElement;
         feedbackEl.classList.toggle('fail', false);
         feedbackEl.classList.toggle('good', true);
