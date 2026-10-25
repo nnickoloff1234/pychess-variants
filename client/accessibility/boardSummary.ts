@@ -96,6 +96,22 @@ export class BoardSummaryView {
         this.setClock(color(), clock.duration);
     }
 
+    /** What the "Last move" section says, for the board's `l` key. */
+    lastMoveText(): string {
+        return this.lastMove ?? _('Initial position');
+    }
+
+    /** Both clocks in one line, for the board's `t` key; empty when the game has none. */
+    clockText(): string {
+        return this.clockLines().join(', ');
+    }
+
+    private clockLines(): string[] {
+        return COLORS.filter(color => this.clocks[color] !== undefined).map(
+            color => `${this.colorName(color)}: ${this.clocks[color]}`,
+        );
+    }
+
     setStatus(status: string): void {
         this.status = status;
         this.redraw();
@@ -174,15 +190,13 @@ export class BoardSummaryView {
             ...byColor(_('Pieces'), color => this.piecesByColor(color)),
             ...(this.variant.pocket ? byColor(_('Pockets'), color => this.pocketByColor(color)) : []),
             h(section, _('Last move')),
-            h('p', { attrs: region }, this.lastMove ?? _('Initial position')),
+            h('p', { attrs: region }, this.lastMoveText()),
             // role="timer" is never announced as it changes; the time is read when the reader gets there.
             ...(Object.keys(this.clocks).length === 0
                 ? []
                 : [
                       h(section, _('Time')),
-                      ...COLORS.filter(color => this.clocks[color] !== undefined).map(color =>
-                          h('p', { attrs: { role: 'timer' } }, `${this.colorName(color)}: ${this.clocks[color]}`),
-                      ),
+                      ...this.clockLines().map(line => h('p', { attrs: { role: 'timer' } }, line)),
                   ]),
             ...(this.status === undefined
                 ? []

@@ -9,7 +9,7 @@ import { pieceName, Variant } from '@/variants';
 import { BoardName } from '@/types';
 import { pocketShape } from '@/pocketRow';
 import { sound } from '@/sound';
-import { colorName, squareName } from './boardSummary';
+import { BoardSummaryView, colorName, squareName } from './boardSummary';
 
 const ARROWS: Record<string, [number, number]> = {
     ArrowUp: [0, 1],
@@ -39,6 +39,7 @@ function parsePocketSpot(spot: Spot): cg.Piece | undefined {
  */
 export class ChessgroundKeyboard {
     private chessground: Api | undefined;
+    private summary: BoardSummaryView | undefined;
     private boardVNode: VNode | undefined;
     private pocketVNodes: Partial<Record<PocketPosition, VNode>> = {};
     // The one spot Tab reaches. Until the player first focuses the board it follows the side at
@@ -52,6 +53,9 @@ export class ChessgroundKeyboard {
     private moveOrig: cg.Key | undefined;
     private moveDest: cg.Key | undefined;
     private lastSound = 0;
+    // What the board last said in answer to a key (l, t, m). A trailing no-break space alternates so the
+    // same answer twice is still announced.
+    private notice = '';
 
     constructor(
         private readonly variant: Variant,
@@ -72,18 +76,22 @@ export class ChessgroundKeyboard {
         return view;
     }
 
-    attach(chessground: Api): void {
+    attach(chessground: Api, summary: BoardSummaryView): void {
         this.chessground = chessground;
+        this.summary = summary;
     }
 
     update(): void {
         if (this.boardVNode === undefined || this.chessground === undefined) return;
         if (!this.visited) this.cursor = this.startSquare(this.chessground.state);
+        // A flip moves the buttons, which drops focus; it goes back to the cursor.
+        const focused = document.activeElement?.closest('.cg-keyboard, .cg-keyboard-pocket') != null;
         this.boardVNode = patch(this.boardVNode, this.renderBoard());
         for (const position of ['top', 'bottom'] as const) {
             const vnode = this.pocketVNodes[position];
             if (vnode !== undefined) this.pocketVNodes[position] = patch(vnode, this.renderPocket(position));
         }
+        if (focused) this.focusCursor();
     }
 
     private onFocus(e: FocusEvent): void {
@@ -119,11 +127,13 @@ export class ChessgroundKeyboard {
             this.closeChooser(this.moveOrig);
             return;
         }
-        const step = ARROWS[e.key];
-        if (step === undefined || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+        if (e.altKey || e.ctrlKey || e.metaKey) return;
+        const command = this.command(e);
+        if (command === undefined) return;
         e.preventDefault();
         e.stopPropagation();
-        const next = this.step(step);
+        if (typeof command === 'string') return this.say(command);
+        const next = command();
         // While a chooser is open the cursor moves only between its choices; leaving never cancels.
         if (next === undefined || (chooser !== undefined && !chooser.choices.has(next as cg.Key))) {
             this.play(() => sound.outOfBound());
@@ -170,6 +180,67 @@ export class ChessgroundKeyboard {
         const selected = this.chessground.state.selectable.selected;
         const picked = selected !== undefined && util.isPiece(selected) && util.samePiece(selected, piece);
         this.play(picked ? () => sound.confirmation() : () => sound.error());
+    }
+
+    // The board's keys, as lichess's: what to say, or where the cursor goes (undefined: nowhere,
+    // which bumps). Keys the board does not use are left to the page (f flips, ? is help).
+    private command(e: KeyboardEvent): string | (() => Spot | undefined) | undefined {
+        const arrow = ARROWS[e.key];
+        if (arrow !== undefined) return e.shiftKey ? undefined : () => this.step(arrow);
+        const key = e.key.toLowerCase();
+        if (key === 'l' && !e.shiftKey) return this.summary?.lastMoveText();
+        if (key === 't' && !e.shiftKey) return this.summary?.clockText() || undefined;
+        if (key === 'm' && !e.shiftKey) return this.legalMoves();
+        // 1-9 and 0 (the tenth) go to that rank in the cursor's file; with Shift, that file in its
+        // rank. By the key's place, so Shift does not change the character on any layout.
+        const digit = /^Digit(\d)$/.exec(e.code)?.[1];
+        if (digit !== undefined) return () => this.jumpToLine(digit === '0' ? 9 : Number(digit) - 1, e.shiftKey);
+        // A piece letter goes to the next piece of that kind, either colour, in reading order;
+        // with Shift, the previous one.
+        const role = `${key}-piece` as cg.Role;
+        const pieceRow = this.variant.pieceRow;
+        if (pieceRow.white.includes(role) || pieceRow.black.includes(role)) {
+            return () => this.jumpToPiece(role, e.shiftKey ? -1 : 1);
+        }
+        return undefined;
+    }
+
+    private say(text: string): void {
+        this.notice = this.notice.endsWith('\u00a0') ? text : `${text}\u00a0`;
+        this.update();
+    }
+
+    // The cursor's piece's moves, or a pocket role's drops: "d4, d5 Black pawn". Only for a side
+    // that can move now; a finished game keeps its last dests.
+    private legalMoves(): string {
+        const state = this.chessground?.state;
+        const spot = this.cursor;
+        const pocket = spot === undefined ? undefined : parsePocketSpot(spot);
+        const piece = pocket ?? (spot === undefined ? undefined : state?.boardState.pieces.get(spot as cg.Key));
+        const mover = state?.movable.color;
+        const own = piece !== undefined && (mover === 'both' || mover === piece.color);
+        const orig = pocket === undefined ? (spot as cg.Key) : util.dropOrigOf(pocket.role);
+        const dests = own ? state?.movable.dests?.get(orig) : undefined;
+        if (dests === undefined || dests.length === 0) return _('No legal moves');
+        return dests.map(key => this.squareLabel(key)).join(', ');
+    }
+
+    private jumpToLine(index: number, file: boolean): Spot | undefined {
+        if (this.cursor === undefined || parsePocketSpot(this.cursor) !== undefined) return undefined;
+        const { width, height } = this.variant.board.dimensions;
+        const [f, r] = util.key2pos(this.cursor as cg.Key);
+        if (index >= (file ? width : height)) return undefined;
+        return util.pos2key(file ? [index, r] : [f, index]);
+    }
+
+    private jumpToPiece(role: cg.Role, direction: 1 | -1): Spot | undefined {
+        const pieces = this.chessground?.state.boardState.pieces;
+        const keys = this.squares().filter(key => pieces?.get(key)?.role === role);
+        if (keys.length === 0) return undefined;
+        const i = keys.indexOf(this.cursor as cg.Key);
+        // From the cursor, wrapping; off a piece of that kind, the first (or last) one.
+        if (i === -1) return direction === 1 ? keys[0] : keys[keys.length - 1];
+        return keys[(i + direction + keys.length) % keys.length];
     }
 
     // As lichess does: at most one cue per 100ms, so a held arrow at the edge does not machine-gun.
@@ -312,17 +383,14 @@ export class ChessgroundKeyboard {
     private renderBoard(): VNode {
         const choices = this.chooser()?.choices;
         const { width, height } = this.variant.board.dimensions;
-        const asWhite = (this.chessground?.state.orientation ?? 'white') === 'white';
         const suffix = this.boardName === '' ? '' : `-${this.boardName}`;
         // .sr-only is absolutely positioned, so the heading takes no grid cell.
         const heading = `${_('Board')} ${this.boardName.toUpperCase()}`.trim();
-        const squares: VNode[] = [h('h2.sr-only', { key: 'heading' }, heading)];
-        for (let row = 0; row < height; row++) {
-            for (let col = 0; col < width; col++) {
-                const key = util.pos2key(asWhite ? [col, height - 1 - row] : [width - 1 - col, row]);
-                squares.push(this.button(key, choices?.get(key)?.label ?? this.squareLabel(key)));
-            }
-        }
+        const children: VNode[] = [
+            h('h2.sr-only', { key: 'heading' }, heading),
+            ...this.squares().map(key => this.button(key, choices?.get(key)?.label ?? this.squareLabel(key))),
+            h('p.sr-only', { key: 'notice', attrs: { 'aria-live': 'assertive', 'aria-atomic': 'true' } }, this.notice),
+        ];
         return h(
             'div.cg-keyboard',
             {
@@ -334,8 +402,21 @@ export class ChessgroundKeyboard {
                     gridTemplateRows: `repeat(${height}, 1fr)`,
                 },
             },
-            squares,
+            children,
         );
+    }
+
+    // Every square, rows top to bottom as the player sees them.
+    private squares(): cg.Key[] {
+        const { width, height } = this.variant.board.dimensions;
+        const asWhite = (this.chessground?.state.orientation ?? 'white') === 'white';
+        const keys: cg.Key[] = [];
+        for (let row = 0; row < height; row++) {
+            for (let col = 0; col < width; col++) {
+                keys.push(util.pos2key(asWhite ? [col, height - 1 - row] : [width - 1 - col, row]));
+            }
+        }
+        return keys;
     }
 
     // Laid out like chessgroundx's pocket row (`pocketShape`), which shows the top player's
