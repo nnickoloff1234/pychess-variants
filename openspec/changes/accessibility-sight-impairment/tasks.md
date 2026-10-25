@@ -1810,8 +1810,13 @@ views, not one composed view: the pockets sit apart from the board, with clocks 
       **Seen, not ours:** on the two-board analysis page `f` flips board B only (pre-existing:
       each board's controller binds it). **Still open from 4F.10:** two-board pages now have both
       the summary's `h2 Board A` and the layer's.
-- [ ] 4F.13 **The two tests (4EF.5):** the labels match chessground's state after a move and after a
+- [x] 4F.13 **The two tests (4EF.5):** the labels match chessground's state after a move and after a
       flip; orientation.
+      **Done 2026-10-25:** `tests/chessgroundKeyboard.test.ts`, a real chessground in jsdom with the
+      layer beside it. (1) Every square's label is its name when chessground has it empty, name and
+      piece otherwise, at the start, after `e2-e4` and after a flip. (2) Reading order (`a8` first
+      as white, `h1` first as black) and `ArrowUp` from e2 (e3 as white, e1 as black). Checked that
+      they bite: a fixed `asWhite` fails the orientation test, a skipped repaint fails both.
 - [ ] 4F.14 **Verify** as 5.2 did (Orca's log, the AX tree, real keys): a crazyhouse game played by
       keyboard only — moves, a capture, a drop, a promotion; a flip mid-game; a 10x10 and a 9x9
       variant; mouse play unchanged; arrows on the move list unchanged when the board is not
