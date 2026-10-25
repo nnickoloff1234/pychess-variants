@@ -1,7 +1,8 @@
 ## 0. Status
 
 **2026-10-25: F is complete (4F.1-4F.15), and with it 4FR6 (the forum captcha) and the board part
-of the guide (4Z.2).** Nikolay reviews F as its own PR before E starts; E (the move input, 4EF.1,
+of the guide (4Z.2).** Nikolay reviews F as its own PR before E starts (**#2442**, opened as a draft 2026-10-25, branch
+`accessibility-keyboard-board` on the fork); E (the move input, 4EF.1,
 4EF.2, 4RA3.2, the rest of 4Z.2) is added to that same PR when done. Still open after E: 4EF.4's
 `x` and variant help, the browse-mode check at a real keyboard (5b.4), the spec delta (3.5).
 
