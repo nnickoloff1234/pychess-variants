@@ -142,35 +142,39 @@ export class ChessgroundKeyboard {
         }
     }
 
-    // Arrows follow the orientation: Up is always away from the player. One step past the a-file is
-    // white's pocket, past the last file black's (the user's own model); anywhere else past the edge,
-    // nothing moves. In a pocket, Up and Down step through the roles and inward goes back.
+    // Arrows follow the orientation: Up is always away from the player. Right past the board's right
+    // edge enters a pocket, as both are drawn right of the board: the mover's own, or by half when
+    // both colours move (analysis); anywhere else past the edge, nothing moves. In a pocket,
+    // Left/Right step through the roles as drawn, and Left past the first goes back to the board.
     private step([df, dr]: [number, number]): Spot | undefined {
         if (this.cursor === undefined || this.chessground === undefined) return undefined;
-        const sign = this.chessground.state.orientation === 'white' ? 1 : -1;
+        const state = this.chessground.state;
+        const sign = state.orientation === 'white' ? 1 : -1;
         const { width, height } = this.variant.board.dimensions;
 
         const piece = parsePocketSpot(this.cursor);
         if (piece !== undefined) {
             const roles = this.variant.pocket!.roles[piece.color];
-            if (df === 0) {
-                const i = roles.indexOf(piece.role) - dr;
-                return i < 0 || i >= roles.length ? undefined : pocketSpot(piece.color, roles[i]);
-            }
-            const inward = piece.color === 'white' ? sign * df > 0 : sign * df < 0;
-            return inward ? this.pocketOrigin : undefined;
+            const i = roles.indexOf(piece.role) + df;
+            if (dr !== 0 || i >= roles.length) return undefined;
+            return i < 0 ? this.pocketOrigin : pocketSpot(piece.color, roles[i]);
         }
 
         const [file, rank] = util.key2pos(this.cursor as cg.Key);
         const target: cg.Pos = [file + sign * df, rank + sign * dr];
-        if (target[1] < 0 || target[1] >= height) return undefined;
-        if (target[0] < 0 || target[0] >= width) {
-            const color: cg.Color = target[0] < 0 ? 'white' : 'black';
-            if (!this.variant.pocket) return undefined;
-            this.pocketOrigin = this.cursor as cg.Key;
-            return pocketSpot(color, this.variant.pocket.roles[color][0]);
-        }
-        return util.pos2key(target);
+        const off = target[0] < 0 || target[0] >= width || target[1] < 0 || target[1] >= height;
+        if (!off) return util.pos2key(target);
+        if (df !== 1 || !this.variant.pocket) return undefined;
+        const mover = state.movable.color;
+        const lowerHalf = (sign === 1 ? rank : height - 1 - rank) < height / 2;
+        const color =
+            mover === 'white' || mover === 'black'
+                ? mover
+                : lowerHalf
+                  ? state.orientation
+                  : util.opposite(state.orientation);
+        this.pocketOrigin = this.cursor as cg.Key;
+        return pocketSpot(color, this.variant.pocket.roles[color][0]);
     }
 
     // The king of the side at the bottom, else that side's bottom-left square.
