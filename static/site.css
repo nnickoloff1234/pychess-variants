@@ -4819,18 +4819,27 @@ div button.login-btn {
     border: 0;
 }
 
-/* The keyboard layer over a board (client/accessibility/chessgroundKeyboard.ts): placed like
-   cg-container, invisible, and never in the way of the mouse. */
-.cg-keyboard {
+/* The keyboard layer over a board and its pockets (client/accessibility/chessgroundKeyboard.ts):
+   placed like cg-container and the pocket row, invisible, and never in the way of the mouse. */
+.cg-keyboard,
+.cg-keyboard-pocket {
     position: absolute;
     top: 0;
-    right: 0;
     display: grid;
     z-index: 20;
     pointer-events: none;
 }
 
-.cg-keyboard button {
+.cg-keyboard {
+    right: 0;
+}
+
+.cg-keyboard-pocket {
+    left: 0;
+}
+
+.cg-keyboard button,
+.cg-keyboard-pocket button {
     margin: 0;
     padding: 0;
     border: 0;
