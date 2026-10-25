@@ -20,13 +20,14 @@ const ARROWS: Record<string, [number, number]> = {
 
 type PocketPosition = 'top' | 'bottom';
 
-// Where the cursor can be: a board square ("e4") or a role in a pocket ("white:n").
+// Where the cursor can be: a board square ("e4") or a role in a pocket ("white/n-piece"). Not ':',
+// which is chessground's rank 10 ("e:").
 type Spot = string;
 
-const pocketSpot = (color: cg.Color, role: cg.Role): Spot => `${color}:${role}`;
+const pocketSpot = (color: cg.Color, role: cg.Role): Spot => `${color}/${role}`;
 
 function parsePocketSpot(spot: Spot): cg.Piece | undefined {
-    const [color, role] = spot.split(':');
+    const [color, role] = spot.split('/');
     return role === undefined ? undefined : { color: color as cg.Color, role: role as cg.Role };
 }
 
@@ -180,7 +181,11 @@ export class ChessgroundKeyboard {
             setTimeout(() => {
                 const chooser = this.chooser();
                 if (chooser === undefined) return;
-                this.cursor = chooser.choices.keys().next().value;
+                const [first, { label }] = chooser.choices.entries().next().value!;
+                // A promotion's first choice covers the square just moved to, so focus stays and
+                // only the name changes, which a reader does not repeat (measured in Orca): say it.
+                if (first === this.cursor) this.say(label);
+                this.cursor = first;
                 this.update();
                 this.focusCursor();
             }, 1);
@@ -237,10 +242,12 @@ export class ChessgroundKeyboard {
         return dests.map(key => this.squareLabel(key)).join(', ');
     }
 
+    // From a pocket, relative to the square it was entered from: pick a piece, then jump to the drop.
     private jumpToLine(index: number, file: boolean): Spot | undefined {
-        if (this.cursor === undefined || parsePocketSpot(this.cursor) !== undefined) return undefined;
+        const from = this.cursor !== undefined && parsePocketSpot(this.cursor) ? this.pocketOrigin : this.cursor;
+        if (from === undefined) return undefined;
         const { width, height } = this.variant.board.dimensions;
-        const [f, r] = util.key2pos(this.cursor as cg.Key);
+        const [f, r] = util.key2pos(from as cg.Key);
         if (index >= (file ? width : height)) return undefined;
         return util.pos2key(file ? [index, r] : [f, index]);
     }

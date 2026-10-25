@@ -1710,7 +1710,7 @@ views, not one composed view: the pockets sit apart from the board, with clocks 
       gating", Up "Gate hawk", "Gate elephant", the ends and sideways stay, Enter on the hawk
       played `1. Nf3/H` and g1 read "g1 White hawk", cursor back on f3; Escape cancelled and the
       knight returned to g1; chess e7-e8 → "Promote to queen" on e8, Down knight, rook, bishop,
-      Enter on the knight played `1. e8=N`. **To measure in 4F.14:** promotion's first choice is
+      Enter on the knight played `1. e8=N`. **Measured in 4F.14: not spoken, now announced.** Promotion's first choice is
       the destination square itself, so focus does not move and only its label changes —
       whether a screen reader re-reads it; if not, announce through the board's notice region
       (4F.11). Not exercised: shogi's "Do not promote".
@@ -1817,10 +1817,49 @@ views, not one composed view: the pockets sit apart from the board, with clocks 
       piece otherwise, at the start, after `e2-e4` and after a flip. (2) Reading order (`a8` first
       as white, `h1` first as black) and `ArrowUp` from e2 (e3 as white, e1 as black). Checked that
       they bite: a fixed `asWhite` fails the orientation test, a skipped repaint fails both.
-- [ ] 4F.14 **Verify** as 5.2 did (Orca's log, the AX tree, real keys): a crazyhouse game played by
+- [x] 4F.14 **Verify** as 5.2 did (Orca's log, the AX tree, real keys): a crazyhouse game played by
       keyboard only — moves, a capture, a drop, a promotion; a flip mid-game; a 10x10 and a 9x9
       variant; mouse play unchanged; arrows on the move list unchanged when the board is not
       focused. Plus the layout matrix, row set against the base.
+      **Done 2026-10-25.** Orca 46.1 with speech off and its debug log; trusted keys over CDP; what
+      Orca said read back from `SPEECH OUTPUT` and live-region `BRAILLE LINE`s.
+      - **Crazyhouse `hK0pxGAj`, p1 white vs p2 black, joined from the lobby by Enter on "Join: …".**
+        The 21st Tab from the top lands on "e1 White king push button", after "leaving
+        complementary content". By keys only: `1. e4 d5 2. exd5 Nf6 3. Nc3 Nxd5 4. Nxd5 Qxd5 5. P@c4`,
+        each square spoken as the cursor reaches it and each move announced by the summary's
+        Last move ("exd5", "P@c4"). `l`, `t`, `m` are presented ("Initial position", "White: 1 hour,
+        Black: 1 hour", "e3, e4", the 33 drop squares of a pocket pawn). A flip mid-game (`f`,
+        board focused): ArrowUp from d5 goes to d4, back after a second flip. Black's `5...Qxc4` by
+        real mouse clicks: played, focus left where it was. With the board not focused the arrows
+        step the move list (Qxc4 → P@c4 → Qxd5, Down to the end); focused, they do not.
+      - **Promotion** (analysis, `7k/P7/8/8/8/8/8/K7`): measured, the label change on the square
+        just moved to is **not** spoken. Fixed: when the chooser's first choice is the cursor's own
+        square the board says it through the notice region; now "Promote to queen", then the
+        choices as the cursor moves, Escape back to "a7 White pawn", `a8=N` announced.
+      - **Shogi** (9x9, hand): squares in shogi notation ("59 Black king"), layer and both hands
+        aligned, a move announced as "P-36"; **"Do not promote" exercised:** `Px33=`, after
+        "Promote to tokin" was announced.
+      - **Grand** (10x10): aligned, 100 buttons. **A bug: rank 10 was dead.** chessground names it
+        `:` ("e:"), and the pocket spot used `:` as its separator, so every rank-10 square parsed as
+        a pocket and no arrow or jump left it. The separator is `/` now ("white/n-piece").
+      - **Digits from a pocket** now jump relative to the square the pocket was entered from, so a
+        drop is pick-the-piece then `4 Shift+3`; before they did nothing there.
+      - **Layout matrix, base `71d75feab` (before F) against the working tree:** first 28 failing
+        rows against 3 — 25 rows newly flagged "tap targets under 24x24", the layer's square
+        buttons on phones. They are `pointer-events: none`, so a touch reaches the board, not them;
+        the probe (`tests/layout_matrix/probe.js`) now leaves such elements out. Then 286 rows, the
+        same 3 failing with identical failures in both (`P5-C3`, `P5-C4`, `T6-landscape-C4`).
+      **Not covered, and why it matters:** CDP keys go straight into Chrome, past Orca's own key
+      handling, and Orca reported **browse mode** on the board. Whether a real arrow in browse mode
+      reaches the page (or moves Orca's virtual cursor instead) is untested here, and in NVDA it is
+      the 3.4h Q1 question; it needs a person at a real keyboard (Nikolay, then our user).
+      **New findings, not fixed:**
+      - **Two equal moves in a row are not announced:** `3...Nxd5 4. Nxd5` leaves the summary's Last
+        move text unchanged, so the second is silent. The summary's region (5.x), not the layer; the
+        notice region's alternating no-break space is the known fix.
+      - **Shogi digits are inverted against the spoken names:** `3` goes to row "7" and `Shift+7` to
+        file "3", as 4F.11 predicted. For variant help.
+      - `m` on a pocket piece reads every drop square (33 in the test); a count or grouping later.
 
 ### 4Z. LAST — the guide for blind users. Added by Nikolay 2026-10-10.
 

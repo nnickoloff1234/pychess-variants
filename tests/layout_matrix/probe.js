@@ -807,8 +807,11 @@ ctx => {
        make: a target is exempt where spacing leaves a 24px circle around it, where it is inline in
        a sentence, or where its size is essential. So this counts what is under the line and names
        the worst of them, and a reviewer decides. */
+    /* `pointer-events: none` is not a target: a touch goes through it to what is beneath. The
+       board's keyboard layer is a button per square, drawn exactly that way. */
     const tapTargets = all('button, [role="tab"], a[href], input:not([type="hidden"]), select')
         .filter(shown)
+        .filter(el => getComputedStyle(el).pointerEvents !== 'none')
         .map(el => {
             const r = el.getBoundingClientRect();
             const name = (el.getAttribute('title') || el.textContent.trim() ||
