@@ -60,11 +60,25 @@ export class ChessgroundKeyboard {
 
     // Keys the board handles never reach Mousetrap on document, so they do not also step the move list.
     private onKey(e: KeyboardEvent): void {
+        // Enter and Space activate the button (a click, below); Mousetrap binds Enter on document.
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.stopPropagation();
+            return;
+        }
         const step = ARROWS[e.key];
         if (step === undefined || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
         e.preventDefault();
         e.stopPropagation();
         this.moveCursor(step);
+    }
+
+    // A button's click comes from Enter, Space, or a screen reader activating it; never the mouse,
+    // which the layer lets through. It does what a click on that square does.
+    private onActivate(e: MouseEvent): void {
+        const key = (e.target as HTMLElement).dataset.key as cg.Key | undefined;
+        if (key === undefined) return;
+        this.cursor = key;
+        this.chessground?.selectSquare(key);
     }
 
     // Arrows follow the orientation: Up is always away from the player. Past the edge, nothing moves.
@@ -124,7 +138,11 @@ export class ChessgroundKeyboard {
         return h(
             'div.cg-keyboard',
             {
-                on: { focusin: (e: FocusEvent) => this.onFocus(e), keydown: (e: KeyboardEvent) => this.onKey(e) },
+                on: {
+                    focusin: (e: FocusEvent) => this.onFocus(e),
+                    keydown: (e: KeyboardEvent) => this.onKey(e),
+                    click: (e: MouseEvent) => this.onActivate(e),
+                },
                 style: {
                     width: `var(--cg-width${suffix})`,
                     height: `var(--cg-height${suffix})`,
