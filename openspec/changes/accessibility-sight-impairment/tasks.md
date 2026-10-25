@@ -1,6 +1,11 @@
 ## 0. Status
 
-**2026-10-24: PR #2377 is merged upstream (2026-10-18, `e4547c09e`).** What is left is board
+**2026-10-25: F is complete (4F.1-4F.15), and with it 4FR6 (the forum captcha) and the board part
+of the guide (4Z.2).** Nikolay reviews F as its own PR before E starts; E (the move input, 4EF.1,
+4EF.2, 4RA3.2, the rest of 4Z.2) is added to that same PR when done. Still open after E: 4EF.4's
+`x` and variant help, the browse-mode check at a real keyboard (5b.4), the spec delta (3.5).
+
+**Superseded — the status from 2026-10-24:** PR #2377 is merged upstream (2026-10-18, `e4547c09e`). What is left is board
 interaction — E, F and what waits on them (4EF, 3.4h, 4RA3.2, 4FR6, 4Z.2) — as one new PR under
 this change, then the spec delta (3.5) and the archive.
 
@@ -1548,7 +1553,7 @@ once. No timed, per-turn or low-time announcements. A low-time warning was offer
       Verified live: a 3-minute crazyhouse game, both windows ticking and agreeing, colours
       correct after a flip; a finished bughouse game shows four clocks. Not exercised: byoyomi
       (the periods are not spoken), correspondence, a live two-board game.
-- [ ] 4RA3.2 **With E, the `c` command** reads both clocks out once through a live region. Prepared:
+- [ ] 4RA3.2 **(From the board, `t` already reads both clocks: 4F.11.)** **With E, the `c` command** reads both clocks out once through a live region. Prepared:
       `spokenTime()` (exported from `boardSummary.ts`) and the summary's per-colour clock state
       are what it will read; nothing else is needed from the clock side.
 
@@ -1598,7 +1603,10 @@ starts. Already known to belong here:
 - [ ] 4EF.4 **The user's wants with no task yet** (`user-report.md` §4): #3 which pieces attack a
       square (F's `x`), #5 the board from black's side (F's `f`), #6 short help for the active
       variant, #8 possible moves (F's `m`). Say which are in the first pass.
-- [ ] 4EF.5 **Unit tests: an exception to "no new unit tests", granted by Nikolay 2026-10-24** —
+      **2026-10-25, after F:** #8 done (`m`, 4F.11); #5 done (`f` flips from the board, and both
+      boards on two-board pages). Open: #3 (`x`) and #6 (variant help, which also has to explain
+      the shogi digits of 4F.14).
+- [x] 4EF.5 **Done by 4F.13.** **Unit tests: an exception to "no new unit tests", granted by Nikolay 2026-10-24** —
       for the two 3.4g and Q4 call for: our square elements survive chessgroundx's `render()`, and
       orientation (a wrong `asWhite` puts a piece somewhere it is not). **Revised by 3.4h,
       2026-10-25:** the first becomes "the layer's labels match chessground's state after a move
@@ -1610,7 +1618,7 @@ starts. Already known to belong here:
       `client/sound.ts` where one fits, else lichess's (Nikolay 2026-10-25: take theirs) — check
       lila's `COPYING.md` for each file's licence and record the attribution.
 
-### 4F. Candidate F — the board layer. Task list written 2026-10-25.
+### 4F. Candidate F — the board layer. Task list written 2026-10-25. COMPLETE 2026-10-25.
 
 The design is `candidates.md`, "F(vi) REVISED"; 3.4h holds the decisions.
 
@@ -1938,6 +1946,16 @@ change, not an afterthought**: a keyboard interface nobody can discover is not u
       board's keys once F exists, pockets and drops, and how the screen-reader modes interact with
       them (NVDA browse/focus, TalkBack). Written in the existing docs pipeline so it can be
       translated like the rules pages.
+      **Board part DONE 2026-10-25** in `templates/accessibility.html` (the Jinja page of 4Z.0, one
+      `{% trans %}` per paragraph, so it is translated with the server strings): a section
+      "Playing on the board with the keyboard" (Tab stop, arrows and orientation, Enter/Space and
+      the sounds, digits and Shift+digits with the shogi/janggi caveat, piece letters, `m` `l` `t`,
+      the promotion/gating choosers and Escape, pockets and drops, `f` and `?`, two-board pages, the
+      browse/focus switch per screen reader as lichess's tutorial gives it), one paragraph on the
+      forum captcha, the "Board A: Summary" heading, study pages, and the move-list arrows working
+      only off the board. Lichess's own (`lichess-reference.md`, the Blind Mode Tutorial) was the
+      model for the key list and the modes. **Left for E:** the move input and its commands, and
+      how moves are spoken (4EF.2).
 
 ## 5. Verify
 
@@ -1996,6 +2014,11 @@ change, not an afterthought**: a keyboard interface nobody can discover is not u
       translated, on both comboboxes. Nikolay: the second one is inside collapsible elements, so
       context before and after in browse mode, or the path taken when tabbing, tells them apart. See
       4G.7.
+
+- [ ] 5b.4 **The board in browse mode, at a real keyboard (from 4F.14).** CDP keys bypass the
+      screen reader, so whether a real arrow in NVDA/JAWS/Orca browse mode reaches the board, or
+      only moves the reading cursor, is unknown; the guide tells users to switch to focus mode.
+      Nikolay first, then our user.
 
 ## 6. Explicitly deferred
 
