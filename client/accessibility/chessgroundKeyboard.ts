@@ -314,7 +314,9 @@ export class ChessgroundKeyboard {
         const { width, height } = this.variant.board.dimensions;
         const asWhite = (this.chessground?.state.orientation ?? 'white') === 'white';
         const suffix = this.boardName === '' ? '' : `-${this.boardName}`;
-        const squares: VNode[] = [];
+        // .sr-only is absolutely positioned, so the heading takes no grid cell.
+        const heading = `${_('Board')} ${this.boardName.toUpperCase()}`.trim();
+        const squares: VNode[] = [h('h2.sr-only', { key: 'heading' }, heading)];
         for (let row = 0; row < height; row++) {
             for (let col = 0; col < width; col++) {
                 const key = util.pos2key(asWhite ? [col, height - 1 - row] : [width - 1 - col, row]);

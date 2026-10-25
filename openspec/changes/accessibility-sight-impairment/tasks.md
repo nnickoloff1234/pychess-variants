@@ -1740,7 +1740,12 @@ views, not one composed view: the pockets sit apart from the board, with clocks 
       Firefox's and Safari's own rings. Original task: styled to read on light and dark squares,
       checked on a light and a dark board theme; keyboard only (`:focus-visible`), so mouse users
       see nothing new.
-- [ ] 4F.10 **An `h2` "Board" heading** before the layer (3.4h Q1 addendum (a); the string exists).
+- [x] 4F.10 **An `h2` "Board" heading** before the layer (3.4h Q1 addendum (a); the string exists).
+      Done 2026-10-25: an `h2.sr-only` as the layer's first child (absolutely positioned, so it takes
+      no grid cell), "Board", or "Board A"/"Board B" on a named board. Verified on the round page: the
+      grid still lines up (309px, first button at its origin), and the heading order is Chat, Board,
+      Moves, Actions, Pieces, Last move, Time, Status. **For 4F.12:** the two-board summary already
+      heads itself "Board A"; decide there whether one of the two headings goes.
 - [ ] 4F.11 **Board keys, first pass — CONFIRMED by Nikolay 2026-10-25.** lichess's: `l` last move,
       `t` clocks (with 4RA3.2), `f` flip, `k q r b n p` (and the variant's letters) jump to the next
       piece of that type, `1`-`9` ranks / `Shift` files, `m` legal moves of the selected piece. Later:
