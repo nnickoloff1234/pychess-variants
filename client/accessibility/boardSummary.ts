@@ -35,7 +35,7 @@ function elementId(boardName: BoardName): string {
 }
 
 // The variant's own square names, so the Pieces lines agree with the move list.
-function squareName(key: cg.Key, notation: cg.Notation, bd: cg.BoardDimensions): string {
+export function squareName(key: cg.Key, notation: cg.Notation, bd: cg.BoardDimensions): string {
     const [file, rank] = util.key2pos(key);
     switch (notation) {
         case cg.Notation.SHOGI_ARBNUM: // files from the right, ranks from the top: "76"
@@ -45,6 +45,10 @@ function squareName(key: cg.Key, notation: cg.Notation, bd: cg.BoardDimensions):
         default:
             return cg.files[file] + ranksUCI[rank];
     }
+}
+
+export function colorName(variant: Variant, color: cg.Color): string {
+    return _(color === 'white' ? variant.colors.first : variant.colors.second);
 }
 
 function bySquare(a: cg.Key, b: cg.Key): number {
@@ -112,7 +116,7 @@ export class BoardSummaryView {
     }
 
     private colorName(color: cg.Color): string {
-        return _(color === 'white' ? this.variant.colors.first : this.variant.colors.second);
+        return colorName(this.variant, color);
     }
 
     // Roles in the variant's own piece order, anything else (promoted pieces) after it.
