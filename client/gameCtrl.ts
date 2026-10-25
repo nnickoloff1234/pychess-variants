@@ -144,7 +144,7 @@ export abstract class GameController extends ChessgroundController implements Ch
         super(el, model, fullfen, pocket0, pocket1, boardName);
         this.boardSummary = new BoardSummaryView(this.variant, boardName);
         this.keyboard = keyboard;
-        keyboard?.attach(this.chessground);
+        keyboard?.attach(this.chessground, this.boardSummary);
 
         this.gameId = model['gameId'] as string;
         this.tournamentId = model['tournamentId'];

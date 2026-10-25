@@ -1746,10 +1746,37 @@ views, not one composed view: the pockets sit apart from the board, with clocks 
       grid still lines up (309px, first button at its origin), and the heading order is Chat, Board,
       Moves, Actions, Pieces, Last move, Time, Status. **For 4F.12:** the two-board summary already
       heads itself "Board A"; decide there whether one of the two headings goes.
-- [ ] 4F.11 **Board keys, first pass — CONFIRMED by Nikolay 2026-10-25.** lichess's: `l` last move,
+- [x] 4F.11 **Board keys, first pass — CONFIRMED by Nikolay 2026-10-25.** lichess's: `l` last move,
       `t` clocks (with 4RA3.2), `f` flip, `k q r b n p` (and the variant's letters) jump to the next
       piece of that type, `1`-`9` ranks / `Shift` files, `m` legal moves of the selected piece. Later:
       `x` the attack rays, variant help.
+      **Done 2026-10-25.** In `chessgroundKeyboard.ts` (`command()`), answered through a notice
+      region in the layer (`p.sr-only`, `aria-live="assertive"`, alternating a trailing no-break
+      space so the same answer twice is still spoken). `attach(chessground, summary)`; the summary
+      gained `lastMoveText()` and `clockText()`, which its own render now uses too.
+      - `l` the summary's last move ("exd8=N", or "Initial position"). `t` both clocks in one line;
+        with no clocks the key is left to the page. `f` untouched, Mousetrap flips.
+      - **Piece letters:** any letter in the variant's `pieceRow` jumps to the next piece of that
+        role, either colour, in reading order, wrapping; `Shift` goes back. None on the board:
+        the bump. **`l`, `t`, `m` win**, so shogi's lance (`l`) and makruk's met (`m`) cannot be
+        jumped to; revisit with variant help.
+      - **`1`-`9`, `0` (the tenth):** that rank in the cursor's file; `Shift`: that file in its rank.
+        By `e.code`, so `Shift` works on any layout. Absolute coordinates as chessground's (rank 1
+        is white's), which in shogi and xiangqi notation do not match the spoken names — decide in
+        variant help.
+      - **`m` the cursor's piece's moves** (not the selected piece's: the piece you are on is the
+        one you are asking about), or a pocket role's drops: "a7, b7", a capture names its piece
+        ("d5 Black pawn"). Only when that side can move now: a finished game keeps its last
+        dests, and an opponent's piece, or your own off-turn, says "No legal moves" (new msgid;
+        premoves are not listed).
+      - While a chooser is open the jumps are held to its choices like the arrows.
+      - **A flip keeps focus on the board:** snabbdom moving the buttons drops focus, so `update()`
+        refocuses the cursor when focus was in the layer. From a pocket the cursor goes back to
+        the square it came from.
+      Verified with real key presses: crazyhouse on p1/p2 (`l`, `t`, `n`/`Shift+n` across both
+      colours, `4`, `Shift+1`, `q`, `p` wrapping, `m` from a board piece and a pocket, `z` ignored,
+      `f` from a square and from a pocket), chess on p3/p4 (`m` gives "a7, b7" for the checked
+      king, "No legal moves" off turn).
 - [ ] 4F.12 **Pages:** round, analysis and puzzle (single board), and each board on the two-board
       pages (Q3: built, not verified). Alice: the main board only, like the summary.
 - [ ] 4F.13 **The two tests (4EF.5):** the labels match chessground's state after a move and after a
