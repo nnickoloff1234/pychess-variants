@@ -11,6 +11,7 @@ import { variants } from './variants';
 import { RatedSettings, AutoNextSettings } from './puzzleSettings';
 import { boardSettings } from './boardSettings';
 import { updatePoint } from './info';
+import { ChessgroundKeyboard } from './accessibility/chessgroundKeyboard';
 
 export class PuzzleController extends AnalysisController {
     username: string;
@@ -37,8 +38,8 @@ export class PuzzleController extends AnalysisController {
     // hint/solution reveal must be cancellable to avoid patching dead nodes.
     private hintRevealTimeout?: number;
 
-    constructor(el: HTMLElement, model: PyChessModel) {
-        super(el, model);
+    constructor(el: HTMLElement, model: PyChessModel, keyboard: ChessgroundKeyboard) {
+        super(el, model, keyboard);
         const data = JSON.parse(model.puzzle);
         this._id = data._id;
         this.gameId = data.g;

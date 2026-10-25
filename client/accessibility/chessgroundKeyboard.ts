@@ -65,14 +65,26 @@ export class ChessgroundKeyboard {
     /** The square buttons; the page puts this beside the board's `.cg-wrap`. */
     boardView(): VNode {
         const view = this.renderBoard();
-        view.data!.hook = { insert: vnode => (this.boardVNode = vnode) };
+        // The controller may have attached first (it is built in the board's own insert hook), so
+        // the layer paints once it is in place.
+        view.data!.hook = {
+            insert: vnode => {
+                this.boardVNode = vnode;
+                this.update();
+            },
+        };
         return view;
     }
 
     /** One pocket's role buttons; the page puts this beside that pocket's row (`#pocket0`, `#pocket1`). */
     pocketView(position: PocketPosition): VNode {
         const view = this.renderPocket(position);
-        view.data!.hook = { insert: vnode => (this.pocketVNodes[position] = vnode) };
+        view.data!.hook = {
+            insert: vnode => {
+                this.pocketVNodes[position] = vnode;
+                this.update();
+            },
+        };
         return view;
     }
 
@@ -85,7 +97,7 @@ export class ChessgroundKeyboard {
         if (this.boardVNode === undefined || this.chessground === undefined) return;
         if (!this.visited) this.cursor = this.startSquare(this.chessground.state);
         // A flip moves the buttons, which drops focus; it goes back to the cursor.
-        const focused = document.activeElement?.closest('.cg-keyboard, .cg-keyboard-pocket') != null;
+        const focused = this.views().some(view => view.contains(document.activeElement));
         this.boardVNode = patch(this.boardVNode, this.renderBoard());
         for (const position of ['top', 'bottom'] as const) {
             const vnode = this.pocketVNodes[position];
@@ -105,7 +117,7 @@ export class ChessgroundKeyboard {
     // from, so the board's place in the Tab order never moves.
     private onBlur(e: FocusEvent): void {
         const next = e.relatedTarget as HTMLElement | null;
-        if (next?.closest('.cg-keyboard, .cg-keyboard-pocket')) return;
+        if (next !== null && this.views().some(view => view.contains(next))) return;
         if (this.cursor !== undefined && parsePocketSpot(this.cursor) && this.pocketOrigin !== undefined) {
             this.cursor = this.pocketOrigin;
             this.update();
@@ -289,12 +301,16 @@ export class ChessgroundKeyboard {
         return choices.size === 0 ? undefined : { el, choices };
     }
 
+    // This board's own elements: a two-board page has a second layer.
+    private views(): HTMLElement[] {
+        return [this.boardVNode, this.pocketVNodes.top, this.pocketVNodes.bottom]
+            .map(view => view?.elm as HTMLElement | undefined)
+            .filter(el => el !== undefined);
+    }
+
     private focusCursor(): void {
-        const views = [this.boardVNode, this.pocketVNodes.top, this.pocketVNodes.bottom];
-        for (const view of views) {
-            const el = (view?.elm as HTMLElement | undefined)?.querySelector<HTMLElement>(
-                `[data-spot="${this.cursor}"]`,
-            );
+        for (const view of this.views()) {
+            const el = view.querySelector<HTMLElement>(`[data-spot="${this.cursor}"]`);
             if (el) return el.focus();
         }
     }
@@ -394,6 +410,9 @@ export class ChessgroundKeyboard {
         return h(
             'div.cg-keyboard',
             {
+                // Keyed, so a page patching its board from plain DOM (a study chapter switch)
+                // replaces this layer rather than reusing an element with the old one's listeners.
+                key: 'cg-keyboard',
                 on: this.handlers(),
                 style: {
                     width: `var(--cg-width${suffix})`,
@@ -422,19 +441,22 @@ export class ChessgroundKeyboard {
     // Laid out like chessgroundx's pocket row (`pocketShape`), which shows the top player's
     // opponent at the top.
     private renderPocket(position: PocketPosition): VNode {
-        if (!this.variant.pocket) return h('div.cg-keyboard-pocket');
+        const key = `cg-keyboard-${position}`;
+        if (!this.variant.pocket) return h('div.cg-keyboard-pocket', { key });
         const orientation = this.chessground?.state.orientation ?? 'white';
         const color = position === 'top' ? util.opposite(orientation) : orientation;
         const { width, height } = this.variant.board.dimensions;
         const { pieceRows, pocketLength } = pocketShape(this.variant, color);
-        const suffix = this.boardName === '' ? '' : `-${this.boardName}`;
+        const suffix = this.boardName !== '';
         return h(
             'div.cg-keyboard-pocket',
             {
+                key,
                 on: this.handlers(),
+                // The two-board pages size their pockets per layout and their wrapper to the pocket.
                 style: {
-                    width: `calc(var(--cg-width${suffix}) / ${width} * ${pocketLength})`,
-                    height: `calc(var(--cg-height${suffix}) / ${height} * ${pieceRows})`,
+                    width: suffix ? '100%' : `calc(var(--cg-width) / ${width} * ${pocketLength})`,
+                    height: suffix ? '100%' : `calc(var(--cg-height) / ${height} * ${pieceRows})`,
                     gridTemplateColumns: `repeat(${pocketLength}, 1fr)`,
                     gridTemplateRows: `repeat(${pieceRows}, 1fr)`,
                 },

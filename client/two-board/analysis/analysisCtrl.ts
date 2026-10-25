@@ -4,6 +4,7 @@ import * as cg from 'chessgroundx/types';
 import { uci2LastMove } from '../../chess';
 import { Chart } from 'highcharts';
 import { BugBoardName, PyChessModel } from '../../types';
+import { ChessgroundKeyboard } from '../../accessibility/chessgroundKeyboard';
 import { MsgBoard } from '../../messages';
 import { GameControllerBughouse } from '../common/gameCtrl';
 import { sound } from '../../sound';
@@ -54,6 +55,7 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
         el2Pocket1: HTMLElement,
         el2Pocket2: HTMLElement,
         model: PyChessModel,
+        keyboards: Record<BugBoardName, ChessgroundKeyboard>,
         movelistView: MovelistView,
         gameInfoView: GameInfoView,
         engine: EngineController,
@@ -62,7 +64,7 @@ export default class AnalysisControllerBughouse extends TwoBoardController {
         seatView: AnalysisSeatView,
         movetimeChartView: MovetimeChartView,
     ) {
-        super(el1, el1Pocket1, el1Pocket2, el2, el2Pocket1, el2Pocket2, model, movelistView, gameInfoView);
+        super(el1, el1Pocket1, el1Pocket2, el2, el2Pocket1, el2Pocket2, model, keyboards, movelistView, gameInfoView);
 
         // orient the boards as the viewer experienced the game: own/partner color at
         // the bottom for participants, white-A/black-B for spectators (the old default)
