@@ -338,12 +338,139 @@ class RequestLobbyTestCase(AioHTTPTestCase):
         text = await resp.text()
         self.assertIn("<title>PyChess", text)
 
+    async def test_static_pages_do_not_embed_catalogued_variant_registry(self):
+        for path in ("/about", "/blogs", "/forum"):
+            with self.subTest(path=path):
+                resp = await self.client.request("GET", path)
+                self.assertEqual(resp.status, 200)
+                self.assertNotIn("data-catalogued-variants=", await resp.text())
+
+        resp = await self.client.request("GET", "/")
+        self.assertEqual(resp.status, 200)
+        self.assertIn("data-catalogued-variants=", await resp.text())
+
+    async def test_anonymous_pages_do_not_preload_every_public_variant(self):
+        import html
+        import json
+        import re
+
+        app_state = get_app_state(self.app)
+        app_state.catalogued_variants["public-sample"] = {
+            "name": "public-sample",
+            "displayName": "Public Sample",
+            "ini": "[public-sample:chess]\n",
+            "baseVariant": "chess",
+            "startFen": "8/8/8/8/8/8/8/8 w - - 0 1",
+            "width": 8,
+            "height": 8,
+            "pieces": ["k"],
+            "visibility": "public",
+            "enabled": True,
+            "archived": False,
+        }
+        for path in ("/", "/variants/community", "/games"):
+            with self.subTest(path=path):
+                resp = await self.client.request("GET", path)
+                self.assertEqual(resp.status, 200)
+                match = re.search(r'data-catalogued-variants="([^"]*)"', await resp.text())
+                if match is not None:
+                    self.assertEqual(json.loads(html.unescape(match.group(1))), [])
+
+    async def test_named_catalogue_api_returns_only_accessible_variants(self):
+        app_state = get_app_state(self.app)
+        sample = {
+            "name": "public-sample",
+            "displayName": "Public Sample",
+            "ini": "[public-sample:chess]\n",
+            "baseVariant": "chess",
+            "startFen": "8/8/8/8/8/8/8/8 w - - 0 1",
+            "width": 8,
+            "height": 8,
+            "pieces": ["k"],
+            "enabled": True,
+            "archived": False,
+        }
+        app_state.catalogued_variants["public-sample"] = {**sample, "visibility": "public"}
+        app_state.catalogued_variants["private-sample"] = {
+            **sample,
+            "name": "private-sample",
+            "visibility": "private",
+            "author": "someone",
+        }
+        app_state.catalogued_variants["unlisted-sample"] = {
+            **sample,
+            "name": "unlisted-sample",
+            "visibility": "unlisted",
+            "author": "someone",
+        }
+        url = (
+            "/api/catalogued-variants?name=private-sample"
+            "&name=public-sample&name=unlisted-sample&name=public-sample"
+        )
+        resp = await self.client.request("GET", url)
+        self.assertEqual(resp.status, 200)
+        payload = await resp.json()
+        self.assertEqual(
+            [item["name"] for item in payload["variants"]],
+            ["public-sample", "unlisted-sample"],
+        )
+        resp = await self.client.request(
+            "GET", "/api/catalogued-variants?" + "&".join("name=sample" for _ in range(33))
+        )
+        self.assertEqual(resp.status, 400)
+
     async def test_analysis_960_route_normalizes_variant_and_chess960(self):
         resp = await self.client.request("GET", "/analysis/chess960")
         self.assertEqual(resp.status, 200)
         text = await resp.text()
         self.assertIn('data-variant="chess"', text)
         self.assertIn('data-chess960="True"', text)
+
+    async def test_editor_play_links_preload_only_selected_variant_and_ancestors(self):
+        import html
+        import json
+        import re
+
+        app_state = get_app_state(self.app)
+        name = "editor-play-sample"
+        parent = "editor-play-parent"
+        sample = {
+            "startFen": FairyBoard.start_fen("chess"),
+            "width": 8,
+            "height": 8,
+            "pieces": ["k"],
+            "visibility": "public",
+        }
+        app_state.catalogued_variants[parent] = {
+            **sample,
+            "name": parent,
+            "ini": f"[{parent}:chess]",
+            "baseVariant": "chess",
+        }
+        app_state.catalogued_variants[name] = {
+            **sample,
+            "name": name,
+            "ini": f"[{name}:{parent}]",
+            "baseVariant": parent,
+        }
+        register_catalogued_server_variant(name, "Editor Play Sample")
+        try:
+            resp = await self.client.get(f"/seek/{name}", params={"fen": sample["startFen"]})
+            self.assertEqual(resp.status, 200)
+            text = await resp.text()
+            self.assertIn(f'data-variant="{name}"', text)
+            match = re.search(r'data-catalogued-variants="([^"]*)"', text)
+            self.assertIsNotNone(match)
+            self.assertEqual(
+                [doc["name"] for doc in json.loads(html.unescape(match.group(1)))],
+                [parent, name],
+            )
+            resp = await self.client.get("/api/catalogued-variants", params={"name": name})
+            self.assertEqual(
+                [doc["name"] for doc in (await resp.json())["variants"]], [parent, name]
+            )
+        finally:
+            unregister_catalogued_server_variant(name)
 
     async def test_editor_960_route_normalizes_variant_and_chess960(self):
         resp = await self.client.request("GET", "/editor/chess960")

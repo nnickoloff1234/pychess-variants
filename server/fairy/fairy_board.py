@@ -7,7 +7,7 @@ from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from const import CATEGORIES
-from variants import catalogued_variant_random_start, is_catalogued_variant
+from variants import JANGGI_VARIANTS, catalogued_variant_random_start, is_catalogued_variant
 
 # -*- coding: utf-8 -*-
 from fairy.ataxx import ATAXX_FENS
@@ -141,7 +141,9 @@ class FairyBoard:
             "supply",
             "makbug",
         )
-        self.legal_moves_need_history = legal_moves_need_history or variant in ("janggi", "ataxx")
+        self.legal_moves_need_history = (
+            legal_moves_need_history or variant in JANGGI_VARIANTS or variant == "ataxx"
+        )
         self.nnue = initial_fen == ""
 
         self.movelist_supported = self.variant != "jieqi"
@@ -173,7 +175,7 @@ class FairyBoard:
         self.manual_count = count_started != 0
         self.count_started = count_started
 
-        if self.variant == "janggi":
+        if self.variant in JANGGI_VARIANTS:
             self.notation = NOTATION_JANGGI
         elif self.variant in CATEGORIES["shogi"]:
             self.notation = NOTATION_SHOGI_HODGES_NUMBER
@@ -192,6 +194,11 @@ class FairyBoard:
     @staticmethod
     def start_fen(variant: str | None, chess960=False, disabled_fen=""):
         normalized_variant, normalized_chess960 = _normalize_variant_and_chess960(variant, chess960)
+
+        if normalized_variant in ("checkshogi", "karouk"):
+            # Their inherited FENs have an implicit one-check limit.
+            # Expose the engine's 1+1 counter at ply 0, including catalogue games.
+            return sf.get_fen(normalized_variant, sf.start_fen(normalized_variant), [])
 
         if is_catalogued_variant(normalized_variant):
             default_fen = sf.start_fen(normalized_variant)

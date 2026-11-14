@@ -10,11 +10,11 @@ from time import monotonic
 from typing import TYPE_CHECKING, Literal, cast
 
 from broadcast import round_broadcast
-from catalogued_variants import (
-    catalogued_variant_games_are_persisted,
+from catalogued.repository import (
     increment_catalogued_variant_game_count,
     increment_catalogued_variant_game_count_once,
 )
+from catalogued.variants import catalogued_variant_games_are_persisted
 from clock import Clock, CorrClock
 from compress import R2C
 from const import (
@@ -70,6 +70,7 @@ from typing_defs import (
 )
 from variants import (
     GRANDS,
+    JANGGI_VARIANTS,
     CataloguedServerVariant,
     ServerVariants,
     catalogued_variant_random_start,
@@ -178,6 +179,8 @@ class Game:
         self.bplayer: User = bplayer
 
         catalogued_casual = is_catalogued_variant(variant)
+        if create and catalogued_casual and get_server_variant(variant, False).replay_only:
+            raise ValueError("This user-defined variant is available for historical replay only.")
         self.persist_to_db: bool = (
             (not catalogued_casual)
             or (not create)
@@ -410,7 +413,7 @@ class Game:
         )
 
         # Janggi setup needed when player is not BOT
-        if self.variant == "janggi":
+        if self.variant in JANGGI_VARIANTS:
             # Janggi custom start position -> no setup phase
             if self.initial_fen:
                 self.bsetup = False
@@ -615,6 +618,8 @@ class Game:
     async def play_move(
         self, move: str, clocks: ClockValues | None = None, ply: int | None = None
     ) -> None:
+        if self.server_variant.replay_only:
+            return
         self.stopwatch.stop()
 
         self.byo_correction = 0
@@ -1057,7 +1062,7 @@ class Game:
 
             # Janggi game starts with a prelude phase to set up horses and elephants, so
             # initial FEN may be different compared to one we used when db game document was created
-            if self.variant == "janggi":
+            if self.variant in JANGGI_VARIANTS:
                 new_data["if"] = self.board.initial_fen
 
             if self.persist_clock_history:
@@ -1814,7 +1819,11 @@ class Game:
         if self.result == "*":
             if reason == "abort":
                 result = "*"
-            elif self.variant == "janggi" and reason == "flag" and (self.bsetup or self.wsetup):
+            elif (
+                self.variant in JANGGI_VARIANTS
+                and reason == "flag"
+                and (self.bsetup or self.wsetup)
+            ):
                 if self.bsetup:
                     # In Janggi game the second player (red, who have to do the setup first!) failed to do the setup phase in time
                     result = "1-0"
@@ -2309,7 +2318,7 @@ class Game:
             await self.app_state.lobby.lobby_broadcast(
                 {"type": "g_cnt", "cnt": self.app_state.g_cnt[0]}
             )
-            if self.variant != "janggi" or self.bsetup or self.wsetup:
+            if self.variant not in JANGGI_VARIANTS or self.bsetup or self.wsetup:
                 self.status = CREATED
 
         self.has_legal_move = self.board.has_legal_move()

@@ -24,7 +24,6 @@ from const import (
     T_STARTED,
     UNKNOWNFINISH,
     VARIANT_960_TO_PGN,
-    category_matches,
 )
 from convert import grand2zero, mirror5, mirror9, zero2grand
 from fairy import (
@@ -48,7 +47,6 @@ from seek import (
     is_anon_restricted_seek,
     is_targeted_two_board_seek,
 )
-from ublog import display_date, image_src, post_url
 from user import User
 from users import NotInDbUsers
 from valid_fen import VALID_FEN
@@ -76,7 +74,6 @@ if TYPE_CHECKING:
 import logging
 
 from json_utils import json_response
-from preferences import effective_game_category
 from pychess_global_app_state_utils import get_app_state
 from request_utils import read_post_data
 from session_security import session_expiry_timeout
@@ -85,6 +82,8 @@ from sse_utils import consume_sse_queue, log_sse_failure, sse_response
 from variants import (
     C2V,
     GRANDS,
+    JANGGI_VARIANTS,
+    REVERSI_VARIANTS,
     TWO_BOARD_VARIANT_CODES,
     catalogued_variant_random_start,
     get_server_variant,
@@ -164,7 +163,7 @@ async def put_bot_game_queue(player: User, game_id: str, payload: str) -> bool:
 
 def should_send_game_start_to_bot(game: Game | GameBug) -> bool:
     """Janggi bots must wait for setup phase completion before first move."""
-    return game.variant != "janggi" or not (game.bsetup or game.wsetup)
+    return game.variant not in JANGGI_VARIANTS or not (game.bsetup or game.wsetup)
 
 
 async def send_bot_game_start_unless_streaming(player: User, game: Game | GameBug) -> bool:
@@ -289,10 +288,19 @@ async def _load_game_from_doc(
     """Construct a game once; callers apply their finished-game cache policy."""
     game_id = doc["_id"]
 
-    if doc.get("vini") and doc["v"] not in C2V:
-        from catalogued_variants import ensure_catalogued_variant_from_game_doc
+    if doc.get("vini") and (doc["v"] not in C2V or doc["v"] not in app_state.catalogued_variants):
+        from catalogued.variants import ensure_catalogued_variant_from_game_doc
 
         ensure_catalogued_variant_from_game_doc(app_state, doc)
+
+    elif doc["v"] not in C2V:
+        from catalogued.variants import register_historical_catalogued_variant_doc
+
+        stored = await app_state.db["catalogued_variant"].find_one({"_id": doc["v"]})
+        if stored is not None:
+            historical = register_historical_catalogued_variant_doc(stored)
+            if historical is not None:
+                app_state.catalogued_variants[str(doc["v"])] = historical
 
     variant = C2V[doc["v"]]
 
@@ -417,9 +425,10 @@ async def _load_game_from_doc(
 
     elif variant in GRANDS:
         mlist = [*map(zero2grand, mlist)]
-        if variant == "janggi":
-            game.wsetup = doc.get("ws", False)
-            game.bsetup = doc.get("bs", False)
+
+    if variant in JANGGI_VARIANTS:
+        game.wsetup = doc.get("ws", False)
+        game.bsetup = doc.get("bs", False)
 
     if "a" in doc:
         game.analysis = doc["a"]
@@ -759,7 +768,7 @@ async def join_seek(
         return {"type": "error", "message": "You cannot accept this seek."}
 
     if is_catalogued_variant(seek.variant):
-        from catalogued_variants import can_create_catalogued_seek
+        from catalogued.variants import can_create_catalogued_seek
 
         # AI games are created as a human-owned seek that the internal engine
         # user immediately joins.  Access for that internal bot join should be
@@ -1006,7 +1015,7 @@ async def insert_game_to_db(game, app_state: PychessGlobalAppState):
     ):
         document["uci"] = 1
 
-    if game.variant == "janggi":
+    if game.variant in JANGGI_VARIANTS:
         document["ws"] = game.wsetup
         document["bs"] = game.bsetup
         document["if"] = game.board.initial_fen
@@ -1394,7 +1403,7 @@ def pgn(doc):
         class _NoState:
             catalogued_variants: ClassVar[dict] = {}
 
-        from catalogued_variants import ensure_catalogued_variant_from_game_doc
+        from catalogued.variants import ensure_catalogued_variant_from_game_doc
 
         ensure_catalogued_variant_from_game_doc(_NoState(), doc)
     variant = C2V[doc["v"]]
@@ -1531,7 +1540,9 @@ def _fen_material_counts(placement: str) -> tuple[dict[str, int], int]:
     return counts, total
 
 
-def pocket_variant_material_fits_engine(initial_fen: str, start_fen: str) -> bool:
+def pocket_variant_material_fits_engine(
+    initial_fen: str, start_fen: str, variant: str = ""
+) -> bool:
     """Bound pocket and active material before initializing a native position."""
     placement = initial_fen.split(maxsplit=1)[0]
     start_placement = start_fen.split(maxsplit=1)[0]
@@ -1548,11 +1559,20 @@ def pocket_variant_material_fits_engine(initial_fen: str, start_fen: str) -> boo
             pocket_counts[char] = pocket_counts.get(char, 0) + 1
 
     pocket_slots_per_role = FAIRY_STOCKFISH_POCKET_SLOTS_PER_FILE * fen_board_width(start_placement)
-    if any(count > pocket_slots_per_role for count in pocket_counts.values()):
+    # These native placement games intentionally start with more reserves than
+    # capture-to-hand variants. Only trust the canonical built-in definition,
+    # never a user-supplied starting position, to raise the reserve budget.
+    reserve_start = FairyBoard.start_fen(variant).split()[0] if variant in REVERSI_VARIANTS else ""
+    reserve_pocket = reserve_start.partition("[")[2].partition("]")[0]
+    if any(
+        count > max(pocket_slots_per_role, reserve_pocket.count(piece))
+        for piece, count in pocket_counts.items()
+    ):
         return False
 
     counts, total = _fen_material_counts(placement)
-    if total > FAIRY_STOCKFISH_MAX_ACTIVE_PIECES:
+    _, reserve_total = _fen_material_counts(reserve_start)
+    if total > max(FAIRY_STOCKFISH_MAX_ACTIVE_PIECES, reserve_total):
         return False
 
     start_counts, _ = _fen_material_counts(start_placement)
@@ -1585,7 +1605,9 @@ def sanitize_fen(variant, initial_fen, chess960, base=False):
 
     start_fen = FairyBoard.start_fen(variant)
     start_placement = start_fen.split(maxsplit=1)[0]
-    if "[" in start_placement and not pocket_variant_material_fits_engine(initial_fen, start_fen):
+    if "[" in start_placement and not pocket_variant_material_fits_engine(
+        initial_fen, start_fen, variant
+    ):
         return False, ""
 
     sf_validate = validate_fen(initial_fen, variant, chess960)
@@ -1774,88 +1796,6 @@ async def get_names(request):
     async for doc in cursor:
         names.append((doc["_id"], doc["title"]))
     return json_response(names)
-
-
-async def get_blogs(request, tag=None, limit=0):
-    app_state = get_app_state(request.app)
-    if app_state.db is None:
-        return []
-
-    session = await aiohttp_session.get_session(request)
-    session_user = session.get("user_name")
-    user = await app_state.users.get(session_user) if session_user else None
-    game_category = effective_game_category(session, user)
-
-    async def enrich_author_titles(blogs: list[dict]) -> list[dict]:
-        titles = await app_state.public_users.get_titles(
-            str(doc.get("author") or "") for doc in blogs
-        )
-        for doc in blogs:
-            author = str(doc.get("author") or "")
-            title = titles.get(author, str(doc.get("author_title") or ""))
-            doc["author_title"] = title
-            doc["atitle"] = title or str(doc.get("atitle") or "")
-        return blogs
-
-    # Prefer migrated site blogs from ublog_post.
-    tag_filter = tag.casefold() if isinstance(tag, str) and tag.strip() != "" else None
-    site_query: dict[str, object] = {"live": True, "blogType": "site"}
-    site_cursor = app_state.db.ublog_post2.find(site_query).sort(
-        [("sticky", -1), ("publishedAt", -1), ("createdAt", -1)]
-    )
-    site_blogs: list[dict] = []
-    async for raw_doc in site_cursor:
-        author = str(raw_doc.get("author") or "")
-        author_profile = await app_state.public_users.get_profile(author)
-        if author_profile is None or not author_profile.enabled:
-            continue
-
-        category = raw_doc.get("category", "all")
-        if not category_matches(game_category, category):
-            continue
-        intro = str(raw_doc.get("intro") or raw_doc.get("subtitle") or "")
-        image_alt = str(raw_doc.get("imageAlt") or raw_doc.get("alt") or "")
-        tags_raw = raw_doc.get("tags")
-        tags = [str(tag) for tag in tags_raw] if isinstance(tags_raw, list) else []
-        topics_raw = raw_doc.get("topics")
-        topics = (
-            [str(topic) for topic in topics_raw]
-            if isinstance(topics_raw, list)
-            else [tag.lower() for tag in tags]
-        )
-        if tag_filter is not None:
-            tag_match = any(isinstance(t, str) and t.casefold() == tag_filter for t in tags)
-            topic_match = any(isinstance(t, str) and t.casefold() == tag_filter for t in topics)
-            if not (tag_match or topic_match):
-                continue
-        site_blogs.append(
-            {
-                "_id": str(raw_doc.get("legacyBlogId") or raw_doc.get("_id") or ""),
-                "post_id": str(raw_doc.get("_id") or ""),
-                "title": str(raw_doc.get("title") or ""),
-                "intro": intro,
-                "subtitle": intro,
-                "author": author,
-                "date": display_date(raw_doc),
-                "image": str(raw_doc.get("image") or ""),
-                "image_src": image_src(raw_doc),
-                "imageAlt": image_alt,
-                "alt": image_alt,
-                "tags": tags,
-                "topics": topics,
-                "category": category,
-                "categoryList": category if isinstance(category, list) else [category],
-                "isOfficial": bool(raw_doc.get("isOfficial", True)),
-                "blogType": "site",
-                "url": post_url(raw_doc),
-            }
-        )
-        if limit > 0 and len(site_blogs) >= limit:
-            break
-    if len(site_blogs) > 0:
-        return await enrich_author_titles(site_blogs)
-
-    return []
 
 
 async def get_notifications(request):
