@@ -1,5 +1,8 @@
 ## 0. Status
 
+**2026-11-14: one PR for everything (Nikolay) — #2442 stays a draft until E and the rest are in.**
+Fork master merged with gbtami (162 commits, clean). E is in design: 4EF.1.
+
 **2026-10-25: F is complete (4F.1-4F.15), and with it 4FR6 (the forum captcha) and the board part
 of the guide (4Z.2).** Nikolay reviews F as its own PR before E starts (**#2442**, opened as a draft 2026-10-25, branch
 `accessibility-keyboard-board` on the fork); E (the move input, 4EF.1,
@@ -1592,10 +1595,47 @@ once. No timed, per-turn or low-time announcements. A low-time warning was offer
 Task lists for E (the move input) and F (the board, F(vi) per 3.4g and 3.4h) are written when each
 starts. Already known to belong here:
 
-- [ ] 4EF.1 **OPEN — Nikolay cannot decide yet (2026-10-24):** whether the move input is a
+- [x] 4EF.1 **DECIDED 2026-11-14 (Nikolay): a setting, off by default**, as lichess's
+      `keyboardMove`. Proposed home: a `BooleanSettings` in Board Settings beside "Show piece
+      destinations" (lichess has it in its board menu and Preferences > Game behaviour). Still open:
+      the widget shape (follows the two-board widget pattern; constructor-time board access
+      preferred over a late `attach()`), and placement page by page and per responsive mode, with
+      two widgets and the focus shortcut on two-board pages. Lichess hides it on phones in round
+      (`display: none` in col1) and puts it after the controls in analysis. Original wording:
+      **OPEN — Nikolay cannot decide yet (2026-10-24):** whether the move input is a
       preference (3.4g: off by default, lichess's `keyboardMove`), or simply always on; and if a
       preference, where it lives. Blocks E.
-- [ ] 4EF.2 **How moves are spoken** (design, open questions): the summary reads SAN ("Nf3");
+- [ ] 4EF.8 **Layout survey, 2026-11-14** (harness screenshots, every board page at 1440x900,
+      1024x768, tablet upright, phone landscape, phone portrait; mock input injected).
+      Single-board round, analysis, puzzle, study: one DOM spot for every mode, the first child of
+      `under-board` (under the board on desktop, where lichess puts it; after the controls in
+      portrait). Nothing covered. Two-board round and analysis: tall landscape fits both inputs
+      under the partner board; portrait and short landscape fill the viewport with no free space,
+      so an overlay would cover the chat log or the move tree there. Leaning: screen-reader-only on
+      phones (Nikolay: nobody types moves visibly on a phone). Editor: out (F does not cover it
+      either). Embed (`/embed/<gameId>`, the iframe for external sites) has F and gets no input.
+      **Found on the way:** the puzzle page at 844x390 draws its board at zero width,
+      reproducible; check against upstream before blaming F.
+- [ ] 4EF.9 **Decided by Nikolay 2026-11-15:**
+      - **Visible only in each page's main (desktop/laptop/tablet) layout; on phones it is
+        screen-reader-only** (`.sr-only`, still in the DOM). Pure CSS, one DOM per page.
+      - **Sized like lichess's `.keyboard-move`:** a `width: 4.5em` bold 1.1em input, then a short
+        "Press <key> to focus" hint, not as wide as the free space.
+      - **Widget shape: option A.** The controller constructs it, passing itself (chessground and
+        the Fairy-Stockfish board: chessground alone cannot read SAN) in the constructor; each page
+        view leaves a placeholder the controller patches, as with clocks and the move list.
+      - **Focus key:** "next input after the focused one" (three lines, no state), the same code on
+        one-board and two-board pages. The key itself is still open.
+      - One-board pages: first child of `under-board`.
+      - **Two-board: FINAL, never visible, screen-reader-only in every layout.** Explored first:
+        absolutely positioned under each board, it covered the first two or three bottom-pocket
+        slots at every zoom (100/80/50/min, 1440x900 and 1024x768). Nikolay: little value for
+        bughouse, not worth the complications.
+      - **Breakpoints: the ones each page already has**, no new conditions (so a sideways phone
+        that a page's own query treats as main shows it there).
+      - **Keys and behaviour: lichess's, unless pychess forces otherwise** (Nikolay: "from the point
+        of view of the user should be as close as possible"). So `m` focuses it.
+- [x] 4EF.2 **Answered by 4E.13 (2026-11-15).** **How moves are spoken** (design, open questions): the summary reads SAN ("Nf3");
       lichess says "knight takes e 5" and "pawn is dropped on e 6". Decide with E, which also echoes
       moves.
 - [x] 4EF.3 **`pocketHotkeys.ts` (1.6) — ANSWERED by 3.4h, 2026-10-25: left as it is.** Its global
@@ -1618,6 +1658,247 @@ starts. Already known to belong here:
 - [x] 4EF.7 **Done by 4F.8 — lichess's standard sounds turned out non-free; see there.** **Sounds:** the bump (`outOfBound`), `select` and `error`, from pychess's own
       `client/sound.ts` where one fits, else lichess's (Nikolay 2026-10-25: take theirs) — check
       lila's `COPYING.md` for each file's licence and record the attribution.
+
+### 4E. Candidate E — the move input. Task list written 2026-11-15.
+
+Lichess's `ui/keyboardMove` is the model, read from lila master on 2026-11-15
+(`keyboardMove.ts`, `keyboardSubmit.ts`, `exports.ts`, `_keyboardMove.scss`). Decisions: 4EF.1,
+4EF.9. Where this list departs from lichess it says why; everything else copies it.
+
+- [x] 4E.1 **DONE 2026-11-15.** `KeyboardMoveSettings` in `client/boardSettings.ts`, listed right
+      after "Show piece destinations", stored in `localStorage.keyboardMove` like every board
+      setting. Its `update()` is empty until 4E.2 gives it a widget to show or remove (no
+      `boardSettings` field until then). New msgid "Input moves with the keyboard", left to the
+      usual extraction. Verified live: the checkbox renders in that position, stores `true`/`false`,
+      and survives a reload. lint and typecheck pass.
+      **The setting.** `KeyboardMoveSettings`, a `BooleanSettings` in Board Settings beside
+      "Show piece destinations": "Input moves with the keyboard", default off. Off means no input in
+      the DOM at all. Toggling it shows or removes the input live on the current page.
+- [x] 4E.2 **DONE 2026-11-15, on the round page** (other pages: 4E.9). `KeyboardMove` is built
+      in `GameController`'s constructor, so every board page's controller has one (two-board ones
+      too, `boardName` a/b); it fills `#keyboard-move` (`-a`/`-b`) when the page has that
+      placeholder, from `keyboardMovePlaceholder()`, and `redraw()` re-renders on the setting
+      (`KeyboardMoveSettings.update()` now calls it for `ctrl` and `ctrl2`). Off renders the bare
+      placeholder. The hint and the help are both always in the DOM and CSS swaps them on
+      `:focus-within`, so the help can be the input's `aria-describedby` and no focus state is
+      kept in JS (lichess keeps one; what the user sees is the same). The constructor takes only
+      `boardName` for now: the controller is passed in 4E.3, when parsing first uses it. Lichess's
+      sizes are in `site.css` already; 4E.8 adds the layout queries. `_()` substitutes `%1`
+      itself, so the `<kbd>` goes in by splitting on a marker character.
+      Verified live (crazyhouse round, p3): off renders `<div id="keyboard-move"></div>`; ticking
+      the setting renders the input with no reload; Chrome's AX tree reads textbox "Your move",
+      described by the help line; a real click focuses it and the help replaces "Press m to focus";
+      analysis and puzzle (no placeholder yet) load normally with the setting on. lint, typecheck,
+      jest (1198) pass. **Seen:** in the round page's narrow under-board column the focused help
+      wraps to two lines and the table below moves down ~15px.
+      **The widget**, `client/accessibility/keyboardMove.ts` (option A): constructed by the
+      controller with the controller itself (chessground plus the Fairy-Stockfish board); `view()`
+      returns the whole `.keyboard-move` block, patched into a placeholder the page view leaves.
+      Markup as lichess: `input[spellcheck=false][autocomplete=off]`, then `strong` "Press `m` to
+      focus", which becomes the `em` help line while the input has focus ("Enter SAN (Nc3) or UCI
+      (b1c3) moves, type ? to learn more").
+      **Departs:** an accessible name ("Your move"; "Move on board A/B" on two-board pages) and the
+      help line linked by `aria-describedby`; lichess has neither (`lichess-reference.md` §13.1).
+- [x] 4E.3 **DONE 2026-11-15 (the parser; 4E.4 wires it to keyup).** `parseTyped()` in
+      `keyboardMove.ts` returns move / select / wait / wrong over a table built per call from
+      `ffishBoard.legalMoves()`: each move's SAN via `sanMove(uci, notationAsObject)` (check marks
+      stripped in algebraic notation only), the same without `x`, and its UCI. One generic rule
+      replaces lichess's castle, promotion and capture-promotion special cases: a match waits while
+      a longer spelling also starts with the text, and Enter plays it. Case: exact first ("Bc6"
+      bishop, "bc6" pawn), then case-insensitive and, in algebraic, `=`-free if that is one move.
+      Lone squares select (algebraic only), but wait while a SAN starts with them ("b8" of "b8=Q")
+      or on ten ranks ("a1" of "a10"). `0` is `O` only in castling text (Janggi and ten-rank boards
+      use 0). ICCF on 8x8 algebraic boards. `@e4` is `P@e4`, as lichess. The widget's constructor
+      now takes the controller.
+      Verified on real positions over a temporary hook (removed in 4E.4): crazyhouse start (e4,
+      Nc3, nc3, N, Nz wrong, e2 select, e2e4, 5254); castling both sides and O-O waiting for Enter;
+      b8 waits, b8q / b8Q / b8=Q / ba8q / 27281 promote; Bc5 vs bc5; drops P@e4, @e4, N@e4 wrong;
+      grand a1 waits, a10 selects; shogi P-76; xiangqi C2=5, H2+3, R1+1.
+      **Parsing, as `keyboardSubmit.ts`:** submitted on every keyup, played the moment the text
+      names exactly one legal move; ambiguous text waits for more characters or Enter (`O-O` while
+      `O-O-O` is legal, a promotion square without the piece, a capture-promotion); `0` reads as
+      `O`; a lone square selects it, a lone file does nothing; `x` optional.
+      **Departs, because our variants are not chess:** lichess's regexes assume `a-h`/`1-8` and SAN.
+      The legal moves come from Fairy-Stockfish as SAN in the variant's own notation (what the move
+      list shows) plus UCI, so 10-file boards, shogi and xiangqi notation and every drop variant
+      work from one table. ICCF digits only where the board is 8x8 with algebraic squares (shogi's
+      coordinates are digits).
+- [x] 4E.4 **DONE 2026-11-15, on the round page.** keyup (trusted only, Enter forces) runs
+      `parseTyped()` on the side that may move (`movable.color` is the turn, or `both`); a move or
+      a selection clears the text. Moves go through `selectSquare(orig)`, `selectSquare(dest)`,
+      `cancelMove()`, as lichess; drops through `selectPocket()` then `selectSquare()`. A typed
+      promotion or gating piece is picked by clicking the matching square of the chooser that the
+      click path opens (`+` the promoted piece, none or `=` the unpromoted one or no gating, a
+      letter that role), so `promotion.ts` and `gating.ts` are unchanged. `positionChanged()`, from
+      `updateBoardSummary()`, re-submits text typed ahead: played if legal, cleared with the error
+      sound if wrong. The temporary 4E.3 hook is removed.
+      **Fixed on the way:** with a square selected, a typed square is tried as that move's
+      destination first (lichess selects first), so "b1" then "c3" is Nc3, not the pawn's c3.
+      **Verified live by real keys between two windows:** crazyhouse `XqsVuppk`: e4, d5 typed
+      ahead and played on white's move, `ed5` (x-less), Qxd5, `@e4` drop, b1 then c3 (first the
+      bug, then g1 then f3 = Nf3 after the fix), `Ke8` typed ahead and cleared on black's move.
+      Chess from `r3k3/1P6/8/8/8/8/8/4K3 w`: `b8n` waits at b8, then b8=N via the chooser. Seirawan
+      `wU3JKWRD`: g1 then `f3h` = Nf3/H with the hawk gated; `Nf6` waits (gating spellings are
+      longer), Enter plays it ungated. lint, typecheck, jest pass.
+      **Not exercised live:** shogi's `+` / `=` choices (the harness's key helper cannot send `+`);
+      autoPromote on with a typed under-promotion (the chooser does not open, so the auto piece
+      wins). **Seen once, not reproduced:** the very first `e4` after a reload cleared the text and
+      moved nothing; the identical retry worked. Likely the harness click missing the input (the
+      keys then go to the page), as happened once in 4E.2; to watch in 4E.12.
+      **Playing a move** the way a click does, so premoves, the correspondence confirm and the
+      sounds behave as for the mouse: select the origin, then the destination, then cancel any
+      selection left behind. A typed promotion piece promotes directly; a typed drop drops from the
+      mover's pocket. Text typed while it is not your turn is checked again when your turn starts
+      (lichess's `yourMove`): played if legal, else cleared with the error sound.
+- [x] 4E.5 **DONE 2026-11-15, on the round page.** Each controller offers its commands through
+      `keyboardMoveCommands()` (empty in `GameController`), as lichess's root controller offers
+      optional `offerDraw` / `resign` / `nextPuzzle`; the input adds `help` and `?` (the page's
+      keyboard help dialog) and `/` (focus `#chat-entry`) everywhere. Order as `keyboardSubmit.ts`:
+      `/` first, then `resign` waited for before any move ("r", "re" are not yet a rook), then
+      moves, then the other words; prefixes wait. Commands work on either side's turn. A command
+      returning text is read out by a new assertive live region inside the widget (no-break space
+      alternating, as F's notice).
+      Round: `clock` (the summary's `clockText()`), `who` (not for spectators), `draw` and `resign`
+      while playing, `zerk` while berserk is possible. Typed `draw` / `resign` act at once, as
+      lichess's `offerDraw(true, true)` / `resign(true, true)`; `draw()` and `resign()` gained an
+      `immediately` flag and a click still confirms. The berserk button's closure became
+      `goBerserk`, shared with `zerk`. Puzzle: `next`, `upv`, `downv` once `completed`, through
+      `continueTraining()` and `postVote()`.
+      Verified live in `XqsVuppk` (white typing on black's turn): `clock` read "White: 59 minutes
+      19 seconds, Black: 49 minutes 53 seconds", again with the space alternated; `who` the
+      opponent; `cl` waits; `/` focuses `chat-entry`; `?` opens "Keyboard shortcuts"; black's
+      `draw` reached white as "Your opponent offers a draw"; `re` waits; `resign` ended the game,
+      "White resigned • Black won". lint, typecheck, jest pass.
+      **Not exercised:** puzzle words (the puzzle page has no input until 4E.9), `zerk` (needs an
+      arena game). **Seen:** closing the help dialog leaves focus on `<body>`, not the input (for
+      4E.10).
+      **Commands, lichess's words:** `clock`, `who`, `draw`, `resign`, `zerk` (arena berserk),
+      `next` (puzzle), `upv`/`downv` (puzzle vote), `help` or `?`; a `/` anywhere in the text moves
+      focus to the chat input. Prefixes do nothing until the word is complete. Commands a page
+      cannot do are not offered there.
+      **Departs:** `clock` and `who` answer through a live region, not `speechSynthesis`, which
+      would speak over a running screen reader (`lichess-reference.md` §13.2). This closes 4RA3.2,
+      as `clock` rather than `c`.
+- [x] 4E.6 **DONE 2026-11-15.** `submit()` now asks `interpret()` whether the text can become
+      nothing (it is your turn, no legal move and no command starts with it) and marks the input:
+      the `wrong` class (`site.css`: `var(--bad)` background, white text), the error sound once as
+      it turns wrong, and `aria-invalid`. Deleting back to empty, or to a prefix, clears it; on the
+      other side's turn nothing is wrong, as lichess (its table is empty then).
+      Verified live in `f9QBJFHJ`: `N` fine, `Nz` red with `aria-invalid="true"` (Chrome's AX node
+      reports `invalid: true`), Backspace to `N` and to empty clears both; `q` red; `w` (a `who`
+      prefix) fine; the side not to move typing `Nz` stays unmarked. jest passes. The sound was
+      triggered, not heard.
+      **Wrong text:** as lichess, the `wrong` class (red) and the error sound once.
+      **Departs:** also `aria-invalid`, so a screen reader can tell.
+- [x] 4E.7 **DONE 2026-11-15 (single board; two-board alternation is verified with 4E.9).**
+      `m` is a Mousetrap binding made by each widget that has a placeholder (the same handler, so
+      a second binding changes nothing); it focuses the next `.keyboard-move input` after the
+      focused one and returns false so the `m` is not typed. Inside the input, keydown: Escape
+      blurs; the four arrows call the same `selectMove()` as the page's Mousetrap arrows, which do
+      not fire in an input; `m` in an EMPTY input goes to the next input (how a two-board page
+      alternates). **Departs:** lichess has no second input; the cost is that a lowercase `m` cannot
+      start the text (makruk's met is `M`, which still works). Enter on an empty input calls the
+      controller's new `confirmPendingMove()`; the round controller keeps the open correspondence
+      confirmation's Confirm as `corrMoveConfirm` (also the button's handler; cleared on Cancel
+      and on use).
+      Verified live: `f9QBJFHJ` (1. e4 e5 2. Nf3): `m` from the page focuses the input with
+      nothing typed; Left goes to e5, Up to the start, Down to Nf3; `m` in the empty input stays
+      and types nothing; Escape leaves to `<body>`; with F's board square focused `m` read "No
+      legal moves" and focus stayed on the board (F's `preventDefault` on keydown suppresses the
+      keypress Mousetrap listens to). Correspondence `6eujvhJN`: `e4` opened "Confirm move" and
+      sent nothing; Enter on the empty input sent it (black's window shows 1. e4). jest passes.
+      **Keys:** `m` focuses the input (Mousetrap, page level; on a board square F's layer
+      keeps `m` for the legal moves, since it stops the keys it handles). Escape leaves it. Arrow
+      keys inside it step through the moves, as the page's arrows do. Enter on an empty input
+      confirms a pending correspondence move. On two-board pages `m` moves focus to the next input
+      after the focused one (three lines, no state, the same code serving one input).
+- [x] 4E.8 **DONE 2026-11-15 (the two-board rule is checked with 4E.9).** Lichess's sizes were
+      already in `site.css` (4E.2). Added: `.keyboard-move` takes the `.sr-only` properties under
+      `@media (max-width: 799px)`, the width at which round, analysis (and so puzzle) and study
+      all leave their phone layout (analysis's `min-height: 500px` query only scales the board);
+      `#keyboard-move-a` / `#keyboard-move-b` take them always. The properties are repeated
+      because plain CSS cannot extend `.sr-only` inside a media query.
+      Verified on the round page by emulated viewports with Chrome's cache cleared: visible and
+      under the board at 1440x900, 1024x768, the tablet 820x1180 and the sideways phone 844x390
+      (wider than 800, as Nikolay decided: no extra condition); 1x1 and clipped at 390x844, where
+      it still takes focus and Chrome exposes textbox "Your move" with its description.
+      **CSS:** lichess's sizes (`width: 4.5em`, bold 1.1em, `padding: .25em .8em`,
+      `margin-inline-end: 1rem`, the hint dimmed). One-board pages: visible in each page's existing
+      main-layout query, `.sr-only` below it. Two-board pages: `.sr-only` always.
+- [x] 4E.9 **DONE 2026-11-15.** Placeholders, page by page (each page decides in its own view):
+      `renderAnalysisPage()` puts one first in `under-board`, so analysis and study get it and
+      embed (its own `renderEmbedPage()`) does not; puzzle's `under-board`; the single-board round
+      only for its two players; two-board round after the board layer of each board this user
+      plays, from the same `twoBoardSeats()` the chat presets use (one board, or both in a simul);
+      two-board analysis after both boards' layers. The widget itself is unchanged: it fills a
+      placeholder where there is one. A study chapter switch keeps `under-board` and the new
+      controller's widget re-fills the same placeholder.
+      Verified live: analysis 1. e4 e5 typed; study (owner, local "kbtest") 1... c5 typed (a white
+      move on black's turn is a bare square and selects, as lichess); embed `/embed/6eujvhJN` and a
+      spectator on that round have no input; puzzle `upv` is wrong before the puzzle ends and after
+      "View the solution" votes and loads `/puzzle/chess`; two-board analysis: both inputs 1x1, `m`
+      alternates Board A / Board B / Board A, `e4` in B's input moves board B only; live bughouse
+      `8ep6xjCE`: each of the four windows has one hidden input named for its own board, and p4
+      (B) and p1 (A) reached theirs with `m` and played e2e4 and d2d4 (server log). jest passes.
+      **Not exercised:** a simul (one player on both boards); the two-input case is covered by
+      two-board analysis.
+      **Pages:** round, analysis, puzzle, study (first child of `under-board`); two-board
+      round (your own board, both in a simul) and two-board analysis (both boards). Not the editor,
+      not embed, not the forum captcha (4FR6: its typed field stays undecided; lichess skips the
+      captcha in blind mode instead).
+- [x] 4E.10 **DONE 2026-11-15.** Two help modules exist: `client/gameKeyboardHelp.ts` (round,
+      two-board) and `client/analysis/keyboardHelp.ts` (analysis, puzzle, study). Both now append
+      `buildKeyboardMoveSections()` (exported from the first) when the page shows an input
+      (`KeyboardMove.active()`): "Typing moves" (`m`, an example move, Enter, Escape) and "Typing
+      commands" (the page's own `keyboardMoveCommands()`, `/` only where `#chat-entry` exists, and
+      `help` / `?`). **Departs:** lichess's examples are chess ("Nc3"); ours are a legal move of the
+      current position from the widget's table (`example()`), so in the variant's notation.
+      Both modules now give focus back on close to what had it on open (the 4E.5 finding), and
+      both match key labels as whole names (per `+` part in the analysis one): the old substring
+      replaces would have printed `upv` as "Up arrowv".
+      Verified live: correspondence round, `?` typed in the input: both sections, example `a6` /
+      `a7a6`, commands clock, who, draw, resign, `/`, help; Escape returns focus to the input. Shogi
+      analysis: example `R-78` / `h2c2`, "Shift+Left arrow" intact, focus back. Setting off: no
+      typing sections. Solved puzzle: next, upv, downv labelled correctly; analysis lists no `/`.
+      jest passes. **Not covered:** on two-board pages the page's own `?` opens the parent
+      controller's dialog, which has no input sections; `?` typed in an input opens its board
+      controller's dialog, which has them.
+      **`?` / `help`:** extend the page's existing keyboard help dialog with the input's moves
+      and commands, as lichess's dialog lists them.
+- [x] 4E.11 **DONE 2026-11-15.** `templates/accessibility.html` gains "Typing moves" (`h2
+      #typing-moves`, after the keyboard board and the forum captcha, before "Moving through a
+      game"): the setting and where the field appears (screen readers only on phones and two-board
+      pages), `m` / Escape and the two-board fields, moves as the move list writes them in each
+      variant's notation with `x` optional and `0-0`, two squares, when a move is played and when
+      Enter is needed, wrong text and typing ahead, the commands (typed draw and resign do not
+      confirm), and the arrows and the correspondence Enter. One `{% trans %}` per paragraph, as the
+      rest. Rendered by the rebuilt server; checked from `/page/accessibility`.
+      **Found on the way, upstream's:** `docker compose build server` fails on gbtami master since
+      the blog Markdown commits (`aad0c6693`...`9b1114bd5`): `client/ublogMarkdownV2.ts` imports
+      `../markdown` and `docker/server.Dockerfile` never copies `markdown.js`. Fixed in the fork by
+      adding it to the first `COPY`; to be offered upstream as its own commit.
+      **The guide (rest of 4Z.2):** the setting, the input, its commands and the `m` key.
+- [~] 4E.12 **IN PROGRESS 2026-11-15.** Done: (1) the puzzle board at 844x390 is upstream's, not
+      F's: gbtami master's own bundle and stylesheets, swapped into the served `static/` for one
+      emulated load (`layer: false` confirmed it was theirs), draw it at 0x0 too; our files were
+      restored and re-synced. (2) All CI gates: lint, typecheck, md, jest (1198), ruff format, ruff
+      check, pyrefly, test_simul pass; unittest 1799 with the same 2 errors gbtami master has had
+      since the merge (catalogued variant names / rule changes). Left: shogi `+` / `=` typed live,
+      a 10x10 board live, the Orca log pass, a simul. Blocked 2026-11-15: after the server rebuild
+      p1 and p3 stopped answering `Runtime.evaluate` (no dialog, no CPU), and `--recreate "1 3"`
+      hung past 5 minutes and left both windows closed.
+      **Cause found:** not the pages: upstream's daily-puzzle loop in `server/puzzle.py`
+      (`while puzzleId == "0"`) spun forever (~3000 puzzle aggregations a second, server at 100%
+      CPU), because the local database has one puzzle, already used, and a new UTC day began; the
+      first lobby load triggered it. Stopped by seeding `dailypuzzle` `2026-11-15:all` and
+      restarting the server. A guard there is a separate upstream fix to offer.
+      **Verify:** gates; Chrome's accessibility tree and Orca's log, as for F; a live crazyhouse
+      game played by typing (moves, a drop, a capture, a promotion, `clock`, `who`, `resign`);
+      shogi with a drop and "do not promote"; a 10x10 board; puzzle `next`/`upv`; a two-board game
+      with both inputs. And first, the puzzle page's zero-width board at 844x390 (4EF.8), against
+      upstream.
+- [ ] 4E.13 **4EF.2 answered by copying lichess:** the input does not echo moves; the board
+      summary's Last move already announces both sides' moves.
 
 ### 4F. Candidate F — the board layer. Task list written 2026-10-25. COMPLETE 2026-10-25.
 
@@ -1942,7 +2223,7 @@ change, not an afterthought**: a keyboard interface nobody can discover is not u
       ("Skip to main content", "Accessibility guide") — check `.po` first. Preliminary content:
       game-page headings, the board summary, arrow-key move stepping, engine-line buttons, offers.
       Python gates apply (new view).
-- [ ] 4Z.2 **The guide page itself:** how a game page is laid out (headings, the board summary, what
+- [x] 4Z.2 **Rest DONE 2026-11-15 by 4E.11** (the move input and its commands). **The guide page itself:** how a game page is laid out (headings, the board summary, what
       is announced and when), the move input and every command (`c` clocks, `l` last move, …), the
       board's keys once F exists, pockets and drops, and how the screen-reader modes interact with
       them (NVDA browse/focus, TalkBack). Written in the existing docs pipeline so it can be
@@ -2016,6 +2297,8 @@ change, not an afterthought**: a keyboard interface nobody can discover is not u
       context before and after in browse mode, or the path taken when tabbing, tells them apart. See
       4G.7.
 
+- [ ] 5b.5 **Nikolay, at his own keyboard (asked 2026-11-14):** Tab into the board on a few pages,
+      including an embed (`/embed/<gameId>`), and move with the arrows, to see how it looks and feels.
 - [ ] 5b.4 **The board in browse mode, at a real keyboard (from 4F.14).** CDP keys bypass the
       screen reader, so whether a real arrow in NVDA/JAWS/Orca browse mode reaches the board, or
       only moves the reading cursor, is unknown; the guide tells users to switch to focus mode.
