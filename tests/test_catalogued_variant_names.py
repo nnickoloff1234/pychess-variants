@@ -92,7 +92,14 @@ class CataloguedVariantNameTestCase(unittest.TestCase):
                 )
 
     def test_rejects_active_fsf_catalogue_display_names(self) -> None:
-        for display_name in ("Shatar", "shatar", "Courier Chess", "Janus Chess"):
+        for display_name in (
+            "Shatar",
+            "shatar",
+            "Courier Chess",
+            "Janus Chess",
+            "Chigorin Chess",
+            "Sort-of-Almost Chess",
+        ):
             with (
                 self.subTest(display_name=display_name),
                 self.assertRaises(web.HTTPConflict),
@@ -116,10 +123,15 @@ class CataloguedVariantNameTestCase(unittest.TestCase):
                 )
 
     def test_does_not_reserve_fsf_candidate_display_names(self) -> None:
-        ensure_catalogued_display_name_available(
-            normalize_catalogued_display_name("Chigorin Chess"),
-            variant_name="myvariant",
-        )
+        candidates = {"candidatevariant": {"displayName": "Candidate Chess"}}
+        with (
+            patch("catalogued.builtin_data.FSF_CATALOGUED_BUILTIN_VARIANTS", {}),
+            patch("catalogued.builtin_data.FSF_CATALOGUED_BUILTIN_VARIANTS_CANDIDATES", candidates),
+        ):
+            ensure_catalogued_display_name_available(
+                normalize_catalogued_display_name("Candidate Chess"),
+                variant_name="myvariant",
+            )
 
     def test_grandfathers_unchanged_legacy_collision_on_metadata_edit(self) -> None:
         ensure_catalogued_display_name_available(
@@ -286,7 +298,9 @@ class CataloguedVariantNameAvailabilityTestCase(unittest.IsolatedAsyncioTestCase
         with (
             patch(
                 "catalogued.http._read_upload_payload",
-                AsyncMock(return_value=(self.ini, "New rules", "", {}, False, "", "", "private")),
+                AsyncMock(
+                    return_value=(self.ini, "New rules", "", {}, False, None, "", "", "private")
+                ),
             ),
             patch("catalogued.repository._ensure_catalogued_variant_quota", AsyncMock()),
             patch(

@@ -211,6 +211,7 @@ GameDocument = TypedDict(
         "y": NotRequired[int],
         "z": NotRequired[int],
         "tid": NotRequired[str],
+        "arenaStart": NotRequired[datetime | None],
         "rn": NotRequired[int],
         "aid": NotRequired[str],
         "sid": NotRequired[str],
@@ -531,6 +532,7 @@ class ViewContext(TypedDict, total=False):
     admin_action_notice: str
     admin_timeout_reasons: Mapping[str, str]
     admin_operations_anons_disabled: bool
+    admin_operations_event_loop_lag: Mapping[str, object]
     admin_operations_streams: Sequence[Mapping[str, object]]
     admin_operations_fishnet: Sequence[Mapping[str, object]]
     admin_operations_variants: Sequence[Mapping[str, str]]
