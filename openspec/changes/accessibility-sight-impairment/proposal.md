@@ -93,7 +93,7 @@ ordinary semantics, always on, benefiting everyone.
 ## Capabilities
 
 **Decided 2026-10-24:** a new `accessibility` capability, written at the end of the change for
-everything shipped (`tasks.md` 3.5). Original wording:
+everything shipped (`tasks.md` 3.5). **Written 2026-11-21:** `specs/accessibility/spec.md`. Original wording:
 
 To be decided once the shortlist exists. Likely a new `accessibility` capability covering what the
 site guarantees to a non-visual user. Naming requirements before knowing which ones we can keep

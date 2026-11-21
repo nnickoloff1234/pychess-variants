@@ -3,9 +3,9 @@
 **2026-11-21: E is complete (4E.1-4E.15).** The move input is on every board page that has
 one (round, analysis, puzzle, study, both two-board pages), with commands on round, puzzle and
 the bughouse round, and one keyboard help dialog per page. Verified live (shogi, grand, a
-bughouse simul) and in Orca's log. Left in this change: 4EF.4 (`x`, variant help), 3.4c
-(piece names for the rest), Nikolay's keyboard checks (5b.4, 5b.5), the spec delta (3.5), and
-bringing #2442 up to date and out of draft.
+bughouse simul) and in Orca's log. Wrapped up the same day: the spec delta (3.5), the guide,
+3.4c and 4EF.4 deferred (section 6). Next: Nikolay's code review of #2442 (still a draft) and
+his keyboard checks (5b.4, 5b.5), then the archive and #2442 out of draft.
 
 **2026-11-14: one PR for everything (Nikolay) — #2442 stays a draft until E and the rest are in.**
 Fork master merged with gbtami (162 commits, clean). E is in design: 4EF.1.
@@ -709,13 +709,16 @@ changes ... later we might think of a full solution, but for now we start with s
 
       **So B's scope is seven modules, not two, and the lobby deserves to be first on traffic alone.**
       Full addendum in `headings-and-landmarks-sweep.md`.
-- [~] 3.4c **PARTLY ANSWERED 2026-10-10 — `pieceName()` (4CD.6, moved into `variants.ts` by
+- [x] 3.4c **DEFERRED 2026-11-21 (Nikolay: leave it as it is; see section 6).** **PARTLY ANSWERED 2026-10-10 — `pieceName()` (4CD.6, moved into `variants.ts` by
       4CD.6b).** Family tables now name every sibling of a named variant; the variants listed in
       4CD.6b still read their letter until their names are filled in.
       **Decide where the piece-naming table sits in the order.** 33 `pieceFamily` values,
       roughly 200-350 translatable strings, and the role letter is a valid fallback meanwhile. It
       gates nothing, but it is the difference between *"A8 black r"* and *"A8 black rook"*.
-- [ ] 3.5 **At the end of the change, covering everything shipped, as a new `accessibility`
+- [x] 3.5 **DONE 2026-11-21: `specs/accessibility/spec.md`, ten ADDED requirements** (navigation,
+      named controls, game-page headings, the board summary, announcements, the keyboard board, the
+      captcha, typed moves, the help dialog, the guide); `openspec validate` passes.
+      **At the end of the change, covering everything shipped, as a new `accessibility`
       capability (2026-10-24).** Write the spec delta for the shortlist only, and only then. The capability is unnamed
       until this point on purpose — see the proposal.
 
@@ -1649,7 +1652,8 @@ starts. Already known to belong here:
 - [x] 4EF.3 **`pocketHotkeys.ts` (1.6) — ANSWERED by 3.4h, 2026-10-25: left as it is.** Its global
       `1`-`9`, `0`, `-`, `=` stay for mouse users; screen-reader users reach the pockets through
       the board (Q2).
-- [ ] 4EF.4 **The user's wants with no task yet** (`user-report.md` §4): #3 which pieces attack a
+- [x] 4EF.4 **CLOSED 2026-11-21 for this change: #3 (`x`) and #6 (variant help) deferred, see
+      section 6.** **The user's wants with no task yet** (`user-report.md` §4): #3 which pieces attack a
       square (F's `x`), #5 the board from black's side (F's `f`), #6 short help for the active
       variant, #8 possible moves (F's `m`). Say which are in the first pass.
       **2026-10-25, after F:** #8 done (`m`, 4F.11); #5 done (`f` flips from the board, and both
@@ -1883,8 +1887,11 @@ Lichess's `ui/keyboardMove` is the model, read from lila master on 2026-11-15
       **Found on the way, upstream's:** `docker compose build server` fails on gbtami master since
       the blog Markdown commits (`aad0c6693`...`9b1114bd5`): `client/ublogMarkdownV2.ts` imports
       `../markdown` and `docker/server.Dockerfile` never copies `markdown.js`. Fixed in the fork by
-      adding it to the first `COPY`; to be offered upstream as its own commit.
+      adding it to the first `COPY`; tracked in `upstream-offerable-fixes`.
       **The guide (rest of 4Z.2):** the setting, the input, its commands and the `m` key.
+      **Guide updated again 2026-11-21:** the intro no longer says typing moves is on the way;
+      promotion by two squares (`e7e8q`, shogi `+` or Enter); `?` in the field gives the page's
+      list; bughouse `clock`/`who` answer for the field's board and `resign` asks the partner.
 - [x] 4E.12 **DONE 2026-11-21 (started 2026-11-15).** Done: (1) the puzzle board at 844x390 is upstream's, not
       F's: gbtami master's own bundle and stylesheets, swapped into the served `static/` for one
       emulated load (`layer: false` confirmed it was theirs), draw it at 0x0 too; our files were
@@ -1898,7 +1905,7 @@ Lichess's `ui/keyboardMove` is the model, read from lila master on 2026-11-15
       (`while puzzleId == "0"`) spun forever (~3000 puzzle aggregations a second, server at 100%
       CPU), because the local database has one puzzle, already used, and a new UTC day began; the
       first lobby load triggered it. Stopped by seeding `dailypuzzle` `2026-11-15:all` and
-      restarting the server. A guard there is a separate upstream fix to offer.
+      restarting the server. The guard is tracked in `upstream-offerable-fixes`.
       **Done 2026-11-21:** (3) shogi, analysis: `P-76`, `P-34` in shogi notation; `b2h8` waits
       (promotion open); `+` then gives `Bx22+` and a promoted bishop; `Bx22=`, and `b2h8` + Enter,
       both decline. `b2h8=` turns red: `=` belongs to the move-list spelling, not to two squares,
@@ -2367,6 +2374,13 @@ Named here so they are visible rather than forgotten, and so 3.4 has somewhere t
 - **WCAG conformance as a programme.** Including the tolerated 2.5.8 target-size deviation on the
   portrait preset buttons, already recorded in the living spec by `portrait-preset-panel-and-flow`.
   This change is not that review, but it is where such items should start collecting.
+- **Spoken piece names for the remaining variants (3.4c).** Those without a family table read the
+  role letter ("A8 black r"), a working fallback. Nikolay 2026-11-21: leave it as it is.
+- **The user's #3 and #6 (4EF.4), not in this change (2026-11-21).** #3 *"which piece attack this
+  cell"*: lichess's `x` reads the board's rays from the focused square, one direction per press
+  (`lichess-reference.md` §5); for fairy pieces (leapers, cannons, hoppers) rays are only an
+  approximation, so a pychess version would ask Fairy-Stockfish for real attackers. #6 short help
+  for the active variant, which would also explain the shogi digits of 4F.14.
 - **Low-vision work** — magnification, contrast, high-contrast mode — unless 1.1 raises it.
 - **Colour vision deficiency**, same condition.
 - **chessgroundx's board DOM**, unless 3.3 concludes it is unavoidable.
