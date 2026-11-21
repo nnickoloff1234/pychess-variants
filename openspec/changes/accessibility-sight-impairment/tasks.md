@@ -1,5 +1,12 @@
 ## 0. Status
 
+**2026-11-21: E is complete (4E.1-4E.15).** The move input is on every board page that has
+one (round, analysis, puzzle, study, both two-board pages), with commands on round, puzzle and
+the bughouse round, and one keyboard help dialog per page. Verified live (shogi, grand, a
+bughouse simul) and in Orca's log. Left in this change: 4EF.4 (`x`, variant help), 3.4c
+(piece names for the rest), Nikolay's keyboard checks (5b.4, 5b.5), the spec delta (3.5), and
+bringing #2442 up to date and out of draft.
+
 **2026-11-14: one PR for everything (Nikolay) — #2442 stays a draft until E and the rest are in.**
 Fork master merged with gbtami (162 commits, clean). E is in design: 4EF.1.
 
@@ -1557,7 +1564,8 @@ once. No timed, per-turn or low-time announcements. A low-time warning was offer
       Verified live: a 3-minute crazyhouse game, both windows ticking and agreeing, colours
       correct after a flip; a finished bughouse game shows four clocks. Not exercised: byoyomi
       (the periods are not spoken), correspondence, a live two-board game.
-- [ ] 4RA3.2 **(From the board, `t` already reads both clocks: 4F.11.)** **With E, the `c` command** reads both clocks out once through a live region. Prepared:
+- [x] 4RA3.2 **DONE by E's `clock` command (4E.5; the bughouse round by 4E.14), which reads the
+      summary's `clockText()` through the input's live region; lichess's word, not `c`.** **(From the board, `t` already reads both clocks: 4F.11.)** **With E, the `c` command** reads both clocks out once through a live region. Prepared:
       `spokenTime()` (exported from `boardSummary.ts`) and the summary's per-colour clock state
       are what it will read; nothing else is needed from the clock side.
 
@@ -1605,7 +1613,7 @@ starts. Already known to belong here:
       **OPEN — Nikolay cannot decide yet (2026-10-24):** whether the move input is a
       preference (3.4g: off by default, lichess's `keyboardMove`), or simply always on; and if a
       preference, where it lives. Blocks E.
-- [ ] 4EF.8 **Layout survey, 2026-11-14** (harness screenshots, every board page at 1440x900,
+- [x] 4EF.8 **Layout survey, 2026-11-14** (harness screenshots, every board page at 1440x900,
       1024x768, tablet upright, phone landscape, phone portrait; mock input injected).
       Single-board round, analysis, puzzle, study: one DOM spot for every mode, the first child of
       `under-board` (under the board on desktop, where lichess puts it; after the controls in
@@ -1616,7 +1624,7 @@ starts. Already known to belong here:
       either). Embed (`/embed/<gameId>`, the iframe for external sites) has F and gets no input.
       **Found on the way:** the puzzle page at 844x390 draws its board at zero width,
       reproducible; check against upstream before blaming F.
-- [ ] 4EF.9 **Decided by Nikolay 2026-11-15:**
+- [x] 4EF.9 **Decided by Nikolay 2026-11-15, all applied in 4E:**
       - **Visible only in each page's main (desktop/laptop/tablet) layout; on phones it is
         screen-reader-only** (`.sr-only`, still in the DOM). Pure CSS, one DOM per page.
       - **Sized like lichess's `.keyboard-move`:** a `width: 4.5em` bold 1.1em input, then a short
@@ -1625,7 +1633,7 @@ starts. Already known to belong here:
         the Fairy-Stockfish board: chessground alone cannot read SAN) in the constructor; each page
         view leaves a placeholder the controller patches, as with clocks and the move list.
       - **Focus key:** "next input after the focused one" (three lines, no state), the same code on
-        one-board and two-board pages. The key itself is still open.
+        one-board and two-board pages. The key: `m`, as lichess's (below).
       - One-board pages: first child of `under-board`.
       - **Two-board: FINAL, never visible, screen-reader-only in every layout.** Explored first:
         absolutely positioned under each board, it covered the first two or three bottom-pocket
@@ -1659,7 +1667,7 @@ starts. Already known to belong here:
       `client/sound.ts` where one fits, else lichess's (Nikolay 2026-10-25: take theirs) — check
       lila's `COPYING.md` for each file's licence and record the attribution.
 
-### 4E. Candidate E — the move input. Task list written 2026-11-15.
+### 4E. Candidate E — the move input. Task list written 2026-11-15. COMPLETE 2026-11-21.
 
 Lichess's `ui/keyboardMove` is the model, read from lila master on 2026-11-15
 (`keyboardMove.ts`, `keyboardSubmit.ts`, `exports.ts`, `_keyboardMove.scss`). Decisions: 4EF.1,
@@ -1840,8 +1848,7 @@ Lichess's `ui/keyboardMove` is the model, read from lila master on 2026-11-15
       alternates Board A / Board B / Board A, `e4` in B's input moves board B only; live bughouse
       `8ep6xjCE`: each of the four windows has one hidden input named for its own board, and p4
       (B) and p1 (A) reached theirs with `m` and played e2e4 and d2d4 (server log). jest passes.
-      **Not exercised:** a simul (one player on both boards); the two-input case is covered by
-      two-board analysis.
+      **Simul:** exercised in 4E.12 (6), bughouse simul `wDM0LqyI`.
       **Pages:** round, analysis, puzzle, study (first child of `under-board`); two-board
       round (your own board, both in a simul) and two-board analysis (both boards). Not the editor,
       not embed, not the forum captcha (4FR6: its typed field stays undecided; lichess skips the
@@ -1878,7 +1885,7 @@ Lichess's `ui/keyboardMove` is the model, read from lila master on 2026-11-15
       `../markdown` and `docker/server.Dockerfile` never copies `markdown.js`. Fixed in the fork by
       adding it to the first `COPY`; to be offered upstream as its own commit.
       **The guide (rest of 4Z.2):** the setting, the input, its commands and the `m` key.
-- [~] 4E.12 **IN PROGRESS 2026-11-15.** Done: (1) the puzzle board at 844x390 is upstream's, not
+- [x] 4E.12 **DONE 2026-11-21 (started 2026-11-15).** Done: (1) the puzzle board at 844x390 is upstream's, not
       F's: gbtami master's own bundle and stylesheets, swapped into the served `static/` for one
       emulated load (`layer: false` confirmed it was theirs), draw it at 0x0 too; our files were
       restored and re-synced. (2) All CI gates: lint, typecheck, md, jest (1198), ruff format, ruff
@@ -1892,13 +1899,59 @@ Lichess's `ui/keyboardMove` is the model, read from lila master on 2026-11-15
       CPU), because the local database has one puzzle, already used, and a new UTC day began; the
       first lobby load triggered it. Stopped by seeding `dailypuzzle` `2026-11-15:all` and
       restarting the server. A guard there is a separate upstream fix to offer.
+      **Done 2026-11-21:** (3) shogi, analysis: `P-76`, `P-34` in shogi notation; `b2h8` waits
+      (promotion open); `+` then gives `Bx22+` and a promoted bishop; `Bx22=`, and `b2h8` + Enter,
+      both decline. `b2h8=` turns red: `=` belongs to the move-list spelling, not to two squares,
+      as lichess's UCI form takes no `=`. Drops `B*55` (sente) and `B*33` (gote) typed. (4) Grand,
+      10x10: `Ra2`, `a10a9`, `Ra10` played; `j10` selects (cg key `j:`) and `j9` then moves the
+      rook; `j1` and `Ra1` wait while `j10` / `Ra10` are possible. (5) Orca 46.1 log, crazyhouse
+      analysis with real keys: `m` gives "main content", "Your move entry.", the description, then
+      Focus mode by itself; every move, both sides and the drop `P@e4`, is presented as a live
+      region message (` e4`, ` P@e4`); wrong text reads "invalid"; `?` opens "Keyboard shortcuts
+      dialog", Escape returns to "Your move", Escape again leaves to `<body>`. With speech off
+      Orca logs live regions as BRAILLE LINE only, the same evidence as F. (6) Bughouse simul
+      `wDM0LqyI` (p1 and p3 each hold both seats of a team): each window has "Your move: Board
+      A" / "Board B"; `m` cycles A, B, A, and Orca says "region Partner board" / "leaving
+      region"; server log: p3 e2e4 on B, p1 e7e5 on B and d2d4 on A.
+      **Found:** the two-board round offers no commands (`clock`, `who`, `draw`, `resign` do
+      nothing): `GameControllerBughouse` inherits the empty `keyboardMoveCommands()`. Added in
+      4E.14. Text typed on the other side's turn never turns red, by design (kept for
+      the turn, as lichess).
       **Verify:** gates; Chrome's accessibility tree and Orca's log, as for F; a live crazyhouse
       game played by typing (moves, a drop, a capture, a promotion, `clock`, `who`, `resign`);
       shogi with a drop and "do not promote"; a 10x10 board; puzzle `next`/`upv`; a two-board game
       with both inputs. And first, the puzzle page's zero-width board at 844x390 (4EF.8), against
       upstream.
-- [ ] 4E.13 **4EF.2 answered by copying lichess:** the input does not echo moves; the board
-      summary's Last move already announces both sides' moves.
+- [x] 4E.14 **DONE 2026-11-21 (Nikolay: add them, reusing the single-board shape).** The list
+      cannot be inherited: the single-board commands call `RoundController` members, and the
+      bughouse board controller (`GameControllerBughouse`) is not one; its round is its `parent`.
+      So the board asks `parent.boardKeyboardMoveCommands(this)` (empty in `TwoBoardController`,
+      so two-board analysis offers none; named apart from the help host's no-argument
+      `keyboardMoveCommands()`), and `RoundControllerBughouse` gives `clock` (that board's summary
+      `clockText()`), `who` (that board's opponent, from `seats`), and `draw` / `resign` while the
+      game runs (its existing team-wide ones; nothing to skip, a bughouse resign asks the partner).
+      Verified live in simul `wDM0LqyI`, p3: Board A `clock` "White: 58 minutes 48 seconds,
+      Black: 38 minutes 7 seconds", Board B its own clocks, `who` "Test–QueenAiWok" on both, `re`
+      waits; `?` in the field lists clock, who, draw, resign under Typing commands. lint,
+      typecheck pass. draw / resign not typed (they would act on the live game).
+- [x] 4E.15 **DONE 2026-11-21 (Nikolay): one help dialog on two-board pages.** The single-board
+      pages have one controller for page and input, so `?` anywhere gives one dialog. On the
+      bughouse round the page's `?` (from #2295) gave a dialog without the typing sections, and the
+      input's `?` gave the board controller's: "Flip board" (singular) and a Drops section even in
+      a simul, where the pocket keys are not bound. Now `TwoBoardController` owns the dialog (moved
+      up from `RoundControllerBughouse`): the page's sections ("Flip boards", the page's own
+      `pocketHotkeyRoles`), then `buildKeyboardMoveSections()` of the viewer's own board;
+      `GameControllerBughouse.openKeyboardHelp()` defers to it, and two-board analysis binds `?`
+      to it (it used the last board's dialog before).
+      Verified 2026-11-21 with a synthetic `?` (workspace 8 hidden, so no trusted keys): simul
+      p3 "Navigation | Board | Typing moves | Typing commands", "Flip boards", clock who draw
+      resign / help ?, no Drops; bughouse analysis the same with help ? only. Escape closes.
+      lint, typecheck pass. Then with real keys (p2, p3): `m`, `?` in the input opens the same
+      dialog as `?` on the page, on both pages; Escape returns focus to "Your move: Board A";
+      a second `?` on the page closes it.
+- [x] 4E.13 **4EF.2 answered by copying lichess:** the input does not echo moves; the board
+      summary's Last move already announces both sides' moves. Heard in Orca's log 2026-11-21
+      (4E.12 (5)): every typed move, both sides' and a drop, presented once as a live region message.
 
 ### 4F. Candidate F — the board layer. Task list written 2026-10-25. COMPLETE 2026-10-25.
 
