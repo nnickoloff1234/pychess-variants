@@ -48,11 +48,13 @@ editor, lobby and players pages SHALL also have a level 1 heading.
 ### Requirement: The board has a text summary
 
 Every game, analysis, puzzle and study page SHALL carry a visually hidden text summary of each board,
-with sections for the pieces of each side (one line per kind of piece with its squares, in the
-variant's own square names), the pockets in drop variants, the last move, each clock in words, and the
-status. The last move and the status SHALL be announced when they change: assertively in the user's
-own games, politely on analysis and puzzle pages. The clocks SHALL NOT be announced as they tick. On
-two-board pages each board SHALL have its own summary, named for its board.
+under a level 2 heading "Board: Summary" that the page gives it. The summary SHALL be a list, with no
+headings of its own: the pieces of each side (a nested list, one line per kind of piece with its
+squares, in the variant's own square names), the pockets in drop variants, the last move, the clocks
+in words, and the status. The last move and the status SHALL be announced when they change:
+assertively in the user's own games, politely on analysis and puzzle pages. The clocks SHALL NOT be
+announced as they tick. On two-board pages each board SHALL have its own summary, headed "Board A:
+Summary" and "Board B: Summary". The forum captcha's summary sits under the captcha's own heading.
 
 #### Scenario: The opponent moves
 - **WHEN** the opponent plays a move in the user's own game

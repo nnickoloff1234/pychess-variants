@@ -2252,6 +2252,18 @@ views, not one composed view: the pockets sit apart from the board, with clocks 
       Left, Left, Right, Right presents Nxd5, Nc3, Nxd5, Nxd5. Puzzle (local test puzzle `kbpz1`,
       with a source game id): two "Best move! Keep going..." and two "d4? That's not the move!"
       all presented. Two-board heading list: Board B, Board A, Board A: Summary, Board B: Summary.
+- [x] 4F.16 **The summary is a list, its heading the page's — Nikolay 2026-11-28, reviewing #2442.**
+      The summary inferred its heading levels from the board name and took a `level` option for the
+      forum captcha, plus a `lastMove: false` option to hide "Initial position" there. Both options
+      are gone and the summary has no headings: it is one list (pieces and pockets per side as
+      nested lists, then Last move, Time, Status), and the screen reader announces the nesting
+      itself. The page gives the heading: "Board: Summary" (h2) on single-board pages, "Board A:
+      Summary" / "Board B: Summary" on two-board pages, the captcha's own heading on the forum.
+      **Verified in Orca 2026-11-28** (crazyhouse analysis): level 2 headings Board, Moves, Board:
+      Summary; reading down, "List with 6 items. Nesting level 1" per side, each piece line,
+      "leaving list"; `l` jumps list to list; typed `e4 d5 exd5 Nf6 Nc3 Nxd5 Nxd5` presented all
+      seven, both `Nxd5`. Bughouse analysis headings: Analysis, Board A, Board B, Board A: Summary,
+      Board B: Summary.
 
 ### 4Z. LAST — the guide for blind users. Added by Nikolay 2026-10-10.
 
